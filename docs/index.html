@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jacaranda - Sistema de Panaderia</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+.header{background:linear-gradient(135deg,#7c3aed,#a855f7);padding:2rem;text-align:center}
+.header h1{font-size:2.2rem;color:#fff;margin-bottom:.3rem}
+.header p{color:#e9d5ff;font-size:1.1rem}
+.badges{display:flex;gap:.5rem;justify-content:center;margin-top:1rem;flex-wrap:wrap}
+.badge{background:rgba(255,255,255,.2);padding:.3rem .8rem;border-radius:20px;font-size:.8rem;color:#fff}
+.container{max-width:1200px;margin:0 auto;padding:1.5rem}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:2rem}
+.stat{background:#1e293b;border-radius:12px;padding:1.2rem;text-align:center;border:1px solid #334155}
+.stat .num{font-size:2rem;font-weight:700;color:#a855f7}
+.stat .label{color:#94a3b8;font-size:.85rem;margin-top:.3rem}
+.section{margin-bottom:2rem}
+.section h2{font-size:1.4rem;margin-bottom:1rem;color:#c4b5fd;border-left:4px solid #a855f7;padding-left:.8rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:1rem}
+.card{background:#1e293b;border-radius:12px;padding:1.3rem;border:1px solid #334155;transition:transform .2s}
+.card:hover{transform:translateY(-2px);border-color:#7c3aed}
+.card h3{color:#e9d5ff;font-size:1.05rem;margin-bottom:.6rem;display:flex;align-items:center;gap:.5rem}
+.card h3 .icon{font-size:1.3rem}
+.card p{color:#94a3b8;font-size:.9rem;line-height:1.5}
+.card .tags{display:flex;gap:.4rem;margin-top:.8rem;flex-wrap:wrap}
+.tag{background:#312e81;color:#c4b5fd;padding:.2rem .6rem;border-radius:6px;font-size:.75rem}
+.tag.green{background:#064e3b;color:#6ee7b7}
+.tag.amber{background:#78350f;color:#fcd34d}
+.tag.red{background:#7f1d1d;color:#fca5a5}
+.products{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem}
+.product{background:#1e293b;border-radius:12px;padding:1rem;border:1px solid #334155;display:flex;justify-content:space-between;align-items:center}
+.product .name{font-weight:600;color:#e2e8f0}
+.product .cat{color:#94a3b8;font-size:.8rem}
+.product .price{font-size:1.3rem;font-weight:700;color:#34d399}
+.product .iva{font-size:.7rem;padding:.15rem .4rem;border-radius:4px;margin-top:.2rem;display:inline-block}
+.iva0{background:#064e3b;color:#6ee7b7}
+.iva16{background:#78350f;color:#fcd34d}
+.ticket{background:#fffbeb;color:#1e293b;border-radius:12px;padding:1.5rem;max-width:380px;margin:0 auto;font-family:'Courier New',monospace;font-size:.85rem;border:2px dashed #d97706}
+.ticket .center{text-align:center}
+.ticket hr{border:none;border-top:1px dashed #d97706;margin:.6rem 0}
+.ticket .row{display:flex;justify-content:space-between}
+.ticket .total{font-size:1.1rem;font-weight:700}
+.api-table{width:100%;border-collapse:collapse;font-size:.85rem}
+.api-table th{text-align:left;padding:.6rem;background:#312e81;color:#c4b5fd;border-radius:0}
+.api-table th:first-child{border-radius:8px 0 0 0}
+.api-table th:last-child{border-radius:0 8px 0 0}
+.api-table td{padding:.6rem;border-bottom:1px solid #334155;color:#cbd5e1}
+.api-table .method{font-weight:700;font-family:monospace;font-size:.8rem;padding:.2rem .5rem;border-radius:4px}
+.get{background:#064e3b;color:#6ee7b7}
+.post{background:#1e3a5f;color:#7dd3fc}
+.endpoint{font-family:monospace;color:#a855f7}
+.footer{text-align:center;padding:2rem;color:#64748b;font-size:.85rem;border-top:1px solid #1e293b}
+.compliance{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.8rem}
+.comp-item{background:#1e293b;padding:1rem;border-radius:10px;text-align:center;border:1px solid #334155}
+.comp-item .law{font-size:.75rem;color:#a855f7;font-weight:700;margin-bottom:.3rem}
+.comp-item .desc{font-size:.8rem;color:#94a3b8}
+</style>
+</head>
+<body>
+
+<div class="header">
+<h1>Jacaranda</h1>
+<p>Sistema de Gestion para Panaderia y Pasteleria</p>
+<div class="badges">
+<span class="badge">Python + FastAPI</span>
+<span class="badge">SQLAlchemy + SQLite</span>
+<span class="badge">CFDI 4.0</span>
+<span class="badge">50 Tests</span>
+<span class="badge">Cumplimiento MX</span>
+</div>
+</div>
+
+<div class="container">
+
+<div class="stats">
+<div class="stat"><div class="num">9</div><div class="label">Modulos</div></div>
+<div class="stat"><div class="num">60</div><div class="label">Archivos</div></div>
+<div class="stat"><div class="num">6,200+</div><div class="label">Lineas de codigo</div></div>
+<div class="stat"><div class="num">50</div><div class="label">Tests pasando</div></div>
+<div class="stat"><div class="num">8</div><div class="label">Leyes cumplidas</div></div>
+</div>
+
+<div class="section">
+<h2>Modulos del Sistema</h2>
+<div class="grid">
+<div class="card">
+<h3><span class="icon">📦</span> Inventario</h3>
+<p>Control de ingredientes, productos terminados, proveedores y trazabilidad por lote. Alertas de stock bajo y productos por caducar.</p>
+<div class="tags"><span class="tag green">COFEPRIS</span><span class="tag">Trazabilidad</span><span class="tag">Lotes</span></div>
+</div>
+<div class="card">
+<h3><span class="icon">📋</span> Recetas y Produccion</h3>
+<p>Costeo automatico de recetas, ordenes de produccion, descuento de ingredientes, control de merma y rendimiento.</p>
+<div class="tags"><span class="tag">Costeo</span><span class="tag">Merma</span><span class="tag">Planificacion</span></div>
+</div>
+<div class="card">
+<h3><span class="icon">🛒</span> Punto de Venta</h3>
+<p>Ventas con desglose fiscal IVA 0% (pan basico) y 16% (preparados). Tickets, corte de caja, multiples metodos de pago.</p>
+<div class="tags"><span class="tag green">IVA 0%/16%</span><span class="tag amber">Ley del Consumidor</span><span class="tag">Tickets</span></div>
+</div>
+<div class="card">
+<h3><span class="icon">🧾</span> Facturacion CFDI 4.0</h3>
+<p>Generacion de XML conforme al SAT con nodos Emisor, Receptor, Conceptos e Impuestos. Cancelacion con motivos oficiales.</p>
+<div class="tags"><span class="tag red">SAT</span><span class="tag amber">CFDI 4.0</span><span class="tag">XML</span></div>
+</div>
+<div class="card">
+<h3><span class="icon">👥</span> Clientes</h3>
+<p>Gestion con datos fiscales completos: RFC validado con digito verificador, regimen fiscal, domicilio fiscal, uso CFDI.</p>
+<div class="tags"><span class="tag red">RFC Validado</span><span class="tag">Regimen Fiscal</span></div>
+</div>
+<div class="card">
+<h3><span class="icon">👷</span> Empleados y Nomina</h3>
+<p>LFT: vacaciones (reforma 2023), aguinaldo, prima vacacional, PTU, horas extra dobles/triples. ISR Art. 96, IMSS, SDI.</p>
+<div class="tags"><span class="tag red">LFT</span><span class="tag amber">IMSS</span><span class="tag amber">ISR</span><span class="tag">PTU</span></div>
+</div>
+<div class="card">
+<h3><span class="icon">🏥</span> COFEPRIS</h3>
+<p>Control de temperaturas NOM-251, bitacora de limpieza, inspecciones sanitarias, control de plagas, licencias sanitarias.</p>
+<div class="tags"><span class="tag green">NOM-251</span><span class="tag green">Temperaturas</span><span class="tag">Inspecciones</span></div>
+</div>
+<div class="card">
+<h3><span class="icon">🏷️</span> Etiquetado NOM-051</h3>
+<p>Sellos de advertencia Fase 3: exceso calorias, azucares, grasas saturadas, grasas trans, sodio. Leyendas precautorias.</p>
+<div class="tags"><span class="tag amber">NOM-051</span><span class="tag">5 Sellos</span><span class="tag">Fase 3</span></div>
+</div>
+<div class="card">
+<h3><span class="icon">📊</span> Reportes e Impuestos</h3>
+<p>Dashboard ejecutivo, reporte de ventas, IVA mensual para declaracion, ISR provisional, productos mas vendidos.</p>
+<div class="tags"><span class="tag red">SAT</span><span class="tag">IVA Mensual</span><span class="tag">ISR</span></div>
+</div>
+</div>
+</div>
+
+<div class="section">
+<h2>Cumplimiento Legal Mexicano</h2>
+<div class="compliance">
+<div class="comp-item"><div class="law">SAT / CFF</div><div class="desc">CFDI 4.0 Facturacion electronica</div></div>
+<div class="comp-item"><div class="law">LIVA</div><div class="desc">IVA 0% basicos 16% preparados</div></div>
+<div class="comp-item"><div class="law">LISR Art. 96</div><div class="desc">Retencion ISR nomina</div></div>
+<div class="comp-item"><div class="law">LFT</div><div class="desc">Vacaciones, aguinaldo, PTU, horas extra</div></div>
+<div class="comp-item"><div class="law">LSS / IMSS</div><div class="desc">Cuotas obrero-patronales, SDI</div></div>
+<div class="comp-item"><div class="law">COFEPRIS</div><div class="desc">NOM-251 Higiene alimentos</div></div>
+<div class="comp-item"><div class="law">NOM-051</div><div class="desc">Etiquetado sellos advertencia</div></div>
+<div class="comp-item"><div class="law">LFPC</div><div class="desc">Proteccion al consumidor</div></div>
+</div>
+</div>
+
+<div class="section">
+<h2>Ejemplo: Ticket de Venta</h2>
+<div class="ticket">
+<div class="center"><strong>Panaderia Jacaranda S.A. de C.V.</strong></div>
+<div class="center">RFC: XAXX010101000</div>
+<div class="center">C.P. 06600</div>
+<div class="center" style="font-size:.75rem">Folio: T-00000001 | 12/04/2026 05:46</div>
+<hr>
+<div class="row"><span>5x Bolillo</span><span>$12.50</span></div>
+<div class="row"><span>3x Concha chocolate</span><span>$45.00</span></div>
+<div class="row"><span>1x Pastel chocolate 1kg</span><span>$350.00</span></div>
+<hr>
+<div class="row"><span>Subtotal</span><span>$407.50</span></div>
+<div class="row"><span>IVA 0% (pan basico)</span><span>$0.00</span></div>
+<div class="row"><span>IVA 16% (pastel)</span><span>$56.00</span></div>
+<div class="row total"><span>TOTAL</span><span>$463.50</span></div>
+<hr>
+<div class="row"><span>Efectivo</span><span>$500.00</span></div>
+<div class="row"><span>Cambio</span><span>$36.50</span></div>
+<hr>
+<div class="center" style="font-size:.7rem">Este ticket NO es comprobante fiscal.<br>Solicite su factura en los 30 dias siguientes.</div>
+</div>
+</div>
+
+<div class="section">
+<h2>Productos de Ejemplo</h2>
+<div class="products">
+<div class="product"><div><div class="name">Bolillo</div><div class="cat">Pan Blanco</div><span class="iva iva0">IVA 0%</span></div><div class="price">$2.50</div></div>
+<div class="product"><div><div class="name">Telera</div><div class="cat">Pan Blanco</div><span class="iva iva0">IVA 0%</span></div><div class="price">$2.50</div></div>
+<div class="product"><div><div class="name">Concha chocolate</div><div class="cat">Pan Dulce</div><span class="iva iva0">IVA 0%</span></div><div class="price">$15.00</div></div>
+<div class="product"><div><div class="name">Concha vainilla</div><div class="cat">Pan Dulce</div><span class="iva iva0">IVA 0%</span></div><div class="price">$15.00</div></div>
+<div class="product"><div><div class="name">Cuerno</div><div class="cat">Pan Dulce</div><span class="iva iva0">IVA 0%</span></div><div class="price">$15.00</div></div>
+<div class="product"><div><div class="name">Polvoron</div><div class="cat">Pan Dulce</div><span class="iva iva0">IVA 0%</span></div><div class="price">$12.00</div></div>
+<div class="product"><div><div class="name">Pastel chocolate 1kg</div><div class="cat">Pasteleria</div><span class="iva iva16">IVA 16%</span></div><div class="price">$350.00</div></div>
+<div class="product"><div><div class="name">Pastel tres leches 1kg</div><div class="cat">Pasteleria</div><span class="iva iva16">IVA 16%</span></div><div class="price">$380.00</div></div>
+</div>
+</div>
+
+<div class="section">
+<h2>API Endpoints</h2>
+<table class="api-table">
+<tr><th>Metodo</th><th>Endpoint</th><th>Descripcion</th></tr>
+<tr><td><span class="method post">POST</span></td><td class="endpoint">/api/v1/auth/login</td><td>Iniciar sesion</td></tr>
+<tr><td><span class="method get">GET</span></td><td class="endpoint">/api/v1/inventario/productos</td><td>Listar productos</td></tr>
+<tr><td><span class="method post">POST</span></td><td class="endpoint">/api/v1/punto-de-venta/ventas</td><td>Procesar venta con IVA</td></tr>
+<tr><td><span class="method get">GET</span></td><td class="endpoint">/api/v1/punto-de-venta/ventas/{id}/ticket</td><td>Obtener ticket</td></tr>
+<tr><td><span class="method post">POST</span></td><td class="endpoint">/api/v1/facturacion/generar</td><td>Generar CFDI 4.0</td></tr>
+<tr><td><span class="method get">GET</span></td><td class="endpoint">/api/v1/facturacion/{id}/xml</td><td>Descargar XML</td></tr>
+<tr><td><span class="method post">POST</span></td><td class="endpoint">/api/v1/empleados/nomina/calcular</td><td>Calcular nomina</td></tr>
+<tr><td><span class="method post">POST</span></td><td class="endpoint">/api/v1/cofepris/temperaturas</td><td>Registrar temperatura</td></tr>
+<tr><td><span class="method get">GET</span></td><td class="endpoint">/api/v1/cofepris/etiquetado/{id}</td><td>Sellos NOM-051</td></tr>
+<tr><td><span class="method get">GET</span></td><td class="endpoint">/api/v1/reportes/dashboard</td><td>Dashboard general</td></tr>
+<tr><td><span class="method get">GET</span></td><td class="endpoint">/api/v1/reportes/impuestos/iva-mensual</td><td>Reporte IVA</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>Como ejecutar</h2>
+<div class="card">
+<h3><span class="icon">🚀</span> Inicio rapido</h3>
+<p style="font-family:monospace;background:#0f172a;padding:1rem;border-radius:8px;margin-top:.5rem;line-height:1.8;color:#a855f7">
+pip install -r requirements.txt<br>
+python scripts/init_db.py<br>
+uvicorn main:app --reload<br>
+<span style="color:#64748b"># Abrir http://localhost:8000/docs</span>
+</p>
+<p style="margin-top:.8rem">Credenciales: <strong>admin@jacaranda.mx</strong> / <strong>admin1234</strong></p>
+</div>
+</div>
+
+</div>
+
+<div class="footer">
+Jacaranda v1.0.0 &mdash; Sistema de Gestion de Panaderia con cumplimiento legal mexicano<br>
+Python + FastAPI + SQLAlchemy &mdash; SAT, LFT, IMSS, COFEPRIS, NOM-051
+</div>
+
+</body>
+</html>
