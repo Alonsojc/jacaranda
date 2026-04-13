@@ -162,8 +162,11 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="page" id="pos">
 <h2>Punto de Venta</h2>
 <div class="pos-grid">
-<div class="pos-prods" id="pos-products">
+<div class="pos-prods">
+<input type="text" id="pos-search" placeholder="Buscar producto..." oninput="filtrarPOS()" style="width:100%;padding:.55rem .8rem;border:1px solid var(--brd);border-radius:10px;font-size:.85rem;margin-bottom:.7rem;font-family:inherit;transition:border-color .2s;outline:none" onfocus="this.style.borderColor='var(--v)'" onblur="this.style.borderColor=''">
+<div id="pos-products">
 <p style="color:var(--mut);text-align:center;padding:2rem">Cargando productos...</p>
+</div>
 </div><!-- pos-prods -->
 <div class="tkt">
 <h3>Ticket</h3>
@@ -180,7 +183,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="pbtn" id="pm-bbva" onclick="setPm('bbva')">&#127974; BBVA</div>
 </div>
 <button class="cobrar" onclick="cobrar()">Cobrar</button>
-<button class="limpiar" onclick="limpiar()">Limpiar</button>
+<button class="limpiar" onclick="confirmarLimpiar()">Limpiar</button>
 </div>
 </div>
 </div>
@@ -278,7 +281,13 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 
 <!-- CORTE DE CAJA -->
 <div class="page" id="corte">
-<h2>Corte de Caja</h2>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem">
+<h2 style="margin:0">Corte de Caja</h2>
+<div style="display:flex;align-items:center;gap:.5rem">
+<input type="date" id="c-fecha" style="padding:.4rem .6rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit" onchange="cargarCorte()">
+<button onclick="corteFechaHoy()" style="padding:.4rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.78rem;background:#fff;cursor:pointer;font-weight:600;color:var(--v)">Hoy</button>
+</div>
+</div>
 <div class="row r3" style="margin-bottom:.5rem">
 <div class="card kpi g"><div class="n" id="c-total-ef">$0</div><div class="l">Efectivo</div></div>
 <div class="card kpi"><div class="n" id="c-total-tar">$0</div><div class="l">Tarjeta</div></div>
@@ -589,6 +598,9 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div id="mt-folio" style="font-size:1.3rem;font-weight:700;color:var(--v);margin:.5rem 0"></div>
 <div id="mt-detalles" style="text-align:left;margin:1rem 0"></div>
 <div id="mt-productos" style="text-align:left;margin:0 0 1rem"></div>
+<div id="mt-cancel-wrap" style="display:none;margin-bottom:.7rem">
+<button onclick="cancelarVentaActual()" style="width:100%;padding:.5rem;border:2px solid #ef4444;border-radius:10px;background:#fff;color:#b91c1c;font-weight:600;font-size:.82rem;cursor:pointer;transition:all .15s" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='#fff'">Cancelar esta venta</button>
+</div>
 <div style="display:flex;gap:.5rem">
 <button class="cobrar" style="flex:1" onclick="copiarTicket()">Copiar Ticket</button>
 <button class="limpiar" style="flex:1;padding:.5rem 1.2rem" onclick="cerrarModal('modal-ticket')">Cerrar</button>
@@ -827,6 +839,8 @@ function mostrarTicket(venta) {
   document.getElementById('mt-titulo').textContent = 'Venta Registrada';
   document.getElementById('mt-titulo').style.color = 'var(--grn)';
   document.getElementById('mt-folio').textContent = venta.folio;
+  document.getElementById('mt-cancel-wrap').style.display = 'none';
+  _ventaActualId = venta.id;
   // Load full ticket from backend
   api('GET', '/punto-de-venta/ventas/' + venta.id + '/ticket').then(function(tk) {
     _ultimoTicket = tk;
@@ -872,13 +886,17 @@ function renderTicket(tk) {
   document.getElementById('mt-productos').innerHTML = p;
 }
 
-function verTicket(ventaId) {
+var _ventaActualId = null;
+
+function verTicket(ventaId, cancelada) {
+  _ventaActualId = ventaId;
   document.getElementById('mt-icon').innerHTML = '&#128203;';
   document.getElementById('mt-titulo').textContent = 'Ticket';
   document.getElementById('mt-titulo').style.color = 'var(--v)';
   document.getElementById('mt-folio').textContent = 'Cargando...';
   document.getElementById('mt-detalles').innerHTML = '';
   document.getElementById('mt-productos').innerHTML = '';
+  document.getElementById('mt-cancel-wrap').style.display = cancelada ? 'none' : 'block';
   document.getElementById('modal-ticket').classList.add('on');
   api('GET', '/punto-de-venta/ventas/' + ventaId + '/ticket').then(function(tk) {
     _ultimoTicket = tk;
@@ -888,6 +906,17 @@ function verTicket(ventaId) {
     document.getElementById('mt-folio').textContent = 'Error al cargar ticket';
     _ultimoTicket = null;
   });
+}
+
+function cancelarVentaActual() {
+  if (!_ventaActualId) return;
+  if (!confirm('¿Cancelar esta venta? Se devolverá el inventario.')) return;
+  api('POST', '/punto-de-venta/ventas/' + _ventaActualId + '/cancelar').then(function() {
+    toast('Venta cancelada');
+    cerrarModal('modal-ticket');
+    cargarCorte();
+    cargarPOSProductos();
+  }).catch(function(e) { toast(e.message || 'Error al cancelar', true); });
 }
 
 function copiarTicket() {
@@ -931,6 +960,19 @@ function fallbackCopy(txt) {
 }
 
 function limpiar() { cart = []; ren(); }
+function confirmarLimpiar() {
+  if (cart.length === 0) return;
+  if (confirm('¿Limpiar el carrito? (' + cart.length + ' productos)')) limpiar();
+}
+
+function filtrarPOS() {
+  var q = (document.getElementById('pos-search').value || '').toLowerCase().trim();
+  var cards = document.querySelectorAll('#pos-products .pi');
+  for (var i = 0; i < cards.length; i++) {
+    var name = (cards[i].textContent || '').toLowerCase();
+    cards[i].style.display = (!q || name.indexOf(q) >= 0) ? '' : 'none';
+  }
+}
 
 function splitNombreVariante(nombre) {
   var m = nombre.match(/^(.+?)\s+(ind\.?|chico|grande|mediano|mini|x\d+|individual)$/i);
@@ -1846,9 +1888,16 @@ var _efTotal = 0;
 
 var _totalVentasDia = 0;
 
+function corteFechaHoy() {
+  document.getElementById('c-fecha').value = new Date().toISOString().split('T')[0];
+  cargarCorte();
+}
+
 function cargarCorte() {
-  // Load today's ventas
-  var hoy = new Date().toISOString().split('T')[0];
+  // Set date picker to today if empty
+  var fechaInput = document.getElementById('c-fecha');
+  if (!fechaInput.value) fechaInput.value = new Date().toISOString().split('T')[0];
+  var hoy = fechaInput.value;
   api('GET', '/punto-de-venta/ventas?fecha_inicio=' + hoy + '&fecha_fin=' + hoy).then(function(ventas) {
     var efTotal = 0, tarTotal = 0, transTotal = 0, totalGeneral = 0, tickets = 0;
     var h = '';
@@ -1877,7 +1926,7 @@ function cargarCorte() {
         }
       }
       var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
-      h += '<div class="srow" style="cursor:pointer" onclick="verTicket(' + v.id + ')">';
+      h += '<div class="srow" style="cursor:pointer" onclick="verTicket(' + v.id + ',' + (v.estado==='cancelada') + ')">';
       h += '<span>' + v.folio + ' &bull; ' + hora + ' &bull; ' + met + estado + '</span>';
       h += '<span style="font-weight:600' + (v.estado==='cancelada'?';text-decoration:line-through;color:var(--mut)':'') + '">$' + tot.toFixed(2) + '</span></div>';
     }
@@ -1964,6 +2013,7 @@ function realizarCorte() {
 function fmt(n) { return '$' + Number(n||0).toLocaleString('es-MX'); }
 
 function cargarDashboard() {
+  _dashAlertas = '';
   // Dashboard endpoint returns {ventas_hoy: {total, numero_ventas}, ventas_mes: {total}}
   api('GET', '/reportes/dashboard').then(function(d) {
     var vh = d.ventas_hoy || {};
@@ -2003,9 +2053,9 @@ function cargarDashboard() {
   }).catch(function(){});
 
   // Load inventory for dashboard
+  var alertas = '';
   api('GET', '/inventario/productos').then(function(prods) {
     var h = '';
-    var alertas = '';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
       var stock = parseFloat(p.stock_actual) || 0;
@@ -2020,8 +2070,32 @@ function cargarDashboard() {
       }
     }
     if (h) document.getElementById('d-inv').innerHTML = h;
-    if (alertas) document.getElementById('d-alertas').innerHTML = alertas;
+    renderDashAlertas(alertas);
   }).catch(function(){});
+  // Also check ingredients
+  api('GET', '/inventario/ingredientes').then(function(ings) {
+    var a = '';
+    for (var i = 0; i < ings.length; i++) {
+      var ing = ings[i];
+      var stock = parseFloat(ing.stock_actual) || 0;
+      var min = parseFloat(ing.stock_minimo) || 0;
+      if (stock > 0 && stock <= min) {
+        a += '<div class="srow"><span>' + ing.nombre + '</span><span class="badge blow">Bajo (' + stock.toFixed(1) + ' ' + (ing.unidad_medida||'') + ')</span></div>';
+      } else if (stock <= 0 && min > 0) {
+        a += '<div class="srow"><span>' + ing.nombre + '</span><span class="badge bout">Sin stock</span></div>';
+      }
+    }
+    renderDashAlertas(a);
+  }).catch(function(){});
+}
+var _dashAlertas = '';
+function renderDashAlertas(extra) {
+  _dashAlertas += extra;
+  if (_dashAlertas) {
+    document.getElementById('d-alertas').innerHTML = _dashAlertas;
+  } else {
+    document.getElementById('d-alertas').innerHTML = '<div class="srow" style="color:var(--grn)"><span>Todo en orden</span></div>';
+  }
 }
 
 // Auto-conectar si hay URL guardada (con reintentos para Railway cold start)
