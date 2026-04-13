@@ -71,3 +71,22 @@ def reporte_isr(
     )),
 ):
     return svc.reporte_isr_provisional(db, mes, anio)
+
+
+@router.get("/margenes-producto")
+def margenes_producto(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Margen de ganancia por producto (precio - costo)."""
+    return svc.reporte_margenes_producto(db)
+
+
+@router.get("/ventas-por-dia")
+def ventas_por_dia(
+    dias: int = Query(default=30, le=90),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Ventas diarias de los últimos N días para gráfica de tendencia."""
+    return svc.reporte_ventas_por_dia(db, dias)
