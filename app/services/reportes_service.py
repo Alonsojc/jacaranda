@@ -13,10 +13,12 @@ from app.models.empleado import RegistroNomina
 from app.models.inventario import MovimientoInventario, TipoMovimiento, Ingrediente
 
 
-def gastos_hoy(db: Session) -> dict:
+def gastos_hoy(db: Session, fecha: date | None = None) -> dict:
     """Retorna gastos del día (compras de ingredientes)."""
-    hoy_inicio = datetime.combine(date.today(), datetime.min.time())
-    hoy_fin = datetime.combine(date.today(), datetime.max.time())
+    from datetime import timezone
+    dia = fecha or date.today()
+    hoy_inicio = datetime.combine(dia, datetime.min.time(), tzinfo=timezone.utc)
+    hoy_fin = datetime.combine(dia, datetime.max.time(), tzinfo=timezone.utc)
 
     compras = db.query(MovimientoInventario).filter(
         and_(

@@ -103,9 +103,14 @@ def obtener_producto(id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/productos/{id}", response_model=ProductoResponse)
-def actualizar_producto(id: int, data: ProductoUpdate, db: Session = Depends(get_db)):
+def actualizar_producto(
+    id: int,
+    data: ProductoUpdate,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
     try:
-        return svc.actualizar_producto(db, id, data)
+        return svc.actualizar_producto(db, id, data, usuario_id=user.id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -273,6 +278,115 @@ def ajustar_stock_producto(
         "diferencia": float(Decimal(str(cantidad)) - anterior),
         "motivo": motivo,
     }
+
+
+# --- Merma ---
+
+@router.post("/productos/{producto_id}/merma")
+def registrar_merma(
+    producto_id: int,
+    cantidad: int = Query(..., gt=0),
+    motivo: str = Query("Merma"),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Registrar merma de producto (desperdicio, roto, caducado)."""
+    from app.models.inventario import Producto, MovimientoInventario, TipoMovimiento
+    from decimal import Decimal
+
+    producto = db.query(Producto).filter(Producto.id == producto_id).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    producto.stock_actual = max(Decimal("0"), producto.stock_actual - Decimal(str(cantidad)))
+    mov = MovimientoInventario(
+        producto_id=producto_id,
+        tipo=TipoMovimiento.SALIDA_MERMA,
+        cantidad=Decimal(str(cantidad)),
+        referencia=motivo,
+        usuario_id=user.id,
+    )
+    db.add(mov)
+    db.commit()
+
+    return {
+        "mensaje": f"Merma registrada: {cantidad} de {producto.nombre}",
+        "stock_actual": float(producto.stock_actual),
+        "motivo": motivo,
+    }
+
+
+# --- Historial de precios ---
+
+@router.get("/productos/{producto_id}/historial-precios")
+def historial_precios(
+    producto_id: int,
+    db: Session = Depends(get_db),
+):
+    """Obtener historial de cambios de precio de un producto."""
+    from app.models.inventario import HistorialPrecio
+
+    registros = (
+        db.query(HistorialPrecio)
+        .filter(HistorialPrecio.producto_id == producto_id)
+        .order_by(HistorialPrecio.fecha.desc())
+        .limit(20)
+        .all()
+    )
+    return [
+        {
+            "precio_anterior": float(r.precio_anterior),
+            "precio_nuevo": float(r.precio_nuevo),
+            "fecha": r.fecha.isoformat() if r.fecha else None,
+        }
+        for r in registros
+    ]
+
+
+# --- Subida masiva de fotos ---
+
+@router.post("/productos/imagenes-masivo")
+async def subir_imagenes_masivo(
+    archivos: list[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Sube fotos masivamente. El nombre del archivo debe contener el nombre del producto."""
+    import base64
+    from app.models.inventario import Producto
+
+    productos = db.query(Producto).filter(Producto.activo.is_(True)).all()
+    resultados = []
+
+    for archivo in archivos:
+        if not archivo.content_type or not archivo.content_type.startswith("image/"):
+            continue
+        image_bytes = await archivo.read()
+        if len(image_bytes) > 5_000_000:
+            continue
+
+        # Match filename to product name
+        fname = (archivo.filename or "").rsplit(".", 1)[0].lower().strip()
+        match = None
+        for p in productos:
+            if p.nombre.lower().strip() == fname:
+                match = p
+                break
+        if not match:
+            for p in productos:
+                if fname in p.nombre.lower() or p.nombre.lower() in fname:
+                    match = p
+                    break
+        if match:
+            data_url = f"data:{archivo.content_type};base64,{base64.b64encode(image_bytes).decode()}"
+            match.imagen = data_url
+            resultados.append({"archivo": archivo.filename, "producto": match.nombre, "ok": True})
+        else:
+            resultados.append({"archivo": archivo.filename, "producto": None, "ok": False})
+
+    db.commit()
+    ok_count = sum(1 for r in resultados if r["ok"])
+    return {"mensaje": f"{ok_count} de {len(resultados)} fotos asignadas", "resultados": resultados}
 
 
 # --- Conteo nocturno ---

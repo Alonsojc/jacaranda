@@ -241,3 +241,19 @@ class MovimientoInventario(Base):
 
     ingrediente: Mapped["Ingrediente | None"] = relationship(back_populates="movimientos")
     producto: Mapped["Producto | None"] = relationship(back_populates="movimientos")
+
+
+class HistorialPrecio(Base):
+    """Registro de cambios de precio de productos."""
+    __tablename__ = "historial_precios"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    producto_id: Mapped[int] = mapped_column(ForeignKey("productos.id"), index=True)
+    precio_anterior: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    precio_nuevo: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    fecha: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    producto: Mapped["Producto"] = relationship()
