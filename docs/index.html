@@ -3622,20 +3622,33 @@ function exportarFiscalCSV() {
 }
 
 // ─── Ordenar tablas al hacer click en encabezado ─────────────────
+// Map of data-backed tables: container id -> {data array, sort field extractor, render fn}
+var _invProdSortCol = null, _invProdSortAsc = true;
+
+function _sortDataField(p, idx) {
+  // Inventario products columns: 0=nombre, 1=precio, 2=stock, 3=min, 4=estado
+  if (idx === 0) return p.nombre.toLowerCase();
+  if (idx === 1) return parseFloat(p.precio_unitario) || 0;
+  if (idx === 2) return parseFloat(p.stock_actual) || 0;
+  if (idx === 3) return parseFloat(p.stock_minimo) || 0;
+  if (idx === 4) {
+    var s = parseFloat(p.stock_actual) || 0, m = parseFloat(p.stock_minimo) || 0;
+    return s <= 0 ? 0 : (m > 0 && s <= m) ? 1 : 2;
+  }
+  return 0;
+}
+
 document.addEventListener('click', function(e) {
   var th = e.target;
   while (th && th.tagName !== 'TH') th = th.parentElement;
   if (!th || !th.closest('.tbl')) return;
   var txt = th.textContent.replace(/[▲▼]/g,'').trim();
-  if (!txt) return; // skip empty action columns
+  if (!txt) return;
   var table = th.closest('table');
   var idx = Array.prototype.indexOf.call(th.parentNode.children, th);
-  var rows = Array.prototype.slice.call(table.querySelectorAll('tr'));
-  var header = rows.shift();
-  if (!rows.length) return;
 
   var asc = th.getAttribute('data-sort') !== 'asc';
-  var allTh = header.querySelectorAll('th');
+  var allTh = th.parentNode.querySelectorAll('th');
   for (var i = 0; i < allTh.length; i++) {
     allTh[i].removeAttribute('data-sort');
     var arrow = allTh[i].querySelector('.sa');
@@ -3644,6 +3657,25 @@ document.addEventListener('click', function(e) {
   th.setAttribute('data-sort', asc ? 'asc' : 'desc');
   var ar = th.querySelector('.sa');
   if (ar) ar.textContent = asc ? '▲' : '▼';
+
+  // If this is the paginated inventario products table, sort the full data array
+  if (table.closest('#tbl-productos') && _invProds.length) {
+    _invProdSortCol = idx;
+    _invProdSortAsc = asc;
+    _invProds.sort(function(a, b) {
+      var va = _sortDataField(a, idx), vb = _sortDataField(b, idx);
+      if (typeof va === 'number') return asc ? va - vb : vb - va;
+      return asc ? va.localeCompare(vb, 'es') : vb.localeCompare(va, 'es');
+    });
+    _invProdPage = 0;
+    renderInvProductos();
+    return;
+  }
+
+  // Default: sort DOM rows directly (for non-paginated tables)
+  var rows = Array.prototype.slice.call(table.querySelectorAll('tr'));
+  var header = rows.shift();
+  if (!rows.length) return;
 
   rows.sort(function(a, b) {
     var ca = a.children[idx], cb = b.children[idx];
