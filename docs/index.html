@@ -56,7 +56,10 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .iv0{background:#d1fae5;color:#047857}.iv16{background:#fef3c7;color:#92400e}
 .tkt{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd)}
 .tkt h3{font-size:.9rem;margin-bottom:.6rem}
-.ti{display:flex;justify-content:space-between;font-size:.82rem;padding:.3rem 0;border-bottom:1px solid #f3f0f7}
+.ti{display:flex;justify-content:space-between;font-size:.82rem;padding:.35rem 0;border-bottom:1px solid #f3f0f7}
+.qty-btn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:#f3f0f7;color:var(--v);font-weight:700;font-size:.8rem;cursor:pointer;user-select:none;transition:all .15s;border:none;line-height:1}
+.qty-btn:hover{background:#ede5f7}.qty-btn:active{transform:scale(.9)}
+.qty-btn.rm{background:#fee2e2;color:#b91c1c;font-size:.7rem}.qty-btn.rm:hover{background:#fecaca}
 .ttot{display:flex;justify-content:space-between;font-size:1.1rem;font-weight:700;color:var(--v);padding:.5rem 0;border-top:2px solid var(--v);margin-top:.4rem}
 .pmt{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.7rem}
 .pbtn{padding:.7rem;border:2px solid var(--brd);border-radius:10px;background:#fff;cursor:pointer;text-align:center;font-weight:600;font-size:.82rem;transition:all .2s;user-select:none}
@@ -85,6 +88,10 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .modal-bg.on{display:flex}
 .modal{background:#fff;border-radius:16px;padding:1.5rem;width:90%;max-width:500px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:modalIn .25s ease-out}
 @keyframes modalIn{from{opacity:0;transform:translateY(20px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+/* Toast notification */
+.toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);background:var(--grn);color:#fff;padding:.8rem 1.5rem;border-radius:12px;font-weight:600;font-size:.9rem;box-shadow:0 8px 25px rgba(16,185,129,.3);z-index:200;transition:transform .3s ease-out;display:flex;align-items:center;gap:.5rem}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.err{background:#ef4444;box-shadow:0 8px 25px rgba(239,68,68,.3)}
 .modal h3{font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:1rem;color:var(--dk)}
 .fg{margin-bottom:.8rem}
 .fg label{display:block;font-size:.78rem;font-weight:600;color:var(--mut);margin-bottom:.25rem}
@@ -366,6 +373,7 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 </div>
 
+<div class="toast" id="toast"></div>
 <div class="footer">
 <strong style="font-family:'Playfair Display',serif;letter-spacing:.2em;color:var(--v)">JACARANDA</strong> <span style="color:var(--pk)">flavors</span> &mdash; Tu postre favorito<br>
 Plaza Distrito Marqu&eacute;s, Quer&eacute;taro &bull; <a href="https://instagram.com/jacaranda.flavors" target="_blank">@jacaranda.flavors</a> &bull; <a href="https://wa.me/5214424670397" target="_blank">WhatsApp</a>
@@ -377,6 +385,15 @@ Plaza Distrito Marqu&eacute;s, Quer&eacute;taro &bull; <a href="https://instagra
 var API_URL = localStorage.getItem('jacaranda_api') || '';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
+
+// ─── Toast ────────────────────────────────────────────────────────
+function toast(msg, isErr) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast' + (isErr ? ' err' : '');
+  setTimeout(function() { el.classList.add('show'); }, 10);
+  setTimeout(function() { el.classList.remove('show'); }, 3000);
+}
 
 // ─── API helpers ──────────────────────────────────────────────────
 function api(method, path, body) {
@@ -427,7 +444,14 @@ function ren() {
     var c = cart[i], l = c.p * c.q;
     s += l;
     iv += c.iv === 16 ? l * 0.16 : 0;
-    h += '<div class="ti"><span>' + c.q + 'x ' + c.n + '</span><span>$' + l.toFixed(2) + '</span></div>';
+    h += '<div class="ti" style="align-items:center">';
+    h += '<span style="display:flex;align-items:center;gap:.4rem">';
+    h += '<span class="qty-btn" onclick="cartQty(' + i + ',-1)">-</span>';
+    h += '<strong>' + c.q + '</strong>';
+    h += '<span class="qty-btn" onclick="cartQty(' + i + ',1)">+</span>';
+    h += ' ' + c.n + '</span>';
+    h += '<span style="display:flex;align-items:center;gap:.4rem">$' + l.toFixed(2);
+    h += '<span class="qty-btn rm" onclick="cartRm(' + i + ')">&times;</span></span></div>';
   }
   document.getElementById('titems').innerHTML = h;
   document.getElementById('tsum').style.display = cart.length ? 'block' : 'none';
@@ -435,6 +459,9 @@ function ren() {
   document.getElementById('tiva').textContent = '$' + iv.toFixed(2);
   document.getElementById('ttot').textContent = '$' + (s + iv).toFixed(2);
 }
+
+function cartQty(i, d) { cart[i].q += d; if (cart[i].q < 1) cart.splice(i, 1); ren(); }
+function cartRm(i) { cart.splice(i, 1); ren(); }
 
 function setPm(m) {
   pm = m;
@@ -459,11 +486,10 @@ function cobrar() {
     metodo_pago: pm === 'ef' ? '01' : '04',
     terminal: terminales[pm]
   }).then(function(venta) {
-    alert('Venta registrada en el sistema\n' + total + ' - ' + nombres[pm] + '\nFolio: ' + venta.folio);
+    toast('Venta ' + venta.folio + ' registrada ' + total + ' - ' + nombres[pm]);
     limpiar();
   }).catch(function() {
-    // Modo offline / demo
-    alert('Venta registrada (modo local)\n' + total + ' - ' + nombres[pm] + '\nTicket T-' + (Math.floor(Math.random()*9000)+1000));
+    toast('Venta registrada (local) ' + total + ' - ' + nombres[pm]);
     limpiar();
   });
 }
@@ -488,11 +514,11 @@ function guardarPed() {
   };
 
   api('POST', '/pedidos/', pedido).then(function(p) {
-    alert('Pedido ' + p.folio + ' guardado para ' + nom);
+    toast('Pedido ' + p.folio + ' guardado para ' + nom);
     document.getElementById('modal-ped').classList.remove('on');
     cargarPedidos();
   }).catch(function() {
-    alert('Pedido guardado (modo local) para ' + nom);
+    toast('Pedido guardado (local) para ' + nom);
     document.getElementById('modal-ped').classList.remove('on');
   });
 }
@@ -514,10 +540,11 @@ function conectarAPI() {
     localStorage.setItem('jacaranda_api', API_URL);
     login('admin@jacaranda.mx', 'admin1234').then(function() {
       setConnected(true);
-      alert('Conectado al servidor');
+      toast('Conectado al servidor');
+      cargarDashboard();
     }).catch(function() {
       setConnected(false);
-      alert('No se pudo conectar. Verifica la URL.');
+      toast('No se pudo conectar. Verifica la URL.', true);
     });
   }
 }
@@ -540,8 +567,8 @@ function registrarCompra() {
   if (!cant) { alert('Escribe la cantidad'); return; }
 
   api('POST', '/inventario/ingredientes/' + ing.value + '/compra?cantidad=' + cant + '&costo=' + costo + '&proveedor=' + encodeURIComponent(prov))
-  .then(function(r) { alert(r.mensaje + '\nStock actual: ' + r.stock_actual); })
-  .catch(function() { alert('Compra registrada (modo local): ' + cant + ' de ' + ing.options[ing.selectedIndex].text); });
+  .then(function(r) { toast(r.mensaje + ' - Stock: ' + r.stock_actual); })
+  .catch(function() { toast('Compra registrada (local): ' + cant + ' de ' + ing.options[ing.selectedIndex].text); });
 }
 
 function hornear() {
@@ -549,14 +576,12 @@ function hornear() {
   var cant = document.getElementById('horn-cant').value || 1;
 
   api('POST', '/recetas/' + rec.value + '/hornear?cantidad=' + cant)
-  .then(function(r) { alert(r.mensaje + '\nPiezas producidas: ' + r.piezas_producidas + '\nStock: ' + r.stock_producto); })
+  .then(function(r) { toast(r.mensaje + ' - ' + r.piezas_producidas + ' pzas, stock: ' + r.stock_producto); })
   .catch(function(e) {
     if (e && e.detail && e.detail.faltantes) {
-      var msg = 'Faltan ingredientes:\n';
-      e.detail.faltantes.forEach(function(f) { msg += '- ' + f.ingrediente + ': necesitas ' + f.necesario + ', tienes ' + f.disponible + '\n'; });
-      alert(msg);
+      toast('Faltan ingredientes para hornear', true);
     } else {
-      alert('Horneado registrado (modo local): ' + cant + 'x ' + rec.options[rec.selectedIndex].text);
+      toast('Horneado registrado (local): ' + cant + 'x ' + rec.options[rec.selectedIndex].text);
     }
   });
 }
@@ -576,15 +601,27 @@ function setConnected(ok) {
   }
 }
 
-// Auto-conectar si hay URL guardada
-if (API_URL && TOKEN) {
-  api('GET', '/reportes/dashboard').then(function() {
+// ─── Dashboard data ───────────────────────────────────────────────
+function cargarDashboard() {
+  api('GET', '/reportes/dashboard').then(function(d) {
     setConnected(true);
+    // Update KPIs if data available
+    var kpis = document.querySelectorAll('#dash .kpi .n');
+    if (d.ventas_hoy !== undefined && kpis.length >= 5) {
+      kpis[0].textContent = '$' + Number(d.ventas_hoy || 0).toLocaleString('es-MX');
+      kpis[1].textContent = '$' + Number(d.efectivo || 0).toLocaleString('es-MX');
+      kpis[2].textContent = '$' + Number(d.clip || 0).toLocaleString('es-MX');
+      kpis[3].textContent = '$' + Number(d.bbva || 0).toLocaleString('es-MX');
+      kpis[4].textContent = d.tickets || 0;
+    }
   }).catch(function() {
-    TOKEN = '';
-    localStorage.removeItem('jacaranda_token');
     setConnected(false);
   });
+}
+
+// Auto-conectar si hay URL guardada
+if (API_URL && TOKEN) {
+  cargarDashboard();
 }
 </script>
 </body>
