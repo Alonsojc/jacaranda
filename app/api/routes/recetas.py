@@ -8,7 +8,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.usuario import Usuario
 from app.schemas.receta import (
-    RecetaCreate, RecetaResponse, CostoRecetaResponse,
+    RecetaCreate, RecetaUpdate, RecetaResponse, CostoRecetaResponse,
     OrdenProduccionCreate, OrdenProduccionResponse,
 )
 from app.services import receta_service as svc
@@ -34,6 +34,34 @@ def obtener_receta(id: int, db: Session = Depends(get_db)):
         return svc.obtener_receta(db, id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.put("/{id}", response_model=RecetaResponse)
+def actualizar_receta(id: int, data: RecetaUpdate, db: Session = Depends(get_db)):
+    from app.models.receta import Receta, RecetaIngrediente
+    receta = db.query(Receta).filter(Receta.id == id).first()
+    if not receta:
+        raise HTTPException(status_code=404, detail="Receta no encontrada")
+    for field in ["nombre", "instrucciones", "rendimiento",
+                  "tiempo_preparacion_min", "tiempo_horneado_min",
+                  "temperatura_horneado_c", "activo"]:
+        val = getattr(data, field, None)
+        if val is not None:
+            setattr(receta, field, val)
+    if data.ingredientes is not None:
+        db.query(RecetaIngrediente).filter(
+            RecetaIngrediente.receta_id == id
+        ).delete()
+        for ri in data.ingredientes:
+            db.add(RecetaIngrediente(
+                receta_id=id,
+                ingrediente_id=ri.ingrediente_id,
+                cantidad=ri.cantidad,
+                notas=ri.notas,
+            ))
+    db.commit()
+    db.refresh(receta)
+    return receta
 
 
 @router.get("/{id}/costo")
