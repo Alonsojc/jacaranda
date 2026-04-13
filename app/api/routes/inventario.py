@@ -275,6 +275,58 @@ def ajustar_stock_producto(
     }
 
 
+# --- Conteo nocturno ---
+
+@router.post("/conteo-nocturno")
+def conteo_nocturno(
+    conteos: list[dict],
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Registrar conteo nocturno de productos."""
+    from app.models.conteo_inventario import ConteoInventario
+    from app.models.inventario import Producto
+    from datetime import date
+    from decimal import Decimal
+
+    hoy = date.today()
+    resultados = []
+    for c in conteos:
+        producto = db.query(Producto).filter(Producto.id == c["producto_id"]).first()
+        if not producto:
+            continue
+        contada = int(c.get("cantidad_contada", 0))
+        esperada = int(float(producto.stock_actual))
+        diferencia = contada - esperada
+
+        conteo = ConteoInventario(
+            fecha=hoy,
+            producto_id=producto.id,
+            cantidad_contada=contada,
+            cantidad_esperada=esperada,
+            cantidad_inicio_dia=0,
+            cantidad_producida=0,
+            cantidad_vendida=0,
+            diferencia=diferencia,
+            usuario_id=user.id,
+            notas=c.get("notas"),
+        )
+        db.add(conteo)
+
+        # Ajustar stock al conteo real
+        producto.stock_actual = Decimal(str(contada))
+
+        resultados.append({
+            "producto": producto.nombre,
+            "esperado": esperada,
+            "contado": contada,
+            "diferencia": diferencia,
+        })
+
+    db.commit()
+    return {"mensaje": f"Conteo guardado: {len(resultados)} productos", "resultados": resultados}
+
+
 # --- OCR de tickets ---
 
 @router.post("/ocr-ticket")
