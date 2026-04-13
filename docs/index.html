@@ -56,7 +56,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .pi-stk-ok{background:#d1fae5;color:#047857}
 .pi-stk-low{background:#fef3c7;color:#92400e}
 .pi-stk-out{background:#fee2e2;color:#b91c1c}
-.pi .pi-iva{font-size:.6rem;color:var(--mut);margin-top:.1rem}
+.pi-multi{font-size:.6rem;color:var(--mut);font-style:italic}
 .pi.pi-out{opacity:.45;pointer-events:none}
 .tkt{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd)}
 .tkt h3{font-size:.9rem;margin-bottom:.6rem}
@@ -534,6 +534,15 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 </div>
 
+<!-- MODAL: Elegir variante -->
+<div class="modal-bg" id="modal-variante">
+<div class="modal" style="max-width:380px">
+<h3 id="mv-title">Elegir presentaci&oacute;n</h3>
+<div id="mv-options" style="display:flex;flex-direction:column;gap:.5rem"></div>
+<button class="limpiar" style="margin-top:.7rem" onclick="cerrarModal('modal-variante')">Cancelar</button>
+</div>
+</div>
+
 <!-- MODAL: Cobrar -->
 <div class="modal-bg" id="modal-cobrar">
 <div class="modal">
@@ -924,46 +933,84 @@ function fallbackCopy(txt) {
 function limpiar() { cart = []; ren(); }
 
 function splitNombreVariante(nombre) {
-  // Detectar variantes al final del nombre: ind., chico, grande, x16, etc.
   var m = nombre.match(/^(.+?)\s+(ind\.?|chico|grande|mediano|mini|x\d+|individual)$/i);
   if (m) return { nombre: m[1], variante: m[2] };
   return { nombre: nombre, variante: null };
 }
 
+var _posGroups = {}; // cache for variant picker
+
 function cargarPOSProductos() {
   api('GET', '/inventario/productos').then(function(prods) {
-    // Filtrar activos y ordenar: con stock primero, agotados al final
+    // Filtrar activos
     var activos = [];
     for (var i = 0; i < prods.length; i++) { if (prods[i].activo) activos.push(prods[i]); }
-    activos.sort(function(a, b) {
-      var sa = parseFloat(a.stock_actual) || 0, sb = parseFloat(b.stock_actual) || 0;
-      if (sa > 0 && sb <= 0) return -1;
-      if (sa <= 0 && sb > 0) return 1;
-      return a.nombre.localeCompare(b.nombre);
-    });
-    var h = '<div class="prods">';
+
+    // Agrupar por nombre base
+    var grupos = {};
+    var orden = [];
     for (var i = 0; i < activos.length; i++) {
       var p = activos[i];
-      var precio = parseFloat(p.precio_unitario) || 0;
-      var stock = parseFloat(p.stock_actual) || 0;
-      var iv = p.tasa_iva === '0.16' ? 0.16 : 0;
-      var agotado = stock <= 0;
-      h += '<div class="pi' + (agotado ? ' pi-out' : '') + '" onclick="add(' + p.id + ',\'' + p.nombre.replace(/'/g,"\\'") + '\',' + precio + ',' + iv + ')">';
-      if (p.imagen) {
-        h += '<img class="pi-img" src="' + p.imagen + '">';
+      var parts = splitNombreVariante(p.nombre);
+      var key = parts.nombre.toLowerCase().trim();
+      if (!grupos[key]) { grupos[key] = { nombre: parts.nombre, imagen: null, items: [] }; orden.push(key); }
+      if (p.imagen && !grupos[key].imagen) grupos[key].imagen = p.imagen;
+      grupos[key].items.push(p);
+    }
+
+    // Ordenar: grupos con stock primero, luego alfabético
+    orden.sort(function(a, b) {
+      var aHas = false, bHas = false;
+      for (var i = 0; i < grupos[a].items.length; i++) { if (parseFloat(grupos[a].items[i].stock_actual) > 0) aHas = true; }
+      for (var i = 0; i < grupos[b].items.length; i++) { if (parseFloat(grupos[b].items[i].stock_actual) > 0) bHas = true; }
+      if (aHas && !bHas) return -1;
+      if (!aHas && bHas) return 1;
+      return a.localeCompare(b);
+    });
+
+    _posGroups = grupos;
+    var h = '<div class="prods">';
+    for (var gi = 0; gi < orden.length; gi++) {
+      var g = grupos[orden[gi]];
+      var items = g.items;
+      // Precio rango y stock total
+      var pMin = Infinity, pMax = 0, stockTotal = 0, minTotal = 0, allOut = true;
+      for (var i = 0; i < items.length; i++) {
+        var pr = parseFloat(items[i].precio_unitario) || 0;
+        if (pr < pMin) pMin = pr;
+        if (pr > pMax) pMax = pr;
+        var st = parseFloat(items[i].stock_actual) || 0;
+        stockTotal += st;
+        minTotal += parseFloat(items[i].stock_minimo) || 0;
+        if (st > 0) allOut = false;
+      }
+      var single = items.length === 1;
+      var clickAttr;
+      if (single) {
+        var p = items[0], iv = p.tasa_iva === '0.16' ? 0.16 : 0;
+        clickAttr = 'onclick="add(' + p.id + ',\'' + p.nombre.replace(/'/g,"\\'") + '\',' + (parseFloat(p.precio_unitario)||0) + ',' + iv + ')"';
+      } else {
+        clickAttr = 'onclick="abrirVariantes(\'' + orden[gi].replace(/'/g,"\\'") + '\')"';
+      }
+      h += '<div class="pi' + (allOut ? ' pi-out' : '') + '" ' + clickAttr + '>';
+      if (g.imagen) {
+        h += '<img class="pi-img" src="' + g.imagen + '">';
       } else {
         h += '<div class="pi-noimg">\uD83C\uDF5E</div>';
       }
       h += '<div class="pi-body">';
-      var parts = splitNombreVariante(p.nombre);
-      h += '<span class="pn">' + parts.nombre + '</span>';
-      if (parts.variante) h += '<span class="pi-var">' + parts.variante + '</span>';
-      h += '<span class="pp">$' + precio.toFixed(0) + '</span>';
-      var min = parseFloat(p.stock_minimo) || 0;
-      var stkCls = agotado ? 'pi-stk-out' : (stock <= min ? 'pi-stk-low' : 'pi-stk-ok');
-      var stkTxt = agotado ? 'Agotado' : Math.round(stock) + ' pzas';
+      h += '<span class="pn">' + g.nombre + '</span>';
+      if (!single) {
+        h += '<span class="pi-var">' + items.length + ' presentaciones</span>';
+        h += '<span class="pp">$' + pMin.toFixed(0) + (pMin !== pMax ? ' - $' + pMax.toFixed(0) : '') + '</span>';
+      } else {
+        var parts = splitNombreVariante(items[0].nombre);
+        if (parts.variante) h += '<span class="pi-var">' + parts.variante + '</span>';
+        h += '<span class="pp">$' + pMin.toFixed(0) + '</span>';
+      }
+      var stkCls = allOut ? 'pi-stk-out' : (stockTotal <= minTotal ? 'pi-stk-low' : 'pi-stk-ok');
+      var stkTxt = allOut ? 'Agotado' : Math.round(stockTotal) + ' pzas';
       h += '<span class="pi-stock-chip ' + stkCls + '">' + stkTxt + '</span>';
-      h += '<span class="pi-iva">IVA ' + (iv > 0 ? '16%' : '0%') + '</span>';
       h += '</div></div>';
     }
     h += '</div>';
@@ -971,6 +1018,36 @@ function cargarPOSProductos() {
   }).catch(function() {
     document.getElementById('pos-products').innerHTML = '<p style="color:var(--mut);text-align:center;padding:2rem">Error al cargar productos. Verifica la conexi\u00f3n.</p>';
   });
+}
+
+function abrirVariantes(key) {
+  var g = _posGroups[key];
+  if (!g) return;
+  document.getElementById('mv-title').textContent = g.nombre;
+  var h = '';
+  for (var i = 0; i < g.items.length; i++) {
+    var p = g.items[i];
+    var parts = splitNombreVariante(p.nombre);
+    var label = parts.variante || p.nombre;
+    var precio = parseFloat(p.precio_unitario) || 0;
+    var stock = parseFloat(p.stock_actual) || 0;
+    var min = parseFloat(p.stock_minimo) || 0;
+    var iv = p.tasa_iva === '0.16' ? 0.16 : 0;
+    var agotado = stock <= 0;
+    var stkCls = agotado ? 'pi-stk-out' : (stock <= min ? 'pi-stk-low' : 'pi-stk-ok');
+    var stkTxt = agotado ? 'Agotado' : Math.round(stock) + ' pzas';
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem .8rem;border:1px solid var(--brd);border-radius:10px;cursor:pointer;transition:all .15s'
+      + (agotado ? ';opacity:.4;pointer-events:none' : '') + '" '
+      + 'onmouseover="this.style.borderColor=\'var(--v)\';this.style.background=\'#faf3f0\'" '
+      + 'onmouseout="this.style.borderColor=\'\';this.style.background=\'\'" '
+      + 'onclick="add(' + p.id + ',\'' + p.nombre.replace(/'/g,"\\'") + '\',' + precio + ',' + iv + ');cerrarModal(\'modal-variante\')">';
+    h += '<div><strong style="font-size:.9rem">' + label + '</strong>';
+    h += '<span style="margin-left:.5rem;color:var(--v);font-weight:700;font-size:.95rem">$' + precio.toFixed(0) + '</span></div>';
+    h += '<span class="pi-stock-chip ' + stkCls + '">' + stkTxt + '</span>';
+    h += '</div>';
+  }
+  document.getElementById('mv-options').innerHTML = h;
+  document.getElementById('modal-variante').classList.add('on');
 }
 
 // ─── Pedidos ──────────────────────────────────────────────────────
