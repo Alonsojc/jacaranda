@@ -30,6 +30,12 @@ class FormaPago(str, enum.Enum):
     PPD = "PPD"  # Pago en Parcialidades o Diferido
 
 
+class TerminalPago(str, enum.Enum):
+    EFECTIVO = "efectivo"      # Sin terminal, pago en efectivo
+    CLIP = "clip"              # Terminal CLIP (tarjeta)
+    BBVA = "bbva"              # Terminal BBVA (tarjeta)
+
+
 class EstadoVenta(str, enum.Enum):
     COMPLETADA = "completada"
     CANCELADA = "cancelada"
@@ -62,6 +68,9 @@ class Venta(Base):
     )
     forma_pago: Mapped[FormaPago] = mapped_column(
         SAEnum(FormaPago), default=FormaPago.PUE
+    )
+    terminal: Mapped[TerminalPago] = mapped_column(
+        SAEnum(TerminalPago), default=TerminalPago.EFECTIVO
     )
     monto_recibido: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     cambio: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
@@ -122,6 +131,8 @@ class CorteCaja(Base):
     total_ventas_efectivo: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     total_ventas_tarjeta: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     total_ventas_transferencia: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    total_ventas_clip: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    total_ventas_bbva: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     total_ventas: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     retiros: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     efectivo_esperado: Mapped[Decimal] = mapped_column(Numeric(14, 2))
