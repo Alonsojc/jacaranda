@@ -9,61 +9,76 @@
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--v:#7c3aed;--p:#9333ea;--lav:#c4b5fd;--cream:#fdf8f0;--dk:#1a1025;--txt:#3d2e4f;--mut:#8b7a9e;--grn:#10b981;--amb:#f59e0b;--pk:#ec4899;--brd:#e8dff0}
 body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--txt);min-height:100vh}
-nav{background:#fff;border-bottom:1px solid var(--brd);padding:.7rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--brd);padding:.7rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;box-shadow:0 1px 8px rgba(0,0,0,.05)}
 .logo{font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--v);letter-spacing:.3em;font-weight:700}
 .logo span{color:var(--pk)}
 .nav-links{display:flex;gap:.3rem}
 .nav-links a{text-decoration:none;color:var(--mut);font-size:.82rem;font-weight:500;padding:.5rem .8rem;border-radius:8px;cursor:pointer}
 .nav-links a:hover,.nav-links a.on{color:var(--v);background:#f5f0ff}
 .wa{background:var(--grn)!important;color:#fff!important;border-radius:20px!important;font-size:.78rem!important}
-.hero{background:linear-gradient(135deg,#7c3aed,#c026d3);padding:2rem;text-align:center;color:#fff}
-.hero h1{font-family:'Playfair Display',serif;font-size:2.2rem;letter-spacing:.4em}
-.hero p{color:#e9d5ff;font-size:1rem;margin-top:.2rem}
-.hero small{color:#ddd6fe;font-size:.8rem}
+.hero{background:linear-gradient(135deg,#7c3aed 0%,#9333ea 40%,#c026d3 100%);padding:2rem;text-align:center;color:#fff;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle at 30% 50%,rgba(255,255,255,.06) 0%,transparent 50%);pointer-events:none}
+.hero h1{font-family:'Playfair Display',serif;font-size:2.2rem;letter-spacing:.4em;position:relative}
+.hero p{color:#e9d5ff;font-size:1.05rem;margin-top:.2rem;font-weight:300;letter-spacing:.1em;position:relative}
+.hero small{color:#ddd6fe;font-size:.8rem;position:relative}
 .wrap{max-width:1100px;margin:0 auto;padding:1.5rem}
 .page{display:none}.page.on{display:block}
 .row{display:grid;gap:1rem;margin-bottom:1rem}
 .r4{grid-template-columns:repeat(4,1fr)}.r5{grid-template-columns:repeat(5,1fr)}
 .r2{grid-template-columns:1fr 1fr}
 .r3{grid-template-columns:1fr 1fr 1fr}
-.card{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd)}
+.card{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd);box-shadow:0 1px 3px rgba(0,0,0,.04);transition:box-shadow .2s,transform .2s}
+.card:hover{box-shadow:0 4px 12px rgba(124,58,237,.08)}
 .card h3{font-size:.9rem;font-weight:600;margin-bottom:.7rem;color:var(--dk)}
-.kpi{text-align:center}
+.kpi{text-align:center;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--v),var(--p));border-radius:12px 12px 0 0}
 .kpi .n{font-size:1.7rem;font-weight:700;color:var(--v)}
 .kpi .l{font-size:.75rem;color:var(--mut);margin-top:.15rem}
-.kpi.g .n{color:var(--grn)}.kpi.p .n{color:var(--pk)}.kpi.a .n{color:var(--amb)}
+.kpi.g .n{color:var(--grn)}.kpi.g::before{background:linear-gradient(90deg,#10b981,#34d399)}
+.kpi.p .n{color:var(--pk)}.kpi.p::before{background:linear-gradient(90deg,#ec4899,#f472b6)}
+.kpi.a .n{color:var(--amb)}.kpi.a::before{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
 .srow{display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f3f0f7;font-size:.83rem}
 .srow:last-child{border:none}
 .green{color:var(--grn);font-weight:600}
-.badge{padding:.15rem .5rem;border-radius:6px;font-size:.7rem;font-weight:600}
+.badge{padding:.2rem .55rem;border-radius:6px;font-size:.7rem;font-weight:600;letter-spacing:.02em}
 .bok{background:#d1fae5;color:#047857}.blow{background:#fef3c7;color:#92400e}.bout{background:#fee2e2;color:#b91c1c}
 .bpend{background:#e9d5ff;color:#7c3aed}.bconf{background:#dbeafe;color:#1d4ed8}.bprep{background:#fef3c7;color:#92400e}.blist{background:#d1fae5;color:#047857}
 h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-bottom:1rem}
 /* POS */
-.pos-grid{display:grid;grid-template-columns:1fr 320px;gap:1rem}
-.prods{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem;align-content:start}
-.pi{background:#fff;border-radius:10px;padding:.8rem;text-align:center;border:1px solid var(--brd);cursor:pointer;transition:all .15s}
-.pi:hover{border-color:var(--v);box-shadow:0 3px 10px rgba(124,58,237,.1)}
-.pi .em{font-size:1.8rem}.pi .pn{font-weight:600;font-size:.82rem;margin-top:.2rem}
-.pi .pp{color:var(--v);font-weight:700;font-size:.9rem;margin-top:.15rem}
+.pos-grid{display:grid;grid-template-columns:1fr 340px;gap:1rem}
+.prods{display:grid;grid-template-columns:repeat(4,1fr);gap:.7rem;align-content:start}
+.pi{background:#fff;border-radius:12px;padding:1rem .8rem;text-align:center;border:1px solid var(--brd);cursor:pointer;transition:all .2s;user-select:none}
+.pi:hover{border-color:var(--v);box-shadow:0 4px 15px rgba(124,58,237,.15);transform:translateY(-1px)}
+.pi:active{transform:scale(.97);box-shadow:none}
+.pi .em{font-size:2.2rem;display:block;margin-bottom:.2rem}.pi .pn{font-weight:600;font-size:.85rem;margin-top:.2rem}
+.pi .pp{color:var(--v);font-weight:700;font-size:.95rem;margin-top:.15rem}
 .iv{font-size:.6rem;padding:.1rem .35rem;border-radius:4px;display:inline-block;margin-top:.15rem}
 .iv0{background:#d1fae5;color:#047857}.iv16{background:#fef3c7;color:#92400e}
 .tkt{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd)}
 .tkt h3{font-size:.9rem;margin-bottom:.6rem}
-.ti{display:flex;justify-content:space-between;font-size:.82rem;padding:.3rem 0;border-bottom:1px solid #f3f0f7}
+.ti{display:flex;justify-content:space-between;font-size:.82rem;padding:.35rem 0;border-bottom:1px solid #f3f0f7}
+.qty-btn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:#f3f0f7;color:var(--v);font-weight:700;font-size:.8rem;cursor:pointer;user-select:none;transition:all .15s;border:none;line-height:1}
+.qty-btn:hover{background:#ede5f7}.qty-btn:active{transform:scale(.9)}
+.qty-btn.rm{background:#fee2e2;color:#b91c1c;font-size:.7rem}.qty-btn.rm:hover{background:#fecaca}
 .ttot{display:flex;justify-content:space-between;font-size:1.1rem;font-weight:700;color:var(--v);padding:.5rem 0;border-top:2px solid var(--v);margin-top:.4rem}
 .pmt{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.7rem}
-.pbtn{padding:.7rem;border:2px solid var(--brd);border-radius:10px;background:#fff;cursor:pointer;text-align:center;font-weight:600;font-size:.82rem;transition:all .15s}
-.pbtn:hover{border-color:var(--v)}
-.pbtn.sel{border-color:var(--v);background:#f5f0ff;color:var(--v)}
-.cobrar{display:block;width:100%;padding:.7rem;border:none;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;margin-top:.6rem;background:linear-gradient(135deg,var(--v),var(--p));color:#fff}
-.limpiar{display:block;width:100%;padding:.5rem;border:none;border-radius:8px;font-size:.82rem;cursor:pointer;margin-top:.4rem;background:#f3f0f7;color:var(--v)}
+.pbtn{padding:.7rem;border:2px solid var(--brd);border-radius:10px;background:#fff;cursor:pointer;text-align:center;font-weight:600;font-size:.82rem;transition:all .2s;user-select:none}
+.pbtn:hover{border-color:var(--v);background:#faf5ff}
+.pbtn:active{transform:scale(.97)}
+.pbtn.sel{border-color:var(--v);background:linear-gradient(135deg,#f5f0ff,#faf5ff);color:var(--v);box-shadow:0 2px 8px rgba(124,58,237,.15)}
+.cobrar{display:block;width:100%;padding:.75rem;border:none;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;margin-top:.6rem;background:linear-gradient(135deg,var(--v),var(--p));color:#fff;transition:all .2s;box-shadow:0 3px 10px rgba(124,58,237,.25)}
+.cobrar:hover{box-shadow:0 5px 18px rgba(124,58,237,.35);transform:translateY(-1px)}
+.cobrar:active{transform:translateY(0);box-shadow:0 2px 6px rgba(124,58,237,.2)}
+.limpiar{display:block;width:100%;padding:.5rem;border:none;border-radius:8px;font-size:.82rem;cursor:pointer;margin-top:.4rem;background:#f3f0f7;color:var(--v);transition:all .15s}
+.limpiar:hover{background:#ede5f7}
 /* Tabla */
 .tbl{width:100%;border-collapse:collapse;font-size:.82rem}
-.tbl th{text-align:left;padding:.55rem .7rem;background:#f5f0ff;color:var(--v);font-weight:600;font-size:.75rem;text-transform:uppercase}
-.tbl td{padding:.5rem .7rem;border-bottom:1px solid #f3f0f7}
+.tbl th{text-align:left;padding:.6rem .7rem;background:linear-gradient(135deg,#f5f0ff,#faf5ff);color:var(--v);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em}
+.tbl td{padding:.55rem .7rem;border-bottom:1px solid #f3f0f7}
+.tbl tr:hover td{background:#faf8ff}
 /* Pedidos */
-.ped{background:#fff;border-radius:10px;padding:1rem;border:1px solid var(--brd);margin-bottom:.7rem}
+.ped{background:#fff;border-radius:12px;padding:1rem;border:1px solid var(--brd);margin-bottom:.7rem;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.ped:hover{box-shadow:0 4px 12px rgba(124,58,237,.08);border-color:#d8d0e8}
 .ped .ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem}
 .ped .pf{font-weight:700;color:var(--v);font-size:.9rem}
 .ped .pc{font-size:.83rem;color:var(--dk)}
@@ -71,28 +86,42 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .ped .pi2{font-size:.82rem;margin-top:.3rem}
 .modal-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:100;justify-content:center;align-items:center}
 .modal-bg.on{display:flex}
-.modal{background:#fff;border-radius:14px;padding:1.5rem;width:90%;max-width:500px;max-height:85vh;overflow-y:auto}
-.modal h3{font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:1rem}
+.modal{background:#fff;border-radius:16px;padding:1.5rem;width:90%;max-width:500px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:modalIn .25s ease-out}
+@keyframes modalIn{from{opacity:0;transform:translateY(20px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+/* Toast notification */
+.toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);background:var(--grn);color:#fff;padding:.8rem 1.5rem;border-radius:12px;font-weight:600;font-size:.9rem;box-shadow:0 8px 25px rgba(16,185,129,.3);z-index:200;transition:transform .3s ease-out;display:flex;align-items:center;gap:.5rem}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.err{background:#ef4444;box-shadow:0 8px 25px rgba(239,68,68,.3)}
+.modal h3{font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:1rem;color:var(--dk)}
 .fg{margin-bottom:.8rem}
 .fg label{display:block;font-size:.78rem;font-weight:600;color:var(--mut);margin-bottom:.25rem}
-.fg input,.fg select,.fg textarea{width:100%;padding:.5rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.85rem;font-family:inherit}
+.fg input,.fg select,.fg textarea{width:100%;padding:.5rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.85rem;font-family:inherit;transition:border-color .2s,box-shadow .2s}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--v);box-shadow:0 0 0 3px rgba(124,58,237,.1)}
 .fg textarea{resize:vertical;height:60px}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
 .footer{text-align:center;padding:1.5rem;color:var(--mut);font-size:.8rem;border-top:1px solid var(--brd);margin-top:2rem}
 .footer a{color:var(--v);text-decoration:none}
-@media(max-width:768px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.prods{grid-template-columns:repeat(2,1fr)}.nav-links{gap:0}.nav-links a{padding:.4rem .5rem;font-size:.75rem}.pmt{grid-template-columns:1fr!important}}
+/* Tabs */
+.section-tabs{display:flex;gap:.3rem;background:#fff;padding:.35rem;border-radius:10px;border:1px solid var(--brd)}
+.tab{padding:.5rem 1rem;border-radius:8px;font-size:.82rem;font-weight:500;color:var(--mut);cursor:pointer;transition:all .2s}
+.tab:hover{color:var(--v);background:#faf5ff}
+.tab.active{background:linear-gradient(135deg,var(--v),var(--p));color:#fff;font-weight:600;box-shadow:0 2px 8px rgba(124,58,237,.25)}
+/* Connection dot */
+.conn-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;background:#ef4444;vertical-align:middle}
+.conn-dot.on{background:var(--grn);box-shadow:0 0 6px rgba(16,185,129,.5)}
+@media(max-width:768px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.prods{grid-template-columns:repeat(3,1fr)}.nav-links{gap:0}.nav-links a{padding:.4rem .5rem;font-size:.75rem}.pmt{grid-template-columns:1fr!important}}
 </style>
 </head>
 <body>
 <nav>
 <div class="logo">JACARANDA <span>flavors</span></div>
 <div class="nav-links">
-<a class="on" onclick="go('dash')">Inicio</a>
-<a onclick="go('pos')">Venta</a>
-<a onclick="go('ped')">Pedidos</a>
-<a onclick="go('inv')">Inventario</a>
-<a onclick="go('corte')">Corte</a>
-<a onclick="conectarAPI()" style="cursor:pointer;background:var(--v);color:#fff;border-radius:20px;font-size:.78rem;padding:.5rem .8rem">Conectar</a>
+<a class="on" data-pg="dash" onclick="go('dash')">Inicio</a>
+<a data-pg="pos" onclick="go('pos')">Venta</a>
+<a data-pg="ped" onclick="go('ped')">Pedidos</a>
+<a data-pg="inv" onclick="go('inv')">Inventario</a>
+<a data-pg="corte" onclick="go('corte')">Corte</a>
+<a onclick="conectarAPI()" id="btn-conn" style="cursor:pointer;background:var(--v);color:#fff;border-radius:20px;font-size:.78rem;padding:.5rem .8rem"><span class="conn-dot" id="conn-dot"></span>Conectar</a>
 <a href="https://wa.me/5214424670397" target="_blank" class="wa">WhatsApp</a>
 </div>
 </nav>
@@ -107,39 +136,26 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="page on" id="dash">
 <h2>Dashboard &mdash; Hoy</h2>
 <div class="row r5">
-<div class="card kpi g"><div class="n">$14,850</div><div class="l">Ventas del d&iacute;a</div></div>
-<div class="card kpi"><div class="n">$4,200</div><div class="l">Efectivo</div></div>
-<div class="card kpi p"><div class="n">$6,100</div><div class="l">CLIP</div></div>
-<div class="card kpi a"><div class="n">$4,550</div><div class="l">BBVA</div></div>
-<div class="card kpi"><div class="n">47</div><div class="l">Tickets</div></div>
+<div class="card kpi g"><div class="n" id="d-ventas">$0</div><div class="l">Ventas del d&iacute;a</div></div>
+<div class="card kpi"><div class="n" id="d-ef">$0</div><div class="l">Efectivo</div></div>
+<div class="card kpi p"><div class="n" id="d-clip">$0</div><div class="l">CLIP</div></div>
+<div class="card kpi a"><div class="n" id="d-bbva">$0</div><div class="l">BBVA</div></div>
+<div class="card kpi"><div class="n" id="d-tickets">0</div><div class="l">Tickets</div></div>
 </div>
 <div class="row r2">
 <div class="card"><h3>Productos m&aacute;s vendidos</h3>
-<div class="srow"><span>1. Nutella</span><span class="green">32 pzas</span></div>
-<div class="srow"><span>2. Manzana</span><span class="green">24 pzas</span></div>
-<div class="srow"><span>3. Brownies</span><span class="green">18 pzas</span></div>
-<div class="srow"><span>4. Galletas</span><span class="green">15 pzas</span></div>
-<div class="srow"><span>5. Velas</span><span class="green">8 pzas</span></div>
+<div id="d-top-prod"><div class="srow" style="color:var(--mut)"><span>Conecta al servidor para ver datos</span></div></div>
 </div>
 <div class="card"><h3>Pedidos de hoy</h3>
-<div class="srow"><span>P-00012 &bull; Jimena &bull; Hotel La Grande</span><span class="badge blist">Listo</span></div>
-<div class="srow"><span>P-00013 &bull; Carlos &bull; Recoger 14:00</span><span class="badge bprep">Preparando</span></div>
-<div class="srow"><span>P-00014 &bull; Mar&iacute;a &bull; Entregar 17:00</span><span class="badge bconf">Confirmado</span></div>
-<div class="srow"><span>P-00015 &bull; Andrea &bull; Recoger 18:00</span><span class="badge bpend">Recibido</span></div>
+<div id="d-ped-hoy"><div class="srow" style="color:var(--mut)"><span>Sin pedidos para hoy</span></div></div>
 </div>
 </div>
 <div class="row r2">
-<div class="card"><h3>Inventario - Conteo de anoche</h3>
-<div class="srow"><span>Nutella</span><span>45 pzas</span></div>
-<div class="srow"><span>Manzana</span><span>30 pzas</span></div>
-<div class="srow"><span>Brownies</span><span>25 pzas</span></div>
-<div class="srow"><span>Galletas (6pz)</span><span>20 bolsas</span></div>
-<div class="srow"><span>Velas</span><span>12 pzas</span></div>
+<div class="card"><h3>Inventario</h3>
+<div id="d-inv"><div class="srow" style="color:var(--mut)"><span>Conecta al servidor para ver stock</span></div></div>
 </div>
 <div class="card"><h3>Alertas</h3>
-<div class="srow"><span>Galletas</span><span class="badge blow">Quedan 5</span></div>
-<div class="srow"><span>Velas</span><span class="badge blow">Quedan 4</span></div>
-<div class="srow"><span>Ticket T-0039 sin producto anotado</span><span class="badge bout">Revisar</span></div>
+<div id="d-alertas"><div class="srow" style="color:var(--mut)"><span>Sin alertas</span></div></div>
 </div>
 </div>
 </div>
@@ -155,9 +171,13 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="pi" onclick="add('Galletas 6pz',85,16)"><div class="em">&#127850;</div><div class="pn">Galletas 6pz</div><div class="pp">$85</div><span class="iv iv16">IVA 16%</span></div>
 <div class="pi" onclick="add('Velas',35,16)"><div class="em">&#127870;</div><div class="pn">Velas</div><div class="pp">$35</div><span class="iv iv16">IVA 16%</span></div>
 <div class="pi" onclick="add('Pastel 1kg',350,16)"><div class="em">&#127874;</div><div class="pn">Pastel 1kg</div><div class="pp">$350</div><span class="iv iv16">IVA 16%</span></div>
+<div class="pi" onclick="add('Pastel 1.5kg',520,16)"><div class="em">&#127874;</div><div class="pn">Pastel 1.5kg</div><div class="pp">$520</div><span class="iv iv16">IVA 16%</span></div>
+<div class="pi" onclick="add('Tres Leches 1kg',380,16)"><div class="em">&#127856;</div><div class="pn">Tres Leches 1kg</div><div class="pp">$380</div><span class="iv iv16">IVA 16%</span></div>
 <div class="pi" onclick="add('Bolillo',2.5,0)"><div class="em">&#127838;</div><div class="pn">Bolillo</div><div class="pp">$2.50</div><span class="iv iv0">IVA 0%</span></div>
-<div class="pi" onclick="add('Concha',15,0)"><div class="em">&#127849;</div><div class="pn">Concha</div><div class="pp">$15</div><span class="iv iv0">IVA 0%</span></div>
+<div class="pi" onclick="add('Concha Choco',15,0)"><div class="em">&#127849;</div><div class="pn">Concha Choco</div><div class="pp">$15</div><span class="iv iv0">IVA 0%</span></div>
+<div class="pi" onclick="add('Concha Vainilla',15,0)"><div class="em">&#127849;</div><div class="pn">Concha Vainilla</div><div class="pp">$15</div><span class="iv iv0">IVA 0%</span></div>
 <div class="pi" onclick="add('Cuerno',15,0)"><div class="em">&#129360;</div><div class="pn">Cuerno</div><div class="pp">$15</div><span class="iv iv0">IVA 0%</span></div>
+<div class="pi" onclick="add('Polvor&oacute;n',12,0)"><div class="em">&#127850;</div><div class="pn">Polvor&oacute;n</div><div class="pp">$12</div><span class="iv iv0">IVA 0%</span></div>
 </div>
 <div class="tkt">
 <h3>Ticket</h3>
@@ -183,14 +203,13 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="page" id="ped">
 <h2>Pedidos <button class="cobrar" style="display:inline;width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0 0 0 1rem;vertical-align:middle" onclick="document.getElementById('modal-ped').classList.add('on')">+ Nuevo Pedido</button></h2>
 <div class="row r3" style="margin-bottom:.5rem">
-<div class="card kpi"><div class="n">4</div><div class="l">Hoy</div></div>
-<div class="card kpi a"><div class="n">2</div><div class="l">Ma&ntilde;ana</div></div>
-<div class="card kpi p"><div class="n">7</div><div class="l">Esta semana</div></div>
+<div class="card kpi"><div class="n" id="ped-hoy">0</div><div class="l">Hoy</div></div>
+<div class="card kpi a"><div class="n" id="ped-man">0</div><div class="l">Ma&ntilde;ana</div></div>
+<div class="card kpi p"><div class="n" id="ped-sem">0</div><div class="l">Esta semana</div></div>
 </div>
-<div class="ped"><div class="ph"><span class="pf">P-00012</span><span class="badge blist">Listo</span></div><div class="pc"><strong>Jimena</strong> &bull; Hotel La Grande &bull; Entregar 12:00</div><div class="pi2">1x Pastel Nutella 1.5kg con letrero "Feliz Cumplea&ntilde;os"</div><div class="pd">WhatsApp &bull; Anticipo $200 &bull; Total $520</div></div>
-<div class="ped"><div class="ph"><span class="pf">P-00013</span><span class="badge bprep">Preparando</span></div><div class="pc"><strong>Carlos M.</strong> &bull; Recoger en tienda &bull; 14:00</div><div class="pi2">2x Brownies, 1x Galletas 6pz, 1x Pastel Manzana 1kg</div><div class="pd">Tienda &bull; Total $560</div></div>
-<div class="ped"><div class="ph"><span class="pf">P-00014</span><span class="badge bconf">Confirmado</span></div><div class="pc"><strong>Mar&iacute;a L.</strong> &bull; Entregar Juriquilla &bull; 17:00</div><div class="pi2">1x Pastel Tres Leches 2kg, 12x Conchas surtidas</div><div class="pd">WhatsApp &bull; Anticipo $300 &bull; Total $850</div></div>
-<div class="ped"><div class="ph"><span class="pf">P-00015</span><span class="badge bpend">Recibido</span></div><div class="pc"><strong>Andrea S.</strong> &bull; Recoger en tienda &bull; 18:00</div><div class="pi2">3x Nutella individual</div><div class="pd">Instagram &bull; Total $255</div></div>
+<div id="ped-list">
+<div class="ped"><div class="ph"><span class="pf">--</span><span class="badge bpend">Sin pedidos</span></div><div class="pc">Conecta al servidor para ver pedidos o crea uno nuevo</div></div>
+</div>
 </div>
 
 <!-- INVENTARIO -->
@@ -277,42 +296,34 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 
 <!-- CORTE DE CAJA -->
 <div class="page" id="corte">
-<h2>Corte de Caja</h2>
+<h2>Corte de Caja <button class="cobrar" style="display:inline;width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0 0 0 1rem;vertical-align:middle" onclick="generarCorte()">Generar Corte</button></h2>
 <div class="row r2">
 <div class="card">
 <h3>Resumen del d&iacute;a</h3>
-<div class="srow"><span>Total ventas</span><span class="green">$14,850.00</span></div>
-<div class="srow"><span>Efectivo</span><span>$4,200.00</span></div>
-<div class="srow"><span>CLIP (tarjeta)</span><span>$6,100.00</span></div>
-<div class="srow"><span>BBVA (tarjeta)</span><span>$4,550.00</span></div>
-<div class="srow"><span>Tickets efectivo</span><span>15</span></div>
-<div class="srow"><span>Tickets CLIP</span><span>19</span></div>
-<div class="srow"><span>Tickets BBVA</span><span>13</span></div>
-<div class="srow" style="border-top:2px solid var(--v);font-weight:700;color:var(--v)"><span>Total tickets</span><span>47</span></div>
+<div id="corte-resumen">
+<div class="srow"><span>Total ventas</span><span class="green" id="c-total">$0.00</span></div>
+<div class="srow"><span>Efectivo</span><span id="c-ef">$0.00</span></div>
+<div class="srow"><span>CLIP (tarjeta)</span><span id="c-clip">$0.00</span></div>
+<div class="srow"><span>BBVA (tarjeta)</span><span id="c-bbva">$0.00</span></div>
+<div class="srow" style="border-top:2px solid var(--v);font-weight:700;color:var(--v)"><span>Total tickets</span><span id="c-tickets">0</span></div>
+</div>
 </div>
 <div class="card">
 <h3>Cuadre de caja</h3>
-<div class="srow"><span>Fondo inicial</span><span>$2,000.00</span></div>
-<div class="srow"><span>+ Ventas efectivo</span><span>$4,200.00</span></div>
-<div class="srow"><span>- Retiros</span><span>$0.00</span></div>
-<div class="srow" style="font-weight:700"><span>Efectivo esperado</span><span>$6,200.00</span></div>
-<div class="srow" style="font-weight:700"><span>Efectivo real (contado)</span><span>$6,200.00</span></div>
-<div class="srow" style="font-weight:700;color:var(--grn)"><span>Diferencia</span><span>$0.00 &#10004;</span></div>
+<div class="frow" style="margin-bottom:.6rem">
+<div class="fg"><label>Fondo inicial</label><input type="number" id="c-fondo" value="2000" style="font-weight:700"></div>
+<div class="fg"><label>Efectivo contado</label><input type="number" id="c-real" placeholder="Cuenta el efectivo..." style="font-weight:700" oninput="calcularDiferencia()"></div>
+</div>
+<div id="corte-cuadre">
+<div class="srow"><span>Fondo + ventas efectivo</span><span id="c-esperado" style="font-weight:700">$2,000.00</span></div>
+<div class="srow"><span>Efectivo real</span><span id="c-contado" style="font-weight:700">--</span></div>
+<div class="srow" style="font-weight:700"><span>Diferencia</span><span id="c-dif">--</span></div>
 </div>
 </div>
-<div class="card">
+</div>
+<div class="card" id="corte-desglose">
 <h3>Desglose por producto</h3>
-<table class="tbl">
-<tr><th>Producto</th><th>Qty</th><th>Efectivo</th><th>CLIP</th><th>BBVA</th><th>Total</th></tr>
-<tr><td>Nutella</td><td>32</td><td>$850</td><td>$1,020</td><td>$850</td><td>$2,720</td></tr>
-<tr><td>Manzana</td><td>24</td><td>$450</td><td>$750</td><td>$600</td><td>$1,800</td></tr>
-<tr><td>Brownies</td><td>18</td><td>$270</td><td>$315</td><td>$225</td><td>$810</td></tr>
-<tr><td>Galletas 6pz</td><td>15</td><td>$340</td><td>$510</td><td>$425</td><td>$1,275</td></tr>
-<tr><td>Velas</td><td>8</td><td>$105</td><td>$105</td><td>$70</td><td>$280</td></tr>
-<tr><td>Bolillo</td><td>120</td><td>$200</td><td>$50</td><td>$50</td><td>$300</td></tr>
-<tr><td>Concha</td><td>56</td><td>$280</td><td>$340</td><td>$220</td><td>$840</td></tr>
-<tr><td>Cuerno</td><td>42</td><td>$210</td><td>$250</td><td>$170</td><td>$630</td></tr>
-</table>
+<p style="text-align:center;color:var(--mut);padding:1rem;font-size:.85rem">Haz click en "Generar Corte" para ver el desglose del d&iacute;a</p>
 </div>
 </div>
 
@@ -344,6 +355,7 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 </div>
 
+<div class="toast" id="toast"></div>
 <div class="footer">
 <strong style="font-family:'Playfair Display',serif;letter-spacing:.2em;color:var(--v)">JACARANDA</strong> <span style="color:var(--pk)">flavors</span> &mdash; Tu postre favorito<br>
 Plaza Distrito Marqu&eacute;s, Quer&eacute;taro &bull; <a href="https://instagram.com/jacaranda.flavors" target="_blank">@jacaranda.flavors</a> &bull; <a href="https://wa.me/5214424670397" target="_blank">WhatsApp</a>
@@ -355,6 +367,15 @@ Plaza Distrito Marqu&eacute;s, Quer&eacute;taro &bull; <a href="https://instagra
 var API_URL = localStorage.getItem('jacaranda_api') || '';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
+
+// ─── Toast ────────────────────────────────────────────────────────
+function toast(msg, isErr) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast' + (isErr ? ' err' : '');
+  setTimeout(function() { el.classList.add('show'); }, 10);
+  setTimeout(function() { el.classList.remove('show'); }, 3000);
+}
 
 // ─── API helpers ──────────────────────────────────────────────────
 function api(method, path, body) {
@@ -385,8 +406,13 @@ function login(email, pass) {
 function go(p) {
   document.querySelectorAll('.page').forEach(function(e) { e.classList.remove('on'); });
   document.getElementById(p).classList.add('on');
-  document.querySelectorAll('.nav-links a:not(.wa)').forEach(function(a) { a.classList.remove('on'); });
+  document.querySelectorAll('.nav-links a[data-pg]').forEach(function(a) {
+    a.classList.toggle('on', a.getAttribute('data-pg') === p);
+  });
   if (p === 'ped') cargarPedidos();
+  if (p === 'dash') cargarDashboard();
+  if (p === 'corte') generarCorte();
+  window.scrollTo(0, 0);
 }
 
 // ─── POS ──────────────────────────────────────────────────────────
@@ -405,7 +431,14 @@ function ren() {
     var c = cart[i], l = c.p * c.q;
     s += l;
     iv += c.iv === 16 ? l * 0.16 : 0;
-    h += '<div class="ti"><span>' + c.q + 'x ' + c.n + '</span><span>$' + l.toFixed(2) + '</span></div>';
+    h += '<div class="ti" style="align-items:center">';
+    h += '<span style="display:flex;align-items:center;gap:.4rem">';
+    h += '<span class="qty-btn" onclick="cartQty(' + i + ',-1)">-</span>';
+    h += '<strong>' + c.q + '</strong>';
+    h += '<span class="qty-btn" onclick="cartQty(' + i + ',1)">+</span>';
+    h += ' ' + c.n + '</span>';
+    h += '<span style="display:flex;align-items:center;gap:.4rem">$' + l.toFixed(2);
+    h += '<span class="qty-btn rm" onclick="cartRm(' + i + ')">&times;</span></span></div>';
   }
   document.getElementById('titems').innerHTML = h;
   document.getElementById('tsum').style.display = cart.length ? 'block' : 'none';
@@ -413,6 +446,9 @@ function ren() {
   document.getElementById('tiva').textContent = '$' + iv.toFixed(2);
   document.getElementById('ttot').textContent = '$' + (s + iv).toFixed(2);
 }
+
+function cartQty(i, d) { cart[i].q += d; if (cart[i].q < 1) cart.splice(i, 1); ren(); }
+function cartRm(i) { cart.splice(i, 1); ren(); }
 
 function setPm(m) {
   pm = m;
@@ -437,11 +473,10 @@ function cobrar() {
     metodo_pago: pm === 'ef' ? '01' : '04',
     terminal: terminales[pm]
   }).then(function(venta) {
-    alert('Venta registrada en el sistema\n' + total + ' - ' + nombres[pm] + '\nFolio: ' + venta.folio);
+    toast('Venta ' + venta.folio + ' registrada ' + total + ' - ' + nombres[pm]);
     limpiar();
   }).catch(function() {
-    // Modo offline / demo
-    alert('Venta registrada (modo local)\n' + total + ' - ' + nombres[pm] + '\nTicket T-' + (Math.floor(Math.random()*9000)+1000));
+    toast('Venta registrada (local) ' + total + ' - ' + nombres[pm]);
     limpiar();
   });
 }
@@ -466,22 +501,51 @@ function guardarPed() {
   };
 
   api('POST', '/pedidos/', pedido).then(function(p) {
-    alert('Pedido ' + p.folio + ' guardado para ' + nom);
+    toast('Pedido ' + p.folio + ' guardado para ' + nom);
     document.getElementById('modal-ped').classList.remove('on');
     cargarPedidos();
   }).catch(function() {
-    alert('Pedido guardado (modo local) para ' + nom);
+    toast('Pedido guardado (local) para ' + nom);
     document.getElementById('modal-ped').classList.remove('on');
   });
 }
 
 function cargarPedidos() {
-  api('GET', '/pedidos/hoy').then(function(pedidos) {
-    if (!pedidos.length) return;
-    var estadoClase = {recibido:'bpend',confirmado:'bconf',en_preparacion:'bprep',listo:'blist',entregado:'bok'};
-    var estadoNombre = {recibido:'Recibido',confirmado:'Confirmado',en_preparacion:'Preparando',listo:'Listo',entregado:'Entregado'};
-    // Aquí se podría actualizar dinámicamente la lista de pedidos
-  }).catch(function() { /* modo offline, usa los datos estáticos */ });
+  api('GET', '/pedidos/').then(function(pedidos) {
+    var estadoClase = {recibido:'bpend',confirmado:'bconf',en_preparacion:'bprep',listo:'blist',entregado:'bok',cancelado:'bout'};
+    var estadoNombre = {recibido:'Recibido',confirmado:'Confirmado',en_preparacion:'Preparando',listo:'Listo',entregado:'Entregado',cancelado:'Cancelado'};
+    var h = '';
+    if (!pedidos.length) {
+      h = '<div class="ped"><div class="pc" style="text-align:center;color:var(--mut)">No hay pedidos registrados. Crea uno nuevo.</div></div>';
+    }
+    var hoy = 0, man = 0, sem = 0;
+    var ahora = new Date(); var manana = new Date(); manana.setDate(ahora.getDate()+1);
+    var finSem = new Date(); finSem.setDate(ahora.getDate()+7);
+    for (var i = 0; i < pedidos.length; i++) {
+      var p = pedidos[i];
+      var fe = p.fecha_entrega ? new Date(p.fecha_entrega) : null;
+      if (fe) {
+        if (fe.toDateString() === ahora.toDateString()) hoy++;
+        if (fe.toDateString() === manana.toDateString()) man++;
+        if (fe <= finSem) sem++;
+      }
+      var cls = estadoClase[p.estado] || 'bpend';
+      var nom = estadoNombre[p.estado] || p.estado;
+      var det = (p.detalles || []).map(function(d) { return (d.cantidad||1) + 'x ' + d.descripcion; }).join(', ');
+      h += '<div class="ped"><div class="ph"><span class="pf">' + (p.folio||'') + '</span>';
+      h += '<span class="badge ' + cls + '">' + nom + '</span></div>';
+      h += '<div class="pc"><strong>' + (p.cliente_nombre||'') + '</strong>';
+      if (p.lugar_entrega) h += ' &bull; ' + p.lugar_entrega;
+      if (p.hora_entrega) h += ' &bull; ' + p.hora_entrega;
+      h += '</div>';
+      if (det) h += '<div class="pi2">' + det + '</div>';
+      h += '<div class="pd">' + (p.origen||'') + (p.anticipo ? ' &bull; Anticipo $' + p.anticipo : '') + (p.total ? ' &bull; Total $' + p.total : '') + '</div></div>';
+    }
+    document.getElementById('ped-list').innerHTML = h;
+    document.getElementById('ped-hoy').textContent = hoy;
+    document.getElementById('ped-man').textContent = man;
+    document.getElementById('ped-sem').textContent = sem || pedidos.length;
+  }).catch(function() { /* modo offline */ });
 }
 
 // ─── Config modal ─────────────────────────────────────────────────
@@ -491,9 +555,12 @@ function conectarAPI() {
     API_URL = url.replace(/\/$/, '');
     localStorage.setItem('jacaranda_api', API_URL);
     login('admin@jacaranda.mx', 'admin1234').then(function() {
-      alert('Conectado al servidor');
+      setConnected(true);
+      toast('Conectado al servidor');
+      cargarDashboard();
     }).catch(function() {
-      alert('No se pudo conectar. Verifica la URL.');
+      setConnected(false);
+      toast('No se pudo conectar. Verifica la URL.', true);
     });
   }
 }
@@ -516,8 +583,8 @@ function registrarCompra() {
   if (!cant) { alert('Escribe la cantidad'); return; }
 
   api('POST', '/inventario/ingredientes/' + ing.value + '/compra?cantidad=' + cant + '&costo=' + costo + '&proveedor=' + encodeURIComponent(prov))
-  .then(function(r) { alert(r.mensaje + '\nStock actual: ' + r.stock_actual); })
-  .catch(function() { alert('Compra registrada (modo local): ' + cant + ' de ' + ing.options[ing.selectedIndex].text); });
+  .then(function(r) { toast(r.mensaje + ' - Stock: ' + r.stock_actual); })
+  .catch(function() { toast('Compra registrada (local): ' + cant + ' de ' + ing.options[ing.selectedIndex].text); });
 }
 
 function hornear() {
@@ -525,24 +592,103 @@ function hornear() {
   var cant = document.getElementById('horn-cant').value || 1;
 
   api('POST', '/recetas/' + rec.value + '/hornear?cantidad=' + cant)
-  .then(function(r) { alert(r.mensaje + '\nPiezas producidas: ' + r.piezas_producidas + '\nStock: ' + r.stock_producto); })
+  .then(function(r) { toast(r.mensaje + ' - ' + r.piezas_producidas + ' pzas, stock: ' + r.stock_producto); })
   .catch(function(e) {
     if (e && e.detail && e.detail.faltantes) {
-      var msg = 'Faltan ingredientes:\n';
-      e.detail.faltantes.forEach(function(f) { msg += '- ' + f.ingrediente + ': necesitas ' + f.necesario + ', tienes ' + f.disponible + '\n'; });
-      alert(msg);
+      toast('Faltan ingredientes para hornear', true);
     } else {
-      alert('Horneado registrado (modo local): ' + cant + 'x ' + rec.options[rec.selectedIndex].text);
+      toast('Horneado registrado (local): ' + cant + 'x ' + rec.options[rec.selectedIndex].text);
     }
   });
 }
 
+// ─── Connection status ────────────────────────────────────────────
+function setConnected(ok) {
+  var dot = document.getElementById('conn-dot');
+  var btn = document.getElementById('btn-conn');
+  if (ok) {
+    dot.classList.add('on');
+    btn.innerHTML = '<span class="conn-dot on"></span>Conectado';
+    btn.style.background = 'var(--grn)';
+  } else {
+    dot.classList.remove('on');
+    btn.innerHTML = '<span class="conn-dot"></span>Conectar';
+    btn.style.background = 'var(--v)';
+  }
+}
+
+// ─── Corte de caja ────────────────────────────────────────────────
+function generarCorte() {
+  api('GET', '/reportes/dashboard').then(function(d) {
+    document.getElementById('c-total').textContent = '$' + Number(d.ventas_hoy||0).toLocaleString('es-MX',{minimumFractionDigits:2});
+    document.getElementById('c-ef').textContent = '$' + Number(d.efectivo||0).toLocaleString('es-MX',{minimumFractionDigits:2});
+    document.getElementById('c-clip').textContent = '$' + Number(d.clip||0).toLocaleString('es-MX',{minimumFractionDigits:2});
+    document.getElementById('c-bbva').textContent = '$' + Number(d.bbva||0).toLocaleString('es-MX',{minimumFractionDigits:2});
+    document.getElementById('c-tickets').textContent = d.tickets || 0;
+    var fondo = parseFloat(document.getElementById('c-fondo').value) || 0;
+    var ef = Number(d.efectivo||0);
+    document.getElementById('c-esperado').textContent = '$' + (fondo + ef).toLocaleString('es-MX',{minimumFractionDigits:2});
+    toast('Corte generado con datos del servidor');
+  }).catch(function() {
+    toast('No se pudo conectar. Los datos mostrados son de ejemplo.', true);
+  });
+}
+
+function calcularDiferencia() {
+  var real = parseFloat(document.getElementById('c-real').value);
+  if (isNaN(real)) { document.getElementById('c-contado').textContent = '--'; document.getElementById('c-dif').textContent = '--'; return; }
+  document.getElementById('c-contado').textContent = '$' + real.toLocaleString('es-MX',{minimumFractionDigits:2});
+  var esperadoText = document.getElementById('c-esperado').textContent.replace(/[^0-9.-]/g,'');
+  var esperado = parseFloat(esperadoText) || 0;
+  var dif = real - esperado;
+  var difEl = document.getElementById('c-dif');
+  difEl.textContent = '$' + dif.toFixed(2);
+  difEl.style.color = Math.abs(dif) < 1 ? 'var(--grn)' : '#b91c1c';
+  if (Math.abs(dif) < 1) difEl.textContent += ' \u2714';
+}
+
+// ─── Dashboard data ───────────────────────────────────────────────
+function fmt(n) { return '$' + Number(n||0).toLocaleString('es-MX'); }
+
+function cargarDashboard() {
+  api('GET', '/reportes/dashboard').then(function(d) {
+    setConnected(true);
+    document.getElementById('d-ventas').textContent = fmt(d.ventas_hoy);
+    document.getElementById('d-ef').textContent = fmt(d.efectivo);
+    document.getElementById('d-clip').textContent = fmt(d.clip);
+    document.getElementById('d-bbva').textContent = fmt(d.bbva);
+    document.getElementById('d-tickets').textContent = d.tickets || 0;
+  }).catch(function() {
+    setConnected(false);
+  });
+
+  // Load today's pedidos for dashboard
+  api('GET', '/pedidos/hoy').then(function(peds) {
+    var h = '';
+    var estadoClase = {recibido:'bpend',confirmado:'bconf',en_preparacion:'bprep',listo:'blist',entregado:'bok'};
+    var estadoNombre = {recibido:'Recibido',confirmado:'Confirmado',en_preparacion:'Preparando',listo:'Listo',entregado:'Entregado'};
+    for (var i = 0; i < Math.min(peds.length, 5); i++) {
+      var p = peds[i];
+      h += '<div class="srow"><span>' + (p.folio||'') + ' &bull; ' + (p.cliente_nombre||'') + (p.lugar_entrega ? ' &bull; ' + p.lugar_entrega : '') + '</span>';
+      h += '<span class="badge ' + (estadoClase[p.estado]||'bpend') + '">' + (estadoNombre[p.estado]||p.estado) + '</span></div>';
+    }
+    if (h) document.getElementById('d-ped-hoy').innerHTML = h;
+  }).catch(function(){});
+
+  // Load inventory for dashboard
+  api('GET', '/inventario/productos').then(function(prods) {
+    var h = '';
+    for (var i = 0; i < Math.min(prods.length, 6); i++) {
+      var p = prods[i];
+      h += '<div class="srow"><span>' + p.nombre + '</span><span>' + (p.stock||0) + ' pzas</span></div>';
+    }
+    if (h) document.getElementById('d-inv').innerHTML = h;
+  }).catch(function(){});
+}
+
 // Auto-conectar si hay URL guardada
 if (API_URL && TOKEN) {
-  api('GET', '/reportes/dashboard').catch(function() {
-    TOKEN = '';
-    localStorage.removeItem('jacaranda_token');
-  });
+  cargarDashboard();
 }
 </script>
 </body>
