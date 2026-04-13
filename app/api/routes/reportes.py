@@ -22,10 +22,11 @@ def dashboard(
 
 @router.get("/gastos-hoy")
 def gastos_hoy(
+    fecha: date | None = None,
     db: Session = Depends(get_db),
     _user: Usuario = Depends(get_current_user),
 ):
-    return svc.gastos_hoy(db)
+    return svc.gastos_hoy(db, fecha)
 
 
 @router.get("/ventas")
