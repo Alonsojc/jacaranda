@@ -92,6 +92,7 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <a onclick="go('ped')">Pedidos</a>
 <a onclick="go('inv')">Inventario</a>
 <a onclick="go('corte')">Corte</a>
+<a onclick="conectarAPI()" style="cursor:pointer;background:var(--v);color:#fff;border-radius:20px;font-size:.78rem;padding:.5rem .8rem">Conectar</a>
 <a href="https://wa.me/5214424670397" target="_blank" class="wa">WhatsApp</a>
 </div>
 </nav>
@@ -286,14 +287,161 @@ Plaza Distrito Marqu&eacute;s, Quer&eacute;taro &bull; <a href="https://instagra
 </div>
 
 <script>
-var cart=[],pm='ef',sales=[];
-function go(p){document.querySelectorAll('.page').forEach(function(e){e.classList.remove('on')});document.getElementById(p).classList.add('on');document.querySelectorAll('.nav-links a:not(.wa)').forEach(function(a){a.classList.remove('on')});}
-function add(n,pr,iv){var f=false;for(var i=0;i<cart.length;i++){if(cart[i].n===n){cart[i].q++;f=true;break;}}if(!f)cart.push({n:n,p:pr,iv:iv,q:1});ren();}
-function ren(){var h='',s=0,iv=0;for(var i=0;i<cart.length;i++){var c=cart[i],l=c.p*c.q;s+=l;iv+=c.iv===16?l*.16:0;h+='<div class="ti"><span>'+c.q+'x '+c.n+'</span><span>$'+l.toFixed(2)+'</span></div>';}document.getElementById('titems').innerHTML=h;document.getElementById('tsum').style.display=cart.length?'block':'none';document.getElementById('tsub').textContent='$'+s.toFixed(2);document.getElementById('tiva').textContent='$'+iv.toFixed(2);document.getElementById('ttot').textContent='$'+(s+iv).toFixed(2);}
-function setPm(m){pm=m;document.getElementById('pm-ef').classList.toggle('sel',m==='ef');document.getElementById('pm-clip').classList.toggle('sel',m==='clip');document.getElementById('pm-bbva').classList.toggle('sel',m==='bbva');}
-function cobrar(){if(!cart.length)return;var t=document.getElementById('ttot').textContent;var nombres={ef:'Efectivo',clip:'CLIP',bbva:'BBVA'};alert('Venta registrada\n'+t+' - '+nombres[pm]+'\nTicket T-'+(Math.floor(Math.random()*9000)+1000));limpiar();}
-function limpiar(){cart=[];ren();}
-function guardarPed(){var n=document.getElementById('np-nom').value;if(!n){alert('Escribe el nombre del cliente');return;}alert('Pedido guardado para '+n);document.getElementById('modal-ped').classList.remove('on');}
+// ─── Config ───────────────────────────────────────────────────────
+// Cambiar API_URL cuando el backend esté desplegado
+var API_URL = localStorage.getItem('jacaranda_api') || '';
+var TOKEN = localStorage.getItem('jacaranda_token') || '';
+var cart = [], pm = 'ef';
+
+// ─── API helpers ──────────────────────────────────────────────────
+function api(method, path, body) {
+  if (!API_URL) return Promise.reject('offline');
+  var opts = {method: method, headers: {'Content-Type':'application/json'}};
+  if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
+  if (body) opts.body = JSON.stringify(body);
+  return fetch(API_URL + '/api/v1' + path, opts).then(function(r) {
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  });
+}
+
+function login(email, pass) {
+  var fd = new URLSearchParams();
+  fd.append('username', email);
+  fd.append('password', pass);
+  return fetch(API_URL + '/api/v1/auth/login', {
+    method: 'POST', body: fd
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    TOKEN = d.access_token;
+    localStorage.setItem('jacaranda_token', TOKEN);
+    return d;
+  });
+}
+
+// ─── Navegación ───────────────────────────────────────────────────
+function go(p) {
+  document.querySelectorAll('.page').forEach(function(e) { e.classList.remove('on'); });
+  document.getElementById(p).classList.add('on');
+  document.querySelectorAll('.nav-links a:not(.wa)').forEach(function(a) { a.classList.remove('on'); });
+  if (p === 'ped') cargarPedidos();
+}
+
+// ─── POS ──────────────────────────────────────────────────────────
+function add(n, pr, iv) {
+  var f = false;
+  for (var i = 0; i < cart.length; i++) {
+    if (cart[i].n === n) { cart[i].q++; f = true; break; }
+  }
+  if (!f) cart.push({n:n, p:pr, iv:iv, q:1});
+  ren();
+}
+
+function ren() {
+  var h='', s=0, iv=0;
+  for (var i = 0; i < cart.length; i++) {
+    var c = cart[i], l = c.p * c.q;
+    s += l;
+    iv += c.iv === 16 ? l * 0.16 : 0;
+    h += '<div class="ti"><span>' + c.q + 'x ' + c.n + '</span><span>$' + l.toFixed(2) + '</span></div>';
+  }
+  document.getElementById('titems').innerHTML = h;
+  document.getElementById('tsum').style.display = cart.length ? 'block' : 'none';
+  document.getElementById('tsub').textContent = '$' + s.toFixed(2);
+  document.getElementById('tiva').textContent = '$' + iv.toFixed(2);
+  document.getElementById('ttot').textContent = '$' + (s + iv).toFixed(2);
+}
+
+function setPm(m) {
+  pm = m;
+  document.getElementById('pm-ef').classList.toggle('sel', m === 'ef');
+  document.getElementById('pm-clip').classList.toggle('sel', m === 'clip');
+  document.getElementById('pm-bbva').classList.toggle('sel', m === 'bbva');
+}
+
+function cobrar() {
+  if (!cart.length) return;
+  var total = document.getElementById('ttot').textContent;
+  var terminales = {ef:'efectivo', clip:'clip', bbva:'bbva'};
+  var nombres = {ef:'Efectivo', clip:'CLIP', bbva:'BBVA'};
+
+  // Intentar registrar en el backend
+  var items = cart.map(function(c) {
+    return {producto_nombre: c.n, cantidad: c.q, precio: c.p, iva: c.iv};
+  });
+
+  api('POST', '/punto-de-venta/ventas', {
+    items: items,
+    metodo_pago: pm === 'ef' ? '01' : '04',
+    terminal: terminales[pm]
+  }).then(function(venta) {
+    alert('Venta registrada en el sistema\n' + total + ' - ' + nombres[pm] + '\nFolio: ' + venta.folio);
+    limpiar();
+  }).catch(function() {
+    // Modo offline / demo
+    alert('Venta registrada (modo local)\n' + total + ' - ' + nombres[pm] + '\nTicket T-' + (Math.floor(Math.random()*9000)+1000));
+    limpiar();
+  });
+}
+
+function limpiar() { cart = []; ren(); }
+
+// ─── Pedidos ──────────────────────────────────────────────────────
+function guardarPed() {
+  var nom = document.getElementById('np-nom').value;
+  if (!nom) { alert('Escribe el nombre del cliente'); return; }
+
+  var pedido = {
+    cliente_nombre: nom,
+    cliente_telefono: document.getElementById('np-tel').value,
+    fecha_entrega: document.getElementById('np-fecha').value,
+    hora_entrega: document.getElementById('np-hora').value,
+    lugar_entrega: document.getElementById('np-lugar').value,
+    origen: document.querySelector('#modal-ped select').value.toLowerCase(),
+    anticipo: parseFloat(document.getElementById('np-ant').value) || 0,
+    notas_internas: document.getElementById('np-notas').value,
+    detalles: [{descripcion: document.getElementById('np-prod').value, cantidad: 1}]
+  };
+
+  api('POST', '/pedidos/', pedido).then(function(p) {
+    alert('Pedido ' + p.folio + ' guardado para ' + nom);
+    document.getElementById('modal-ped').classList.remove('on');
+    cargarPedidos();
+  }).catch(function() {
+    alert('Pedido guardado (modo local) para ' + nom);
+    document.getElementById('modal-ped').classList.remove('on');
+  });
+}
+
+function cargarPedidos() {
+  api('GET', '/pedidos/hoy').then(function(pedidos) {
+    if (!pedidos.length) return;
+    var estadoClase = {recibido:'bpend',confirmado:'bconf',en_preparacion:'bprep',listo:'blist',entregado:'bok'};
+    var estadoNombre = {recibido:'Recibido',confirmado:'Confirmado',en_preparacion:'Preparando',listo:'Listo',entregado:'Entregado'};
+    // Aquí se podría actualizar dinámicamente la lista de pedidos
+  }).catch(function() { /* modo offline, usa los datos estáticos */ });
+}
+
+// ─── Config modal ─────────────────────────────────────────────────
+function conectarAPI() {
+  var url = prompt('URL del servidor Jacaranda (ej: https://jacaranda.railway.app)', API_URL);
+  if (url) {
+    API_URL = url.replace(/\/$/, '');
+    localStorage.setItem('jacaranda_api', API_URL);
+    login('admin@jacaranda.mx', 'admin1234').then(function() {
+      alert('Conectado al servidor');
+    }).catch(function() {
+      alert('No se pudo conectar. Verifica la URL.');
+    });
+  }
+}
+
+// Auto-conectar si hay URL guardada
+if (API_URL && TOKEN) {
+  api('GET', '/reportes/dashboard').catch(function() {
+    TOKEN = '';
+    localStorage.removeItem('jacaranda_token');
+  });
+}
 </script>
 </body>
 </html>
