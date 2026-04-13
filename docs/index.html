@@ -77,7 +77,9 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .limpiar:hover{background:#ede3df}
 /* Tabla */
 .tbl{width:100%;border-collapse:collapse;font-size:.82rem;table-layout:fixed;word-break:break-word}
-.tbl th{text-align:left;padding:.5rem .5rem;background:linear-gradient(135deg,#faf3f0,#fdf7f5);color:var(--v);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em}
+.tbl th{text-align:left;padding:.5rem .5rem;background:linear-gradient(135deg,#faf3f0,#fdf7f5);color:var(--v);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;cursor:pointer;user-select:none;white-space:nowrap}
+.tbl th:empty{cursor:default}
+.tbl th .sa{font-size:.6rem;margin-left:.2rem;opacity:.5}.tbl th[data-sort] .sa{opacity:1}
 .tbl td{padding:.45rem .5rem;border-bottom:1px solid #f0e8e5}
 .tbl tr:hover td{background:#fdf9f7}
 /* Pedidos */
@@ -3610,8 +3612,61 @@ function exportarFiscalCSV() {
   }).catch(function() { toast('Error al exportar', true); });
 }
 
-// ─── Impresión térmica mejorada ──────────────────────────────────
-// (sobrescribe imprimirTicket con soporte para impresoras térmicas 58mm/80mm)
+// ─── Ordenar tablas al hacer click en encabezado ─────────────────
+document.addEventListener('click', function(e) {
+  var th = e.target;
+  while (th && th.tagName !== 'TH') th = th.parentElement;
+  if (!th || !th.closest('.tbl')) return;
+  var txt = th.textContent.replace(/[▲▼]/g,'').trim();
+  if (!txt) return; // skip empty action columns
+  var table = th.closest('table');
+  var idx = Array.prototype.indexOf.call(th.parentNode.children, th);
+  var rows = Array.prototype.slice.call(table.querySelectorAll('tr'));
+  var header = rows.shift();
+  if (!rows.length) return;
+
+  var asc = th.getAttribute('data-sort') !== 'asc';
+  var allTh = header.querySelectorAll('th');
+  for (var i = 0; i < allTh.length; i++) {
+    allTh[i].removeAttribute('data-sort');
+    var arrow = allTh[i].querySelector('.sa');
+    if (arrow) arrow.textContent = '▲▼';
+  }
+  th.setAttribute('data-sort', asc ? 'asc' : 'desc');
+  var ar = th.querySelector('.sa');
+  if (ar) ar.textContent = asc ? '▲' : '▼';
+
+  rows.sort(function(a, b) {
+    var ca = a.children[idx], cb = b.children[idx];
+    if (!ca || !cb) return 0;
+    var va = (ca.textContent || '').trim();
+    var vb = (cb.textContent || '').trim();
+    var na = parseFloat(va.replace(/[^0-9.\-]/g, ''));
+    var nb = parseFloat(vb.replace(/[^0-9.\-]/g, ''));
+    if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+    return asc ? va.localeCompare(vb, 'es') : vb.localeCompare(va, 'es');
+  });
+
+  for (var j = 0; j < rows.length; j++) table.appendChild(rows[j]);
+});
+
+// Inject sort arrows into .tbl headers after they render
+var _sortObserver = new MutationObserver(function(mutations) {
+  for (var m = 0; m < mutations.length; m++) {
+    var added = mutations[m].addedNodes;
+    for (var n = 0; n < added.length; n++) {
+      var node = added[n];
+      if (!node.querySelectorAll) continue;
+      var ths = node.querySelectorAll('.tbl th');
+      for (var t = 0; t < ths.length; t++) {
+        if (!ths[t].querySelector('.sa') && ths[t].textContent.trim()) {
+          ths[t].innerHTML += '<span class="sa"> ▲▼</span>';
+        }
+      }
+    }
+  }
+});
+_sortObserver.observe(document.body, {childList: true, subtree: true});
 
 var _reconectar = 0;
 
