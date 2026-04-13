@@ -3077,10 +3077,10 @@ function cargarDashboard() {
       var min = parseFloat(p.stock_minimo) || 0;
       var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
       h += '<div class="srow" data-name="' + p.nombre.toLowerCase() + '"><span>' + p.nombre + '</span><span class="badge ' + cls + '">' + Math.round(stock) + ' pzas</span></div>';
-      if (stock > 0 && stock <= min) {
-        alertas += '<div class="srow"><span>' + p.nombre + '</span><span class="badge blow">Stock bajo (' + Math.round(stock) + ')</span></div>';
-      } else if (stock <= 0 && min > 0) {
+      if (stock <= 0) {
         alertas += '<div class="srow"><span>' + p.nombre + '</span><span class="badge bout">Agotado</span></div>';
+      } else if (min > 0 && stock <= min) {
+        alertas += '<div class="srow"><span>' + p.nombre + '</span><span class="badge blow">Stock bajo (' + Math.round(stock) + ' pzas)</span></div>';
       }
     }
     if (h) document.getElementById('d-inv').innerHTML = h;
