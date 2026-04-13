@@ -136,39 +136,26 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="page on" id="dash">
 <h2>Dashboard &mdash; Hoy</h2>
 <div class="row r5">
-<div class="card kpi g"><div class="n">$14,850</div><div class="l">Ventas del d&iacute;a</div></div>
-<div class="card kpi"><div class="n">$4,200</div><div class="l">Efectivo</div></div>
-<div class="card kpi p"><div class="n">$6,100</div><div class="l">CLIP</div></div>
-<div class="card kpi a"><div class="n">$4,550</div><div class="l">BBVA</div></div>
-<div class="card kpi"><div class="n">47</div><div class="l">Tickets</div></div>
+<div class="card kpi g"><div class="n" id="d-ventas">$0</div><div class="l">Ventas del d&iacute;a</div></div>
+<div class="card kpi"><div class="n" id="d-ef">$0</div><div class="l">Efectivo</div></div>
+<div class="card kpi p"><div class="n" id="d-clip">$0</div><div class="l">CLIP</div></div>
+<div class="card kpi a"><div class="n" id="d-bbva">$0</div><div class="l">BBVA</div></div>
+<div class="card kpi"><div class="n" id="d-tickets">0</div><div class="l">Tickets</div></div>
 </div>
 <div class="row r2">
 <div class="card"><h3>Productos m&aacute;s vendidos</h3>
-<div class="srow"><span>1. Nutella</span><span class="green">32 pzas</span></div>
-<div class="srow"><span>2. Manzana</span><span class="green">24 pzas</span></div>
-<div class="srow"><span>3. Brownies</span><span class="green">18 pzas</span></div>
-<div class="srow"><span>4. Galletas</span><span class="green">15 pzas</span></div>
-<div class="srow"><span>5. Velas</span><span class="green">8 pzas</span></div>
+<div id="d-top-prod"><div class="srow" style="color:var(--mut)"><span>Conecta al servidor para ver datos</span></div></div>
 </div>
 <div class="card"><h3>Pedidos de hoy</h3>
-<div class="srow"><span>P-00012 &bull; Jimena &bull; Hotel La Grande</span><span class="badge blist">Listo</span></div>
-<div class="srow"><span>P-00013 &bull; Carlos &bull; Recoger 14:00</span><span class="badge bprep">Preparando</span></div>
-<div class="srow"><span>P-00014 &bull; Mar&iacute;a &bull; Entregar 17:00</span><span class="badge bconf">Confirmado</span></div>
-<div class="srow"><span>P-00015 &bull; Andrea &bull; Recoger 18:00</span><span class="badge bpend">Recibido</span></div>
+<div id="d-ped-hoy"><div class="srow" style="color:var(--mut)"><span>Sin pedidos para hoy</span></div></div>
 </div>
 </div>
 <div class="row r2">
-<div class="card"><h3>Inventario - Conteo de anoche</h3>
-<div class="srow"><span>Nutella</span><span>45 pzas</span></div>
-<div class="srow"><span>Manzana</span><span>30 pzas</span></div>
-<div class="srow"><span>Brownies</span><span>25 pzas</span></div>
-<div class="srow"><span>Galletas (6pz)</span><span>20 bolsas</span></div>
-<div class="srow"><span>Velas</span><span>12 pzas</span></div>
+<div class="card"><h3>Inventario</h3>
+<div id="d-inv"><div class="srow" style="color:var(--mut)"><span>Conecta al servidor para ver stock</span></div></div>
 </div>
 <div class="card"><h3>Alertas</h3>
-<div class="srow"><span>Galletas</span><span class="badge blow">Quedan 5</span></div>
-<div class="srow"><span>Velas</span><span class="badge blow">Quedan 4</span></div>
-<div class="srow"><span>Ticket T-0039 sin producto anotado</span><span class="badge bout">Revisar</span></div>
+<div id="d-alertas"><div class="srow" style="color:var(--mut)"><span>Sin alertas</span></div></div>
 </div>
 </div>
 </div>
@@ -661,21 +648,42 @@ function calcularDiferencia() {
 }
 
 // ─── Dashboard data ───────────────────────────────────────────────
+function fmt(n) { return '$' + Number(n||0).toLocaleString('es-MX'); }
+
 function cargarDashboard() {
   api('GET', '/reportes/dashboard').then(function(d) {
     setConnected(true);
-    // Update KPIs if data available
-    var kpis = document.querySelectorAll('#dash .kpi .n');
-    if (d.ventas_hoy !== undefined && kpis.length >= 5) {
-      kpis[0].textContent = '$' + Number(d.ventas_hoy || 0).toLocaleString('es-MX');
-      kpis[1].textContent = '$' + Number(d.efectivo || 0).toLocaleString('es-MX');
-      kpis[2].textContent = '$' + Number(d.clip || 0).toLocaleString('es-MX');
-      kpis[3].textContent = '$' + Number(d.bbva || 0).toLocaleString('es-MX');
-      kpis[4].textContent = d.tickets || 0;
-    }
+    document.getElementById('d-ventas').textContent = fmt(d.ventas_hoy);
+    document.getElementById('d-ef').textContent = fmt(d.efectivo);
+    document.getElementById('d-clip').textContent = fmt(d.clip);
+    document.getElementById('d-bbva').textContent = fmt(d.bbva);
+    document.getElementById('d-tickets').textContent = d.tickets || 0;
   }).catch(function() {
     setConnected(false);
   });
+
+  // Load today's pedidos for dashboard
+  api('GET', '/pedidos/hoy').then(function(peds) {
+    var h = '';
+    var estadoClase = {recibido:'bpend',confirmado:'bconf',en_preparacion:'bprep',listo:'blist',entregado:'bok'};
+    var estadoNombre = {recibido:'Recibido',confirmado:'Confirmado',en_preparacion:'Preparando',listo:'Listo',entregado:'Entregado'};
+    for (var i = 0; i < Math.min(peds.length, 5); i++) {
+      var p = peds[i];
+      h += '<div class="srow"><span>' + (p.folio||'') + ' &bull; ' + (p.cliente_nombre||'') + (p.lugar_entrega ? ' &bull; ' + p.lugar_entrega : '') + '</span>';
+      h += '<span class="badge ' + (estadoClase[p.estado]||'bpend') + '">' + (estadoNombre[p.estado]||p.estado) + '</span></div>';
+    }
+    if (h) document.getElementById('d-ped-hoy').innerHTML = h;
+  }).catch(function(){});
+
+  // Load inventory for dashboard
+  api('GET', '/inventario/productos').then(function(prods) {
+    var h = '';
+    for (var i = 0; i < Math.min(prods.length, 6); i++) {
+      var p = prods[i];
+      h += '<div class="srow"><span>' + p.nombre + '</span><span>' + (p.stock||0) + ' pzas</span></div>';
+    }
+    if (h) document.getElementById('d-inv').innerHTML = h;
+  }).catch(function(){});
 }
 
 // Auto-conectar si hay URL guardada
