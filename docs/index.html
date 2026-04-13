@@ -16,11 +16,6 @@ nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1p
 .nav-links a{text-decoration:none;color:var(--mut);font-size:.82rem;font-weight:500;padding:.5rem .8rem;border-radius:8px;cursor:pointer}
 .nav-links a:hover,.nav-links a.on{color:var(--v);background:#faf3f0}
 .wa{background:var(--grn)!important;color:#fff!important;border-radius:20px!important;font-size:.78rem!important}
-.hero{background:linear-gradient(135deg,#c4988a 0%,#d4a99c 40%,#dbb5aa 100%);padding:2.5rem 2rem;text-align:center;color:#fff;position:relative;overflow:hidden}
-.hero::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle at 30% 50%,rgba(255,255,255,.08) 0%,transparent 50%);pointer-events:none}
-.hero h1{font-family:'DM Serif Display',serif;font-size:2.4rem;letter-spacing:.35em;position:relative;font-weight:400}
-.hero p{color:rgba(255,255,255,.85);font-size:.95rem;margin-top:.3rem;font-weight:300;letter-spacing:.15em;position:relative}
-.hero small{color:rgba(255,255,255,.7);font-size:.8rem;position:relative}
 .wrap{max-width:1100px;margin:0 auto;padding:1.5rem}
 .page{display:none}.page.on{display:block}
 .row{display:grid;gap:1rem;margin-bottom:1rem}
@@ -280,9 +275,26 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 <div class="card">
 <h3>Ventas del d&iacute;a</h3>
-<div id="c-ventas-list" style="max-height:400px;overflow-y:auto">
+<div id="c-ventas-list" style="max-height:300px;overflow-y:auto">
 <p style="color:var(--mut);text-align:center;padding:1rem;font-size:.85rem">Cargando ventas...</p>
 </div>
+</div>
+</div>
+<div class="row r2">
+<div class="card">
+<h3>Gastos del d&iacute;a (compras)</h3>
+<div class="srow"><span>Total gastos</span><span style="color:#b91c1c;font-weight:700" id="c-gastos-total">$0.00</span></div>
+<div class="srow"><span>Compras registradas</span><span id="c-gastos-num">0</span></div>
+<div id="c-gastos-list" style="max-height:200px;overflow-y:auto;margin-top:.5rem">
+<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin compras hoy</p>
+</div>
+</div>
+<div class="card">
+<h3>Utilidad del d&iacute;a</h3>
+<div class="srow"><span>Ventas totales</span><span class="green" id="c-util-ventas">$0.00</span></div>
+<div class="srow"><span>Gastos (compras)</span><span style="color:#b91c1c" id="c-util-gastos">$0.00</span></div>
+<div class="srow" style="border-top:2px solid var(--brd);padding-top:.5rem;margin-top:.3rem"><span style="font-weight:700;font-size:1rem">Utilidad bruta</span><span style="font-weight:700;font-size:1.1rem" id="c-util-neta">$0.00</span></div>
+<p style="font-size:.72rem;color:var(--mut);margin-top:.5rem">* Utilidad bruta = ventas - compras de ingredientes. No incluye renta, n&oacute;mina ni otros gastos fijos.</p>
 </div>
 </div>
 </div>
@@ -506,14 +518,18 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 </div>
 
-<!-- MODAL: Ticket confirmación -->
+<!-- MODAL: Ticket confirmación / ver ticket -->
 <div class="modal-bg" id="modal-ticket">
 <div class="modal" style="text-align:center">
-<div style="font-size:3rem;margin-bottom:.5rem">&#10003;</div>
-<h3 style="color:var(--grn)">Venta Registrada</h3>
+<div style="font-size:3rem;margin-bottom:.5rem" id="mt-icon">&#10003;</div>
+<h3 id="mt-titulo" style="color:var(--grn)">Venta Registrada</h3>
 <div id="mt-folio" style="font-size:1.3rem;font-weight:700;color:var(--v);margin:.5rem 0"></div>
 <div id="mt-detalles" style="text-align:left;margin:1rem 0"></div>
-<button class="cobrar" style="width:100%" onclick="cerrarModal('modal-ticket')">Cerrar</button>
+<div id="mt-productos" style="text-align:left;margin:0 0 1rem"></div>
+<div style="display:flex;gap:.5rem">
+<button class="cobrar" style="flex:1" onclick="copiarTicket()">Copiar Ticket</button>
+<button class="limpiar" style="flex:1;padding:.5rem 1.2rem" onclick="cerrarModal('modal-ticket')">Cerrar</button>
+</div>
 </div>
 </div>
 
@@ -692,19 +708,111 @@ function procesarVenta() {
 }
 
 function mostrarTicket(venta) {
+  document.getElementById('mt-icon').innerHTML = '&#10003;';
+  document.getElementById('mt-titulo').textContent = 'Venta Registrada';
+  document.getElementById('mt-titulo').style.color = 'var(--grn)';
   document.getElementById('mt-folio').textContent = venta.folio;
-  var cambio = parseFloat(venta.cambio) || 0;
-  var metodos = {'01':'Efectivo','04':'Tarjeta','28':'Tarjeta D\u00e9bito','03':'Transferencia'};
-  var h = '';
-  h += '<div class="srow"><span>Total</span><span class="green" style="font-size:1.2rem">$' + parseFloat(venta.total).toFixed(2) + '</span></div>';
-  h += '<div class="srow"><span>Subtotal</span><span>$' + parseFloat(venta.subtotal).toFixed(2) + '</span></div>';
-  h += '<div class="srow"><span>IVA</span><span>$' + parseFloat(venta.total_impuestos).toFixed(2) + '</span></div>';
-  h += '<div class="srow"><span>M\u00e9todo</span><span>' + (metodos[venta.metodo_pago] || venta.metodo_pago) + '</span></div>';
-  if (cambio > 0) {
-    h += '<div class="srow"><span>Cambio</span><span style="color:var(--grn);font-weight:700">$' + cambio.toFixed(2) + '</span></div>';
-  }
-  document.getElementById('mt-detalles').innerHTML = h;
+  // Load full ticket from backend
+  api('GET', '/punto-de-venta/ventas/' + venta.id + '/ticket').then(function(tk) {
+    _ultimoTicket = tk;
+    renderTicket(tk);
+  }).catch(function() {
+    // Fallback: show basic info from venta response
+    var cambio = parseFloat(venta.cambio) || 0;
+    var metodos = {'01':'Efectivo','04':'Tarjeta','28':'Tarjeta D\u00e9bito','03':'Transferencia'};
+    var h = '';
+    h += '<div class="srow"><span>Total</span><span class="green" style="font-size:1.2rem">$' + parseFloat(venta.total).toFixed(2) + '</span></div>';
+    h += '<div class="srow"><span>Subtotal</span><span>$' + parseFloat(venta.subtotal).toFixed(2) + '</span></div>';
+    h += '<div class="srow"><span>IVA</span><span>$' + parseFloat(venta.total_impuestos).toFixed(2) + '</span></div>';
+    h += '<div class="srow"><span>M\u00e9todo</span><span>' + (metodos[venta.metodo_pago] || venta.metodo_pago) + '</span></div>';
+    if (cambio > 0) h += '<div class="srow"><span>Cambio</span><span style="color:var(--grn);font-weight:700">$' + cambio.toFixed(2) + '</span></div>';
+    document.getElementById('mt-detalles').innerHTML = h;
+    document.getElementById('mt-productos').innerHTML = '';
+    _ultimoTicket = null;
+  });
   document.getElementById('modal-ticket').classList.add('on');
+}
+
+var _ultimoTicket = null;
+
+function renderTicket(tk) {
+  var h = '';
+  h += '<div class="srow"><span>Total</span><span class="green" style="font-size:1.2rem">' + tk.total + '</span></div>';
+  h += '<div class="srow"><span>Subtotal</span><span>' + tk.subtotal + '</span></div>';
+  h += '<div class="srow"><span>IVA</span><span>' + tk.iva + '</span></div>';
+  h += '<div class="srow"><span>M\u00e9todo</span><span>' + tk.metodo_pago + '</span></div>';
+  if (tk.monto_recibido && tk.monto_recibido !== '$0.00') h += '<div class="srow"><span>Recibido</span><span>' + tk.monto_recibido + '</span></div>';
+  if (tk.cambio && tk.cambio !== '$0.00') h += '<div class="srow"><span>Cambio</span><span style="color:var(--grn);font-weight:700">' + tk.cambio + '</span></div>';
+  document.getElementById('mt-detalles').innerHTML = h;
+  // Products list
+  var p = '';
+  if (tk.productos && tk.productos.length) {
+    p += '<div style="border-top:1px solid var(--brd);padding-top:.5rem;margin-top:.3rem">';
+    for (var i = 0; i < tk.productos.length; i++) {
+      var pr = tk.productos[i];
+      p += '<div class="srow"><span>' + pr.cantidad + 'x ' + pr.nombre + '</span><span>$' + pr.subtotal.toFixed(2) + '</span></div>';
+    }
+    p += '</div>';
+  }
+  document.getElementById('mt-productos').innerHTML = p;
+}
+
+function verTicket(ventaId) {
+  document.getElementById('mt-icon').innerHTML = '&#128203;';
+  document.getElementById('mt-titulo').textContent = 'Ticket';
+  document.getElementById('mt-titulo').style.color = 'var(--v)';
+  document.getElementById('mt-folio').textContent = 'Cargando...';
+  document.getElementById('mt-detalles').innerHTML = '';
+  document.getElementById('mt-productos').innerHTML = '';
+  document.getElementById('modal-ticket').classList.add('on');
+  api('GET', '/punto-de-venta/ventas/' + ventaId + '/ticket').then(function(tk) {
+    _ultimoTicket = tk;
+    document.getElementById('mt-folio').textContent = tk.folio;
+    renderTicket(tk);
+  }).catch(function() {
+    document.getElementById('mt-folio').textContent = 'Error al cargar ticket';
+    _ultimoTicket = null;
+  });
+}
+
+function copiarTicket() {
+  var tk = _ultimoTicket;
+  if (!tk) { toast('No hay ticket para copiar', true); return; }
+  var txt = '';
+  txt += tk.razon_social + '\n';
+  txt += 'RFC: ' + tk.rfc + '\n';
+  txt += tk.direccion + '\n';
+  txt += '─────────────────────\n';
+  txt += 'Folio: ' + tk.folio + '\n';
+  txt += 'Fecha: ' + tk.fecha + '\n';
+  txt += 'Cajero: ' + tk.cajero + '\n';
+  txt += '─────────────────────\n';
+  for (var i = 0; i < tk.productos.length; i++) {
+    var p = tk.productos[i];
+    txt += p.cantidad + 'x ' + p.nombre + '  $' + p.subtotal.toFixed(2) + '\n';
+  }
+  txt += '─────────────────────\n';
+  txt += 'Subtotal:  ' + tk.subtotal + '\n';
+  txt += 'IVA:       ' + tk.iva + '\n';
+  txt += 'TOTAL:     ' + tk.total + '\n';
+  txt += 'Pago:      ' + tk.metodo_pago + '\n';
+  if (tk.monto_recibido && tk.monto_recibido !== '$0.00') txt += 'Recibido:  ' + tk.monto_recibido + '\n';
+  if (tk.cambio && tk.cambio !== '$0.00') txt += 'Cambio:    ' + tk.cambio + '\n';
+  txt += '─────────────────────\n';
+  txt += tk.leyenda_fiscal + '\n';
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(txt).then(function() {
+      toast('Ticket copiado al portapapeles');
+    }).catch(function() { fallbackCopy(txt); });
+  } else { fallbackCopy(txt); }
+}
+
+function fallbackCopy(txt) {
+  var ta = document.createElement('textarea');
+  ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); toast('Ticket copiado'); } catch(e) { toast('No se pudo copiar', true); }
+  document.body.removeChild(ta);
 }
 
 function limpiar() { cart = []; ren(); }
@@ -1334,8 +1442,10 @@ function setConnecting() {
 // ─── Corte de caja ────────────────────────────────────────────────
 var _efTotal = 0;
 
+var _totalVentasDia = 0;
+
 function cargarCorte() {
-  // Load today's ventas for the breakdown and list
+  // Load today's ventas
   var hoy = new Date().toISOString().split('T')[0];
   api('GET', '/punto-de-venta/ventas?fecha_inicio=' + hoy + '&fecha_fin=' + hoy).then(function(ventas) {
     var efTotal = 0, tarTotal = 0, transTotal = 0, totalGeneral = 0, tickets = 0;
@@ -1353,7 +1463,8 @@ function cargarCorte() {
         else if (v.metodo_pago === '03') transTotal += tot;
       }
       var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
-      h += '<div class="srow"><span>' + v.folio + ' &bull; ' + hora + ' &bull; ' + met + estado + '</span>';
+      h += '<div class="srow" style="cursor:pointer" onclick="verTicket(' + v.id + ')">';
+      h += '<span>' + v.folio + ' &bull; ' + hora + ' &bull; ' + met + estado + '</span>';
       h += '<span style="font-weight:600' + (v.estado==='cancelada'?';text-decoration:line-through;color:var(--mut)':'') + '">$' + tot.toFixed(2) + '</span></div>';
     }
     if (!h) h = '<p style="color:var(--mut);text-align:center;padding:.5rem;font-size:.85rem">Sin ventas hoy</p>';
@@ -1364,11 +1475,49 @@ function cargarCorte() {
     document.getElementById('c-total').textContent = '$' + totalGeneral.toLocaleString('es-MX',{minimumFractionDigits:2});
     document.getElementById('c-tickets').textContent = tickets;
     _efTotal = efTotal;
+    _totalVentasDia = totalGeneral;
     var fondo = parseFloat(document.getElementById('c-fondo').value) || 0;
     document.getElementById('c-esperado').textContent = '$' + (fondo + efTotal).toLocaleString('es-MX',{minimumFractionDigits:2});
+    document.getElementById('c-util-ventas').textContent = '$' + totalGeneral.toLocaleString('es-MX',{minimumFractionDigits:2});
+    actualizarUtilidad();
   }).catch(function(){
     document.getElementById('c-ventas-list').innerHTML = '<p style="color:var(--mut);text-align:center;padding:.5rem;font-size:.85rem">Error al cargar ventas</p>';
   });
+  // Load today's expenses
+  cargarGastos();
+}
+
+function cargarGastos() {
+  api('GET', '/reportes/gastos-hoy').then(function(g) {
+    document.getElementById('c-gastos-total').textContent = '$' + g.total_gastos.toLocaleString('es-MX',{minimumFractionDigits:2});
+    document.getElementById('c-gastos-num').textContent = g.numero_compras;
+    document.getElementById('c-util-gastos').textContent = '$' + g.total_gastos.toLocaleString('es-MX',{minimumFractionDigits:2});
+    window._totalGastosDia = g.total_gastos;
+    actualizarUtilidad();
+    if (g.desglose.length) {
+      var h = '';
+      for (var i = 0; i < g.desglose.length; i++) {
+        var d = g.desglose[i];
+        h += '<div class="srow"><span>' + d.ingrediente + ' (' + d.cantidad + ') &bull; ' + d.hora + '</span>';
+        h += '<span>$' + d.total.toFixed(2) + '</span></div>';
+      }
+      document.getElementById('c-gastos-list').innerHTML = h;
+    } else {
+      document.getElementById('c-gastos-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin compras hoy</p>';
+    }
+  }).catch(function(){
+    document.getElementById('c-gastos-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Error al cargar gastos</p>';
+    window._totalGastosDia = 0;
+  });
+}
+
+function actualizarUtilidad() {
+  var ventas = _totalVentasDia || 0;
+  var gastos = window._totalGastosDia || 0;
+  var util = ventas - gastos;
+  var el = document.getElementById('c-util-neta');
+  el.textContent = '$' + util.toLocaleString('es-MX',{minimumFractionDigits:2});
+  el.style.color = util >= 0 ? 'var(--grn)' : '#b91c1c';
 }
 
 function calcularDiferencia() {

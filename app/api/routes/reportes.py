@@ -20,6 +20,14 @@ def dashboard(
     return svc.dashboard_resumen(db)
 
 
+@router.get("/gastos-hoy")
+def gastos_hoy(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    return svc.gastos_hoy(db)
+
+
 @router.get("/ventas")
 def reporte_ventas(
     fecha_inicio: date = Query(...),
