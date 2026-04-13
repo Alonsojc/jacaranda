@@ -322,7 +322,8 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="card kpi"><div class="n" id="c-total-tar">$0</div><div class="l">Tarjeta</div></div>
 <div class="card kpi a"><div class="n" id="c-total-trans">$0</div><div class="l">Transferencia</div></div>
 </div>
-<div class="card" style="margin-bottom:1rem">
+<div class="row r2">
+<div class="card" style="min-width:0;overflow:hidden">
 <h3>Cuadre de caja</h3>
 <div class="srow"><span>Total ventas del d&iacute;a</span><span class="green" id="c-total">$0.00</span></div>
 <div class="srow"><span>Tickets</span><span id="c-tickets">0</span></div>
@@ -331,16 +332,15 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="fg"><label>Fondo inicial</label><input type="number" id="c-fondo" value="2000" style="font-weight:700"></div>
 <div class="fg"><label>Efectivo contado</label><input type="number" id="c-real" placeholder="Cuenta el efectivo..." style="font-weight:700" oninput="calcularDiferencia()"></div>
 </div>
-<div class="srow"><span>Esperado (fondo + ventas efectivo)</span><span id="c-esperado" style="font-weight:700">$2,000.00</span></div>
+<div class="srow"><span>Esperado (fondo + ventas ef.)</span><span id="c-esperado" style="font-weight:700">$2,000.00</span></div>
 <div class="srow"><span>Efectivo real</span><span id="c-contado" style="font-weight:700">--</span></div>
 <div class="srow" style="font-weight:700"><span>Diferencia</span><span id="c-dif">--</span></div>
 </div>
 <div style="display:flex;flex-direction:column;gap:.4rem;margin-top:.6rem">
-<button class="cobrar" style="margin:0;display:block;width:100%" onclick="realizarCorte()">Registrar Corte</button>
-<button class="limpiar" style="margin:0;display:block;width:100%" onclick="exportarCorte()">Copiar resumen</button>
+<button class="cobrar" style="margin:0" onclick="realizarCorte()">Registrar Corte</button>
+<button class="limpiar" style="margin:0" onclick="exportarCorte()">Copiar resumen</button>
 </div>
 </div>
-<div class="row r2">
 <div class="card">
 <h3>Ventas del d&iacute;a</h3>
 <div id="c-ventas-list" style="max-height:300px;overflow-y:auto">
