@@ -16,13 +16,13 @@ nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1p
 .nav-links a{text-decoration:none;color:var(--mut);font-size:.82rem;font-weight:500;padding:.5rem .8rem;border-radius:8px;cursor:pointer}
 .nav-links a:hover,.nav-links a.on{color:var(--v);background:#faf3f0}
 .wa{background:var(--grn)!important;color:#fff!important;border-radius:20px!important;font-size:.78rem!important}
-.wrap{max-width:960px;margin:0 auto;padding:1.5rem}
-.page{display:none;min-width:0;overflow:hidden}.page.on{display:block}
+.wrap{max-width:960px;margin:0 auto;padding:1.5rem;overflow:hidden}
+.page{display:none;min-width:0}.page.on{display:block}
+.card{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd);box-shadow:0 1px 3px rgba(0,0,0,.04);transition:box-shadow .2s,transform .2s;max-width:100%;overflow-x:auto}
 .row{display:grid;gap:1rem;margin-bottom:1rem}
 .r4{grid-template-columns:repeat(4,1fr)}.r5{grid-template-columns:repeat(5,1fr)}
 .r2{grid-template-columns:1fr 1fr}
 .r3{grid-template-columns:1fr 1fr 1fr}
-.card{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd);box-shadow:0 1px 3px rgba(0,0,0,.04);transition:box-shadow .2s,transform .2s}
 .card:hover{box-shadow:0 4px 12px rgba(196,152,138,.12)}
 .card h3{font-size:.9rem;font-weight:600;margin-bottom:.7rem;color:var(--dk)}
 .kpi{text-align:center;position:relative;overflow:hidden}
@@ -76,7 +76,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .limpiar{display:block;width:100%;padding:.5rem;border:none;border-radius:8px;font-size:.82rem;cursor:pointer;margin-top:.4rem;background:#f5eeeb;color:var(--v);transition:all .15s}
 .limpiar:hover{background:#ede3df}
 /* Tabla */
-.tbl{border-collapse:collapse;font-size:.82rem}
+.tbl{width:100%;border-collapse:collapse;font-size:.82rem;table-layout:fixed}
 .tbl th{text-align:left;padding:.5rem .5rem;background:linear-gradient(135deg,#faf3f0,#fdf7f5);color:var(--v);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em}
 .tbl td{padding:.45rem .5rem;border-bottom:1px solid #f0e8e5}
 .tbl tr:hover td{background:#fdf9f7}
