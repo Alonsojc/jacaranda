@@ -20,11 +20,11 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./jacaranda.db"
 
     # --- Datos del negocio ---
-    RAZON_SOCIAL: str = "Panadería Jacaranda S.A. de C.V."
+    RAZON_SOCIAL: str = "Jacaranda Flavors"
     RFC: str = "XAXX010101000"  # RFC del negocio
     REGIMEN_FISCAL: str = "612"  # Personas Físicas con Actividades Empresariales
-    DOMICILIO_FISCAL_CP: str = "00000"
-    LUGAR_EXPEDICION: str = "00000"
+    DOMICILIO_FISCAL_CP: str = "76146"  # Querétaro, QRO
+    LUGAR_EXPEDICION: str = "76146"  # Plaza Distrito Marqués, Querétaro, QRO
 
     # --- Configuración fiscal mexicana ---
     # IVA

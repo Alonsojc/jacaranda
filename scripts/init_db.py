@@ -56,17 +56,17 @@ def crear_datos_semilla():
         # --- Categorías ---
         categorias = [
             CategoriaProducto(nombre="Pan Blanco", tipo=CategoriaProductoEnum.PAN_BLANCO,
-                              descripcion="Bolillo, telera, baguette"),
+                              descripcion="Bolillo"),
             CategoriaProducto(nombre="Pan Dulce", tipo=CategoriaProductoEnum.PAN_DULCE,
-                              descripcion="Conchas, cuernos, orejas, polvorones"),
+                              descripcion="Conchas, cuernos, polvorones"),
             CategoriaProducto(nombre="Pastelería", tipo=CategoriaProductoEnum.PASTELERIA,
-                              descripcion="Pasteles, tartas, pays"),
+                              descripcion="Pasteles personalizados, tres leches"),
             CategoriaProducto(nombre="Galletas", tipo=CategoriaProductoEnum.GALLETAS,
-                              descripcion="Galletas variadas"),
+                              descripcion="Galletas en bolsa"),
             CategoriaProducto(nombre="Pan Salado", tipo=CategoriaProductoEnum.PAN_SALADO,
                               descripcion="Pan de caja, focaccia"),
             CategoriaProducto(nombre="Repostería", tipo=CategoriaProductoEnum.REPOSTERIA,
-                              descripcion="Donas, churros, roles"),
+                              descripcion="Postres individuales: Nutella, manzana, brownies, velas"),
             CategoriaProducto(nombre="Bebidas", tipo=CategoriaProductoEnum.BEBIDAS,
                               descripcion="Café, chocolate, jugos"),
         ]
@@ -108,12 +108,14 @@ def crear_datos_semilla():
         db.flush()
 
         # --- Productos ---
-        cat_blanco = categorias[0]
-        cat_dulce = categorias[1]
-        cat_pastel = categorias[2]
+        cat_blanco = categorias[0]   # Pan Blanco
+        cat_dulce = categorias[1]    # Pan Dulce
+        cat_pastel = categorias[2]   # Pastelería
+        cat_galletas = categorias[3] # Galletas
+        cat_reposteria = categorias[5]  # Repostería
 
         productos = [
-            # Pan básico - IVA 0%
+            # ── Pan básico - IVA 0% ──
             Producto(
                 codigo="PB-001", nombre="Bolillo",
                 categoria_id=cat_blanco.id, precio_unitario=2.50,
@@ -122,17 +124,9 @@ def crear_datos_semilla():
                 tasa_iva=TasaIVA.TASA_0, objeto_impuesto="02",
                 vida_util_dias=2, alergenos="gluten",
             ),
+            # ── Pan dulce básico - IVA 0% ──
             Producto(
-                codigo="PB-002", nombre="Telera",
-                categoria_id=cat_blanco.id, precio_unitario=2.50,
-                costo_produccion=1.30, unidad_medida=UnidadMedida.PIEZA,
-                stock_minimo=80, clave_prod_serv_sat="50181901",
-                tasa_iva=TasaIVA.TASA_0, objeto_impuesto="02",
-                vida_util_dias=2, alergenos="gluten",
-            ),
-            # Pan dulce - IVA 0% (pan dulce de panadería no preparado)
-            Producto(
-                codigo="PD-001", nombre="Concha de chocolate",
+                codigo="PD-001", nombre="Concha chocolate",
                 categoria_id=cat_dulce.id, precio_unitario=15.00,
                 costo_produccion=5.50, unidad_medida=UnidadMedida.PIEZA,
                 stock_minimo=50, clave_prod_serv_sat="50181902",
@@ -140,7 +134,7 @@ def crear_datos_semilla():
                 vida_util_dias=3, alergenos="gluten, lácteos, huevo",
             ),
             Producto(
-                codigo="PD-002", nombre="Concha de vainilla",
+                codigo="PD-002", nombre="Concha vainilla",
                 categoria_id=cat_dulce.id, precio_unitario=15.00,
                 costo_produccion=5.20, unidad_medida=UnidadMedida.PIEZA,
                 stock_minimo=50, clave_prod_serv_sat="50181902",
@@ -163,18 +157,71 @@ def crear_datos_semilla():
                 tasa_iva=TasaIVA.TASA_0, objeto_impuesto="02",
                 vida_util_dias=5, alergenos="gluten, lácteos",
             ),
-            # Pastelería - IVA 16% (alimento preparado)
+            # ── Postres individuales - IVA 16% (alimento preparado) ──
             Producto(
-                codigo="PA-001", nombre="Pastel de chocolate (1 kg)",
+                codigo="RE-001", nombre="Nutella (postre individual)",
+                categoria_id=cat_reposteria.id, precio_unitario=85.00,
+                costo_produccion=30.00, unidad_medida=UnidadMedida.PIEZA,
+                stock_minimo=10, clave_prod_serv_sat="50181904",
+                tasa_iva=TasaIVA.TASA_16, objeto_impuesto="02",
+                vida_util_dias=4, requiere_refrigeracion=True,
+                alergenos="gluten, lácteos, huevo, frutos secos",
+            ),
+            Producto(
+                codigo="RE-002", nombre="Manzana (postre individual)",
+                categoria_id=cat_reposteria.id, precio_unitario=75.00,
+                costo_produccion=25.00, unidad_medida=UnidadMedida.PIEZA,
+                stock_minimo=10, clave_prod_serv_sat="50181904",
+                tasa_iva=TasaIVA.TASA_16, objeto_impuesto="02",
+                vida_util_dias=4, requiere_refrigeracion=True,
+                alergenos="gluten, lácteos, huevo",
+            ),
+            Producto(
+                codigo="RE-003", nombre="Brownies",
+                categoria_id=cat_reposteria.id, precio_unitario=45.00,
+                costo_produccion=15.00, unidad_medida=UnidadMedida.PIEZA,
+                stock_minimo=15, clave_prod_serv_sat="50181904",
+                tasa_iva=TasaIVA.TASA_16, objeto_impuesto="02",
+                vida_util_dias=5, alergenos="gluten, lácteos, huevo",
+            ),
+            Producto(
+                codigo="RE-004", nombre="Velas (postre)",
+                categoria_id=cat_reposteria.id, precio_unitario=35.00,
+                costo_produccion=12.00, unidad_medida=UnidadMedida.PIEZA,
+                stock_minimo=15, clave_prod_serv_sat="50181904",
+                tasa_iva=TasaIVA.TASA_16, objeto_impuesto="02",
+                vida_util_dias=5, alergenos="gluten, lácteos, huevo",
+            ),
+            # ── Galletas - IVA 16% (alimento preparado) ──
+            Producto(
+                codigo="GA-001", nombre="Galletas (bolsa de 6 piezas)",
+                categoria_id=cat_galletas.id, precio_unitario=85.00,
+                costo_produccion=28.00, unidad_medida=UnidadMedida.PIEZA,
+                stock_minimo=10, clave_prod_serv_sat="50181903",
+                tasa_iva=TasaIVA.TASA_16, objeto_impuesto="02",
+                vida_util_dias=10, alergenos="gluten, lácteos, huevo",
+            ),
+            # ── Pastelería - IVA 16% (alimento preparado) ──
+            Producto(
+                codigo="PA-001", nombre="Pastel personalizado 1kg",
                 categoria_id=cat_pastel.id, precio_unitario=350.00,
                 costo_produccion=120.00, unidad_medida=UnidadMedida.PIEZA,
-                stock_minimo=5, clave_prod_serv_sat="50181904",
+                stock_minimo=3, clave_prod_serv_sat="50181904",
                 tasa_iva=TasaIVA.TASA_16, objeto_impuesto="02",
                 vida_util_dias=5, requiere_refrigeracion=True,
                 alergenos="gluten, lácteos, huevo",
             ),
             Producto(
-                codigo="PA-002", nombre="Pastel de tres leches (1 kg)",
+                codigo="PA-002", nombre="Pastel personalizado 1.5kg",
+                categoria_id=cat_pastel.id, precio_unitario=520.00,
+                costo_produccion=180.00, unidad_medida=UnidadMedida.PIEZA,
+                stock_minimo=2, clave_prod_serv_sat="50181904",
+                tasa_iva=TasaIVA.TASA_16, objeto_impuesto="02",
+                vida_util_dias=5, requiere_refrigeracion=True,
+                alergenos="gluten, lácteos, huevo",
+            ),
+            Producto(
+                codigo="PA-003", nombre="Pastel Tres Leches 1kg",
                 categoria_id=cat_pastel.id, precio_unitario=380.00,
                 costo_produccion=130.00, unidad_medida=UnidadMedida.PIEZA,
                 stock_minimo=3, clave_prod_serv_sat="50181904",
