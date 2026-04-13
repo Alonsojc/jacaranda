@@ -45,7 +45,8 @@ nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1p
 .bpend{background:#f5e6e1;color:#b8877a}.bconf{background:#dbeafe;color:#1d4ed8}.bprep{background:#fef3c7;color:#92400e}.blist{background:#d1fae5;color:#047857}
 h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-bottom:1rem;font-weight:400}
 /* POS */
-.pos-grid{display:grid;grid-template-columns:1fr 340px;gap:1rem}
+.pos-grid{display:grid;grid-template-columns:1fr 340px;gap:1rem;align-items:start}
+.pos-prods{max-height:calc(100vh - 180px);overflow-y:auto;padding-right:.3rem}
 .prods{display:grid;grid-template-columns:repeat(4,1fr);gap:.7rem;align-content:start}
 .pi{background:#fff;border-radius:12px;padding:1rem .8rem;text-align:center;border:1px solid var(--brd);cursor:pointer;transition:all .2s;user-select:none}
 .pi:hover{border-color:var(--v);box-shadow:0 4px 15px rgba(196,152,138,.2);transform:translateY(-1px)}
@@ -164,21 +165,40 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="page" id="pos">
 <h2>Punto de Venta</h2>
 <div class="pos-grid">
+<div class="pos-prods">
+<div style="font-size:.7rem;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.4rem">Individuales</div>
 <div class="prods">
-<div class="pi" onclick="add('Nutella',85,16)"><div class="em">&#127856;</div><div class="pn">Nutella</div><div class="pp">$85</div><span class="iv iv16">IVA 16%</span></div>
-<div class="pi" onclick="add('Manzana',75,16)"><div class="em">&#127822;</div><div class="pn">Manzana</div><div class="pp">$75</div><span class="iv iv16">IVA 16%</span></div>
-<div class="pi" onclick="add('Brownies',45,16)"><div class="em">&#127851;</div><div class="pn">Brownies</div><div class="pp">$45</div><span class="iv iv16">IVA 16%</span></div>
-<div class="pi" onclick="add('Galletas 6pz',85,16)"><div class="em">&#127850;</div><div class="pn">Galletas 6pz</div><div class="pp">$85</div><span class="iv iv16">IVA 16%</span></div>
-<div class="pi" onclick="add('Velas',35,16)"><div class="em">&#127870;</div><div class="pn">Velas</div><div class="pp">$35</div><span class="iv iv16">IVA 16%</span></div>
-<div class="pi" onclick="add('Pastel 1kg',350,16)"><div class="em">&#127874;</div><div class="pn">Pastel 1kg</div><div class="pp">$350</div><span class="iv iv16">IVA 16%</span></div>
-<div class="pi" onclick="add('Pastel 1.5kg',520,16)"><div class="em">&#127874;</div><div class="pn">Pastel 1.5kg</div><div class="pp">$520</div><span class="iv iv16">IVA 16%</span></div>
-<div class="pi" onclick="add('Tres Leches 1kg',380,16)"><div class="em">&#127856;</div><div class="pn">Tres Leches 1kg</div><div class="pp">$380</div><span class="iv iv16">IVA 16%</span></div>
-<div class="pi" onclick="add('Bolillo',2.5,0)"><div class="em">&#127838;</div><div class="pn">Bolillo</div><div class="pp">$2.50</div><span class="iv iv0">IVA 0%</span></div>
-<div class="pi" onclick="add('Concha Choco',15,0)"><div class="em">&#127849;</div><div class="pn">Concha Choco</div><div class="pp">$15</div><span class="iv iv0">IVA 0%</span></div>
-<div class="pi" onclick="add('Concha Vainilla',15,0)"><div class="em">&#127849;</div><div class="pn">Concha Vainilla</div><div class="pp">$15</div><span class="iv iv0">IVA 0%</span></div>
-<div class="pi" onclick="add('Cuerno',15,0)"><div class="em">&#129360;</div><div class="pn">Cuerno</div><div class="pp">$15</div><span class="iv iv0">IVA 0%</span></div>
-<div class="pi" onclick="add('Polvor&oacute;n',12,0)"><div class="em">&#127850;</div><div class="pn">Polvor&oacute;n</div><div class="pp">$12</div><span class="iv iv0">IVA 0%</span></div>
+<div class="pi" onclick="add('Nutella Pie ind.',100,16)"><div class="em">&#127849;</div><div class="pn">Nutella Pie</div><div class="pp">$100</div></div>
+<div class="pi" onclick="add('Apple Crumble ind.',100,16)"><div class="em">&#127822;</div><div class="pn">Apple Crumble</div><div class="pp">$100</div></div>
+<div class="pi" onclick="add('Lemon Pie ind.',100,16)"><div class="em">&#127819;</div><div class="pn">Lemon Pie</div><div class="pp">$100</div></div>
+<div class="pi" onclick="add('Rosca Enjambre ind.',100,16)"><div class="em">&#127851;</div><div class="pn">Enjambre ind.</div><div class="pp">$100</div></div>
+<div class="pi" onclick="add('Brownie',70,16)"><div class="em">&#127851;</div><div class="pn">Brownie</div><div class="pp">$70</div></div>
+<div class="pi" onclick="add('Galletas x4',55,16)"><div class="em">&#127850;</div><div class="pn">Galletas x4</div><div class="pp">$55</div></div>
 </div>
+<div style="font-size:.7rem;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.1em;margin:.8rem 0 .4rem">Pies y Postres</div>
+<div class="prods">
+<div class="pi" onclick="add('Nutella Pie chico',275,16)"><div class="em">&#127849;</div><div class="pn">Nutella ch.</div><div class="pp">$275</div></div>
+<div class="pi" onclick="add('Nutella Pie grande',400,16)"><div class="em">&#127849;</div><div class="pn">Nutella gde.</div><div class="pp">$400</div></div>
+<div class="pi" onclick="add('Apple Crumble chico',275,16)"><div class="em">&#127822;</div><div class="pn">Apple ch.</div><div class="pp">$275</div></div>
+<div class="pi" onclick="add('Apple Crumble grande',400,16)"><div class="em">&#127822;</div><div class="pn">Apple gde.</div><div class="pp">$400</div></div>
+<div class="pi" onclick="add('Lemon Pie chico',275,16)"><div class="em">&#127819;</div><div class="pn">Lemon ch.</div><div class="pp">$275</div></div>
+<div class="pi" onclick="add('Lemon Pie grande',400,16)"><div class="em">&#127819;</div><div class="pn">Lemon gde.</div><div class="pp">$400</div></div>
+<div class="pi" onclick="add('Pastel de D&aacute;til',480,16)"><div class="em">&#127856;</div><div class="pn">Pastel D&aacute;til</div><div class="pp">$480</div></div>
+<div class="pi" onclick="add('Rosca Enjambre gde.',500,16)"><div class="em">&#127856;</div><div class="pn">Enjambre gde.</div><div class="pp">$500</div></div>
+<div class="pi" onclick="add('Rosca de Cazares',400,16)"><div class="em">&#127798;</div><div class="pn">Rosca Cazares</div><div class="pp">$400</div></div>
+<div class="pi" onclick="add('Rosca Chocolate',450,16)"><div class="em">&#127851;</div><div class="pn">Rosca Choco</div><div class="pp">$450</div></div>
+<div class="pi" onclick="add('Panqu&eacute; Zanahoria',370,16)"><div class="em">&#129365;</div><div class="pn">Panqu&eacute; Zanahoria</div><div class="pp">$370</div></div>
+<div class="pi" onclick="add('Panqu&eacute; Pl&aacute;tano',350,16)"><div class="em">&#127820;</div><div class="pn">Panqu&eacute; Pl&aacute;tano</div><div class="pp">$350</div></div>
+</div>
+<div style="font-size:.7rem;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.1em;margin:.8rem 0 .4rem">Cajas de Regalo</div>
+<div class="prods">
+<div class="pi" onclick="add('Caja Brownies x16',370,16)"><div class="em">&#127873;</div><div class="pn">Brownies x16</div><div class="pp">$370</div></div>
+<div class="pi" onclick="add('Caja Blondies x16',370,16)"><div class="em">&#127873;</div><div class="pn">Blondies x16</div><div class="pp">$370</div></div>
+<div class="pi" onclick="add('Polvorones Nuez',260,16)"><div class="em">&#127873;</div><div class="pn">Polvorones x25</div><div class="pp">$260</div></div>
+<div class="pi" onclick="add('Linzer x7',250,16)"><div class="em">&#127873;</div><div class="pn">Linzer x7</div><div class="pp">$250</div></div>
+<div class="pi" onclick="add('Galletas Avena x20',300,16)"><div class="em">&#127873;</div><div class="pn">Avena x20</div><div class="pp">$300</div></div>
+</div>
+</div><!-- pos-prods -->
 <div class="tkt">
 <h3>Ticket</h3>
 <div id="titems"></div>
@@ -280,12 +300,18 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <h3>Hornear</h3>
 <div class="frow">
 <div class="fg"><label>Receta</label><select id="horn-receta">
-<option value="1">Nutella (rinde 12 pzas)</option>
-<option value="2">Manzana (rinde 12 pzas)</option>
-<option value="3">Brownies (rinde 20 pzas)</option>
-<option value="4">Galletas (rinde 6 bolsas)</option>
-<option value="5">Conchas (rinde 24 pzas)</option>
-<option value="6">Bolillos (rinde 50 pzas)</option>
+<option value="1">Nutella Cookie Pie (rinde 8 pzas)</option>
+<option value="2">Apple Crumble (rinde 8 pzas)</option>
+<option value="3">Lemon Pie (rinde 8 pzas)</option>
+<option value="4">Brownies (rinde 16 pzas)</option>
+<option value="5">Speculoos Blondies (rinde 16 pzas)</option>
+<option value="6">Galletas (rinde 20 pzas)</option>
+<option value="7">Polvorones de nuez (rinde 25 pzas)</option>
+<option value="8">Linzer (rinde 7 pzas)</option>
+<option value="9">Panqu&eacute; Zanahoria</option>
+<option value="10">Panqu&eacute; Pl&aacute;tano</option>
+<option value="11">Rosca de chocolate</option>
+<option value="12">Galletas de avena (rinde 20 pzas)</option>
 </select></div>
 <div class="fg"><label>Tandas</label><input type="number" id="horn-cant" value="1" min="1"></div>
 </div>
