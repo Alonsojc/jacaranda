@@ -160,7 +160,8 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 <div class="row r2">
 <div class="card"><h3>Inventario</h3>
-<div id="d-inv"><div class="srow" style="color:var(--mut)"><span>Conecta al servidor para ver stock</span></div></div>
+<input type="text" id="d-inv-buscar" placeholder="Buscar producto..." oninput="filtrarDashInv()" style="width:100%;padding:.35rem .6rem;border:1px solid var(--brd);border-radius:8px;font-size:.8rem;margin-bottom:.4rem;font-family:inherit">
+<div id="d-inv" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Conecta al servidor para ver stock</span></div></div>
 </div>
 <div class="card"><h3>Alertas</h3>
 <div id="d-alertas"><div class="srow" style="color:var(--mut)"><span>Sin alertas</span></div></div>
@@ -198,7 +199,14 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="ti"><span>IVA 16%</span><span id="tiva"></span></div>
 <div class="ttot"><span>TOTAL</span><span id="ttot"></span></div>
 </div>
-<div style="font-size:.78rem;color:var(--mut);margin:.6rem 0 .3rem;font-weight:600">M&eacute;todo de pago:</div>
+<div style="font-size:.78rem;color:var(--mut);margin:.5rem 0 .3rem;font-weight:600">Cliente (puntos):</div>
+<div style="display:flex;gap:.3rem;align-items:center;margin-bottom:.4rem">
+<select id="pos-cliente" onchange="selClientePOS()" style="flex:1;padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit">
+<option value="">P&uacute;blico general</option>
+</select>
+<span id="pos-puntos" style="font-size:.75rem;color:var(--mut);white-space:nowrap;display:none"></span>
+</div>
+<div style="font-size:.78rem;color:var(--mut);margin:.4rem 0 .3rem;font-weight:600">M&eacute;todo de pago:</div>
 <div class="pmt" style="grid-template-columns:1fr 1fr 1fr">
 <div class="pbtn sel" id="pm-ef" onclick="setPm('ef')">&#128181; Efectivo</div>
 <div class="pbtn" id="pm-clip" onclick="setPm('clip')">&#128179; CLIP</div>
@@ -251,12 +259,14 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 
 <div id="inv-productos">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
-<p style="font-size:.83rem;color:var(--mut);margin:0">Stock actual de productos. Click en l&aacute;piz para editar, en piezas para ajustar stock.</p>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;gap:.4rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">Stock actual de productos.</p>
+<input type="text" id="inv-prod-buscar" placeholder="Buscar producto..." oninput="filtrarInvProductos()" style="padding:.4rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.83rem;width:220px;font-family:inherit">
 </div>
 <div id="tbl-productos" class="card" style="overflow-x:auto">
 <p style="color:var(--mut);padding:.5rem">Cargando productos...</p>
 </div>
+<div id="inv-prod-pag" style="display:none;text-align:center;margin-top:.6rem;font-size:.82rem"></div>
 </div>
 
 <div id="inv-ingredientes" style="display:none">
@@ -481,11 +491,14 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <!-- REPORTES -->
 <div class="page" id="rep">
 <h2>Reportes</h2>
-<div class="section-tabs" style="margin-bottom:1rem">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.4rem">
+<div class="section-tabs" style="margin-bottom:0;flex:1">
 <span class="tab active" onclick="repTab('rep-ventas')">Ventas</span>
 <span class="tab" onclick="repTab('rep-prod')">Productos</span>
 <span class="tab" onclick="repTab('rep-marg')">M&aacute;rgenes</span>
 <span class="tab" onclick="repTab('rep-fiscal')">Fiscal</span>
+</div>
+<button onclick="exportarReporteCSV()" class="limpiar" style="padding:.35rem .7rem;font-size:.78rem;margin:0;white-space:nowrap">&#128190; Exportar CSV</button>
 </div>
 <div id="rep-ventas">
 <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
@@ -1188,6 +1201,8 @@ function procesarVenta() {
     return {producto_id: c.id, cantidad: c.q, descuento: c.desc || 0};
   });
   var body = {detalles: detalles, forma_pago: 'PUE'};
+  var clienteId = document.getElementById('pos-cliente').value;
+  if (clienteId) body.cliente_id = parseInt(clienteId);
 
   if (_splitMode) {
     var ef = parseFloat(document.getElementById('mc-sp-ef').value) || 0;
@@ -1279,6 +1294,16 @@ function mostrarTicket(venta) {
   document.getElementById('mt-cancel-wrap').style.display = 'none';
   document.getElementById('mt-facturar-wrap').style.display = 'block';
   _ventaActualId = venta.id;
+  // Show loyalty points earned if client selected
+  var clienteId = document.getElementById('pos-cliente').value;
+  if (clienteId && venta.total) {
+    var ptsGanados = Math.floor(parseFloat(venta.total) * 0.1);
+    if (ptsGanados > 0) {
+      document.getElementById('mt-titulo').textContent = 'Venta Registrada (+' + ptsGanados + ' pts)';
+    }
+    // Refresh client points
+    cargarClientesPOS();
+  }
   // Load full ticket from backend
   api('GET', '/punto-de-venta/ventas/' + venta.id + '/ticket').then(function(tk) {
     _ultimoTicket = tk;
@@ -1983,18 +2008,24 @@ function imprimirTicket() {
   if (!_ultimoTicket) { toast('No hay ticket para imprimir', true); return; }
   var tk = _ultimoTicket;
   var w = window.open('', '_blank', 'width=300,height=600');
+  if (!w) { toast('Permite ventanas emergentes para imprimir', true); return; }
   var h = '<html><head><style>';
-  h += 'body{font-family:monospace;font-size:12px;width:58mm;margin:0 auto;padding:4mm}';
+  h += '*{margin:0;padding:0;box-sizing:border-box}';
+  h += 'body{font-family:"Courier New",monospace;font-size:12px;width:58mm;margin:0 auto;padding:3mm;line-height:1.4}';
   h += '.c{text-align:center} .b{font-weight:bold} .line{border-top:1px dashed #000;margin:4px 0}';
   h += '.row{display:flex;justify-content:space-between} .big{font-size:16px}';
-  h += '@media print{@page{size:58mm auto;margin:0}}';
+  h += '.cut{page-break-after:always}';
+  h += '@media print{@page{size:58mm auto;margin:0}body{padding:2mm}}';
   h += '</style></head><body>';
-  h += '<div class="c b">JACARANDA</div>';
+  h += '<div class="c b" style="font-size:14px">JACARANDA</div>';
   h += '<div class="c" style="font-size:10px">sharing flavors</div>';
-  h += '<div class="c" style="font-size:9px">Plaza Distrito Marqu\u00e9s, Qro.</div>';
+  h += '<div class="c" style="font-size:9px">' + (tk.razon_social || '') + '</div>';
+  h += '<div class="c" style="font-size:9px">RFC: ' + (tk.rfc || '') + '</div>';
+  h += '<div class="c" style="font-size:9px">' + (tk.direccion || 'Plaza Distrito Marqu\u00e9s, Qro.') + '</div>';
   h += '<div class="line"></div>';
   h += '<div class="c b">' + tk.folio + '</div>';
   h += '<div class="c" style="font-size:10px">' + (tk.fecha || '') + '</div>';
+  h += '<div class="c" style="font-size:9px">' + (tk.cajero || '') + '</div>';
   h += '<div class="line"></div>';
   if (tk.productos) {
     for (var i = 0; i < tk.productos.length; i++) {
@@ -2009,14 +2040,16 @@ function imprimirTicket() {
   h += '<div class="line"></div>';
   h += '<div class="row"><span>M\u00e9todo</span><span>' + tk.metodo_pago + '</span></div>';
   if (tk.monto_recibido && tk.monto_recibido !== '$0.00') h += '<div class="row"><span>Recibido</span><span>' + tk.monto_recibido + '</span></div>';
-  if (tk.cambio && tk.cambio !== '$0.00') h += '<div class="row"><span>Cambio</span><span>' + tk.cambio + '</span></div>';
+  if (tk.cambio && tk.cambio !== '$0.00') h += '<div class="row b"><span>Cambio</span><span>' + tk.cambio + '</span></div>';
   h += '<div class="line"></div>';
-  h += '<div class="c" style="font-size:9px;margin-top:8px">Gracias por su compra</div>';
+  h += '<div class="c" style="font-size:9px;margin-top:6px">' + (tk.leyenda_fiscal || '') + '</div>';
+  h += '<div class="c" style="font-size:10px;margin-top:4px">Gracias por su compra</div>';
   h += '<div class="c" style="font-size:9px">@jacaranda.flavors</div>';
+  h += '<div style="margin-top:16px"></div>'; // espacio para corte
+  h += '<script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)}<\/script>';
   h += '</body></html>';
   w.document.write(h);
   w.document.close();
-  setTimeout(function() { w.print(); }, 300);
 }
 
 // ─── Fotos masivas ───────────────────────────────────────────────
@@ -2068,34 +2101,76 @@ function verHistorialPrecio(productoId, nombre) {
 // ─── Dynamic inventory loading ───────────────────────────────────
 var _allIngs = []; // Cache for ingredient list (used in recipe edit)
 
+var _invProds = [];
+var _invProdPage = 0;
+var _invProdPerPage = 25;
+
 function cargarProductos() {
   api('GET', '/inventario/productos').then(function(prods) {
-    var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th style="width:120px"></th></tr>';
-    for (var i = 0; i < prods.length; i++) {
-      var p = prods[i];
-      var stock = parseFloat(p.stock_actual) || 0;
-      var min = parseFloat(p.stock_minimo) || 0;
-      var precio = parseFloat(p.precio_unitario) || 0;
-      var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
-      var txt = stock <= 0 ? 'Agotado' : stock <= min ? 'Bajo' : 'OK';
-      var esc = p.nombre.replace(/'/g,"\\'");
-      h += '<tr><td>' + p.nombre + '</td>';
-      h += '<td>$' + precio.toFixed(0) + '</td>';
-      h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline;cursor:pointer">' + Math.round(stock) + ' pzas</a></td>';
-      h += '<td>' + Math.round(min) + '</td>';
-      h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
-      h += '<td>';
-      h += '<a href="#" onclick="editarProducto(' + p.id + ');return false" style="font-size:.9rem;cursor:pointer;margin-right:.4rem" title="Editar">&#9998;</a>';
-      h += '<a href="#" onclick="abrirMerma(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="font-size:.9rem;cursor:pointer;margin-right:.4rem" title="Registrar merma">&#128465;</a>';
-      h += '<a href="#" onclick="verHistorialPrecio(' + p.id + ',\'' + esc + '\');return false" style="font-size:.8rem;cursor:pointer" title="Historial de precios">&#128200;</a>';
-      h += '</td>';
-      h += '</tr>';
-    }
-    h += '</table>';
-    document.getElementById('tbl-productos').innerHTML = h;
+    _invProds = prods;
+    _invProdPage = 0;
+    renderInvProductos();
   }).catch(function() {
     document.getElementById('tbl-productos').innerHTML = '<p style="color:var(--mut);padding:.5rem">Error al cargar productos</p>';
+    document.getElementById('inv-prod-pag').style.display = 'none';
   });
+}
+
+function filtrarInvProductos() {
+  _invProdPage = 0;
+  renderInvProductos();
+}
+
+function renderInvProductos() {
+  var q = (document.getElementById('inv-prod-buscar').value || '').toLowerCase().trim();
+  var filtered = _invProds;
+  if (q) {
+    filtered = _invProds.filter(function(p) {
+      return p.nombre.toLowerCase().indexOf(q) >= 0 || (p.codigo||'').toLowerCase().indexOf(q) >= 0;
+    });
+  }
+  var totalPages = Math.max(1, Math.ceil(filtered.length / _invProdPerPage));
+  if (_invProdPage >= totalPages) _invProdPage = totalPages - 1;
+  var start = _invProdPage * _invProdPerPage;
+  var page = filtered.slice(start, start + _invProdPerPage);
+
+  var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th style="width:120px"></th></tr>';
+  for (var i = 0; i < page.length; i++) {
+    var p = page[i];
+    var stock = parseFloat(p.stock_actual) || 0;
+    var min = parseFloat(p.stock_minimo) || 0;
+    var precio = parseFloat(p.precio_unitario) || 0;
+    var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
+    var txt = stock <= 0 ? 'Agotado' : stock <= min ? 'Bajo' : 'OK';
+    var esc = p.nombre.replace(/'/g,"\\'");
+    h += '<tr><td>' + p.nombre + '</td>';
+    h += '<td>$' + precio.toFixed(0) + '</td>';
+    h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline;cursor:pointer">' + Math.round(stock) + ' pzas</a></td>';
+    h += '<td>' + Math.round(min) + '</td>';
+    h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
+    h += '<td>';
+    h += '<a href="#" onclick="editarProducto(' + p.id + ');return false" style="font-size:.9rem;cursor:pointer;margin-right:.4rem" title="Editar">&#9998;</a>';
+    h += '<a href="#" onclick="abrirMerma(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="font-size:.9rem;cursor:pointer;margin-right:.4rem" title="Registrar merma">&#128465;</a>';
+    h += '<a href="#" onclick="verHistorialPrecio(' + p.id + ',\'' + esc + '\');return false" style="font-size:.8rem;cursor:pointer" title="Historial de precios">&#128200;</a>';
+    h += '</td>';
+    h += '</tr>';
+  }
+  h += '</table>';
+  document.getElementById('tbl-productos').innerHTML = h;
+
+  // Pagination
+  var pagEl = document.getElementById('inv-prod-pag');
+  if (filtered.length <= _invProdPerPage) {
+    pagEl.style.display = filtered.length > 0 ? 'block' : 'none';
+    pagEl.innerHTML = '<span style="color:var(--mut)">' + filtered.length + ' productos</span>';
+    return;
+  }
+  pagEl.style.display = 'block';
+  var ph = '';
+  if (_invProdPage > 0) ph += '<a href="#" onclick="_invProdPage--;renderInvProductos();return false" style="color:var(--v);text-decoration:none;margin-right:.5rem">&laquo; Anterior</a>';
+  ph += '<span style="color:var(--mut)">P&aacute;g ' + (_invProdPage+1) + ' de ' + totalPages + ' (' + filtered.length + ' productos)</span>';
+  if (_invProdPage < totalPages - 1) ph += '<a href="#" onclick="_invProdPage++;renderInvProductos();return false" style="color:var(--v);text-decoration:none;margin-left:.5rem">Siguiente &raquo;</a>';
+  pagEl.innerHTML = ph;
 }
 
 function cargarIngredientes() {
@@ -2771,7 +2846,8 @@ function cargarListaClientes() {
 
 function verHistorialCliente(id) {
   api('GET', '/clientes/' + id + '/historial').then(function(d) {
-    document.getElementById('lcd-nombre').textContent = d.cliente.nombre + (d.cliente.telefono ? ' — ' + d.cliente.telefono : '');
+    var ptsInfo = d.puntos ? ' — ' + d.puntos + ' pts' : '';
+    document.getElementById('lcd-nombre').textContent = d.cliente.nombre + (d.cliente.telefono ? ' — ' + d.cliente.telefono : '') + ptsInfo;
     document.getElementById('lcd-total').textContent = fmt(d.total_compras);
     document.getElementById('lcd-visitas').textContent = d.numero_visitas;
     document.getElementById('lcd-promedio').textContent = fmt(d.ticket_promedio);
@@ -2810,6 +2886,7 @@ function guardarCliente() {
     toast('Cliente creado');
     cerrarModal('modal-cliente');
     cargarListaClientes();
+    cargarClientesPOS();
   }).catch(function(e) { toast(e.message || 'Error', true); });
 }
 
@@ -2996,9 +3073,8 @@ function cargarDashboard() {
       var p = prods[i];
       var stock = parseFloat(p.stock_actual) || 0;
       var min = parseFloat(p.stock_minimo) || 0;
-      if (i < 6) {
-        h += '<div class="srow"><span>' + p.nombre + '</span><span>' + Math.round(stock) + ' pzas</span></div>';
-      }
+      var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
+      h += '<div class="srow" data-name="' + p.nombre.toLowerCase() + '"><span>' + p.nombre + '</span><span class="badge ' + cls + '">' + Math.round(stock) + ' pzas</span></div>';
       if (stock > 0 && stock <= min) {
         alertas += '<div class="srow"><span>' + p.nombre + '</span><span class="badge blow">Stock bajo (' + Math.round(stock) + ')</span></div>';
       } else if (stock <= 0 && min > 0) {
@@ -3050,6 +3126,15 @@ function cargarDashboard() {
   }).catch(function(){});
 }
 var _dashAlertas = '';
+function filtrarDashInv() {
+  var q = (document.getElementById('d-inv-buscar').value || '').toLowerCase().trim();
+  var rows = document.querySelectorAll('#d-inv .srow');
+  for (var i = 0; i < rows.length; i++) {
+    var name = rows[i].getAttribute('data-name') || rows[i].textContent.toLowerCase();
+    rows[i].style.display = !q || name.indexOf(q) >= 0 ? '' : 'none';
+  }
+}
+
 function renderDashAlertas(extra) {
   _dashAlertas += extra;
   if (_dashAlertas) {
@@ -3392,6 +3477,142 @@ function cargarReporteCofepris() {
   }).catch(function() { document.getElementById('cof-rep-content').innerHTML = '<p style="color:var(--mut)">Error al generar reporte</p>'; });
 }
 
+// ─── Puntos de lealtad en POS ─────────────────────────────────────
+var _posClientes = [];
+
+function cargarClientesPOS() {
+  api('GET', '/clientes/').then(function(clientes) {
+    _posClientes = clientes;
+    var sel = document.getElementById('pos-cliente');
+    var opts = '<option value="">P\u00fablico general</option>';
+    for (var i = 0; i < clientes.length; i++) {
+      var c = clientes[i];
+      opts += '<option value="' + c.id + '">' + c.nombre + (c.puntos_acumulados ? ' (' + c.puntos_acumulados + ' pts)' : '') + '</option>';
+    }
+    sel.innerHTML = opts;
+  }).catch(function(){});
+}
+
+function selClientePOS() {
+  var sel = document.getElementById('pos-cliente');
+  var puntosEl = document.getElementById('pos-puntos');
+  var cid = sel.value;
+  if (!cid) { puntosEl.style.display = 'none'; return; }
+  api('GET', '/clientes/' + cid + '/puntos').then(function(r) {
+    if (r.puntos > 0) {
+      puntosEl.style.display = 'inline';
+      puntosEl.innerHTML = r.puntos + ' pts = $' + r.descuento_disponible.toFixed(0);
+    } else {
+      puntosEl.style.display = 'inline';
+      puntosEl.innerHTML = '0 pts';
+    }
+  }).catch(function() { puntosEl.style.display = 'none'; });
+}
+
+// ─── Exportar reportes a CSV ──────────────────────────────────────
+function exportarReporteCSV() {
+  // Detect active report tab and export accordingly
+  var ventas = document.getElementById('rep-ventas');
+  var prod = document.getElementById('rep-prod');
+  var marg = document.getElementById('rep-marg');
+  var fiscal = document.getElementById('rep-fiscal');
+
+  if (ventas && ventas.style.display !== 'none') {
+    exportarVentasCSV();
+  } else if (marg && marg.style.display !== 'none') {
+    exportarMargenesCSV();
+  } else if (prod && prod.style.display !== 'none') {
+    exportarProductosCSV();
+  } else if (fiscal && fiscal.style.display !== 'none') {
+    exportarFiscalCSV();
+  } else {
+    toast('Selecciona un reporte primero', true);
+  }
+}
+
+function _descargarCSV(filename, csvContent) {
+  var bom = '\uFEFF'; // UTF-8 BOM for Excel compatibility
+  var blob = new Blob([bom + csvContent], {type: 'text/csv;charset=utf-8;'});
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  toast('Archivo descargado: ' + filename);
+}
+
+function exportarVentasCSV() {
+  var fi = document.getElementById('rep-fi').value;
+  var ff = document.getElementById('rep-ff').value;
+  if (!fi || !ff) { toast('Selecciona fechas primero', true); return; }
+  api('GET', '/reportes/ventas?fecha_inicio=' + fi + '&fecha_fin=' + ff).then(function(r) {
+    var csv = 'D\u00eda,Ventas,Total\n';
+    for (var d in r.por_dia) {
+      csv += d + ',' + r.por_dia[d].cantidad + ',' + r.por_dia[d].total.toFixed(2) + '\n';
+    }
+    csv += '\nResumen\n';
+    csv += 'Total ventas,' + r.resumen.total.toFixed(2) + '\n';
+    csv += 'N\u00famero de tickets,' + r.resumen.numero_ventas + '\n';
+    csv += 'Ticket promedio,' + r.resumen.ticket_promedio.toFixed(2) + '\n';
+    _descargarCSV('ventas_' + fi + '_' + ff + '.csv', csv);
+  }).catch(function() { toast('Error al exportar', true); });
+}
+
+function exportarMargenesCSV() {
+  api('GET', '/reportes/margenes-producto').then(function(prods) {
+    var csv = 'Producto,Precio,Costo,Margen $,Margen %,Stock\n';
+    for (var i = 0; i < prods.length; i++) {
+      var p = prods[i];
+      csv += '"' + p.nombre + '",' + p.precio.toFixed(2) + ',' + p.costo.toFixed(2) + ',' + p.margen.toFixed(2) + ',' + p.margen_pct + ',' + Math.round(p.stock) + '\n';
+    }
+    _descargarCSV('margenes_' + new Date().toISOString().split('T')[0] + '.csv', csv);
+  }).catch(function() { toast('Error al exportar', true); });
+}
+
+function exportarProductosCSV() {
+  var fi = document.getElementById('rep-pfi').value;
+  var ff = document.getElementById('rep-pff').value;
+  if (!fi || !ff) { toast('Selecciona fechas primero', true); return; }
+  api('GET', '/reportes/productos-mas-vendidos?fecha_inicio=' + fi + '&fecha_fin=' + ff + '&limit=100').then(function(prods) {
+    var csv = 'Producto,Cantidad vendida,Ingresos\n';
+    for (var i = 0; i < prods.length; i++) {
+      var p = prods[i];
+      csv += '"' + p.nombre + '",' + p.cantidad_vendida + ',' + p.ingresos.toFixed(2) + '\n';
+    }
+    _descargarCSV('productos_vendidos_' + fi + '_' + ff + '.csv', csv);
+  }).catch(function() { toast('Error al exportar', true); });
+}
+
+function exportarFiscalCSV() {
+  var mes = document.getElementById('rep-fmes').value;
+  var anio = document.getElementById('rep-fanio').value;
+  var meses = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  Promise.all([
+    api('GET', '/reportes/impuestos/iva-mensual?mes=' + mes + '&anio=' + anio),
+    api('GET', '/reportes/impuestos/isr-provisional?mes=' + mes + '&anio=' + anio)
+  ]).then(function(res) {
+    var iva = res[0], isr = res[1];
+    var csv = 'Reporte Fiscal ' + meses[mes] + ' ' + anio + '\n\n';
+    csv += 'IVA Mensual\n';
+    csv += 'Concepto,Monto\n';
+    csv += 'Base gravada 16%,' + iva.iva_trasladado.tasa_16.base.toFixed(2) + '\n';
+    csv += 'IVA trasladado 16%,' + iva.iva_trasladado.tasa_16.iva.toFixed(2) + '\n';
+    csv += 'Base tasa 0%,' + iva.iva_trasladado.tasa_0.base.toFixed(2) + '\n';
+    csv += 'IVA acreditable,' + iva.iva_acreditable.toFixed(2) + '\n';
+    csv += 'IVA por pagar,' + iva.iva_por_pagar.toFixed(2) + '\n';
+    csv += '\nISR Provisional\n';
+    csv += 'Ingresos acumulados,' + isr.ingresos_acumulados.toFixed(2) + '\n';
+    csv += 'Compras,' + isr.deducciones_acumuladas.compras.toFixed(2) + '\n';
+    csv += 'N\u00f3mina,' + isr.deducciones_acumuladas.nomina.toFixed(2) + '\n';
+    csv += 'Utilidad fiscal,' + isr.utilidad_fiscal.toFixed(2) + '\n';
+    csv += 'ISR provisional,' + isr.isr_provisional.toFixed(2) + '\n';
+    _descargarCSV('fiscal_' + meses[mes] + '_' + anio + '.csv', csv);
+  }).catch(function() { toast('Error al exportar', true); });
+}
+
+// ─── Impresión térmica mejorada ──────────────────────────────────
+// (sobrescribe imprimirTicket con soporte para impresoras térmicas 58mm/80mm)
+
 var _reconectar = 0;
 
 function autoConectar() {
@@ -3406,6 +3627,7 @@ function autoConectar() {
     cargarInventarioCompleto();
     cargarPedidos();
     iniciarPollPedidos();
+    cargarClientesPOS();
     if (_ventasPendientes.length) sincronizarVentas();
   }).catch(function() {
     _reconectar++;

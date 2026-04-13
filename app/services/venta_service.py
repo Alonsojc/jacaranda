@@ -11,10 +11,15 @@ from sqlalchemy import func, and_
 
 from app.models.venta import Venta, DetalleVenta, PagoVenta, CorteCaja, MetodoPago, EstadoVenta
 from app.models.inventario import Producto, TasaIVA, TipoMovimiento
+from app.models.cliente import Cliente
 from app.schemas.venta import VentaCreate, CorteCajaCreate
 from app.schemas.inventario import MovimientoCreate
 from app.services.inventario_service import registrar_movimiento
 from app.core.config import settings
+
+# Loyalty: 1 punto por cada $10 MXN gastados, 100 puntos = $50 descuento
+PUNTOS_POR_PESO = Decimal("0.1")  # 1 punto por $10
+VALOR_PUNTO = Decimal("0.5")      # cada punto vale $0.50
 
 
 def _generar_folio(db: Session, serie: str = "T") -> str:
@@ -182,6 +187,13 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             referencia=f"Venta {folio}",
         )
         registrar_movimiento(db, mov, usuario_id)
+
+    # Acumular puntos de lealtad si hay cliente asociado
+    if venta.cliente_id:
+        cliente = db.query(Cliente).filter(Cliente.id == venta.cliente_id).first()
+        if cliente:
+            puntos_ganados = int(total * PUNTOS_POR_PESO)
+            cliente.puntos_acumulados += puntos_ganados
 
     db.commit()
     db.refresh(venta)

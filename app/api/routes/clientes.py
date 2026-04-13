@@ -1,11 +1,13 @@
 """Rutas de gestión de clientes."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from decimal import Decimal
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.cliente import Cliente
 from app.schemas.cliente import ClienteCreate, ClienteUpdate, ClienteResponse
+from app.services.venta_service import VALOR_PUNTO
 
 router = APIRouter()
 
@@ -54,3 +56,41 @@ def facturas_cliente(id: int, db: Session = Depends(get_db)):
 def historial_cliente(id: int, db: Session = Depends(get_db)):
     from app.services.reportes_service import historial_compras_cliente
     return historial_compras_cliente(db, id)
+
+
+@router.get("/{id}/puntos")
+def consultar_puntos(id: int, db: Session = Depends(get_db)):
+    """Consulta puntos acumulados y su valor en pesos."""
+    cliente = db.query(Cliente).filter(Cliente.id == id).first()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    return {
+        "puntos": cliente.puntos_acumulados,
+        "valor_punto": float(VALOR_PUNTO),
+        "descuento_disponible": float(Decimal(str(cliente.puntos_acumulados)) * VALOR_PUNTO),
+    }
+
+
+@router.post("/{id}/canjear-puntos")
+def canjear_puntos(
+    id: int,
+    puntos: int = Query(..., gt=0),
+    db: Session = Depends(get_db),
+):
+    """Canjea puntos del cliente. Devuelve el descuento en pesos."""
+    cliente = db.query(Cliente).filter(Cliente.id == id).first()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    if puntos > cliente.puntos_acumulados:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Puntos insuficientes: tiene {cliente.puntos_acumulados}, pidió {puntos}",
+        )
+    descuento = float(Decimal(str(puntos)) * VALOR_PUNTO)
+    cliente.puntos_acumulados -= puntos
+    db.commit()
+    return {
+        "puntos_canjeados": puntos,
+        "descuento": descuento,
+        "puntos_restantes": cliente.puntos_acumulados,
+    }
