@@ -76,6 +76,13 @@ class Settings(BaseSettings):
     CLIP_API_SECRET: str = ""
     CLIP_API_URL: str = "https://api.clip.mx"
 
+    # BBVA API Market (conciliación de pagos)
+    BBVA_CLIENT_ID: str = ""
+    BBVA_CLIENT_SECRET: str = ""
+    BBVA_API_URL: str = "https://apis.bbva.com/mexico/v1"
+    BBVA_TOKEN_URL: str = "https://connect.bbva.com/token"
+    BBVA_ACCOUNT_ID: str = ""
+
     # --- COFEPRIS ---
     TEMPERATURA_MAXIMA_REFRIGERACION: Decimal = Decimal("4.0")  # °C
     TEMPERATURA_MAXIMA_CONGELACION: Decimal = Decimal("-18.0")  # °C
