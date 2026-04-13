@@ -138,6 +138,7 @@ class ProductoResponse(BaseModel):
     codigo: str
     nombre: str
     descripcion: str | None
+    imagen: str | None = None
     categoria_id: int | None
     precio_unitario: Decimal
     costo_produccion: Decimal

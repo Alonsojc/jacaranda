@@ -110,6 +110,35 @@ def actualizar_producto(id: int, data: ProductoUpdate, db: Session = Depends(get
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.put("/productos/{id}/imagen")
+async def subir_imagen_producto(
+    id: int,
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Sube una foto de producto y la guarda como base64 en la BD."""
+    import base64
+    from app.models.inventario import Producto
+
+    producto = db.query(Producto).filter(Producto.id == id).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    if not archivo.content_type or not archivo.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="El archivo debe ser una imagen")
+
+    image_bytes = await archivo.read()
+    if len(image_bytes) > 5_000_000:
+        raise HTTPException(status_code=400, detail="Imagen muy grande (máximo 5MB)")
+
+    data_url = f"data:{archivo.content_type};base64,{base64.b64encode(image_bytes).decode()}"
+    producto.imagen = data_url
+    db.commit()
+
+    return {"mensaje": "Imagen guardada", "producto_id": id}
+
+
 # --- Movimientos ---
 
 @router.post("/movimientos", response_model=MovimientoResponse, status_code=201)
