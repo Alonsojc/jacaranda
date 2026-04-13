@@ -77,8 +77,8 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .limpiar:hover{background:#ede3df}
 /* Tabla */
 .tbl{width:100%;border-collapse:collapse;font-size:.82rem}
-.tbl th{text-align:left;padding:.6rem .7rem;background:linear-gradient(135deg,#faf3f0,#fdf7f5);color:var(--v);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em}
-.tbl td{padding:.55rem .7rem;border-bottom:1px solid #f0e8e5}
+.tbl th{text-align:left;padding:.5rem .5rem;background:linear-gradient(135deg,#faf3f0,#fdf7f5);color:var(--v);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em}
+.tbl td{padding:.45rem .5rem;border-bottom:1px solid #f0e8e5}
 .tbl tr:hover td{background:#fdf9f7}
 /* Pedidos */
 .ped{background:#fff;border-radius:12px;padding:1rem;border:1px solid var(--brd);margin-bottom:.7rem;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.04)}
@@ -2325,7 +2325,7 @@ function cargarListas() {
 
 function cargarListaProductos() {
   api('GET', '/inventario/productos').then(function(prods) {
-    var h = '<table class="tbl"><tr><th>C&oacute;digo</th><th>Producto</th><th>Precio</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th>IVA</th><th style="width:100px"></th></tr>';
+    var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th>IVA</th><th style="width:90px"></th></tr>';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
       var stock = parseFloat(p.stock_actual) || 0;
@@ -2335,7 +2335,6 @@ function cargarListaProductos() {
       var iva = p.tasa_iva === '0.16' ? '16%' : p.tasa_iva === '0.00' ? '0%' : 'Ext';
       var esc = p.nombre.replace(/'/g,"\\'");
       h += '<tr>';
-      h += '<td style="color:var(--mut);font-size:.78rem">' + p.codigo + '</td>';
       h += '<td><strong>' + p.nombre + '</strong></td>';
       h += '<td>$' + precio.toFixed(0) + '</td>';
       h += '<td style="color:var(--mut)">$' + costo.toFixed(0) + '</td>';
