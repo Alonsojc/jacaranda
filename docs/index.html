@@ -583,18 +583,12 @@ function cargarPedidos() {
 
 // ─── Config modal ─────────────────────────────────────────────────
 function conectarAPI() {
-  var url = prompt('URL del servidor Jacaranda (ej: https://jacaranda.railway.app)', API_URL);
+  var url = prompt('URL del servidor Jacaranda (ej: https://web-production-b51486.up.railway.app)', API_URL);
   if (url) {
     API_URL = url.replace(/\/$/, '');
     localStorage.setItem('jacaranda_api', API_URL);
-    login('admin@jacaranda.mx', 'admin1234').then(function() {
-      setConnected(true);
-      toast('Conectado al servidor');
-      cargarDashboard();
-    }).catch(function() {
-      setConnected(false);
-      toast('No se pudo conectar. Verifica la URL.', true);
-    });
+    _reconectar = 0;
+    autoConectar();
   }
 }
 
@@ -637,17 +631,19 @@ function hornear() {
 
 // ─── Connection status ────────────────────────────────────────────
 function setConnected(ok) {
-  var dot = document.getElementById('conn-dot');
   var btn = document.getElementById('btn-conn');
   if (ok) {
-    dot.classList.add('on');
     btn.innerHTML = '<span class="conn-dot on"></span>Conectado';
     btn.style.background = 'var(--grn)';
   } else {
-    dot.classList.remove('on');
     btn.innerHTML = '<span class="conn-dot"></span>Conectar';
     btn.style.background = 'var(--v)';
   }
+}
+function setConnecting() {
+  var btn = document.getElementById('btn-conn');
+  btn.innerHTML = '<span class="conn-dot" style="background:var(--amb)"></span>Conectando...';
+  btn.style.background = 'var(--amb)';
 }
 
 // ─── Corte de caja ────────────────────────────────────────────────
@@ -719,34 +715,25 @@ function cargarDashboard() {
   }).catch(function(){});
 }
 
-// Auto-conectar si hay URL guardada
+// Auto-conectar si hay URL guardada (con reintentos para Railway cold start)
+var _reconectar = 0;
+
 function autoConectar() {
   if (!API_URL) return;
-  // Intentar usar token existente
-  if (TOKEN) {
-    api('GET', '/reportes/dashboard').then(function(d) {
-      setConnected(true);
-      document.getElementById('d-ventas').textContent = fmt(d.ventas_hoy);
-      document.getElementById('d-ef').textContent = fmt(d.efectivo);
-      document.getElementById('d-clip').textContent = fmt(d.clip);
-      document.getElementById('d-bbva').textContent = fmt(d.bbva);
-      document.getElementById('d-tickets').textContent = d.tickets || 0;
-    }).catch(function() {
-      // Token expirado, re-login automático
-      reLogin();
-    });
-  } else {
-    reLogin();
-  }
-}
-
-function reLogin() {
-  if (!API_URL) return;
+  setConnecting();
   login('admin@jacaranda.mx', 'admin1234').then(function() {
+    _reconectar = 0;
     setConnected(true);
     cargarDashboard();
   }).catch(function() {
-    setConnected(false);
+    _reconectar++;
+    if (_reconectar <= 3) {
+      // Railway puede tardar en despertar, reintentar
+      setTimeout(autoConectar, _reconectar * 3000);
+    } else {
+      setConnected(false);
+      _reconectar = 0;
+    }
   });
 }
 
