@@ -37,7 +37,8 @@ def crear_datos_semilla():
             prods = db.query(Producto).all()
             sin_stock = all(float(p.stock_actual) == 0 for p in prods) if prods else True
             if not sin_stock:
-                print("La base de datos ya tiene datos con stock. Saltando semilla.")
+                print("La base de datos ya tiene datos con stock. Verificando recetas...")
+                crear_recetas_semilla(db)
                 return
             # Productos sin stock - re-sembrar categorías, ingredientes y productos
             print("Productos sin stock. Re-sembrando inventario...")
