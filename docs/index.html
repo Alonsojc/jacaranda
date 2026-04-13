@@ -218,8 +218,27 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 
 <div id="inv-compras" style="display:none">
 <p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Registra la compra de ingredientes cuando llega el proveedor.</p>
+<div class="card" style="margin-bottom:1rem">
+<h3>Escanear ticket de compra</h3>
+<p style="font-size:.82rem;color:var(--mut);margin-bottom:.6rem">Toma una foto del ticket y se llenan los datos autom&aacute;ticamente.</p>
+<div style="display:flex;gap:.5rem;align-items:center">
+<label class="cobrar" style="flex:0 0 auto;padding:.5rem 1rem;font-size:.85rem;cursor:pointer;text-align:center;display:inline-block">
+&#128247; Foto del ticket
+<input type="file" id="ocr-file" accept="image/*" capture="environment" onchange="escanearTicket()" style="display:none">
+</label>
+<span id="ocr-status" style="font-size:.82rem;color:var(--mut)"></span>
+</div>
+<div id="ocr-result" style="display:none;margin-top:.8rem">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
+<strong style="font-size:.85rem">Productos encontrados</strong>
+<span id="ocr-prov" style="font-size:.82rem;color:var(--mut)"></span>
+</div>
+<div id="ocr-items"></div>
+<button class="cobrar" style="margin-top:.5rem" onclick="registrarTodoOCR()">Registrar todas las compras</button>
+</div>
+</div>
 <div class="card">
-<h3>Nueva compra de ingrediente</h3>
+<h3>Compra manual</h3>
 <div class="frow">
 <div class="fg"><label>Ingrediente</label><select id="compra-ing"><option value="">Cargando...</option></select></div>
 <div class="fg"><label>Cantidad</label><input type="number" id="compra-cant" placeholder="10"></div>
@@ -1019,6 +1038,132 @@ function registrarCompra() {
     document.getElementById('compra-prov').value = '';
   })
   .catch(function() { toast('Error al registrar compra', true); });
+}
+
+// ─── OCR ticket scanning ─────────────────────────────────────────
+var _ocrItems = [];
+
+function escanearTicket() {
+  var fileInput = document.getElementById('ocr-file');
+  var file = fileInput.files[0];
+  if (!file) return;
+  var status = document.getElementById('ocr-status');
+  status.textContent = 'Procesando imagen...';
+  status.style.color = 'var(--amb)';
+  document.getElementById('ocr-result').style.display = 'none';
+
+  var formData = new FormData();
+  formData.append('archivo', file);
+
+  // Use fetch directly (not our api() helper) for multipart upload
+  var opts = {method: 'POST', headers: {}, body: formData};
+  if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
+  fetch(API_URL + '/api/v1/inventario/ocr-ticket', opts)
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.error) {
+      status.textContent = data.error;
+      status.style.color = '#b91c1c';
+      return;
+    }
+    status.textContent = 'Ticket le\u00eddo correctamente';
+    status.style.color = 'var(--grn)';
+    mostrarResultadoOCR(data);
+  })
+  .catch(function() {
+    status.textContent = 'Error al procesar el ticket';
+    status.style.color = '#b91c1c';
+  });
+  fileInput.value = '';
+}
+
+function mostrarResultadoOCR(data) {
+  document.getElementById('ocr-result').style.display = 'block';
+  document.getElementById('ocr-prov').textContent = data.proveedor ? 'Proveedor: ' + data.proveedor : '';
+  _ocrItems = data.items || [];
+
+  var h = '';
+  for (var i = 0; i < _ocrItems.length; i++) {
+    var item = _ocrItems[i];
+    var matchId = matchIngrediente(item.nombre);
+    h += '<div style="display:flex;align-items:center;gap:.4rem;padding:.4rem 0;border-bottom:1px solid #f0e8e5;font-size:.83rem">';
+    h += '<input type="checkbox" checked id="ocr-chk-' + i + '" style="accent-color:var(--v)">';
+    h += '<select id="ocr-ing-' + i + '" style="flex:1;padding:.3rem;border:1px solid var(--brd);border-radius:6px;font-size:.82rem">';
+    for (var j = 0; j < _allIngs.length; j++) {
+      var sel = _allIngs[j].id === matchId ? ' selected' : '';
+      h += '<option value="' + _allIngs[j].id + '"' + sel + '>' + _allIngs[j].nombre + '</option>';
+    }
+    h += '<option value="nuevo">+ Nuevo ingrediente</option>';
+    h += '</select>';
+    h += '<span style="min-width:50px;text-align:right">' + (item.cantidad || 1) + ' ' + (item.unidad || 'pz') + '</span>';
+    h += '<span style="min-width:60px;text-align:right;font-weight:600">$' + (item.total || 0).toFixed(2) + '</span>';
+    h += '</div>';
+  }
+  if (data.total) {
+    h += '<div style="display:flex;justify-content:space-between;padding:.5rem 0;font-weight:700;font-size:.9rem">';
+    h += '<span>Total del ticket</span><span>$' + data.total.toFixed(2) + '</span></div>';
+  }
+  document.getElementById('ocr-items').innerHTML = h;
+}
+
+function matchIngrediente(nombre) {
+  if (!nombre || !_allIngs.length) return _allIngs.length ? _allIngs[0].id : 0;
+  var lower = nombre.toLowerCase();
+  // Try exact substring match first
+  for (var i = 0; i < _allIngs.length; i++) {
+    if (lower.indexOf(_allIngs[i].nombre.toLowerCase()) >= 0 || _allIngs[i].nombre.toLowerCase().indexOf(lower) >= 0) {
+      return _allIngs[i].id;
+    }
+  }
+  // Try word match
+  var words = lower.split(/\s+/);
+  for (var j = 0; j < _allIngs.length; j++) {
+    var ingLower = _allIngs[j].nombre.toLowerCase();
+    for (var k = 0; k < words.length; k++) {
+      if (words[k].length > 3 && ingLower.indexOf(words[k]) >= 0) return _allIngs[j].id;
+    }
+  }
+  return _allIngs.length ? _allIngs[0].id : 0;
+}
+
+function registrarTodoOCR() {
+  var prov = document.getElementById('ocr-prov').textContent.replace('Proveedor: ', '') || '';
+  var pendientes = [];
+  for (var i = 0; i < _ocrItems.length; i++) {
+    var chk = document.getElementById('ocr-chk-' + i);
+    if (!chk || !chk.checked) continue;
+    var sel = document.getElementById('ocr-ing-' + i);
+    if (!sel || sel.value === 'nuevo') continue;
+    var item = _ocrItems[i];
+    pendientes.push({
+      ingrediente_id: sel.value,
+      cantidad: item.cantidad || 1,
+      costo: item.total || 0,
+      proveedor: prov,
+    });
+  }
+  if (!pendientes.length) { toast('No hay items seleccionados', true); return; }
+
+  var completadas = 0, total = pendientes.length;
+  for (var j = 0; j < pendientes.length; j++) {
+    (function(p) {
+      api('POST', '/inventario/ingredientes/' + p.ingrediente_id + '/compra?cantidad=' + p.cantidad + '&costo=' + p.costo + '&proveedor=' + encodeURIComponent(p.proveedor))
+      .then(function() {
+        completadas++;
+        if (completadas === total) {
+          toast(total + ' compras registradas del ticket');
+          document.getElementById('ocr-result').style.display = 'none';
+          document.getElementById('ocr-status').textContent = '';
+          _ocrItems = [];
+          cargarIngredientes();
+        }
+      })
+      .catch(function() {
+        completadas++;
+        toast('Error al registrar una compra', true);
+      });
+    })(pendientes[j]);
+  }
 }
 
 function hornear() {

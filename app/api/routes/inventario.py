@@ -1,6 +1,6 @@
 """Rutas de gestión de inventario."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -244,3 +244,24 @@ def ajustar_stock_producto(
         "diferencia": float(Decimal(str(cantidad)) - anterior),
         "motivo": motivo,
     }
+
+
+# --- OCR de tickets ---
+
+@router.post("/ocr-ticket")
+async def ocr_ticket(
+    archivo: UploadFile = File(...),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Extrae datos de una foto de ticket/factura de compra usando IA."""
+    from app.services.ocr_service import extraer_datos_ticket
+
+    if not archivo.content_type or not archivo.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="El archivo debe ser una imagen (JPG, PNG)")
+
+    image_bytes = await archivo.read()
+    if len(image_bytes) > 20_000_000:  # 20MB limit
+        raise HTTPException(status_code=400, detail="La imagen es muy grande (máximo 20MB)")
+
+    resultado = extraer_datos_ticket(image_bytes, archivo.content_type)
+    return resultado
