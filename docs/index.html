@@ -199,6 +199,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 <button class="cobrar" onclick="cobrar()">Cobrar</button>
 <button class="limpiar" onclick="confirmarLimpiar()">Limpiar</button>
+<button class="limpiar" onclick="document.querySelector('.pos-prods').scrollIntoView({behavior:'smooth'})" id="pos-btn-prods" style="display:none;margin-top:.3rem">&uarr; Ver productos</button>
 </div>
 </div>
 </div>
@@ -935,6 +936,10 @@ function add(id, n, pr, iv) {
   }
   if (!f) cart.push({id:id, n:n, p:pr, iv:iv, q:1, desc:0});
   ren();
+  // En móvil scroll al ticket para que se vea
+  if (window.innerWidth <= 900) {
+    document.querySelector('.tkt').scrollIntoView({behavior:'smooth', block:'start'});
+  }
 }
 
 function ren() {
@@ -963,6 +968,8 @@ function ren() {
   if (dsc > 0) document.getElementById('tsub').textContent += ' (-$' + dsc.toFixed(0) + ')';
   document.getElementById('tiva').textContent = '$' + iv.toFixed(2);
   document.getElementById('ttot').textContent = '$' + (s + iv).toFixed(2);
+  var bp = document.getElementById('pos-btn-prods');
+  if (bp) bp.style.display = (cart.length && window.innerWidth <= 900) ? '' : 'none';
 }
 
 var _descIdx = -1;
