@@ -45,8 +45,8 @@ nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1p
 .bpend{background:#e9d5ff;color:#7c3aed}.bconf{background:#dbeafe;color:#1d4ed8}.bprep{background:#fef3c7;color:#92400e}.blist{background:#d1fae5;color:#047857}
 h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-bottom:1rem}
 /* POS */
-.pos-grid{display:grid;grid-template-columns:1fr 320px;gap:1rem}
-.prods{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem;align-content:start}
+.pos-grid{display:grid;grid-template-columns:1fr 340px;gap:1rem}
+.prods{display:grid;grid-template-columns:repeat(4,1fr);gap:.7rem;align-content:start}
 .pi{background:#fff;border-radius:12px;padding:1rem .8rem;text-align:center;border:1px solid var(--brd);cursor:pointer;transition:all .2s;user-select:none}
 .pi:hover{border-color:var(--v);box-shadow:0 4px 15px rgba(124,58,237,.15);transform:translateY(-1px)}
 .pi:active{transform:scale(.97);box-shadow:none}
@@ -109,18 +109,18 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 /* Connection dot */
 .conn-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;background:#ef4444;vertical-align:middle}
 .conn-dot.on{background:var(--grn);box-shadow:0 0 6px rgba(16,185,129,.5)}
-@media(max-width:768px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.prods{grid-template-columns:repeat(2,1fr)}.nav-links{gap:0}.nav-links a{padding:.4rem .5rem;font-size:.75rem}.pmt{grid-template-columns:1fr!important}}
+@media(max-width:768px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.prods{grid-template-columns:repeat(3,1fr)}.nav-links{gap:0}.nav-links a{padding:.4rem .5rem;font-size:.75rem}.pmt{grid-template-columns:1fr!important}}
 </style>
 </head>
 <body>
 <nav>
 <div class="logo">JACARANDA <span>flavors</span></div>
 <div class="nav-links">
-<a class="on" onclick="go('dash')">Inicio</a>
-<a onclick="go('pos')">Venta</a>
-<a onclick="go('ped')">Pedidos</a>
-<a onclick="go('inv')">Inventario</a>
-<a onclick="go('corte')">Corte</a>
+<a class="on" data-pg="dash" onclick="go('dash')">Inicio</a>
+<a data-pg="pos" onclick="go('pos')">Venta</a>
+<a data-pg="ped" onclick="go('ped')">Pedidos</a>
+<a data-pg="inv" onclick="go('inv')">Inventario</a>
+<a data-pg="corte" onclick="go('corte')">Corte</a>
 <a onclick="conectarAPI()" id="btn-conn" style="cursor:pointer;background:var(--v);color:#fff;border-radius:20px;font-size:.78rem;padding:.5rem .8rem"><span class="conn-dot" id="conn-dot"></span>Conectar</a>
 <a href="https://wa.me/5214424670397" target="_blank" class="wa">WhatsApp</a>
 </div>
@@ -184,9 +184,13 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="pi" onclick="add('Galletas 6pz',85,16)"><div class="em">&#127850;</div><div class="pn">Galletas 6pz</div><div class="pp">$85</div><span class="iv iv16">IVA 16%</span></div>
 <div class="pi" onclick="add('Velas',35,16)"><div class="em">&#127870;</div><div class="pn">Velas</div><div class="pp">$35</div><span class="iv iv16">IVA 16%</span></div>
 <div class="pi" onclick="add('Pastel 1kg',350,16)"><div class="em">&#127874;</div><div class="pn">Pastel 1kg</div><div class="pp">$350</div><span class="iv iv16">IVA 16%</span></div>
+<div class="pi" onclick="add('Pastel 1.5kg',520,16)"><div class="em">&#127874;</div><div class="pn">Pastel 1.5kg</div><div class="pp">$520</div><span class="iv iv16">IVA 16%</span></div>
+<div class="pi" onclick="add('Tres Leches 1kg',380,16)"><div class="em">&#127856;</div><div class="pn">Tres Leches 1kg</div><div class="pp">$380</div><span class="iv iv16">IVA 16%</span></div>
 <div class="pi" onclick="add('Bolillo',2.5,0)"><div class="em">&#127838;</div><div class="pn">Bolillo</div><div class="pp">$2.50</div><span class="iv iv0">IVA 0%</span></div>
-<div class="pi" onclick="add('Concha',15,0)"><div class="em">&#127849;</div><div class="pn">Concha</div><div class="pp">$15</div><span class="iv iv0">IVA 0%</span></div>
+<div class="pi" onclick="add('Concha Choco',15,0)"><div class="em">&#127849;</div><div class="pn">Concha Choco</div><div class="pp">$15</div><span class="iv iv0">IVA 0%</span></div>
+<div class="pi" onclick="add('Concha Vainilla',15,0)"><div class="em">&#127849;</div><div class="pn">Concha Vainilla</div><div class="pp">$15</div><span class="iv iv0">IVA 0%</span></div>
 <div class="pi" onclick="add('Cuerno',15,0)"><div class="em">&#129360;</div><div class="pn">Cuerno</div><div class="pp">$15</div><span class="iv iv0">IVA 0%</span></div>
+<div class="pi" onclick="add('Polvor&oacute;n',12,0)"><div class="em">&#127850;</div><div class="pn">Polvor&oacute;n</div><div class="pp">$12</div><span class="iv iv0">IVA 0%</span></div>
 </div>
 <div class="tkt">
 <h3>Ticket</h3>
@@ -424,8 +428,12 @@ function login(email, pass) {
 function go(p) {
   document.querySelectorAll('.page').forEach(function(e) { e.classList.remove('on'); });
   document.getElementById(p).classList.add('on');
-  document.querySelectorAll('.nav-links a:not(.wa)').forEach(function(a) { a.classList.remove('on'); });
+  document.querySelectorAll('.nav-links a[data-pg]').forEach(function(a) {
+    a.classList.toggle('on', a.getAttribute('data-pg') === p);
+  });
   if (p === 'ped') cargarPedidos();
+  if (p === 'dash') cargarDashboard();
+  window.scrollTo(0, 0);
 }
 
 // ─── POS ──────────────────────────────────────────────────────────
