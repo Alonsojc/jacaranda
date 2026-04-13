@@ -118,6 +118,7 @@ class Producto(Base):
     codigo: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     nombre: Mapped[str] = mapped_column(String(200))
     descripcion: Mapped[str | None] = mapped_column(Text)
+    imagen: Mapped[str | None] = mapped_column(Text)  # base64 data URL
     categoria_id: Mapped[int | None] = mapped_column(ForeignKey("categorias_producto.id"))
 
     # Precios
