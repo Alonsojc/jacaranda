@@ -311,3 +311,53 @@ def dashboard_resumen(db: Session) -> dict:
             "total": float(ventas_mes),
         },
     }
+
+
+def reporte_margenes_producto(db: Session) -> list[dict]:
+    """Margen de ganancia por producto (precio venta - costo producción)."""
+    from app.models.inventario import Producto
+    productos = db.query(Producto).filter(Producto.activo.is_(True)).all()
+    result = []
+    for p in productos:
+        precio = float(p.precio_unitario)
+        costo = float(p.costo_produccion)
+        margen = precio - costo
+        pct = (margen / precio * 100) if precio > 0 else 0
+        result.append({
+            "id": p.id,
+            "nombre": p.nombre,
+            "precio": precio,
+            "costo": costo,
+            "margen": margen,
+            "margen_pct": round(pct, 1),
+            "stock": float(p.stock_actual),
+        })
+    result.sort(key=lambda x: x["margen_pct"], reverse=True)
+    return result
+
+
+def reporte_ventas_por_dia(db: Session, dias: int = 30) -> list[dict]:
+    """Ventas diarias de los últimos N días."""
+    from datetime import timedelta
+    hoy = date.today()
+    inicio = hoy - timedelta(days=dias - 1)
+    ventas = db.query(Venta).filter(
+        and_(
+            Venta.fecha >= datetime.combine(inicio, datetime.min.time()),
+            Venta.fecha <= datetime.combine(hoy, datetime.max.time()),
+            Venta.estado == EstadoVenta.COMPLETADA,
+        )
+    ).all()
+
+    por_dia = {}
+    for d in range(dias):
+        dia = (inicio + timedelta(days=d)).isoformat()
+        por_dia[dia] = {"total": 0, "tickets": 0}
+    for v in ventas:
+        dia = v.fecha.strftime("%Y-%m-%d")
+        if dia in por_dia:
+            por_dia[dia]["total"] += float(v.total)
+            por_dia[dia]["tickets"] += 1
+
+    return [{"fecha": k, "total": round(v["total"], 2), "tickets": v["tickets"]}
+            for k, v in sorted(por_dia.items())]

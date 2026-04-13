@@ -113,7 +113,16 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 /* Connection dot */
 .conn-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;background:#ef4444;vertical-align:middle}
 .conn-dot.on{background:var(--grn);box-shadow:0 0 6px rgba(16,185,129,.5)}
-@media(max-width:768px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.prods{grid-template-columns:repeat(2,1fr)}.nav-links{gap:0}.nav-links a{padding:.4rem .5rem;font-size:.75rem}.pmt{grid-template-columns:1fr!important}}
+/* Bar chart */
+.bar-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;font-size:.82rem}
+.bar-row .bar-label{min-width:120px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-row .bar-fill{height:20px;background:linear-gradient(90deg,#c4988a,#d4a99c);border-radius:4px;transition:width .5s;min-width:2px}
+.bar-row .bar-val{min-width:60px;font-weight:600;color:var(--v)}
+/* Discount inline */
+.desc-input{width:55px;padding:.2rem .3rem;border:1px solid var(--brd);border-radius:5px;font-size:.72rem;font-family:inherit;text-align:center}
+.desc-input:focus{outline:none;border-color:var(--v)}
+@media(max-width:900px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.prods{grid-template-columns:repeat(3,1fr)}.nav-links{flex-wrap:wrap;gap:.15rem}.nav-links a{padding:.4rem .55rem;font-size:.73rem}.pmt{grid-template-columns:1fr!important}}
+@media(max-width:600px){.prods{grid-template-columns:repeat(2,1fr)}.qty-btn{width:32px;height:32px;font-size:1rem}.cobrar{padding:1rem;font-size:1rem}.pi-body{padding:.5rem}.frow{grid-template-columns:1fr}.wrap{padding:.8rem}nav{padding:.5rem .8rem}}
 </style>
 </head>
 <body>
@@ -125,7 +134,9 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <a data-pg="ped" onclick="go('ped')">Pedidos <span id="ped-badge" style="display:none;background:#ef4444;color:#fff;font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;vertical-align:top;min-width:14px;text-align:center"></span></a>
 <a data-pg="inv" onclick="go('inv')">Inventario</a>
 <a data-pg="corte" onclick="go('corte')">Corte</a>
-<a data-pg="listas" onclick="go('listas')">Listas</a>
+<a data-pg="rep" onclick="go('rep')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">Reportes</a>
+<a data-pg="listas" onclick="go('listas')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Listas</a>
+<a data-pg="cofepris" onclick="go('cofepris')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">COFEPRIS</a>
 <a onclick="conectarAPI()" id="btn-conn" style="cursor:pointer;background:var(--v);color:#fff;border-radius:20px;font-size:.78rem;padding:.5rem .8rem"><span class="conn-dot" id="conn-dot"></span>Conectar</a>
 <a href="https://wa.me/5214424670397" target="_blank" class="wa">WhatsApp</a>
 </div>
@@ -410,6 +421,188 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 </div>
 
+<!-- REPORTES -->
+<div class="page" id="rep">
+<h2>Reportes</h2>
+<div class="section-tabs" style="margin-bottom:1rem">
+<span class="tab active" onclick="repTab('rep-ventas')">Ventas</span>
+<span class="tab" onclick="repTab('rep-prod')">Productos</span>
+<span class="tab" onclick="repTab('rep-marg')">M&aacute;rgenes</span>
+<span class="tab" onclick="repTab('rep-fiscal')">Fiscal</span>
+</div>
+<div id="rep-ventas">
+<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
+<span style="font-size:.83rem;color:var(--mut)">Periodo:</span>
+<input type="date" id="rep-fi" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit">
+<span style="font-size:.83rem;color:var(--mut)">a</span>
+<input type="date" id="rep-ff" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit">
+<button onclick="cargarReporteVentas()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Consultar</button>
+<button onclick="repSetRango(7)" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0">7 d&iacute;as</button>
+<button onclick="repSetRango(30)" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0">30 d&iacute;as</button>
+</div>
+<div class="row r3" style="margin-bottom:.8rem">
+<div class="card kpi g"><div class="n" id="rep-total">$0</div><div class="l">Total ventas</div></div>
+<div class="card kpi"><div class="n" id="rep-tickets">0</div><div class="l">Tickets</div></div>
+<div class="card kpi a"><div class="n" id="rep-promedio">$0</div><div class="l">Ticket promedio</div></div>
+</div>
+<div class="card" style="margin-bottom:1rem">
+<h3>Tendencia de ventas diarias</h3>
+<div id="rep-chart" style="max-height:250px;overflow-y:auto"></div>
+</div>
+<div class="row r2">
+<div class="card"><h3>Por m&eacute;todo de pago</h3><div id="rep-metodo"></div></div>
+<div class="card"><h3>Por d&iacute;a</h3><div id="rep-dia" style="max-height:200px;overflow-y:auto"></div></div>
+</div>
+</div>
+<div id="rep-prod" style="display:none">
+<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
+<span style="font-size:.83rem;color:var(--mut)">Periodo:</span>
+<input type="date" id="rep-pfi" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit">
+<span style="font-size:.83rem;color:var(--mut)">a</span>
+<input type="date" id="rep-pff" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit">
+<button onclick="cargarReporteProductos()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Consultar</button>
+</div>
+<div class="card"><h3>Productos m&aacute;s vendidos</h3><div id="rep-top-prods"></div></div>
+</div>
+<div id="rep-marg" style="display:none">
+<div class="card"><h3>Margen de ganancia por producto</h3><p style="font-size:.78rem;color:var(--mut);margin-bottom:.5rem">Precio venta - costo producci&oacute;n. Ordena de mayor a menor margen %.</p><div id="rep-margenes"></div></div>
+</div>
+<div id="rep-fiscal" style="display:none">
+<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
+<span style="font-size:.83rem;color:var(--mut)">Mes:</span>
+<select id="rep-fmes" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem">
+<option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option><option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option><option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+</select>
+<select id="rep-fanio" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem">
+<option value="2026">2026</option><option value="2025">2025</option>
+</select>
+<button onclick="cargarReporteFiscal()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Consultar</button>
+</div>
+<div class="row r2">
+<div class="card"><h3>IVA mensual</h3><div id="rep-iva"></div></div>
+<div class="card"><h3>ISR provisional</h3><div id="rep-isr"></div></div>
+</div>
+</div>
+</div>
+
+<!-- COFEPRIS -->
+<div class="page" id="cofepris">
+<h2>COFEPRIS &mdash; Control Sanitario</h2>
+<div class="section-tabs" style="margin-bottom:1rem">
+<span class="tab active" onclick="cofTab('cof-temp')">Temperaturas</span>
+<span class="tab" onclick="cofTab('cof-limp')">Limpieza</span>
+<span class="tab" onclick="cofTab('cof-insp')">Inspecciones</span>
+<span class="tab" onclick="cofTab('cof-rep')">Reporte</span>
+</div>
+<div id="cof-temp">
+<div class="row r2">
+<div class="card">
+<h3>Registrar temperatura</h3>
+<div class="frow">
+<div class="fg"><label>&Aacute;rea</label><select id="ct-area"><option value="PRODUCCION">Producci&oacute;n</option><option value="ALMACEN_SECO">Almac&eacute;n seco</option><option value="REFRIGERACION">Refrigeraci&oacute;n</option><option value="CONGELACION">Congelaci&oacute;n</option><option value="PUNTO_VENTA">Punto de venta</option></select></div>
+<div class="fg"><label>Temperatura (&deg;C)</label><input type="number" id="ct-temp" step="0.1" placeholder="4.5"></div>
+</div>
+<div class="fg"><label>Observaciones</label><input id="ct-obs" placeholder="Normal, puerta abierta..."></div>
+<button class="cobrar" onclick="registrarTemperatura()">Registrar</button>
+</div>
+<div class="card">
+<h3>Registros recientes</h3>
+<div id="cof-temp-list" style="max-height:300px;overflow-y:auto"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+</div>
+</div>
+<div id="cof-limp" style="display:none">
+<div class="row r2">
+<div class="card">
+<h3>Registrar limpieza</h3>
+<div class="frow">
+<div class="fg"><label>&Aacute;rea</label><select id="cl-area"><option value="PRODUCCION">Producci&oacute;n</option><option value="ALMACEN_SECO">Almac&eacute;n seco</option><option value="REFRIGERACION">Refrigeraci&oacute;n</option><option value="PUNTO_VENTA">Punto de venta</option><option value="SANITARIOS">Sanitarios</option><option value="AREA_LAVADO">&Aacute;rea de lavado</option></select></div>
+<div class="fg"><label>Tipo</label><select id="cl-tipo"><option value="rutinaria">Rutinaria</option><option value="profunda">Profunda</option><option value="desinfeccion">Desinfecci&oacute;n</option></select></div>
+</div>
+<div class="fg"><label>Productos usados</label><input id="cl-prods" placeholder="Cloro, jab&oacute;n, desengrasante..."></div>
+<div class="fg"><label>Observaciones</label><input id="cl-obs" placeholder=""></div>
+<button class="cobrar" onclick="registrarLimpieza()">Registrar limpieza</button>
+</div>
+<div class="card">
+<h3>Registros recientes</h3>
+<div id="cof-limp-list" style="max-height:300px;overflow-y:auto"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+</div>
+</div>
+<div id="cof-insp" style="display:none">
+<div class="card">
+<h3>Registrar inspecci&oacute;n sanitaria</h3>
+<p style="font-size:.78rem;color:var(--mut);margin-bottom:.6rem">Califica cada &aacute;rea de 0 a 10. La calificaci&oacute;n general se calcula autom&aacute;ticamente.</p>
+<div class="frow">
+<div class="fg"><label>Tipo</label><select id="ci-tipo"><option value="interna">Interna</option><option value="cofepris">COFEPRIS</option><option value="cliente">Cliente</option></select></div>
+<div class="fg"><label>Inspector</label><input id="ci-inspector" placeholder="Nombre del inspector"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Higiene personal (0-10)</label><input type="number" id="ci-hig" min="0" max="10" value="8"></div>
+<div class="fg"><label>Instalaciones (0-10)</label><input type="number" id="ci-inst" min="0" max="10" value="8"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Equipos (0-10)</label><input type="number" id="ci-equip" min="0" max="10" value="8"></div>
+<div class="fg"><label>Control operaciones (0-10)</label><input type="number" id="ci-ctrl" min="0" max="10" value="8"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Almacenamiento (0-10)</label><input type="number" id="ci-alm" min="0" max="10" value="8"></div>
+<div class="fg"><label>Limpieza (0-10)</label><input type="number" id="ci-limp" min="0" max="10" value="8"></div>
+</div>
+<div class="fg"><label>Observaciones</label><textarea id="ci-obs" placeholder="Hallazgos, recomendaciones..."></textarea></div>
+<button class="cobrar" onclick="registrarInspeccion()">Guardar inspecci&oacute;n</button>
+</div>
+<div class="card" style="margin-top:1rem">
+<h3>Inspecciones recientes</h3>
+<div id="cof-insp-list" style="max-height:300px;overflow-y:auto"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+</div>
+<div id="cof-rep" style="display:none">
+<div class="card">
+<h3>Reporte de cumplimiento</h3>
+<p style="font-size:.78rem;color:var(--mut);margin-bottom:.6rem">Estado general de cumplimiento sanitario para auditor&iacute;as.</p>
+<button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.82rem;margin-bottom:.8rem" onclick="cargarReporteCofepris()">Generar reporte</button>
+<div id="cof-rep-content"></div>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Facturar -->
+<div class="modal-bg" id="modal-facturar">
+<div class="modal" style="max-width:420px">
+<h3>Generar Factura (CFDI)</h3>
+<input type="hidden" id="mf-venta-id">
+<div class="fg"><label>RFC del cliente</label><input id="mf-rfc" placeholder="XAXX010101000" maxlength="13" style="text-transform:uppercase"></div>
+<div class="fg"><label>Nombre o raz&oacute;n social</label><input id="mf-nombre" placeholder="P&uacute;blico en general"></div>
+<div class="fg"><label>R&eacute;gimen fiscal</label><select id="mf-regimen"><option value="616">616 - Sin obligaciones fiscales</option><option value="601">601 - General de Ley PM</option><option value="612">612 - Actividades empresariales PF</option><option value="621">621 - Incorporaci&oacute;n fiscal</option><option value="626">626 - RESICO</option></select></div>
+<div class="fg"><label>Uso CFDI</label><select id="mf-uso"><option value="S01">S01 - Sin efectos fiscales</option><option value="G01">G01 - Adquisici&oacute;n de mercanc&iacute;as</option><option value="G03">G03 - Gastos en general</option></select></div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="cobrar" style="flex:1" onclick="generarCFDI()">Generar CFDI</button>
+<button class="limpiar" style="flex:1;padding:.5rem 1.2rem" onclick="cerrarModal('modal-facturar')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Descuento inline -->
+<div class="modal-bg" id="modal-desc">
+<div class="modal" style="max-width:320px;text-align:center">
+<h3>Descuento</h3>
+<p id="md-info" style="font-size:.85rem;color:var(--mut);margin-bottom:.6rem"></p>
+<div style="display:flex;gap:.5rem;justify-content:center;margin-bottom:.6rem">
+<button class="pbtn" id="md-pct-10" onclick="mdSet(10)" style="padding:.5rem .8rem;font-size:.9rem">10%</button>
+<button class="pbtn" id="md-pct-15" onclick="mdSet(15)" style="padding:.5rem .8rem;font-size:.9rem">15%</button>
+<button class="pbtn" id="md-pct-20" onclick="mdSet(20)" style="padding:.5rem .8rem;font-size:.9rem">20%</button>
+<button class="pbtn" id="md-pct-50" onclick="mdSet(50)" style="padding:.5rem .8rem;font-size:.9rem">50%</button>
+</div>
+<div class="fg"><label>O escribe monto $</label><input type="number" id="md-monto" step="1" min="0" placeholder="0" style="text-align:center;font-size:1.1rem;font-weight:700" oninput="document.getElementById('md-preview').textContent=(parseFloat(this.value)||0).toFixed(0)"></div>
+<div style="font-size:1.2rem;font-weight:700;color:var(--v);margin:.4rem 0">Descuento: $<span id="md-preview">0</span></div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="cobrar" style="flex:1" onclick="mdAplicar()">Aplicar</button>
+<button class="limpiar" style="flex:1" onclick="cerrarModal('modal-desc')">Cancelar</button>
+</div>
+</div>
+</div>
+
 <!-- MODAL: Nuevo Producto -->
 <div class="modal-bg" id="modal-new-prod">
 <div class="modal">
@@ -649,6 +842,9 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div id="mt-cancel-wrap" style="display:none;margin-bottom:.7rem">
 <button onclick="cancelarVentaActual()" style="width:100%;padding:.5rem;border:2px solid #ef4444;border-radius:10px;background:#fff;color:#b91c1c;font-weight:600;font-size:.82rem;cursor:pointer;transition:all .15s" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='#fff'">Cancelar esta venta</button>
 </div>
+<div id="mt-facturar-wrap" style="display:none;margin-bottom:.5rem">
+<button onclick="abrirFacturar()" style="width:100%;padding:.5rem;border:2px solid #2563eb;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-weight:600;font-size:.82rem;cursor:pointer">&#128196; Facturar (CFDI)</button>
+</div>
 <div style="display:flex;gap:.5rem">
 <button class="cobrar" style="flex:1" onclick="copiarTicket()">Copiar Ticket</button>
 <button class="cobrar" style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5)" onclick="imprimirTicket()">&#128424; Imprimir</button>
@@ -726,6 +922,8 @@ function go(p) {
   if (p === 'pos') cargarPOSProductos();
   if (p === 'corte') cargarCorte();
   if (p === 'listas') cargarListas();
+  if (p === 'rep') initReportes();
+  if (p === 'cofepris') cargarCofepris();
   window.scrollTo(0, 0);
 }
 
@@ -767,20 +965,33 @@ function ren() {
   document.getElementById('ttot').textContent = '$' + (s + iv).toFixed(2);
 }
 
+var _descIdx = -1;
 function cartDesc(i) {
+  _descIdx = i;
   var c = cart[i];
   var total = c.p * c.q;
-  var val = prompt('Descuento para ' + c.n + ' ($' + total.toFixed(0) + '):\nEscribe monto en $ o porcentaje con %', c.desc > 0 ? c.desc : '');
-  if (val === null) return;
-  val = val.trim();
-  if (val.indexOf('%') >= 0) {
-    var pct = parseFloat(val) || 0;
-    c.desc = Math.round(total * pct / 100 * 100) / 100;
-  } else {
-    c.desc = parseFloat(val) || 0;
-  }
-  if (c.desc > total) c.desc = total;
-  if (c.desc < 0) c.desc = 0;
+  document.getElementById('md-info').textContent = c.n + ' — $' + total.toFixed(0);
+  document.getElementById('md-monto').value = c.desc > 0 ? c.desc : '';
+  document.getElementById('md-preview').textContent = (c.desc || 0).toFixed(0);
+  document.getElementById('modal-desc').classList.add('on');
+  setTimeout(function(){ document.getElementById('md-monto').focus(); }, 200);
+}
+function mdSet(pct) {
+  if (_descIdx < 0) return;
+  var c = cart[_descIdx];
+  var total = c.p * c.q;
+  var d = Math.round(total * pct / 100);
+  document.getElementById('md-monto').value = d;
+  document.getElementById('md-preview').textContent = d;
+}
+function mdAplicar() {
+  if (_descIdx < 0) return;
+  var c = cart[_descIdx];
+  var total = c.p * c.q;
+  var val = parseFloat(document.getElementById('md-monto').value) || 0;
+  c.desc = Math.min(Math.max(val, 0), total);
+  cerrarModal('modal-desc');
+  _descIdx = -1;
   ren();
 }
 
@@ -963,6 +1174,7 @@ function mostrarTicket(venta) {
   document.getElementById('mt-titulo').style.color = 'var(--grn)';
   document.getElementById('mt-folio').textContent = venta.folio;
   document.getElementById('mt-cancel-wrap').style.display = 'none';
+  document.getElementById('mt-facturar-wrap').style.display = 'block';
   _ventaActualId = venta.id;
   // Load full ticket from backend
   api('GET', '/punto-de-venta/ventas/' + venta.id + '/ticket').then(function(tk) {
@@ -1020,6 +1232,7 @@ function verTicket(ventaId, cancelada) {
   document.getElementById('mt-detalles').innerHTML = '';
   document.getElementById('mt-productos').innerHTML = '';
   document.getElementById('mt-cancel-wrap').style.display = cancelada ? 'none' : 'block';
+  document.getElementById('mt-facturar-wrap').style.display = cancelada ? 'none' : 'block';
   document.getElementById('modal-ticket').classList.add('on');
   api('GET', '/punto-de-venta/ventas/' + ventaId + '/ticket').then(function(tk) {
     _ultimoTicket = tk;
@@ -1339,11 +1552,23 @@ function renderPedidos() {
   document.getElementById('ped-sem').textContent = sem || pedidos.length;
 }
 
+var _estadoLabels = {recibido:'Recibido',confirmado:'Confirmado',en_preparacion:'En preparaci\u00f3n',listo:'\u00a1Listo!',entregado:'Entregado'};
 function avanzarPedido(id, nuevoEstado) {
   api('PATCH', '/pedidos/' + id, {estado: nuevoEstado}).then(function() {
-    toast('Pedido actualizado');
+    var label = _estadoLabels[nuevoEstado] || nuevoEstado;
+    toast('Pedido \u2192 ' + label);
+    playNotif();
     cargarPedidos();
   }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+function playNotif() {
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var osc = ctx.createOscillator(); var g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.frequency.value = 800; g.gain.value = 0.15;
+    osc.start(); osc.stop(ctx.currentTime + 0.12);
+  } catch(e) {}
 }
 
 // ─── Config modal ─────────────────────────────────────────────────
@@ -2492,6 +2717,338 @@ function renderDashAlertas(extra) {
 }
 
 // Auto-conectar si hay URL guardada (con reintentos para Railway cold start)
+// ─── Permisos por rol ─────────────────────────────────────────────
+var _userRole = 'ADMINISTRADOR';
+function aplicarPermisos() {
+  api('GET', '/auth/me').then(function(u) {
+    _userRole = u.rol || 'CAJERO';
+    document.querySelectorAll('.nav-role').forEach(function(a) {
+      var roles = (a.getAttribute('data-roles') || '').split(',');
+      a.style.display = roles.indexOf(_userRole) >= 0 ? '' : 'none';
+    });
+  }).catch(function() { /* fallback: show all */ });
+}
+
+// ─── Pedidos polling (nuevos pedidos) ────────────────────────────
+var _pedidoCount = 0;
+function iniciarPollPedidos() {
+  setInterval(function() {
+    api('GET', '/pedidos/').then(function(peds) {
+      var activos = peds.filter(function(p) { return p.estado !== 'entregado' && p.estado !== 'cancelado'; }).length;
+      if (activos > _pedidoCount && _pedidoCount > 0) {
+        toast('Nuevo pedido recibido');
+        playNotif();
+      }
+      _pedidoCount = activos;
+    }).catch(function(){});
+  }, 30000);
+}
+
+// ─── Reportes ────────────────────────────────────────────────────
+function repTab(tab) {
+  ['rep-ventas','rep-prod','rep-marg','rep-fiscal'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#rep .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  if (tab === 'rep-marg') cargarMargenes();
+}
+
+function initReportes() {
+  var hoy = new Date().toISOString().split('T')[0];
+  var hace30 = new Date(Date.now() - 30*86400000).toISOString().split('T')[0];
+  if (!document.getElementById('rep-fi').value) {
+    document.getElementById('rep-fi').value = hace30;
+    document.getElementById('rep-ff').value = hoy;
+    document.getElementById('rep-pfi').value = hace30;
+    document.getElementById('rep-pff').value = hoy;
+  }
+  var mes = new Date().getMonth() + 1;
+  document.getElementById('rep-fmes').value = mes;
+}
+
+function repSetRango(dias) {
+  var hoy = new Date().toISOString().split('T')[0];
+  var desde = new Date(Date.now() - dias*86400000).toISOString().split('T')[0];
+  document.getElementById('rep-fi').value = desde;
+  document.getElementById('rep-ff').value = hoy;
+  cargarReporteVentas();
+}
+
+function cargarReporteVentas() {
+  var fi = document.getElementById('rep-fi').value;
+  var ff = document.getElementById('rep-ff').value;
+  if (!fi || !ff) { toast('Selecciona fechas', true); return; }
+  api('GET', '/reportes/ventas?fecha_inicio=' + fi + '&fecha_fin=' + ff).then(function(r) {
+    var res = r.resumen;
+    document.getElementById('rep-total').textContent = '$' + res.total.toLocaleString('es-MX',{minimumFractionDigits:0});
+    document.getElementById('rep-tickets').textContent = res.numero_ventas;
+    document.getElementById('rep-promedio').textContent = '$' + res.ticket_promedio.toFixed(0);
+    // Por método
+    var metodos = {'01':'Efectivo','04':'Tarjeta','28':'Tarjeta D.','03':'Transferencia'};
+    var hm = '';
+    for (var k in r.por_metodo_pago) {
+      var m = r.por_metodo_pago[k];
+      hm += '<div class="srow"><span>' + (metodos[k]||k) + ' (' + m.cantidad + ')</span><span class="green">$' + m.total.toLocaleString('es-MX',{minimumFractionDigits:0}) + '</span></div>';
+    }
+    document.getElementById('rep-metodo').innerHTML = hm || '<p style="color:var(--mut);font-size:.83rem">Sin datos</p>';
+    // Por día
+    var hd = '', maxDia = 0;
+    for (var d in r.por_dia) { if (r.por_dia[d].total > maxDia) maxDia = r.por_dia[d].total; }
+    for (var d2 in r.por_dia) {
+      var dd = r.por_dia[d2];
+      var pct = maxDia > 0 ? (dd.total / maxDia * 100) : 0;
+      var dia = new Date(d2 + 'T12:00:00').toLocaleDateString('es-MX',{weekday:'short',day:'numeric',month:'short'});
+      hd += '<div class="bar-row"><span class="bar-label">' + dia + '</span><div class="bar-fill" style="width:' + pct + '%"></div><span class="bar-val">$' + dd.total.toFixed(0) + '</span></div>';
+    }
+    document.getElementById('rep-dia').innerHTML = hd || '<p style="color:var(--mut);font-size:.83rem">Sin ventas</p>';
+  }).catch(function() { toast('Error al cargar reporte', true); });
+  // Trend chart
+  api('GET', '/reportes/ventas-por-dia?dias=30').then(function(dias) {
+    var maxT = 0;
+    for (var i = 0; i < dias.length; i++) { if (dias[i].total > maxT) maxT = dias[i].total; }
+    var hc = '';
+    for (var j = 0; j < dias.length; j++) {
+      var d = dias[j];
+      var pct = maxT > 0 ? (d.total / maxT * 100) : 0;
+      var dia = new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'short'});
+      hc += '<div class="bar-row"><span class="bar-label" style="min-width:60px;font-size:.72rem">' + dia + '</span><div class="bar-fill" style="width:' + pct + '%;height:14px"></div><span class="bar-val" style="font-size:.72rem">$' + d.total.toFixed(0) + '</span></div>';
+    }
+    document.getElementById('rep-chart').innerHTML = hc || '<p style="color:var(--mut);font-size:.83rem">Sin datos</p>';
+  }).catch(function(){});
+}
+
+function cargarReporteProductos() {
+  var fi = document.getElementById('rep-pfi').value;
+  var ff = document.getElementById('rep-pff').value;
+  if (!fi || !ff) { toast('Selecciona fechas', true); return; }
+  api('GET', '/reportes/productos-mas-vendidos?fecha_inicio=' + fi + '&fecha_fin=' + ff + '&limit=20').then(function(prods) {
+    if (!prods.length) { document.getElementById('rep-top-prods').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Sin ventas en este periodo</p>'; return; }
+    var maxQ = prods[0].cantidad_vendida || 1;
+    var h = '';
+    for (var i = 0; i < prods.length; i++) {
+      var p = prods[i];
+      var pct = (p.cantidad_vendida / maxQ * 100);
+      h += '<div class="bar-row"><span class="bar-label">' + p.nombre + '</span><div class="bar-fill" style="width:' + pct + '%"></div><span class="bar-val">' + p.cantidad_vendida + ' pzas &bull; $' + p.ingresos.toFixed(0) + '</span></div>';
+    }
+    document.getElementById('rep-top-prods').innerHTML = h;
+  }).catch(function() { toast('Error al cargar productos', true); });
+}
+
+function cargarMargenes() {
+  api('GET', '/reportes/margenes-producto').then(function(prods) {
+    if (!prods.length) { document.getElementById('rep-margenes').innerHTML = '<p style="color:var(--mut)">Sin productos</p>'; return; }
+    var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Costo</th><th>Margen $</th><th>Margen %</th><th>Stock</th></tr>';
+    for (var i = 0; i < prods.length; i++) {
+      var p = prods[i];
+      var color = p.margen_pct >= 50 ? 'var(--grn)' : p.margen_pct >= 25 ? 'var(--amb)' : '#b91c1c';
+      h += '<tr><td>' + p.nombre + '</td>';
+      h += '<td>$' + p.precio.toFixed(0) + '</td>';
+      h += '<td style="color:var(--mut)">$' + p.costo.toFixed(0) + '</td>';
+      h += '<td style="font-weight:600;color:' + color + '">$' + p.margen.toFixed(0) + '</td>';
+      h += '<td><span class="badge" style="background:' + color + '20;color:' + color + '">' + p.margen_pct + '%</span></td>';
+      h += '<td>' + Math.round(p.stock) + '</td></tr>';
+    }
+    h += '</table>';
+    document.getElementById('rep-margenes').innerHTML = h;
+  }).catch(function() { toast('Error al cargar m\u00e1rgenes', true); });
+}
+
+function cargarReporteFiscal() {
+  var mes = document.getElementById('rep-fmes').value;
+  var anio = document.getElementById('rep-fanio').value;
+  api('GET', '/reportes/impuestos/iva-mensual?mes=' + mes + '&anio=' + anio).then(function(r) {
+    var h = '';
+    h += '<div class="srow"><span>Base gravada 16%</span><span>$' + r.iva_trasladado.tasa_16.base.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
+    h += '<div class="srow"><span>IVA trasladado 16%</span><span style="font-weight:700">$' + r.iva_trasladado.tasa_16.iva.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
+    h += '<div class="srow"><span>Base tasa 0%</span><span>$' + r.iva_trasladado.tasa_0.base.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
+    h += '<div class="srow"><span>IVA acreditable</span><span style="color:#b91c1c">$' + r.iva_acreditable.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
+    h += '<div class="srow" style="border-top:2px solid var(--brd);padding-top:.4rem;margin-top:.3rem;font-weight:700"><span>IVA por pagar</span><span>$' + r.iva_por_pagar.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
+    if (r.iva_a_favor > 0) h += '<div class="srow"><span>IVA a favor</span><span class="green">$' + r.iva_a_favor.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
+    document.getElementById('rep-iva').innerHTML = h;
+  }).catch(function() { document.getElementById('rep-iva').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar IVA</p>'; });
+  api('GET', '/reportes/impuestos/isr-provisional?mes=' + mes + '&anio=' + anio).then(function(r) {
+    var h = '';
+    h += '<div class="srow"><span>Ingresos acumulados</span><span class="green">$' + r.ingresos_acumulados.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
+    h += '<div class="srow"><span>Compras</span><span>$' + r.deducciones_acumuladas.compras.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
+    h += '<div class="srow"><span>N\u00f3mina</span><span>$' + r.deducciones_acumuladas.nomina.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
+    h += '<div class="srow"><span>Utilidad fiscal</span><span style="font-weight:700">$' + r.utilidad_fiscal.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
+    h += '<div class="srow" style="border-top:2px solid var(--brd);padding-top:.4rem;margin-top:.3rem;font-weight:700"><span>ISR provisional (' + (r.tasa_provisional * 100).toFixed(2) + '%)</span><span>$' + r.isr_provisional.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
+    document.getElementById('rep-isr').innerHTML = h;
+  }).catch(function() { document.getElementById('rep-isr').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar ISR</p>'; });
+}
+
+// ─── Facturaci\u00f3n CFDI ─────────────────────────────────────────────
+function abrirFacturar() {
+  if (!_ventaActualId) return;
+  document.getElementById('mf-venta-id').value = _ventaActualId;
+  document.getElementById('mf-rfc').value = '';
+  document.getElementById('mf-nombre').value = '';
+  document.getElementById('modal-facturar').classList.add('on');
+}
+
+function generarCFDI() {
+  var ventaId = document.getElementById('mf-venta-id').value;
+  var rfc = document.getElementById('mf-rfc').value.trim().toUpperCase();
+  var nombre = document.getElementById('mf-nombre').value.trim();
+  if (!rfc || rfc.length < 12) { toast('RFC inv\u00e1lido (m\u00ednimo 12 caracteres)', true); return; }
+  if (!nombre) { toast('Escribe el nombre o raz\u00f3n social', true); return; }
+  // First create/find client
+  api('POST', '/clientes/', {nombre: nombre, rfc: rfc, regimen_fiscal: document.getElementById('mf-regimen').value}).then(function(cli) {
+    // Generate CFDI
+    return api('POST', '/facturacion/generar', {
+      venta_id: parseInt(ventaId),
+      cliente_id: cli.id,
+      uso_cfdi: document.getElementById('mf-uso').value,
+      forma_pago: '01',
+      metodo_pago: 'PUE'
+    });
+  }).then(function(cfdi) {
+    toast('CFDI generado: ' + cfdi.serie + '-' + cfdi.folio);
+    cerrarModal('modal-facturar');
+    cerrarModal('modal-ticket');
+  }).catch(function(e) { toast(e.message || 'Error al generar CFDI', true); });
+}
+
+// ─── COFEPRIS ────────────────────────────────────────────────────
+function cofTab(tab) {
+  ['cof-temp','cof-limp','cof-insp','cof-rep'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#cofepris .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+}
+
+function cargarCofepris() {
+  cargarTemperaturas();
+  cargarLimpiezas();
+  cargarInspecciones();
+}
+
+function registrarTemperatura() {
+  var area = document.getElementById('ct-area').value;
+  var temp = parseFloat(document.getElementById('ct-temp').value);
+  var obs = document.getElementById('ct-obs').value;
+  if (isNaN(temp)) { toast('Escribe la temperatura', true); return; }
+  api('POST', '/cofepris/temperaturas', {area: area, temperatura: temp, observaciones: obs}).then(function() {
+    toast('Temperatura registrada');
+    document.getElementById('ct-temp').value = '';
+    document.getElementById('ct-obs').value = '';
+    cargarTemperaturas();
+  }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+
+function cargarTemperaturas() {
+  api('GET', '/cofepris/temperaturas').then(function(temps) {
+    if (!temps.length) { document.getElementById('cof-temp-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Sin registros</p>'; return; }
+    var areaLabels = {PRODUCCION:'Prod.',ALMACEN_SECO:'Alm. seco',REFRIGERACION:'Refrig.',CONGELACION:'Congel.',PUNTO_VENTA:'P. Venta'};
+    var h = '';
+    for (var i = 0; i < Math.min(temps.length, 20); i++) {
+      var t = temps[i];
+      var fecha = t.creado_en ? new Date(t.creado_en).toLocaleString('es-MX',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+      var cumple = t.estado_cumplimiento === 'CONFORME';
+      h += '<div class="srow"><span>' + (areaLabels[t.area]||t.area) + ' &bull; ' + fecha + '</span>';
+      h += '<span><span class="badge ' + (cumple ? 'bok' : 'bout') + '">' + t.temperatura + '\u00b0C</span></span></div>';
+    }
+    document.getElementById('cof-temp-list').innerHTML = h;
+  }).catch(function() { document.getElementById('cof-temp-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar</p>'; });
+}
+
+function registrarLimpieza() {
+  var area = document.getElementById('cl-area').value;
+  var tipo = document.getElementById('cl-tipo').value;
+  var prods = document.getElementById('cl-prods').value;
+  var obs = document.getElementById('cl-obs').value;
+  api('POST', '/cofepris/limpieza', {area: area, tipo_limpieza: tipo, productos_utilizados: prods, observaciones: obs}).then(function() {
+    toast('Limpieza registrada');
+    document.getElementById('cl-prods').value = '';
+    document.getElementById('cl-obs').value = '';
+    cargarLimpiezas();
+  }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+
+function cargarLimpiezas() {
+  api('GET', '/cofepris/limpieza').then(function(limps) {
+    if (!limps.length) { document.getElementById('cof-limp-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Sin registros</p>'; return; }
+    var h = '';
+    for (var i = 0; i < Math.min(limps.length, 20); i++) {
+      var l = limps[i];
+      var fecha = l.creado_en ? new Date(l.creado_en).toLocaleString('es-MX',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+      h += '<div class="srow"><span>' + (l.area||'') + ' &bull; ' + (l.tipo_limpieza||'') + ' &bull; ' + fecha + '</span>';
+      h += '<span class="badge bok">\u2713</span></div>';
+    }
+    document.getElementById('cof-limp-list').innerHTML = h;
+  }).catch(function() { document.getElementById('cof-limp-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar</p>'; });
+}
+
+function registrarInspeccion() {
+  var body = {
+    tipo_inspeccion: document.getElementById('ci-tipo').value,
+    inspector: document.getElementById('ci-inspector').value || 'Interno',
+    higiene_personal: parseInt(document.getElementById('ci-hig').value) || 0,
+    instalaciones: parseInt(document.getElementById('ci-inst').value) || 0,
+    equipos: parseInt(document.getElementById('ci-equip').value) || 0,
+    control_operaciones: parseInt(document.getElementById('ci-ctrl').value) || 0,
+    almacenamiento: parseInt(document.getElementById('ci-alm').value) || 0,
+    limpieza_desinfeccion: parseInt(document.getElementById('ci-limp').value) || 0,
+    control_plagas: 8,
+    abastecimiento_agua: 8,
+    manejo_residuos: 8,
+    capacitacion: 8,
+    trazabilidad: 8,
+    observaciones: document.getElementById('ci-obs').value,
+  };
+  api('POST', '/cofepris/inspecciones', body).then(function() {
+    toast('Inspecci\u00f3n registrada');
+    cargarInspecciones();
+  }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+
+function cargarInspecciones() {
+  api('GET', '/cofepris/inspecciones').then(function(insps) {
+    if (!insps.length) { document.getElementById('cof-insp-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Sin inspecciones</p>'; return; }
+    var h = '';
+    for (var i = 0; i < Math.min(insps.length, 10); i++) {
+      var ins = insps[i];
+      var fecha = ins.creado_en ? new Date(ins.creado_en).toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'}) : '';
+      var cal = ins.calificacion_general || 0;
+      var cls = cal >= 80 ? 'bok' : cal >= 60 ? 'blow' : 'bout';
+      h += '<div class="srow"><span>' + (ins.tipo_inspeccion||'') + ' &bull; ' + (ins.inspector||'') + ' &bull; ' + fecha + '</span>';
+      h += '<span class="badge ' + cls + '">' + cal + '/100</span></div>';
+    }
+    document.getElementById('cof-insp-list').innerHTML = h;
+  }).catch(function() { document.getElementById('cof-insp-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar</p>'; });
+}
+
+function cargarReporteCofepris() {
+  api('GET', '/cofepris/reporte-cumplimiento').then(function(r) {
+    var h = '<div class="row r3" style="margin-bottom:.8rem">';
+    h += '<div class="card kpi ' + (r.porcentaje_cumplimiento >= 80 ? 'g' : 'a') + '"><div class="n">' + r.porcentaje_cumplimiento + '%</div><div class="l">Cumplimiento</div></div>';
+    h += '<div class="card kpi"><div class="n">' + r.total_registros_temperatura + '</div><div class="l">Reg. temperatura</div></div>';
+    h += '<div class="card kpi"><div class="n">' + r.total_registros_limpieza + '</div><div class="l">Reg. limpieza</div></div>';
+    h += '</div>';
+    if (r.alertas && r.alertas.length) {
+      h += '<div class="card" style="margin-bottom:.8rem"><h3>Alertas</h3>';
+      for (var i = 0; i < r.alertas.length; i++) {
+        h += '<div class="srow"><span style="color:#b91c1c">\u26a0 ' + r.alertas[i] + '</span></div>';
+      }
+      h += '</div>';
+    }
+    if (r.areas) {
+      h += '<div class="card"><h3>Por \u00e1rea</h3>';
+      for (var a in r.areas) {
+        var area = r.areas[a];
+        var cls2 = area.estado === 'CONFORME' ? 'bok' : 'bout';
+        h += '<div class="srow"><span>' + a + '</span><span class="badge ' + cls2 + '">' + area.estado + '</span></div>';
+      }
+      h += '</div>';
+    }
+    document.getElementById('cof-rep-content').innerHTML = h;
+  }).catch(function() { document.getElementById('cof-rep-content').innerHTML = '<p style="color:var(--mut)">Error al generar reporte</p>'; });
+}
+
 var _reconectar = 0;
 
 function autoConectar() {
@@ -2500,10 +3057,12 @@ function autoConectar() {
   login('admin@jacaranda.mx', 'admin1234').then(function() {
     _reconectar = 0;
     setConnected(true);
+    aplicarPermisos();
     var tab = localStorage.getItem('jacaranda_tab') || 'dash';
     go(tab);
     cargarInventarioCompleto();
     cargarPedidos();
+    iniciarPollPedidos();
     if (_ventasPendientes.length) sincronizarVentas();
   }).catch(function() {
     _reconectar++;
