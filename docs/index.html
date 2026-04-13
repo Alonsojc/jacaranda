@@ -241,7 +241,9 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 
 <div id="inv-productos">
-<p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Stock actual de productos terminados. Se actualiza al hornear y al vender.</p>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">Stock actual de productos. Click en l&aacute;piz para editar, en piezas para ajustar stock.</p>
+</div>
 <div id="tbl-productos" class="card" style="overflow-x:auto">
 <p style="color:var(--mut);padding:.5rem">Cargando productos...</p>
 </div>
@@ -279,6 +281,10 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="fg"><label>Tandas</label><input type="number" id="horn-cant" value="1" min="1"></div>
 </div>
 <button class="cobrar" onclick="hornear()">Hornear</button>
+</div>
+<div class="card" style="margin-top:1rem">
+<h3>Recetas <span style="font-size:.75rem;color:var(--mut);font-weight:400">— click &#9998; para editar ingredientes y rendimiento</span></h3>
+<div id="recetas-list"><p style="color:var(--mut);font-size:.83rem">Cargando recetas...</p></div>
 </div>
 </div>
 </div>
@@ -337,6 +343,96 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div style="display:flex;gap:.5rem;margin-top:.5rem">
 <button class="cobrar" style="flex:1" onclick="guardarPed()">Guardar Pedido</button>
 <button class="limpiar" style="flex:0 0 auto;padding:.5rem 1.2rem" onclick="document.getElementById('modal-ped').classList.remove('on')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Editar Producto -->
+<div class="modal-bg" id="modal-edit-prod">
+<div class="modal">
+<h3 id="mep-title">Editar Producto</h3>
+<input type="hidden" id="mep-id">
+<div class="frow">
+<div class="fg"><label>Nombre</label><input id="mep-nombre"></div>
+<div class="fg"><label>C&oacute;digo</label><input id="mep-codigo" disabled style="background:#f5eeeb"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Precio venta</label><input type="number" id="mep-precio" step="0.01"></div>
+<div class="fg"><label>Costo producci&oacute;n</label><input type="number" id="mep-costo" step="0.01"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Stock m&iacute;nimo (alerta)</label><input type="number" id="mep-minimo" step="1"></div>
+<div class="fg"><label>IVA</label><select id="mep-iva"><option value="0.00">0%</option><option value="0.16">16%</option><option value="exento">Exento</option></select></div>
+</div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="cobrar" style="flex:1" onclick="guardarProducto()">Guardar</button>
+<button class="limpiar" style="flex:0 0 auto;padding:.5rem 1.2rem" onclick="cerrarModal('modal-edit-prod')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Ajustar Stock -->
+<div class="modal-bg" id="modal-ajuste">
+<div class="modal">
+<h3>Ajuste de Stock</h3>
+<input type="hidden" id="maj-id">
+<p id="maj-info" style="font-size:.85rem;color:var(--mut);margin-bottom:.8rem"></p>
+<div class="frow">
+<div class="fg"><label>Nuevo stock (piezas)</label><input type="number" id="maj-stock" step="1" min="0"></div>
+<div class="fg"><label>Motivo</label><select id="maj-motivo"><option value="Conteo nocturno">Conteo nocturno</option><option value="Merma">Merma</option><option value="Devoluci&oacute;n">Devoluci&oacute;n</option><option value="Ajuste manual">Ajuste manual</option></select></div>
+</div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="cobrar" style="flex:1" onclick="guardarAjuste()">Ajustar Stock</button>
+<button class="limpiar" style="flex:0 0 auto;padding:.5rem 1.2rem" onclick="cerrarModal('modal-ajuste')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Editar Ingrediente -->
+<div class="modal-bg" id="modal-edit-ing">
+<div class="modal">
+<h3 id="mei-title">Editar Ingrediente</h3>
+<input type="hidden" id="mei-id">
+<div class="frow">
+<div class="fg"><label>Nombre</label><input id="mei-nombre"></div>
+<div class="fg"><label>Unidad</label><input id="mei-unidad" disabled style="background:#f5eeeb"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Costo unitario ($)</label><input type="number" id="mei-costo" step="0.01"></div>
+<div class="fg"><label>Stock m&iacute;nimo</label><input type="number" id="mei-minimo" step="0.01"></div>
+</div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="cobrar" style="flex:1" onclick="guardarIngrediente()">Guardar</button>
+<button class="limpiar" style="flex:0 0 auto;padding:.5rem 1.2rem" onclick="cerrarModal('modal-edit-ing')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Editar Receta -->
+<div class="modal-bg" id="modal-edit-rec">
+<div class="modal">
+<h3 id="mer-title">Editar Receta</h3>
+<input type="hidden" id="mer-id">
+<div class="frow">
+<div class="fg"><label>Nombre</label><input id="mer-nombre"></div>
+<div class="fg"><label>Rendimiento (piezas)</label><input type="number" id="mer-rend" step="1" min="1"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Tiempo prep. (min)</label><input type="number" id="mer-prep"></div>
+<div class="fg"><label>Tiempo horno (min)</label><input type="number" id="mer-horno"></div>
+</div>
+<div class="fg"><label>Temperatura (&deg;C)</label><input type="number" id="mer-temp" style="max-width:150px"></div>
+<div class="fg"><label style="margin-top:.5rem">Ingredientes de la receta</label>
+<div id="mer-ings" style="font-size:.83rem"></div>
+</div>
+<div style="display:flex;gap:.3rem;margin-bottom:.5rem">
+<select id="mer-new-ing" style="flex:1;padding:.4rem;border:1px solid var(--brd);border-radius:6px;font-size:.82rem"></select>
+<input type="number" id="mer-new-cant" placeholder="Cantidad" step="0.01" style="width:90px;padding:.4rem;border:1px solid var(--brd);border-radius:6px;font-size:.82rem">
+<button class="limpiar" style="padding:.4rem .8rem;font-size:.82rem" onclick="addRecIng()">+ Agregar</button>
+</div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="cobrar" style="flex:1" onclick="guardarReceta()">Guardar Receta</button>
+<button class="limpiar" style="flex:0 0 auto;padding:.5rem 1.2rem" onclick="cerrarModal('modal-edit-rec')">Cancelar</button>
 </div>
 </div>
 </div>
@@ -600,16 +696,25 @@ function hornear() {
 }
 
 // ─── Dynamic inventory loading ───────────────────────────────────
+var _allIngs = []; // Cache for ingredient list (used in recipe edit)
+
 function cargarProductos() {
   api('GET', '/inventario/productos').then(function(prods) {
-    var h = '<table class="tbl"><tr><th>Producto</th><th>Stock</th><th>M&iacute;nimo</th><th>Estado</th></tr>';
+    var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th style="width:80px"></th></tr>';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
       var stock = parseFloat(p.stock_actual) || 0;
       var min = parseFloat(p.stock_minimo) || 0;
+      var precio = parseFloat(p.precio_unitario) || 0;
       var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
-      var txt = stock <= 0 ? 'Agotado' : stock <= min ? 'Stock bajo' : 'OK';
-      h += '<tr><td>' + p.nombre + '</td><td>' + Math.round(stock) + ' pzas</td><td>' + Math.round(min) + '</td><td><span class="badge ' + cls + '">' + txt + '</span></td></tr>';
+      var txt = stock <= 0 ? 'Agotado' : stock <= min ? 'Bajo' : 'OK';
+      h += '<tr><td>' + p.nombre + '</td>';
+      h += '<td>$' + precio.toFixed(0) + '</td>';
+      h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + p.nombre.replace(/'/g,"\\'") + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline;cursor:pointer">' + Math.round(stock) + ' pzas</a></td>';
+      h += '<td>' + Math.round(min) + '</td>';
+      h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
+      h += '<td><a href="#" onclick="editarProducto(' + p.id + ');return false" style="font-size:.9rem;cursor:pointer" title="Editar">&#9998;</a></td>';
+      h += '</tr>';
     }
     h += '</table>';
     document.getElementById('tbl-productos').innerHTML = h;
@@ -620,25 +725,39 @@ function cargarProductos() {
 
 function cargarIngredientes() {
   api('GET', '/inventario/ingredientes').then(function(ings) {
-    var h = '<table class="tbl"><tr><th>Ingrediente</th><th>Stock</th><th>Unidad</th><th>M&iacute;nimo</th><th>Estado</th></tr>';
+    _allIngs = ings;
+    var h = '<table class="tbl"><tr><th>Ingrediente</th><th>Stock</th><th>Unidad</th><th>Costo</th><th>M&iacute;n</th><th>Estado</th><th style="width:40px"></th></tr>';
     for (var i = 0; i < ings.length; i++) {
       var g = ings[i];
       var stock = parseFloat(g.stock_actual) || 0;
       var min = parseFloat(g.stock_minimo) || 0;
+      var costo = parseFloat(g.costo_unitario) || 0;
       var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
       var txt = stock <= 0 ? 'Urgente' : stock <= min ? 'Pedir' : 'OK';
-      h += '<tr><td>' + g.nombre + '</td><td>' + stock.toFixed(1) + '</td><td>' + g.unidad_medida + '</td><td>' + min + '</td><td><span class="badge ' + cls + '">' + txt + '</span></td></tr>';
+      h += '<tr><td>' + g.nombre + '</td><td>' + stock.toFixed(1) + '</td><td>' + g.unidad_medida + '</td>';
+      h += '<td>$' + costo.toFixed(0) + '</td><td>' + min + '</td>';
+      h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
+      h += '<td><a href="#" onclick="editarIngrediente(' + g.id + ');return false" style="font-size:.9rem;cursor:pointer" title="Editar">&#9998;</a></td>';
+      h += '</tr>';
     }
     h += '</table>';
     document.getElementById('tbl-ingredientes').innerHTML = h;
 
-    // Also update compras dropdown
+    // Update compras dropdown
     var sel = document.getElementById('compra-ing');
     var opts = '';
     for (var j = 0; j < ings.length; j++) {
       opts += '<option value="' + ings[j].id + '">' + ings[j].nombre + ' (' + parseFloat(ings[j].stock_actual).toFixed(1) + ' ' + ings[j].unidad_medida + ')</option>';
     }
     sel.innerHTML = opts;
+
+    // Update recipe edit ingredient dropdown
+    var rsel = document.getElementById('mer-new-ing');
+    var ropts = '';
+    for (var k = 0; k < ings.length; k++) {
+      ropts += '<option value="' + ings[k].id + '">' + ings[k].nombre + ' (' + ings[k].unidad_medida + ')</option>';
+    }
+    rsel.innerHTML = ropts;
   }).catch(function() {
     document.getElementById('tbl-ingredientes').innerHTML = '<p style="color:var(--mut);padding:.5rem">Error al cargar ingredientes</p>';
   });
@@ -646,6 +765,7 @@ function cargarIngredientes() {
 
 function cargarRecetas() {
   api('GET', '/recetas/').then(function(recs) {
+    // Hornear dropdown
     var sel = document.getElementById('horn-receta');
     var opts = '';
     for (var i = 0; i < recs.length; i++) {
@@ -654,6 +774,24 @@ function cargarRecetas() {
       opts += '<option value="' + r.id + '">' + r.nombre + rend + '</option>';
     }
     sel.innerHTML = opts || '<option value="">Sin recetas</option>';
+
+    // Recetas list in hornear tab
+    var list = document.getElementById('recetas-list');
+    if (list) {
+      var h = '<table class="tbl"><tr><th>Receta</th><th>Rinde</th><th>Prep</th><th>Horno</th><th>Temp</th><th style="width:40px"></th></tr>';
+      for (var j = 0; j < recs.length; j++) {
+        var rc = recs[j];
+        h += '<tr><td>' + rc.nombre + '</td>';
+        h += '<td>' + Math.round(parseFloat(rc.rendimiento)) + ' pzas</td>';
+        h += '<td>' + (rc.tiempo_preparacion_min || '-') + ' min</td>';
+        h += '<td>' + (rc.tiempo_horneado_min || '-') + ' min</td>';
+        h += '<td>' + (rc.temperatura_horneado_c || '-') + '&deg;C</td>';
+        h += '<td><a href="#" onclick="editarReceta(' + rc.id + ');return false" style="font-size:.9rem;cursor:pointer" title="Editar">&#9998;</a></td>';
+        h += '</tr>';
+      }
+      h += '</table>';
+      list.innerHTML = h;
+    }
   }).catch(function() {
     document.getElementById('horn-receta').innerHTML = '<option value="">Error al cargar</option>';
   });
@@ -663,6 +801,166 @@ function cargarInventarioCompleto() {
   cargarProductos();
   cargarIngredientes();
   cargarRecetas();
+}
+
+// ─── Edit modals ─────────────────────────────────────────────────
+function cerrarModal(id) { document.getElementById(id).classList.remove('on'); }
+
+function editarProducto(id) {
+  api('GET', '/inventario/productos/' + id).then(function(p) {
+    document.getElementById('mep-id').value = p.id;
+    document.getElementById('mep-nombre').value = p.nombre;
+    document.getElementById('mep-codigo').value = p.codigo;
+    document.getElementById('mep-precio').value = parseFloat(p.precio_unitario);
+    document.getElementById('mep-costo').value = parseFloat(p.costo_produccion);
+    document.getElementById('mep-minimo').value = parseFloat(p.stock_minimo);
+    document.getElementById('mep-iva').value = p.tasa_iva;
+    document.getElementById('mep-title').textContent = 'Editar: ' + p.nombre;
+    document.getElementById('modal-edit-prod').classList.add('on');
+  });
+}
+
+function guardarProducto() {
+  var id = document.getElementById('mep-id').value;
+  var data = {
+    nombre: document.getElementById('mep-nombre').value,
+    precio_unitario: parseFloat(document.getElementById('mep-precio').value),
+    costo_produccion: parseFloat(document.getElementById('mep-costo').value),
+    stock_minimo: parseFloat(document.getElementById('mep-minimo').value),
+    tasa_iva: document.getElementById('mep-iva').value,
+  };
+  api('PUT', '/inventario/productos/' + id, data).then(function() {
+    toast('Producto actualizado');
+    cerrarModal('modal-edit-prod');
+    cargarProductos();
+  }).catch(function() { toast('Error al guardar', true); });
+}
+
+function ajustarStock(id, nombre, stockActual) {
+  document.getElementById('maj-id').value = id;
+  document.getElementById('maj-info').textContent = nombre + ' — Stock actual: ' + stockActual + ' pzas';
+  document.getElementById('maj-stock').value = stockActual;
+  document.getElementById('modal-ajuste').classList.add('on');
+}
+
+function guardarAjuste() {
+  var id = document.getElementById('maj-id').value;
+  var nuevoStock = document.getElementById('maj-stock').value;
+  var motivo = document.getElementById('maj-motivo').value;
+  api('POST', '/inventario/productos/' + id + '/ajuste-stock?cantidad=' + nuevoStock + '&motivo=' + encodeURIComponent(motivo))
+  .then(function(r) {
+    toast(r.producto + ': ' + r.stock_anterior + ' → ' + r.stock_nuevo + ' pzas');
+    cerrarModal('modal-ajuste');
+    cargarProductos();
+  }).catch(function() { toast('Error al ajustar stock', true); });
+}
+
+function editarIngrediente(id) {
+  api('GET', '/inventario/ingredientes').then(function(ings) {
+    var g = null;
+    for (var i = 0; i < ings.length; i++) { if (ings[i].id === id) { g = ings[i]; break; } }
+    if (!g) return;
+    document.getElementById('mei-id').value = g.id;
+    document.getElementById('mei-nombre').value = g.nombre;
+    document.getElementById('mei-unidad').value = g.unidad_medida;
+    document.getElementById('mei-costo').value = parseFloat(g.costo_unitario);
+    document.getElementById('mei-minimo').value = parseFloat(g.stock_minimo);
+    document.getElementById('mei-title').textContent = 'Editar: ' + g.nombre;
+    document.getElementById('modal-edit-ing').classList.add('on');
+  });
+}
+
+function guardarIngrediente() {
+  var id = document.getElementById('mei-id').value;
+  var data = {
+    nombre: document.getElementById('mei-nombre').value,
+    costo_unitario: parseFloat(document.getElementById('mei-costo').value),
+    stock_minimo: parseFloat(document.getElementById('mei-minimo').value),
+  };
+  api('PUT', '/inventario/ingredientes/' + id, data).then(function() {
+    toast('Ingrediente actualizado');
+    cerrarModal('modal-edit-ing');
+    cargarIngredientes();
+  }).catch(function() { toast('Error al guardar', true); });
+}
+
+// ─── Recipe editing ──────────────────────────────────────────────
+var _recIng = []; // Current recipe ingredients being edited
+
+function editarReceta(id) {
+  api('GET', '/recetas/' + id).then(function(r) {
+    document.getElementById('mer-id').value = r.id;
+    document.getElementById('mer-nombre').value = r.nombre;
+    document.getElementById('mer-rend').value = Math.round(parseFloat(r.rendimiento));
+    document.getElementById('mer-prep').value = r.tiempo_preparacion_min || '';
+    document.getElementById('mer-horno').value = r.tiempo_horneado_min || '';
+    document.getElementById('mer-temp').value = r.temperatura_horneado_c || '';
+    document.getElementById('mer-title').textContent = 'Editar: ' + r.nombre;
+    _recIng = [];
+    for (var i = 0; i < r.ingredientes.length; i++) {
+      var ri = r.ingredientes[i];
+      var nombre = '(ID ' + ri.ingrediente_id + ')';
+      for (var j = 0; j < _allIngs.length; j++) {
+        if (_allIngs[j].id === ri.ingrediente_id) { nombre = _allIngs[j].nombre; break; }
+      }
+      _recIng.push({ingrediente_id: ri.ingrediente_id, cantidad: parseFloat(ri.cantidad), nombre: nombre});
+    }
+    renderRecIngs();
+    document.getElementById('modal-edit-rec').classList.add('on');
+  });
+}
+
+function renderRecIngs() {
+  var h = '';
+  for (var i = 0; i < _recIng.length; i++) {
+    var ri = _recIng[i];
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:.3rem 0;border-bottom:1px solid #f0e8e5">';
+    h += '<span>' + ri.nombre + '</span>';
+    h += '<span><input type="number" value="' + ri.cantidad + '" step="0.01" style="width:70px;padding:.2rem .4rem;border:1px solid var(--brd);border-radius:4px;font-size:.82rem;text-align:right" onchange="_recIng[' + i + '].cantidad=parseFloat(this.value)">';
+    h += ' <a href="#" onclick="_recIng.splice(' + i + ',1);renderRecIngs();return false" style="color:#b91c1c;font-size:.8rem;margin-left:.3rem">&#10005;</a></span>';
+    h += '</div>';
+  }
+  if (!h) h = '<p style="color:var(--mut);font-size:.82rem;padding:.3rem 0">Sin ingredientes</p>';
+  document.getElementById('mer-ings').innerHTML = h;
+}
+
+function addRecIng() {
+  var sel = document.getElementById('mer-new-ing');
+  var cant = parseFloat(document.getElementById('mer-new-cant').value);
+  if (!sel.value || !cant) { toast('Selecciona ingrediente y cantidad', true); return; }
+  // Check if already exists
+  for (var i = 0; i < _recIng.length; i++) {
+    if (_recIng[i].ingrediente_id == sel.value) {
+      _recIng[i].cantidad += cant;
+      renderRecIngs();
+      document.getElementById('mer-new-cant').value = '';
+      return;
+    }
+  }
+  _recIng.push({ingrediente_id: parseInt(sel.value), cantidad: cant, nombre: sel.options[sel.selectedIndex].text.split(' (')[0]});
+  renderRecIngs();
+  document.getElementById('mer-new-cant').value = '';
+}
+
+function guardarReceta() {
+  var id = document.getElementById('mer-id').value;
+  var ings = [];
+  for (var i = 0; i < _recIng.length; i++) {
+    ings.push({ingrediente_id: _recIng[i].ingrediente_id, cantidad: _recIng[i].cantidad});
+  }
+  var data = {
+    nombre: document.getElementById('mer-nombre').value,
+    rendimiento: parseFloat(document.getElementById('mer-rend').value),
+    tiempo_preparacion_min: parseInt(document.getElementById('mer-prep').value) || null,
+    tiempo_horneado_min: parseInt(document.getElementById('mer-horno').value) || null,
+    temperatura_horneado_c: parseInt(document.getElementById('mer-temp').value) || null,
+    ingredientes: ings,
+  };
+  api('PUT', '/recetas/' + id, data).then(function() {
+    toast('Receta actualizada');
+    cerrarModal('modal-edit-rec');
+    cargarRecetas();
+  }).catch(function() { toast('Error al guardar receta', true); });
 }
 
 // ─── Connection status ────────────────────────────────────────────

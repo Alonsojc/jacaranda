@@ -27,7 +27,11 @@ class RecetaUpdate(BaseModel):
     nombre: str | None = None
     instrucciones: str | None = None
     rendimiento: Decimal | None = None
+    tiempo_preparacion_min: int | None = None
+    tiempo_horneado_min: int | None = None
+    temperatura_horneado_c: int | None = None
     activo: bool | None = None
+    ingredientes: list[RecetaIngredienteSchema] | None = None
 
 
 class RecetaIngredienteResponse(BaseModel):
