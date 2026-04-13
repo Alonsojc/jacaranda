@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     CFDI_METODO_PAGO_PUE: str = "PUE"  # Pago en Una sola Exhibición
     CFDI_METODO_PAGO_PPD: str = "PPD"  # Pago en Parcialidades o Diferido
 
+    # Anthropic API (OCR de tickets)
+    ANTHROPIC_API_KEY: str = ""
+
     # CLIP API (terminal de pagos)
     CLIP_API_KEY: str = ""
     CLIP_API_SECRET: str = ""
