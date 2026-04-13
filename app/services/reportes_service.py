@@ -361,3 +361,160 @@ def reporte_ventas_por_dia(db: Session, dias: int = 30) -> list[dict]:
 
     return [{"fecha": k, "total": round(v["total"], 2), "tickets": v["tickets"]}
             for k, v in sorted(por_dia.items())]
+
+
+def pronostico_produccion(db: Session) -> list[dict]:
+    """Sugiere cuánto hornear hoy basado en ventas históricas del mismo día de la semana."""
+    from datetime import timedelta
+    from collections import defaultdict
+
+    hoy = date.today()
+    dia_semana = hoy.weekday()  # 0=lunes, 6=domingo
+
+    # Obtener ventas de los últimos 28 días (4 semanas) del mismo día de la semana
+    semanas = 4
+    ventas_por_producto = defaultdict(list)
+
+    for w in range(1, semanas + 1):
+        dia = hoy - timedelta(weeks=w)
+        inicio = datetime.combine(dia, datetime.min.time())
+        fin = datetime.combine(dia, datetime.max.time())
+
+        detalles = db.query(
+            DetalleVenta.producto_id,
+            func.sum(DetalleVenta.cantidad).label("total")
+        ).join(Venta).filter(
+            and_(
+                Venta.fecha >= inicio,
+                Venta.fecha <= fin,
+                Venta.estado == EstadoVenta.COMPLETADA,
+            )
+        ).group_by(DetalleVenta.producto_id).all()
+
+        for d in detalles:
+            ventas_por_producto[d.producto_id].append(float(d.total))
+
+    from app.models.inventario import Producto
+    result = []
+    for prod_id, cantidades in ventas_por_producto.items():
+        promedio = sum(cantidades) / len(cantidades)
+        producto = db.query(Producto).filter(Producto.id == prod_id).first()
+        if not producto or not producto.activo:
+            continue
+        stock = float(producto.stock_actual)
+        sugerido = max(round(promedio * 1.1) - stock, 0)  # 10% extra margen
+        result.append({
+            "producto_id": prod_id,
+            "nombre": producto.nombre,
+            "stock_actual": stock,
+            "promedio_venta_dia": round(promedio, 1),
+            "sugerido_hornear": sugerido,
+            "semanas_analizadas": len(cantidades),
+        })
+
+    result.sort(key=lambda x: x["sugerido_hornear"], reverse=True)
+    return result
+
+
+def alertas_caducidad(db: Session, dias: int = 7) -> list[dict]:
+    """Ingredientes con lotes por caducar en los próximos N días."""
+    from datetime import timedelta
+    from app.models.inventario import LoteIngrediente, Ingrediente
+
+    limite = date.today() + timedelta(days=dias)
+    hoy = date.today()
+
+    lotes = db.query(LoteIngrediente).filter(
+        and_(
+            LoteIngrediente.fecha_caducidad.isnot(None),
+            LoteIngrediente.fecha_caducidad <= limite,
+            LoteIngrediente.cantidad_disponible > 0,
+        )
+    ).order_by(LoteIngrediente.fecha_caducidad).all()
+
+    result = []
+    for lote in lotes:
+        ing = db.query(Ingrediente).filter(Ingrediente.id == lote.ingrediente_id).first()
+        dias_restantes = (lote.fecha_caducidad - hoy).days
+        result.append({
+            "lote_id": lote.id,
+            "ingrediente": ing.nombre if ing else "Desconocido",
+            "numero_lote": lote.numero_lote,
+            "fecha_caducidad": lote.fecha_caducidad.isoformat(),
+            "dias_restantes": dias_restantes,
+            "cantidad_disponible": float(lote.cantidad_disponible),
+            "vencido": dias_restantes < 0,
+        })
+
+    return result
+
+
+def resumen_gastos_fijos(db: Session) -> dict:
+    """Resumen de gastos fijos mensuales para cálculo de utilidad real."""
+    from app.models.gasto_fijo import GastoFijo
+
+    gastos = db.query(GastoFijo).filter(GastoFijo.activo.is_(True)).all()
+    total_mensual = Decimal("0")
+    desglose = []
+    for g in gastos:
+        monto_mensual = g.monto
+        if g.periodicidad == "quincenal":
+            monto_mensual = g.monto * 2
+        elif g.periodicidad == "semanal":
+            monto_mensual = g.monto * Decimal("4.33")
+        total_mensual += monto_mensual
+        desglose.append({
+            "id": g.id,
+            "concepto": g.concepto,
+            "monto": float(g.monto),
+            "periodicidad": g.periodicidad,
+            "monto_mensual": float(monto_mensual.quantize(Decimal("0.01"))),
+        })
+
+    return {
+        "total_mensual": float(total_mensual.quantize(Decimal("0.01"))),
+        "total_diario": float((total_mensual / 30).quantize(Decimal("0.01"))),
+        "gastos": desglose,
+    }
+
+
+def historial_compras_cliente(db: Session, cliente_id: int) -> dict:
+    """Historial de compras de un cliente con totales."""
+    from app.models.cliente import Cliente
+
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
+    if not cliente:
+        return {"error": "Cliente no encontrado"}
+
+    ventas = db.query(Venta).filter(
+        and_(
+            Venta.cliente_id == cliente_id,
+            Venta.estado == EstadoVenta.COMPLETADA,
+        )
+    ).order_by(Venta.fecha.desc()).limit(50).all()
+
+    total_compras = sum(v.total for v in ventas)
+
+    return {
+        "cliente": {
+            "id": cliente.id,
+            "nombre": cliente.nombre,
+            "telefono": cliente.telefono,
+            "email": cliente.email,
+            "puntos": cliente.puntos_acumulados,
+        },
+        "total_compras": float(total_compras),
+        "numero_visitas": len(ventas),
+        "ticket_promedio": float(total_compras / len(ventas)) if ventas else 0,
+        "ultima_visita": ventas[0].fecha.isoformat() if ventas else None,
+        "compras": [
+            {
+                "id": v.id,
+                "folio": v.folio,
+                "total": float(v.total),
+                "fecha": v.fecha.strftime("%Y-%m-%d %H:%M"),
+                "metodo_pago": v.metodo_pago.value,
+            }
+            for v in ventas
+        ],
+    }

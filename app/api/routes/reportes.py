@@ -90,3 +90,31 @@ def ventas_por_dia(
 ):
     """Ventas diarias de los últimos N días para gráfica de tendencia."""
     return svc.reporte_ventas_por_dia(db, dias)
+
+
+@router.get("/pronostico-produccion")
+def pronostico_produccion(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Pronóstico de producción basado en ventas históricas."""
+    return svc.pronostico_produccion(db)
+
+
+@router.get("/alertas-caducidad")
+def alertas_caducidad(
+    dias: int = Query(default=7, le=30),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Ingredientes con lotes por caducar."""
+    return svc.alertas_caducidad(db, dias)
+
+
+@router.get("/gastos-fijos-resumen")
+def gastos_fijos_resumen(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Resumen de gastos fijos mensuales."""
+    return svc.resumen_gastos_fijos(db)

@@ -48,3 +48,9 @@ def actualizar_cliente(id: int, data: ClienteUpdate, db: Session = Depends(get_d
 def facturas_cliente(id: int, db: Session = Depends(get_db)):
     from app.models.facturacion import CFDIComprobante
     return db.query(CFDIComprobante).filter(CFDIComprobante.cliente_id == id).all()
+
+
+@router.get("/{id}/historial")
+def historial_cliente(id: int, db: Session = Depends(get_db)):
+    from app.services.reportes_service import historial_compras_cliente
+    return historial_compras_cliente(db, id)
