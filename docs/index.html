@@ -3070,12 +3070,21 @@ function cargarDashboard() {
   // Load inventory for dashboard
   var alertas = '';
   api('GET', '/inventario/productos').then(function(prods) {
+    // Sort: agotado first, then bajo, then OK
+    prods.sort(function(a, b) {
+      var sa = parseFloat(a.stock_actual) || 0, ma = parseFloat(a.stock_minimo) || 0;
+      var sb = parseFloat(b.stock_actual) || 0, mb = parseFloat(b.stock_minimo) || 0;
+      var oa = sa <= 0 ? 0 : (ma > 0 && sa <= ma ? 1 : 2);
+      var ob = sb <= 0 ? 0 : (mb > 0 && sb <= mb ? 1 : 2);
+      if (oa !== ob) return oa - ob;
+      return a.nombre.localeCompare(b.nombre, 'es');
+    });
     var h = '';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
       var stock = parseFloat(p.stock_actual) || 0;
       var min = parseFloat(p.stock_minimo) || 0;
-      var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
+      var cls = stock <= 0 ? 'bout' : (min > 0 && stock <= min) ? 'blow' : 'bok';
       h += '<div class="srow" data-name="' + p.nombre.toLowerCase() + '"><span>' + p.nombre + '</span><span class="badge ' + cls + '">' + Math.round(stock) + ' pzas</span></div>';
       if (stock <= 0) {
         alertas += '<div class="srow"><span>' + p.nombre + '</span><span class="badge bout">Agotado</span></div>';
