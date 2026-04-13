@@ -507,9 +507,28 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div style="font-size:2rem;font-weight:700;color:var(--v)" id="mc-total">$0.00</div>
 <div style="font-size:.85rem;color:var(--mut)" id="mc-metodo">Efectivo</div>
 </div>
+<!-- Single payment mode -->
+<div id="mc-single">
 <div id="mc-efectivo">
 <div class="fg"><label>Monto recibido</label><input type="number" id="mc-recibido" step="0.01" oninput="calcCambio()" style="font-size:1.2rem;font-weight:700;text-align:center"></div>
 <div style="text-align:center;font-size:1.1rem;font-weight:600;margin:.5rem 0">Cambio: <span id="mc-cambio" style="color:var(--grn)">$0.00</span></div>
+</div>
+<button class="limpiar" style="width:100%;margin-bottom:.5rem;font-size:.78rem" onclick="toggleSplit()">Dividir pago (efectivo + tarjeta)</button>
+</div>
+<!-- Split payment mode -->
+<div id="mc-split" style="display:none">
+<div style="margin-bottom:.6rem">
+<div class="frow" style="margin-bottom:.4rem">
+<div class="fg"><label>&#128181; Efectivo</label><input type="number" id="mc-sp-ef" step="0.01" oninput="calcSplit()" style="font-weight:700;text-align:center" placeholder="0"></div>
+<div class="fg"><label>&#128179; Tarjeta (CLIP)</label><input type="number" id="mc-sp-tar" step="0.01" oninput="calcSplit()" style="font-weight:700;text-align:center" placeholder="0"></div>
+</div>
+<div class="fg"><label>&#127974; Transferencia (BBVA)</label><input type="number" id="mc-sp-trans" step="0.01" oninput="calcSplit()" style="font-weight:700;text-align:center;max-width:50%" placeholder="0"></div>
+</div>
+<div style="text-align:center;margin-bottom:.5rem">
+<div style="font-size:.85rem;color:var(--mut)">Falta: <span id="mc-sp-falta" style="font-weight:700">$0.00</span></div>
+<div style="font-size:1rem;font-weight:600;margin-top:.2rem">Cambio: <span id="mc-sp-cambio" style="color:var(--grn)">$0.00</span></div>
+</div>
+<button class="limpiar" style="width:100%;margin-bottom:.5rem;font-size:.78rem" onclick="toggleSplit()">Pago simple</button>
 </div>
 <div style="display:flex;gap:.5rem;margin-top:.5rem">
 <button class="cobrar" style="flex:1" onclick="procesarVenta()">Confirmar Venta</button>
@@ -644,8 +663,11 @@ function setPm(m) {
   document.getElementById('pm-bbva').classList.toggle('sel', m === 'bbva');
 }
 
+var _splitMode = false;
+
 function cobrar() {
   if (!cart.length) return;
+  _splitMode = false;
   var s = 0, iv = 0;
   for (var i = 0; i < cart.length; i++) {
     var l = cart[i].p * cart[i].q;
@@ -655,6 +677,8 @@ function cobrar() {
   document.getElementById('mc-total').textContent = '$' + total.toFixed(2);
   var nombres = {ef:'Efectivo', clip:'Tarjeta (CLIP)', bbva:'Transferencia (BBVA)'};
   document.getElementById('mc-metodo').textContent = nombres[pm];
+  document.getElementById('mc-single').style.display = 'block';
+  document.getElementById('mc-split').style.display = 'none';
   var efDiv = document.getElementById('mc-efectivo');
   if (pm === 'ef') {
     efDiv.style.display = 'block';
@@ -668,6 +692,19 @@ function cobrar() {
   if (pm === 'ef') setTimeout(function(){document.getElementById('mc-recibido').focus();},100);
 }
 
+function toggleSplit() {
+  _splitMode = !_splitMode;
+  document.getElementById('mc-single').style.display = _splitMode ? 'none' : 'block';
+  document.getElementById('mc-split').style.display = _splitMode ? 'block' : 'none';
+  document.getElementById('mc-metodo').textContent = _splitMode ? 'Pago dividido' : {ef:'Efectivo',clip:'Tarjeta (CLIP)',bbva:'Transferencia (BBVA)'}[pm];
+  if (_splitMode) {
+    document.getElementById('mc-sp-ef').value = '';
+    document.getElementById('mc-sp-tar').value = '';
+    document.getElementById('mc-sp-trans').value = '';
+    calcSplit();
+  }
+}
+
 function calcCambio() {
   var total = parseFloat(document.getElementById('mc-total').textContent.replace(/[^0-9.-]/g,'')) || 0;
   var recibido = parseFloat(document.getElementById('mc-recibido').value) || 0;
@@ -677,27 +714,60 @@ function calcCambio() {
   el.style.color = cambio >= 0 ? 'var(--grn)' : '#b91c1c';
 }
 
+function calcSplit() {
+  var total = parseFloat(document.getElementById('mc-total').textContent.replace(/[^0-9.-]/g,'')) || 0;
+  var ef = parseFloat(document.getElementById('mc-sp-ef').value) || 0;
+  var tar = parseFloat(document.getElementById('mc-sp-tar').value) || 0;
+  var trans = parseFloat(document.getElementById('mc-sp-trans').value) || 0;
+  var suma = ef + tar + trans;
+  var falta = total - suma;
+  var faltaEl = document.getElementById('mc-sp-falta');
+  faltaEl.textContent = falta > 0 ? '$' + falta.toFixed(2) : '$0.00';
+  faltaEl.style.color = falta > 0 ? '#b91c1c' : 'var(--grn)';
+  // Change is only from cash portion: cash given minus what cash needs to cover
+  var noEf = tar + trans;
+  var cashNeeded = Math.max(0, total - noEf);
+  var cambio = ef > cashNeeded ? ef - cashNeeded : 0;
+  var cambioEl = document.getElementById('mc-sp-cambio');
+  cambioEl.textContent = '$' + cambio.toFixed(2);
+  cambioEl.style.color = 'var(--grn)';
+}
+
 function procesarVenta() {
   var s = 0, iv = 0;
   for (var i = 0; i < cart.length; i++) {
     var l = cart[i].p * cart[i].q; s += l; iv += l * cart[i].iv;
   }
   var total = s + iv;
-  var metodos = {ef:'01', clip:'04', bbva:'03'};
-  var monto = total;
-  if (pm === 'ef') {
-    monto = parseFloat(document.getElementById('mc-recibido').value) || 0;
-    if (monto < total) { toast('El monto recibido es menor al total', true); return; }
-  }
   var detalles = cart.map(function(c) {
     return {producto_id: c.id, cantidad: c.q, descuento: 0};
   });
-  api('POST', '/punto-de-venta/ventas', {
-    detalles: detalles,
-    metodo_pago: metodos[pm],
-    forma_pago: 'PUE',
-    monto_recibido: monto
-  }).then(function(venta) {
+  var body = {detalles: detalles, forma_pago: 'PUE'};
+
+  if (_splitMode) {
+    var ef = parseFloat(document.getElementById('mc-sp-ef').value) || 0;
+    var tar = parseFloat(document.getElementById('mc-sp-tar').value) || 0;
+    var trans = parseFloat(document.getElementById('mc-sp-trans').value) || 0;
+    if (ef + tar + trans < total) { toast('La suma de pagos es menor al total', true); return; }
+    var pagos = [];
+    if (ef > 0) pagos.push({metodo_pago:'01', monto:ef});
+    if (tar > 0) pagos.push({metodo_pago:'04', monto:tar});
+    if (trans > 0) pagos.push({metodo_pago:'03', monto:trans});
+    body.pagos = pagos;
+    body.metodo_pago = '01'; // fallback, backend picks largest
+    body.monto_recibido = ef + tar + trans;
+  } else {
+    var metodos = {ef:'01', clip:'04', bbva:'03'};
+    var monto = total;
+    if (pm === 'ef') {
+      monto = parseFloat(document.getElementById('mc-recibido').value) || 0;
+      if (monto < total) { toast('El monto recibido es menor al total', true); return; }
+    }
+    body.metodo_pago = metodos[pm];
+    body.monto_recibido = monto;
+  }
+
+  api('POST', '/punto-de-venta/ventas', body).then(function(venta) {
     cerrarModal('modal-cobrar');
     limpiar();
     mostrarTicket(venta);
@@ -1047,22 +1117,33 @@ function cargarRecetas() {
     }
     sel.innerHTML = opts || '<option value="">Sin recetas</option>';
 
-    // Recetas list in hornear tab
+    // Recetas list in hornear tab — build basic table first, then load costs
     var list = document.getElementById('recetas-list');
     if (list) {
-      var h = '<table class="tbl"><tr><th>Receta</th><th>Rinde</th><th>Prep</th><th>Horno</th><th>Temp</th><th style="width:40px"></th></tr>';
+      var h = '<table class="tbl"><tr><th>Receta</th><th>Rinde</th><th>Costo</th><th>$/pza</th><th>Horno</th><th style="width:40px"></th></tr>';
       for (var j = 0; j < recs.length; j++) {
         var rc = recs[j];
         h += '<tr><td>' + rc.nombre + '</td>';
         h += '<td>' + Math.round(parseFloat(rc.rendimiento)) + ' pzas</td>';
-        h += '<td>' + (rc.tiempo_preparacion_min || '-') + ' min</td>';
-        h += '<td>' + (rc.tiempo_horneado_min || '-') + ' min</td>';
-        h += '<td>' + (rc.temperatura_horneado_c || '-') + '&deg;C</td>';
+        h += '<td id="rc-cost-' + rc.id + '" style="color:var(--mut)">...</td>';
+        h += '<td id="rc-pza-' + rc.id + '" style="color:var(--mut)">...</td>';
+        h += '<td>' + (rc.tiempo_horneado_min ? rc.tiempo_horneado_min + 'min/' + (rc.temperatura_horneado_c||'?') + '\u00b0C' : '-') + '</td>';
         h += '<td><a href="#" onclick="editarReceta(' + rc.id + ');return false" style="font-size:.9rem;cursor:pointer" title="Editar">&#9998;</a></td>';
         h += '</tr>';
       }
       h += '</table>';
       list.innerHTML = h;
+      // Load costs for each recipe
+      for (var k = 0; k < recs.length; k++) {
+        (function(id) {
+          api('GET', '/recetas/' + id + '/costo').then(function(c) {
+            var costEl = document.getElementById('rc-cost-' + id);
+            var pzaEl = document.getElementById('rc-pza-' + id);
+            if (costEl) costEl.textContent = '$' + c.costo_total_ingredientes.toFixed(0);
+            if (pzaEl) { pzaEl.textContent = '$' + c.costo_por_pieza.toFixed(1); pzaEl.style.color = 'var(--v)'; pzaEl.style.fontWeight = '600'; }
+          }).catch(function(){});
+        })(recs[k].id);
+      }
     }
   }).catch(function() {
     document.getElementById('horn-receta').innerHTML = '<option value="">Error al cargar</option>';
@@ -1342,8 +1423,10 @@ function cargarListaRecetas() {
       if (r.tiempo_horneado_min) h += ' &bull; ' + r.tiempo_horneado_min + ' min';
       if (r.temperatura_horneado_c) h += ' &bull; ' + r.temperatura_horneado_c + '&deg;C';
       h += '</span></div>';
+      h += '<div style="display:flex;align-items:center;gap:.6rem">';
+      h += '<span id="lr-cost-' + r.id + '" style="font-size:.82rem;color:var(--mut)">...</span>';
       h += '<a href="#" onclick="editarReceta(' + r.id + ');return false" style="font-size:.9rem;cursor:pointer" title="Editar">&#9998;</a>';
-      h += '</div>';
+      h += '</div></div>';
       if (r.ingredientes && r.ingredientes.length) {
         h += '<div style="margin-top:.4rem;display:flex;flex-wrap:wrap;gap:.3rem">';
         for (var j = 0; j < r.ingredientes.length; j++) {
@@ -1360,6 +1443,17 @@ function cargarListaRecetas() {
     }
     if (!h) h = '<p style="color:var(--mut)">Sin recetas</p>';
     document.getElementById('l-recs-tbl').innerHTML = h;
+    // Load costs
+    for (var m = 0; m < recs.length; m++) {
+      (function(id) {
+        api('GET', '/recetas/' + id + '/costo').then(function(c) {
+          var el = document.getElementById('lr-cost-' + id);
+          if (el) {
+            el.innerHTML = '<span class="badge" style="background:#fef3c7;color:#92400e">$' + c.costo_total_ingredientes.toFixed(0) + ' total</span> <span class="badge" style="background:#dbeafe;color:#1d4ed8">$' + c.costo_por_pieza.toFixed(1) + '/pza</span>';
+          }
+        }).catch(function(){});
+      })(recs[m].id);
+    }
   }).catch(function() {
     document.getElementById('l-recs-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>';
   });
@@ -1458,9 +1552,21 @@ function cargarCorte() {
       var estado = v.estado === 'cancelada' ? ' <span class="badge bout">Cancelada</span>' : '';
       if (v.estado !== 'cancelada') {
         totalGeneral += tot; tickets++;
-        if (v.metodo_pago === '01') efTotal += tot;
-        else if (v.metodo_pago === '04' || v.metodo_pago === '28') tarTotal += tot;
-        else if (v.metodo_pago === '03') transTotal += tot;
+        // Use pagos array for accurate split payment tracking
+        if (v.pagos && v.pagos.length > 1) {
+          for (var j = 0; j < v.pagos.length; j++) {
+            var pm2 = v.pagos[j].metodo_pago;
+            var pm2m = parseFloat(v.pagos[j].monto) || 0;
+            if (pm2 === '01') efTotal += pm2m;
+            else if (pm2 === '04' || pm2 === '28') tarTotal += pm2m;
+            else if (pm2 === '03') transTotal += pm2m;
+          }
+          met = 'Dividido';
+        } else {
+          if (v.metodo_pago === '01') efTotal += tot;
+          else if (v.metodo_pago === '04' || v.metodo_pago === '28') tarTotal += tot;
+          else if (v.metodo_pago === '03') transTotal += tot;
+        }
       }
       var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
       h += '<div class="srow" style="cursor:pointer" onclick="verTicket(' + v.id + ')">';

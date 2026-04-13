@@ -13,6 +13,12 @@ class DetalleVentaCreate(BaseModel):
     descuento: Decimal = Decimal("0")
 
 
+class PagoVentaCreate(BaseModel):
+    metodo_pago: MetodoPago
+    monto: Decimal = Field(..., gt=0)
+    referencia: str | None = None
+
+
 class VentaCreate(BaseModel):
     cliente_id: int | None = None
     metodo_pago: MetodoPago = MetodoPago.EFECTIVO
@@ -20,6 +26,7 @@ class VentaCreate(BaseModel):
     monto_recibido: Decimal = Decimal("0")
     notas: str | None = None
     detalles: list[DetalleVentaCreate] = Field(..., min_length=1)
+    pagos: list[PagoVentaCreate] | None = None  # Split payments (optional)
 
 
 class DetalleVentaResponse(BaseModel):
@@ -31,6 +38,15 @@ class DetalleVentaResponse(BaseModel):
     subtotal: Decimal
     tasa_iva: Decimal
     monto_iva: Decimal
+
+    model_config = {"from_attributes": True}
+
+
+class PagoVentaResponse(BaseModel):
+    id: int
+    metodo_pago: MetodoPago
+    monto: Decimal
+    referencia: str | None
 
     model_config = {"from_attributes": True}
 
@@ -53,6 +69,7 @@ class VentaResponse(BaseModel):
     estado: EstadoVenta
     facturada: bool
     fecha: datetime
+    pagos: list[PagoVentaResponse] = []
 
     model_config = {"from_attributes": True}
 

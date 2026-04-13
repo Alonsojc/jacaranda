@@ -9,7 +9,7 @@ from datetime import datetime, timezone, date
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
-from app.models.venta import Venta, DetalleVenta, CorteCaja, MetodoPago, EstadoVenta
+from app.models.venta import Venta, DetalleVenta, PagoVenta, CorteCaja, MetodoPago, EstadoVenta
 from app.models.inventario import Producto, TasaIVA, TipoMovimiento
 from app.schemas.venta import VentaCreate, CorteCajaCreate
 from app.schemas.inventario import MovimientoCreate
@@ -104,12 +104,38 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
 
     # Validar pago
     cambio = Decimal("0")
-    if data.metodo_pago == MetodoPago.EFECTIVO:
-        if data.monto_recibido < total:
+    monto_recibido = data.monto_recibido
+    metodo_principal = data.metodo_pago
+
+    if data.pagos:
+        # Split payment: validate sum covers total
+        suma_pagos = sum(p.monto for p in data.pagos)
+        if suma_pagos < total:
             raise ValueError(
-                f"Monto recibido ({data.monto_recibido}) menor al total ({total})"
+                f"Suma de pagos ({suma_pagos}) menor al total ({total})"
             )
-        cambio = data.monto_recibido - total
+        # Set monto_recibido to sum, cambio from cash portion
+        monto_recibido = suma_pagos
+        efectivo_recibido = sum(
+            p.monto for p in data.pagos if p.metodo_pago == MetodoPago.EFECTIVO
+        )
+        no_efectivo = suma_pagos - efectivo_recibido
+        # Change = cash given - (total - card/transfer portion)
+        parte_efectivo = total - no_efectivo
+        if efectivo_recibido > 0 and parte_efectivo > 0:
+            cambio = efectivo_recibido - parte_efectivo
+        elif efectivo_recibido > total:
+            cambio = efectivo_recibido - total
+        # Primary method = largest payment
+        metodo_principal = max(data.pagos, key=lambda p: p.monto).metodo_pago
+    else:
+        # Single payment
+        if data.metodo_pago == MetodoPago.EFECTIVO:
+            if data.monto_recibido < total:
+                raise ValueError(
+                    f"Monto recibido ({data.monto_recibido}) menor al total ({total})"
+                )
+            cambio = data.monto_recibido - total
 
     venta = Venta(
         folio=folio,
@@ -122,9 +148,9 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         iva_16=iva_16_total,
         total_impuestos=total_impuestos,
         total=total,
-        metodo_pago=data.metodo_pago,
+        metodo_pago=metodo_principal,
         forma_pago=data.forma_pago,
-        monto_recibido=data.monto_recibido,
+        monto_recibido=monto_recibido,
         cambio=cambio,
         notas=data.notas,
     )
@@ -135,6 +161,17 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     for detalle in detalles:
         detalle.venta_id = venta.id
         db.add(detalle)
+
+    # Agregar pagos (split payment records)
+    if data.pagos:
+        for pago_data in data.pagos:
+            pago = PagoVenta(
+                venta_id=venta.id,
+                metodo_pago=pago_data.metodo_pago,
+                monto=pago_data.monto,
+                referencia=pago_data.referencia,
+            )
+            db.add(pago)
 
     # Descontar inventario
     for item in data.detalles:
@@ -223,6 +260,16 @@ def generar_ticket(db: Session, venta_id: int) -> dict:
         "28": "Tarjeta de débito", "03": "Transferencia",
     }
 
+    # Build payment description
+    pagos_info = []
+    if venta.pagos:
+        for p in venta.pagos:
+            desc = metodo_pago_desc.get(p.metodo_pago.value, "Otro")
+            pagos_info.append({"metodo": desc, "monto": float(p.monto)})
+    metodo_str = metodo_pago_desc.get(venta.metodo_pago.value, "Otro")
+    if pagos_info and len(pagos_info) > 1:
+        metodo_str = " + ".join(f"{p['metodo']} ${p['monto']:,.2f}" for p in pagos_info)
+
     return {
         "razon_social": settings.RAZON_SOCIAL,
         "rfc": settings.RFC,
@@ -234,7 +281,8 @@ def generar_ticket(db: Session, venta_id: int) -> dict:
         "subtotal": f"${venta.subtotal:,.2f}",
         "iva": f"${venta.total_impuestos:,.2f}",
         "total": f"${venta.total:,.2f}",
-        "metodo_pago": metodo_pago_desc.get(venta.metodo_pago.value, "Otro"),
+        "metodo_pago": metodo_str,
+        "pagos": pagos_info,
         "monto_recibido": f"${venta.monto_recibido:,.2f}",
         "cambio": f"${venta.cambio:,.2f}",
         "leyenda_fiscal": (
@@ -259,16 +307,28 @@ def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> 
         )
     ).all()
 
-    total_efectivo = sum(
-        v.total for v in ventas_hoy if v.metodo_pago == MetodoPago.EFECTIVO
-    )
-    total_tarjeta = sum(
-        v.total for v in ventas_hoy
-        if v.metodo_pago in (MetodoPago.TARJETA_CREDITO, MetodoPago.TARJETA_DEBITO)
-    )
-    total_transferencia = sum(
-        v.total for v in ventas_hoy if v.metodo_pago == MetodoPago.TRANSFERENCIA
-    )
+    # Calculate totals by payment method, considering split payments
+    total_efectivo = Decimal("0")
+    total_tarjeta = Decimal("0")
+    total_transferencia = Decimal("0")
+    for v in ventas_hoy:
+        if v.pagos:
+            # Split payment: sum each method's portion
+            for p in v.pagos:
+                if p.metodo_pago == MetodoPago.EFECTIVO:
+                    total_efectivo += p.monto
+                elif p.metodo_pago in (MetodoPago.TARJETA_CREDITO, MetodoPago.TARJETA_DEBITO):
+                    total_tarjeta += p.monto
+                elif p.metodo_pago == MetodoPago.TRANSFERENCIA:
+                    total_transferencia += p.monto
+        else:
+            # Single payment
+            if v.metodo_pago == MetodoPago.EFECTIVO:
+                total_efectivo += v.total
+            elif v.metodo_pago in (MetodoPago.TARJETA_CREDITO, MetodoPago.TARJETA_DEBITO):
+                total_tarjeta += v.total
+            elif v.metodo_pago == MetodoPago.TRANSFERENCIA:
+                total_transferencia += v.total
     total_ventas = total_efectivo + total_tarjeta + total_transferencia
 
     cancelaciones = db.query(func.count(Venta.id)).filter(
