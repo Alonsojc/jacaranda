@@ -241,33 +241,16 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 
 <div id="inv-productos">
-<p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Conteo nocturno. Inicio + horneado - vendido = esperado. Click en "Conteo real" para ajustar.</p>
-<div class="card" style="overflow-x:auto">
-<table class="tbl">
-<tr><th>Producto</th><th>Anoche</th><th>+ Horneado</th><th>- Vendido</th><th>Esperado</th><th>Conteo real</th><th>Dif</th><th>Estado</th></tr>
-<tr><td>Nutella</td><td>45</td><td>+20</td><td>-32</td><td>33</td><td>33</td><td>0</td><td><span class="badge bok">OK</span></td></tr>
-<tr><td>Manzana</td><td>30</td><td>+15</td><td>-24</td><td>21</td><td>21</td><td>0</td><td><span class="badge bok">OK</span></td></tr>
-<tr><td>Brownies</td><td>25</td><td>+12</td><td>-18</td><td>19</td><td>17</td><td style="color:#b91c1c;font-weight:700">-2</td><td><span class="badge bout">Revisar</span></td></tr>
-<tr><td>Galletas 6pz</td><td>20</td><td>+0</td><td>-15</td><td>5</td><td>5</td><td>0</td><td><span class="badge blow">Stock bajo</span></td></tr>
-<tr><td>Velas</td><td>12</td><td>+0</td><td>-8</td><td>4</td><td>4</td><td>0</td><td><span class="badge blow">Stock bajo</span></td></tr>
-</table>
+<p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Stock actual de productos terminados. Se actualiza al hornear y al vender.</p>
+<div id="tbl-productos" class="card" style="overflow-x:auto">
+<p style="color:var(--mut);padding:.5rem">Cargando productos...</p>
 </div>
 </div>
 
 <div id="inv-ingredientes" style="display:none">
 <p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Stock actual de ingredientes. Se descuenta autom&aacute;ticamente al hornear.</p>
-<div class="card" style="overflow-x:auto">
-<table class="tbl">
-<tr><th>Ingrediente</th><th>Stock</th><th>Unidad</th><th>M&iacute;nimo</th><th>Estado</th></tr>
-<tr><td>Harina de trigo</td><td>25</td><td>kg</td><td>10</td><td><span class="badge bok">OK</span></td></tr>
-<tr><td>Az&uacute;car</td><td>15</td><td>kg</td><td>8</td><td><span class="badge bok">OK</span></td></tr>
-<tr><td>Mantequilla</td><td>3</td><td>kg</td><td>5</td><td><span class="badge blow">Pedir</span></td></tr>
-<tr><td>Huevo</td><td>120</td><td>pza</td><td>60</td><td><span class="badge bok">OK</span></td></tr>
-<tr><td>Nutella</td><td>4</td><td>kg</td><td>5</td><td><span class="badge blow">Pedir</span></td></tr>
-<tr><td>Chocolate</td><td>2</td><td>kg</td><td>3</td><td><span class="badge bout">Urgente</span></td></tr>
-<tr><td>Leche</td><td>10</td><td>lt</td><td>8</td><td><span class="badge bok">OK</span></td></tr>
-<tr><td>Levadura</td><td>2</td><td>kg</td><td>1</td><td><span class="badge bok">OK</span></td></tr>
-</table>
+<div id="tbl-ingredientes" class="card" style="overflow-x:auto">
+<p style="color:var(--mut);padding:.5rem">Cargando ingredientes...</p>
 </div>
 </div>
 
@@ -276,12 +259,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="card">
 <h3>Nueva compra de ingrediente</h3>
 <div class="frow">
-<div class="fg"><label>Ingrediente</label><select id="compra-ing">
-<option value="1">Harina de trigo</option><option value="2">Az&uacute;car</option>
-<option value="3">Mantequilla</option><option value="4">Huevo</option>
-<option value="5">Nutella</option><option value="6">Chocolate</option>
-<option value="7">Leche</option><option value="8">Levadura</option>
-</select></div>
+<div class="fg"><label>Ingrediente</label><select id="compra-ing"><option value="">Cargando...</option></select></div>
 <div class="fg"><label>Cantidad</label><input type="number" id="compra-cant" placeholder="10"></div>
 </div>
 <div class="frow">
@@ -297,20 +275,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="card">
 <h3>Hornear</h3>
 <div class="frow">
-<div class="fg"><label>Receta</label><select id="horn-receta">
-<option value="1">Nutella Cookie Pie (rinde 8 pzas)</option>
-<option value="2">Apple Crumble (rinde 8 pzas)</option>
-<option value="3">Lemon Pie (rinde 8 pzas)</option>
-<option value="4">Brownies (rinde 16 pzas)</option>
-<option value="5">Speculoos Blondies (rinde 16 pzas)</option>
-<option value="6">Galletas (rinde 20 pzas)</option>
-<option value="7">Polvorones de nuez (rinde 25 pzas)</option>
-<option value="8">Linzer (rinde 7 pzas)</option>
-<option value="9">Panqu&eacute; Zanahoria</option>
-<option value="10">Panqu&eacute; Pl&aacute;tano</option>
-<option value="11">Rosca de chocolate</option>
-<option value="12">Galletas de avena (rinde 20 pzas)</option>
-</select></div>
+<div class="fg"><label>Receta</label><select id="horn-receta"><option value="">Cargando...</option></select></div>
 <div class="fg"><label>Tandas</label><input type="number" id="horn-cant" value="1" min="1"></div>
 </div>
 <button class="cobrar" onclick="hornear()">Hornear</button>
@@ -595,6 +560,8 @@ function invTab(tab) {
   });
   document.querySelectorAll('#inv .tab').forEach(function(t) { t.classList.remove('active'); });
   event.target.classList.add('active');
+  if (tab === 'productos') cargarProductos();
+  if (tab === 'ingredientes') cargarIngredientes();
 }
 
 function registrarCompra() {
@@ -602,26 +569,100 @@ function registrarCompra() {
   var cant = document.getElementById('compra-cant').value;
   var costo = document.getElementById('compra-costo').value || 0;
   var prov = document.getElementById('compra-prov').value || '';
-  if (!cant) { alert('Escribe la cantidad'); return; }
+  if (!ing.value) { toast('Selecciona un ingrediente', true); return; }
+  if (!cant) { toast('Escribe la cantidad', true); return; }
 
   api('POST', '/inventario/ingredientes/' + ing.value + '/compra?cantidad=' + cant + '&costo=' + costo + '&proveedor=' + encodeURIComponent(prov))
-  .then(function(r) { toast(r.mensaje + ' - Stock: ' + r.stock_actual); })
-  .catch(function() { toast('Compra registrada (local): ' + cant + ' de ' + ing.options[ing.selectedIndex].text); });
+  .then(function(r) {
+    toast(r.mensaje + ' - Stock: ' + r.stock_actual);
+    cargarIngredientes();
+    document.getElementById('compra-cant').value = '';
+    document.getElementById('compra-costo').value = '';
+    document.getElementById('compra-prov').value = '';
+  })
+  .catch(function() { toast('Error al registrar compra', true); });
 }
 
 function hornear() {
   var rec = document.getElementById('horn-receta');
   var cant = document.getElementById('horn-cant').value || 1;
+  if (!rec.value) { toast('Selecciona una receta', true); return; }
 
   api('POST', '/recetas/' + rec.value + '/hornear?cantidad=' + cant)
-  .then(function(r) { toast(r.mensaje + ' - ' + r.piezas_producidas + ' pzas, stock: ' + r.stock_producto); })
+  .then(function(r) {
+    toast(r.mensaje + ' - ' + r.piezas_producidas + ' pzas, stock: ' + r.stock_producto);
+    cargarProductos();
+    cargarIngredientes();
+  })
   .catch(function(e) {
-    if (e && e.detail && e.detail.faltantes) {
-      toast('Faltan ingredientes para hornear', true);
-    } else {
-      toast('Horneado registrado (local): ' + cant + 'x ' + rec.options[rec.selectedIndex].text);
-    }
+    toast('Error al hornear. Verifica ingredientes disponibles.', true);
   });
+}
+
+// ─── Dynamic inventory loading ───────────────────────────────────
+function cargarProductos() {
+  api('GET', '/inventario/productos').then(function(prods) {
+    var h = '<table class="tbl"><tr><th>Producto</th><th>Stock</th><th>M&iacute;nimo</th><th>Estado</th></tr>';
+    for (var i = 0; i < prods.length; i++) {
+      var p = prods[i];
+      var stock = parseFloat(p.stock_actual) || 0;
+      var min = parseFloat(p.stock_minimo) || 0;
+      var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
+      var txt = stock <= 0 ? 'Agotado' : stock <= min ? 'Stock bajo' : 'OK';
+      h += '<tr><td>' + p.nombre + '</td><td>' + Math.round(stock) + ' pzas</td><td>' + Math.round(min) + '</td><td><span class="badge ' + cls + '">' + txt + '</span></td></tr>';
+    }
+    h += '</table>';
+    document.getElementById('tbl-productos').innerHTML = h;
+  }).catch(function() {
+    document.getElementById('tbl-productos').innerHTML = '<p style="color:var(--mut);padding:.5rem">Error al cargar productos</p>';
+  });
+}
+
+function cargarIngredientes() {
+  api('GET', '/inventario/ingredientes').then(function(ings) {
+    var h = '<table class="tbl"><tr><th>Ingrediente</th><th>Stock</th><th>Unidad</th><th>M&iacute;nimo</th><th>Estado</th></tr>';
+    for (var i = 0; i < ings.length; i++) {
+      var g = ings[i];
+      var stock = parseFloat(g.stock_actual) || 0;
+      var min = parseFloat(g.stock_minimo) || 0;
+      var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
+      var txt = stock <= 0 ? 'Urgente' : stock <= min ? 'Pedir' : 'OK';
+      h += '<tr><td>' + g.nombre + '</td><td>' + stock.toFixed(1) + '</td><td>' + g.unidad_medida + '</td><td>' + min + '</td><td><span class="badge ' + cls + '">' + txt + '</span></td></tr>';
+    }
+    h += '</table>';
+    document.getElementById('tbl-ingredientes').innerHTML = h;
+
+    // Also update compras dropdown
+    var sel = document.getElementById('compra-ing');
+    var opts = '';
+    for (var j = 0; j < ings.length; j++) {
+      opts += '<option value="' + ings[j].id + '">' + ings[j].nombre + ' (' + parseFloat(ings[j].stock_actual).toFixed(1) + ' ' + ings[j].unidad_medida + ')</option>';
+    }
+    sel.innerHTML = opts;
+  }).catch(function() {
+    document.getElementById('tbl-ingredientes').innerHTML = '<p style="color:var(--mut);padding:.5rem">Error al cargar ingredientes</p>';
+  });
+}
+
+function cargarRecetas() {
+  api('GET', '/recetas/').then(function(recs) {
+    var sel = document.getElementById('horn-receta');
+    var opts = '';
+    for (var i = 0; i < recs.length; i++) {
+      var r = recs[i];
+      var rend = r.rendimiento ? ' (rinde ' + Math.round(parseFloat(r.rendimiento)) + ' pzas)' : '';
+      opts += '<option value="' + r.id + '">' + r.nombre + rend + '</option>';
+    }
+    sel.innerHTML = opts || '<option value="">Sin recetas</option>';
+  }).catch(function() {
+    document.getElementById('horn-receta').innerHTML = '<option value="">Error al cargar</option>';
+  });
+}
+
+function cargarInventarioCompleto() {
+  cargarProductos();
+  cargarIngredientes();
+  cargarRecetas();
 }
 
 // ─── Connection status ────────────────────────────────────────────
@@ -696,11 +737,22 @@ function cargarDashboard() {
   // Load inventory for dashboard
   api('GET', '/inventario/productos').then(function(prods) {
     var h = '';
-    for (var i = 0; i < Math.min(prods.length, 6); i++) {
+    var alertas = '';
+    for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
-      h += '<div class="srow"><span>' + p.nombre + '</span><span>' + (p.stock||0) + ' pzas</span></div>';
+      var stock = parseFloat(p.stock_actual) || 0;
+      var min = parseFloat(p.stock_minimo) || 0;
+      if (i < 6) {
+        h += '<div class="srow"><span>' + p.nombre + '</span><span>' + Math.round(stock) + ' pzas</span></div>';
+      }
+      if (stock > 0 && stock <= min) {
+        alertas += '<div class="srow"><span>' + p.nombre + '</span><span class="badge blow">Stock bajo (' + Math.round(stock) + ')</span></div>';
+      } else if (stock <= 0 && min > 0) {
+        alertas += '<div class="srow"><span>' + p.nombre + '</span><span class="badge bout">Agotado</span></div>';
+      }
     }
     if (h) document.getElementById('d-inv').innerHTML = h;
+    if (alertas) document.getElementById('d-alertas').innerHTML = alertas;
   }).catch(function(){});
 }
 
@@ -714,6 +766,7 @@ function autoConectar() {
     _reconectar = 0;
     setConnected(true);
     cargarDashboard();
+    cargarInventarioCompleto();
   }).catch(function() {
     _reconectar++;
     if (_reconectar <= 3) {
