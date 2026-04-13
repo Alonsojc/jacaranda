@@ -136,12 +136,10 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <!-- DASHBOARD -->
 <div class="page on" id="dash">
 <h2>Dashboard &mdash; Hoy</h2>
-<div class="row r5">
+<div class="row r3">
 <div class="card kpi g"><div class="n" id="d-ventas">$0</div><div class="l">Ventas del d&iacute;a</div></div>
-<div class="card kpi"><div class="n" id="d-ef">$0</div><div class="l">Efectivo</div></div>
-<div class="card kpi p"><div class="n" id="d-clip">$0</div><div class="l">CLIP</div></div>
-<div class="card kpi a"><div class="n" id="d-bbva">$0</div><div class="l">BBVA</div></div>
-<div class="card kpi"><div class="n" id="d-tickets">0</div><div class="l">Tickets</div></div>
+<div class="card kpi"><div class="n" id="d-tickets">0</div><div class="l">Tickets hoy</div></div>
+<div class="card kpi a"><div class="n" id="d-mes">$0</div><div class="l">Ventas del mes</div></div>
 </div>
 <div class="row r2">
 <div class="card"><h3>Productos m&aacute;s vendidos</h3>
@@ -328,10 +326,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <h3>Resumen del d&iacute;a</h3>
 <div id="corte-resumen">
 <div class="srow"><span>Total ventas</span><span class="green" id="c-total">$0.00</span></div>
-<div class="srow"><span>Efectivo</span><span id="c-ef">$0.00</span></div>
-<div class="srow"><span>CLIP (tarjeta)</span><span id="c-clip">$0.00</span></div>
-<div class="srow"><span>BBVA (tarjeta)</span><span id="c-bbva">$0.00</span></div>
-<div class="srow" style="border-top:2px solid var(--v);font-weight:700;color:var(--v)"><span>Total tickets</span><span id="c-tickets">0</span></div>
+<div class="srow"><span>Tickets</span><span id="c-tickets">0</span></div>
 </div>
 </div>
 <div class="card">
@@ -649,17 +644,15 @@ function setConnecting() {
 // ─── Corte de caja ────────────────────────────────────────────────
 function generarCorte() {
   api('GET', '/reportes/dashboard').then(function(d) {
-    document.getElementById('c-total').textContent = '$' + Number(d.ventas_hoy||0).toLocaleString('es-MX',{minimumFractionDigits:2});
-    document.getElementById('c-ef').textContent = '$' + Number(d.efectivo||0).toLocaleString('es-MX',{minimumFractionDigits:2});
-    document.getElementById('c-clip').textContent = '$' + Number(d.clip||0).toLocaleString('es-MX',{minimumFractionDigits:2});
-    document.getElementById('c-bbva').textContent = '$' + Number(d.bbva||0).toLocaleString('es-MX',{minimumFractionDigits:2});
-    document.getElementById('c-tickets').textContent = d.tickets || 0;
+    var vh = d.ventas_hoy || {};
+    var total = Number(vh.total||0);
+    document.getElementById('c-total').textContent = '$' + total.toLocaleString('es-MX',{minimumFractionDigits:2});
+    document.getElementById('c-tickets').textContent = vh.numero_ventas || 0;
     var fondo = parseFloat(document.getElementById('c-fondo').value) || 0;
-    var ef = Number(d.efectivo||0);
-    document.getElementById('c-esperado').textContent = '$' + (fondo + ef).toLocaleString('es-MX',{minimumFractionDigits:2});
-    toast('Corte generado con datos del servidor');
+    document.getElementById('c-esperado').textContent = '$' + (fondo + total).toLocaleString('es-MX',{minimumFractionDigits:2});
+    toast('Corte generado');
   }).catch(function() {
-    toast('No se pudo conectar. Los datos mostrados son de ejemplo.', true);
+    toast('Sin conexi\u00f3n al servidor', true);
   });
 }
 
@@ -680,16 +673,14 @@ function calcularDiferencia() {
 function fmt(n) { return '$' + Number(n||0).toLocaleString('es-MX'); }
 
 function cargarDashboard() {
+  // Dashboard endpoint returns {ventas_hoy: {total, numero_ventas}, ventas_mes: {total}}
   api('GET', '/reportes/dashboard').then(function(d) {
-    setConnected(true);
-    document.getElementById('d-ventas').textContent = fmt(d.ventas_hoy);
-    document.getElementById('d-ef').textContent = fmt(d.efectivo);
-    document.getElementById('d-clip').textContent = fmt(d.clip);
-    document.getElementById('d-bbva').textContent = fmt(d.bbva);
-    document.getElementById('d-tickets').textContent = d.tickets || 0;
-  }).catch(function() {
-    setConnected(false);
-  });
+    var vh = d.ventas_hoy || {};
+    var vm = d.ventas_mes || {};
+    document.getElementById('d-ventas').textContent = fmt(vh.total);
+    document.getElementById('d-tickets').textContent = vh.numero_ventas || 0;
+    document.getElementById('d-mes').textContent = fmt(vm.total);
+  }).catch(function(){});
 
   // Load today's pedidos for dashboard
   api('GET', '/pedidos/hoy').then(function(peds) {
