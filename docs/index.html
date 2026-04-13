@@ -216,14 +216,13 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="page" id="ped">
 <h2>Pedidos <button class="cobrar" style="display:inline;width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0 0 0 1rem;vertical-align:middle" onclick="document.getElementById('modal-ped').classList.add('on')">+ Nuevo Pedido</button></h2>
 <div class="row r3" style="margin-bottom:.5rem">
-<div class="card kpi"><div class="n">4</div><div class="l">Hoy</div></div>
-<div class="card kpi a"><div class="n">2</div><div class="l">Ma&ntilde;ana</div></div>
-<div class="card kpi p"><div class="n">7</div><div class="l">Esta semana</div></div>
+<div class="card kpi"><div class="n" id="ped-hoy">0</div><div class="l">Hoy</div></div>
+<div class="card kpi a"><div class="n" id="ped-man">0</div><div class="l">Ma&ntilde;ana</div></div>
+<div class="card kpi p"><div class="n" id="ped-sem">0</div><div class="l">Esta semana</div></div>
 </div>
-<div class="ped"><div class="ph"><span class="pf">P-00012</span><span class="badge blist">Listo</span></div><div class="pc"><strong>Jimena</strong> &bull; Hotel La Grande &bull; Entregar 12:00</div><div class="pi2">1x Pastel Nutella 1.5kg con letrero "Feliz Cumplea&ntilde;os"</div><div class="pd">WhatsApp &bull; Anticipo $200 &bull; Total $520</div></div>
-<div class="ped"><div class="ph"><span class="pf">P-00013</span><span class="badge bprep">Preparando</span></div><div class="pc"><strong>Carlos M.</strong> &bull; Recoger en tienda &bull; 14:00</div><div class="pi2">2x Brownies, 1x Galletas 6pz, 1x Pastel Manzana 1kg</div><div class="pd">Tienda &bull; Total $560</div></div>
-<div class="ped"><div class="ph"><span class="pf">P-00014</span><span class="badge bconf">Confirmado</span></div><div class="pc"><strong>Mar&iacute;a L.</strong> &bull; Entregar Juriquilla &bull; 17:00</div><div class="pi2">1x Pastel Tres Leches 2kg, 12x Conchas surtidas</div><div class="pd">WhatsApp &bull; Anticipo $300 &bull; Total $850</div></div>
-<div class="ped"><div class="ph"><span class="pf">P-00015</span><span class="badge bpend">Recibido</span></div><div class="pc"><strong>Andrea S.</strong> &bull; Recoger en tienda &bull; 18:00</div><div class="pi2">3x Nutella individual</div><div class="pd">Instagram &bull; Total $255</div></div>
+<div id="ped-list">
+<div class="ped"><div class="ph"><span class="pf">--</span><span class="badge bpend">Sin pedidos</span></div><div class="pc">Conecta al servidor para ver pedidos o crea uno nuevo</div></div>
+</div>
 </div>
 
 <!-- INVENTARIO -->
@@ -532,12 +531,41 @@ function guardarPed() {
 }
 
 function cargarPedidos() {
-  api('GET', '/pedidos/hoy').then(function(pedidos) {
-    if (!pedidos.length) return;
-    var estadoClase = {recibido:'bpend',confirmado:'bconf',en_preparacion:'bprep',listo:'blist',entregado:'bok'};
-    var estadoNombre = {recibido:'Recibido',confirmado:'Confirmado',en_preparacion:'Preparando',listo:'Listo',entregado:'Entregado'};
-    // Aquí se podría actualizar dinámicamente la lista de pedidos
-  }).catch(function() { /* modo offline, usa los datos estáticos */ });
+  api('GET', '/pedidos/').then(function(pedidos) {
+    var estadoClase = {recibido:'bpend',confirmado:'bconf',en_preparacion:'bprep',listo:'blist',entregado:'bok',cancelado:'bout'};
+    var estadoNombre = {recibido:'Recibido',confirmado:'Confirmado',en_preparacion:'Preparando',listo:'Listo',entregado:'Entregado',cancelado:'Cancelado'};
+    var h = '';
+    if (!pedidos.length) {
+      h = '<div class="ped"><div class="pc" style="text-align:center;color:var(--mut)">No hay pedidos registrados. Crea uno nuevo.</div></div>';
+    }
+    var hoy = 0, man = 0, sem = 0;
+    var ahora = new Date(); var manana = new Date(); manana.setDate(ahora.getDate()+1);
+    var finSem = new Date(); finSem.setDate(ahora.getDate()+7);
+    for (var i = 0; i < pedidos.length; i++) {
+      var p = pedidos[i];
+      var fe = p.fecha_entrega ? new Date(p.fecha_entrega) : null;
+      if (fe) {
+        if (fe.toDateString() === ahora.toDateString()) hoy++;
+        if (fe.toDateString() === manana.toDateString()) man++;
+        if (fe <= finSem) sem++;
+      }
+      var cls = estadoClase[p.estado] || 'bpend';
+      var nom = estadoNombre[p.estado] || p.estado;
+      var det = (p.detalles || []).map(function(d) { return (d.cantidad||1) + 'x ' + d.descripcion; }).join(', ');
+      h += '<div class="ped"><div class="ph"><span class="pf">' + (p.folio||'') + '</span>';
+      h += '<span class="badge ' + cls + '">' + nom + '</span></div>';
+      h += '<div class="pc"><strong>' + (p.cliente_nombre||'') + '</strong>';
+      if (p.lugar_entrega) h += ' &bull; ' + p.lugar_entrega;
+      if (p.hora_entrega) h += ' &bull; ' + p.hora_entrega;
+      h += '</div>';
+      if (det) h += '<div class="pi2">' + det + '</div>';
+      h += '<div class="pd">' + (p.origen||'') + (p.anticipo ? ' &bull; Anticipo $' + p.anticipo : '') + (p.total ? ' &bull; Total $' + p.total : '') + '</div></div>';
+    }
+    document.getElementById('ped-list').innerHTML = h;
+    document.getElementById('ped-hoy').textContent = hoy;
+    document.getElementById('ped-man').textContent = man;
+    document.getElementById('ped-sem').textContent = sem || pedidos.length;
+  }).catch(function() { /* modo offline */ });
 }
 
 // ─── Config modal ─────────────────────────────────────────────────
