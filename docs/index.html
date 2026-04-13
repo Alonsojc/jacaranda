@@ -85,9 +85,9 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .ped .pc{font-size:.83rem;color:var(--dk)}
 .ped .pd{font-size:.78rem;color:var(--mut);margin-top:.3rem}
 .ped .pi2{font-size:.82rem;margin-top:.3rem}
-.modal-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:100;justify-content:center;align-items:center}
+.modal-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:100;justify-content:center;align-items:center;padding:1.5rem}
 .modal-bg.on{display:flex}
-.modal{background:#fff;border-radius:16px;padding:1.5rem;width:90%;max-width:500px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:modalIn .25s ease-out}
+.modal{background:#fff;border-radius:16px;padding:1.5rem;width:90%;max-width:500px;max-height:calc(100vh - 3rem);overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:modalIn .25s ease-out}
 @keyframes modalIn{from{opacity:0;transform:translateY(20px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
 /* Toast notification */
 .toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);background:#c4988a;color:#fff;padding:.8rem 1.5rem;border-radius:12px;font-weight:600;font-size:.9rem;box-shadow:0 8px 25px rgba(196,152,138,.35);z-index:200;transition:transform .3s ease-out;display:flex;align-items:center;gap:.5rem}
@@ -806,6 +806,16 @@ function cargarInventarioCompleto() {
 // ─── Edit modals ─────────────────────────────────────────────────
 function cerrarModal(id) { document.getElementById(id).classList.remove('on'); }
 
+// ESC cierra cualquier modal abierto, click fuera del modal también
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-bg.on').forEach(function(m) { m.classList.remove('on'); });
+  }
+});
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('modal-bg')) { e.target.classList.remove('on'); }
+});
+
 function editarProducto(id) {
   api('GET', '/inventario/productos/' + id).then(function(p) {
     document.getElementById('mep-id').value = p.id;
@@ -1018,6 +1028,22 @@ function cargarDashboard() {
     document.getElementById('d-tickets').textContent = vh.numero_ventas || 0;
     document.getElementById('d-mes').textContent = fmt(vm.total);
   }).catch(function(){});
+
+  // Load top products
+  var hoy = new Date();
+  var inicio = hoy.getFullYear() + '-' + String(hoy.getMonth()+1).padStart(2,'0') + '-01';
+  var fin = hoy.toISOString().split('T')[0];
+  api('GET', '/reportes/productos-mas-vendidos?fecha_inicio=' + inicio + '&fecha_fin=' + fin + '&limit=5').then(function(tops) {
+    var h = '';
+    for (var i = 0; i < tops.length; i++) {
+      var t = tops[i];
+      h += '<div class="srow"><span>' + (t.producto || t.nombre || '') + '</span><span class="green">' + (t.cantidad_vendida || t.cantidad || 0) + ' uds</span></div>';
+    }
+    if (h) document.getElementById('d-top-prod').innerHTML = h;
+    else document.getElementById('d-top-prod').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Sin ventas este mes</span></div>';
+  }).catch(function(){
+    document.getElementById('d-top-prod').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Sin ventas este mes</span></div>';
+  });
 
   // Load today's pedidos for dashboard
   api('GET', '/pedidos/hoy').then(function(peds) {
