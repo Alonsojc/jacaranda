@@ -91,6 +91,9 @@ class Venta(Base):
     detalles: Mapped[list["DetalleVenta"]] = relationship(
         back_populates="venta", cascade="all, delete-orphan"
     )
+    pagos: Mapped[list["PagoVenta"]] = relationship(
+        back_populates="venta", cascade="all, delete-orphan"
+    )
     cfdi: Mapped["CFDIComprobante | None"] = relationship(  # noqa: F821
         back_populates="venta", foreign_keys="[CFDIComprobante.venta_id]", uselist=False,
     )
@@ -117,6 +120,19 @@ class DetalleVenta(Base):
 
     venta: Mapped["Venta"] = relationship(back_populates="detalles")
     producto: Mapped["Producto"] = relationship()  # noqa: F821
+
+
+class PagoVenta(Base):
+    """Pagos individuales de una venta (permite pagos divididos)."""
+    __tablename__ = "pagos_venta"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    venta_id: Mapped[int] = mapped_column(ForeignKey("ventas.id"))
+    metodo_pago: Mapped[MetodoPago] = mapped_column(SAEnum(MetodoPago))
+    monto: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    referencia: Mapped[str | None] = mapped_column(String(100))
+
+    venta: Mapped["Venta"] = relationship(back_populates="pagos")
 
 
 class CorteCaja(Base):
