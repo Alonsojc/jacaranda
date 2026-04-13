@@ -15,6 +15,7 @@ from app.models.inventario import (
     CategoriaProducto, CategoriaProductoEnum, Ingrediente, Producto,
     UnidadMedida, TasaIVA,
 )
+from app.models.receta import Receta, RecetaIngrediente
 
 # Importar todos los modelos
 import app.models  # noqa: F401
@@ -41,6 +42,8 @@ def crear_datos_semilla():
             # Productos sin stock - re-sembrar categorías, ingredientes y productos
             print("Productos sin stock. Re-sembrando inventario...")
             from app.models.inventario import CategoriaProducto as CP, Ingrediente as Ing
+            db.query(RecetaIngrediente).delete()
+            db.query(Receta).delete()
             db.query(Producto).delete()
             db.query(Ing).delete()
             db.query(CP).delete()
@@ -412,20 +415,197 @@ def crear_datos_semilla():
             ),
         ]
         db.add_all(productos)
-
         db.commit()
-        print("Datos semilla insertados exitosamente.")
-        print(f"  - {len([admin, cajero])} usuarios creados")
-        print(f"  - {len(categorias)} categorías")
-        print(f"  - {len(ingredientes)} ingredientes")
-        print(f"  - {len(productos)} productos")
-        print("")
-        print("Credenciales del administrador:")
-        print("  Email: admin@jacaranda.mx")
-        print("  Password: admin1234")
+
+        if not tiene_usuarios:
+            print("Datos semilla insertados exitosamente.")
+            print("  - 2 usuarios creados")
+            print(f"  - {len(categorias)} categorías")
+            print(f"  - {len(ingredientes)} ingredientes")
+            print(f"  - {len(productos)} productos")
+            print("")
+            print("Credenciales del administrador:")
+            print("  Email: admin@jacaranda.mx")
+            print("  Password: admin1234")
+        else:
+            print(f"Inventario re-sembrado: {len(categorias)} cat, {len(ingredientes)} ing, {len(productos)} prod.")
+
+        # --- Recetas (crear si no existen) ---
+        crear_recetas_semilla(db)
 
     finally:
         db.close()
+
+
+def crear_recetas_semilla(db):
+    """Crear recetas vinculando productos con ingredientes."""
+    if db.query(Receta).first():
+        print("Recetas ya existen. Saltando.")
+        return
+
+    def prod_id(nombre):
+        p = db.query(Producto).filter(Producto.nombre == nombre).first()
+        return p.id if p else None
+
+    def ing_id(nombre):
+        i = db.query(Ingrediente).filter(Ingrediente.nombre == nombre).first()
+        return i.id if i else None
+
+    recetas_data = [
+        {
+            "nombre": "Nutella Cookie Pie",
+            "producto": "Nutella Cookie Pie ind.",
+            "rendimiento": 8,
+            "tiempo_prep": 30, "tiempo_horno": 25, "temp": 180,
+            "ingredientes": [
+                ("Harina de trigo", 0.5), ("Mantequilla", 0.3),
+                ("Huevo", 4), ("Nutella", 0.4),
+                ("Galletas Ritz", 0.3), ("Crema para batir", 0.3),
+            ],
+        },
+        {
+            "nombre": "Apple Crumble",
+            "producto": "Apple Crumble ind.",
+            "rendimiento": 8,
+            "tiempo_prep": 25, "tiempo_horno": 35, "temp": 180,
+            "ingredientes": [
+                ("Harina de trigo", 0.5), ("Mantequilla", 0.3),
+                ("Azúcar estándar", 0.3), ("Manzana", 1.0), ("Huevo", 3),
+            ],
+        },
+        {
+            "nombre": "Lemon Pie",
+            "producto": "Lemon Pie ind.",
+            "rendimiento": 8,
+            "tiempo_prep": 30, "tiempo_horno": 20, "temp": 170,
+            "ingredientes": [
+                ("Harina de trigo", 0.4), ("Mantequilla", 0.25),
+                ("Azúcar estándar", 0.3), ("Limón", 0.5),
+                ("Huevo", 4), ("Leche entera", 0.3),
+            ],
+        },
+        {
+            "nombre": "Brownies",
+            "producto": "Brownie",
+            "rendimiento": 16,
+            "tiempo_prep": 15, "tiempo_horno": 25, "temp": 175,
+            "ingredientes": [
+                ("Chocolate semi amargo", 0.5), ("Mantequilla", 0.3),
+                ("Azúcar estándar", 0.4), ("Huevo", 6), ("Harina de trigo", 0.2),
+            ],
+        },
+        {
+            "nombre": "Speculoos Blondies",
+            "producto": "Caja Speculoos Blondies x16",
+            "rendimiento": 1,
+            "tiempo_prep": 15, "tiempo_horno": 25, "temp": 175,
+            "ingredientes": [
+                ("Harina de trigo", 0.3), ("Mantequilla", 0.2),
+                ("Azúcar estándar", 0.2), ("Speculoos", 0.3), ("Huevo", 4),
+            ],
+        },
+        {
+            "nombre": "Galletas surtidas",
+            "producto": "Galletas x4",
+            "rendimiento": 5,
+            "tiempo_prep": 20, "tiempo_horno": 12, "temp": 170,
+            "ingredientes": [
+                ("Harina de trigo", 0.4), ("Mantequilla", 0.25),
+                ("Azúcar estándar", 0.2), ("Huevo", 3),
+            ],
+        },
+        {
+            "nombre": "Polvorones de nuez",
+            "producto": "Polvorones de Nuez x25",
+            "rendimiento": 1,
+            "tiempo_prep": 20, "tiempo_horno": 15, "temp": 165,
+            "ingredientes": [
+                ("Harina de trigo", 0.3), ("Mantequilla", 0.2),
+                ("Azúcar estándar", 0.15), ("Nuez", 0.3),
+            ],
+        },
+        {
+            "nombre": "Linzer",
+            "producto": "Linzer x7",
+            "rendimiento": 1,
+            "tiempo_prep": 25, "tiempo_horno": 14, "temp": 170,
+            "ingredientes": [
+                ("Harina de trigo", 0.3), ("Mantequilla", 0.2),
+                ("Azúcar estándar", 0.15), ("Dulce de leche", 0.2),
+            ],
+        },
+        {
+            "nombre": "Panqué de Zanahoria",
+            "producto": "Panqué de Zanahoria",
+            "rendimiento": 1,
+            "tiempo_prep": 20, "tiempo_horno": 45, "temp": 175,
+            "ingredientes": [
+                ("Harina de trigo", 0.4), ("Zanahoria", 0.5),
+                ("Azúcar estándar", 0.3), ("Huevo", 4), ("Nuez", 0.15),
+            ],
+        },
+        {
+            "nombre": "Panqué de Plátano",
+            "producto": "Panqué de Plátano",
+            "rendimiento": 1,
+            "tiempo_prep": 15, "tiempo_horno": 45, "temp": 175,
+            "ingredientes": [
+                ("Harina de trigo", 0.4), ("Plátano", 0.6),
+                ("Azúcar estándar", 0.25), ("Huevo", 4), ("Mantequilla", 0.15),
+            ],
+        },
+        {
+            "nombre": "Rosca de Chocolate",
+            "producto": "Rosca de Chocolate",
+            "rendimiento": 1,
+            "tiempo_prep": 30, "tiempo_horno": 35, "temp": 170,
+            "ingredientes": [
+                ("Harina de trigo", 0.5), ("Chocolate semi amargo", 0.3),
+                ("Azúcar estándar", 0.25), ("Huevo", 5),
+                ("Mantequilla", 0.2), ("Leche entera", 0.3),
+            ],
+        },
+        {
+            "nombre": "Galletas de Avena",
+            "producto": "Galletas de Avena x20",
+            "rendimiento": 1,
+            "tiempo_prep": 15, "tiempo_horno": 12, "temp": 170,
+            "ingredientes": [
+                ("Avena", 0.4), ("Harina de trigo", 0.2),
+                ("Mantequilla", 0.15), ("Azúcar estándar", 0.2), ("Huevo", 3),
+            ],
+        },
+    ]
+
+    count = 0
+    for rd in recetas_data:
+        pid = prod_id(rd["producto"])
+        if not pid:
+            print(f"  WARN: producto '{rd['producto']}' no encontrado, saltando receta.")
+            continue
+        receta = Receta(
+            producto_id=pid,
+            nombre=rd["nombre"],
+            rendimiento=rd["rendimiento"],
+            tiempo_preparacion_min=rd.get("tiempo_prep"),
+            tiempo_horneado_min=rd.get("tiempo_horno"),
+            temperatura_horneado_c=rd.get("temp"),
+        )
+        db.add(receta)
+        db.flush()
+
+        for ing_nombre, cantidad in rd["ingredientes"]:
+            iid = ing_id(ing_nombre)
+            if iid:
+                db.add(RecetaIngrediente(
+                    receta_id=receta.id,
+                    ingrediente_id=iid,
+                    cantidad=cantidad,
+                ))
+        count += 1
+
+    db.commit()
+    print(f"  - {count} recetas creadas")
 
 
 if __name__ == "__main__":
