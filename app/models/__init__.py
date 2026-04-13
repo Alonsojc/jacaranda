@@ -27,3 +27,7 @@ from app.models.cofepris import (  # noqa: F401
     InspeccionSanitaria, LicenciaSanitaria,
     TipoRegistro, EstadoCumplimiento, AreaEstablecimiento,
 )
+from app.models.pedido import (  # noqa: F401
+    Pedido, DetallePedido, EstadoPedido, OrigenPedido,
+)
+from app.models.conteo_inventario import ConteoInventario  # noqa: F401
