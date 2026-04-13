@@ -122,6 +122,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <a data-pg="ped" onclick="go('ped')">Pedidos</a>
 <a data-pg="inv" onclick="go('inv')">Inventario</a>
 <a data-pg="corte" onclick="go('corte')">Corte</a>
+<a data-pg="listas" onclick="go('listas')">Listas</a>
 <a onclick="conectarAPI()" id="btn-conn" style="cursor:pointer;background:var(--v);color:#fff;border-radius:20px;font-size:.78rem;padding:.5rem .8rem"><span class="conn-dot" id="conn-dot"></span>Conectar</a>
 <a href="https://wa.me/5214424670397" target="_blank" class="wa">WhatsApp</a>
 </div>
@@ -319,6 +320,88 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 </div>
 
+<!-- LISTAS (Admin) -->
+<div class="page" id="listas">
+<h2>Listas</h2>
+<div class="section-tabs" style="margin-bottom:1rem">
+<span class="tab active" onclick="listTab('l-prods')">Productos</span>
+<span class="tab" onclick="listTab('l-ings')">Ingredientes</span>
+<span class="tab" onclick="listTab('l-recs')">Recetas</span>
+</div>
+
+<div id="l-prods">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">Todos los productos. Edita precios, m&iacute;nimos, stock.</p>
+<button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="nuevoProducto()">+ Nuevo Producto</button>
+</div>
+<div class="card" style="overflow-x:auto">
+<input type="text" id="l-prods-buscar" placeholder="Buscar producto..." oninput="filtrarTabla('l-prods-tbl',this.value)" style="width:100%;padding:.45rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.83rem;margin-bottom:.6rem">
+<div id="l-prods-tbl"><p style="color:var(--mut)">Cargando...</p></div>
+</div>
+</div>
+
+<div id="l-ings" style="display:none">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">Ingredientes y materias primas. Edita costos y m&iacute;nimos.</p>
+<button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="nuevoIngrediente()">+ Nuevo Ingrediente</button>
+</div>
+<div class="card" style="overflow-x:auto">
+<input type="text" id="l-ings-buscar" placeholder="Buscar ingrediente..." oninput="filtrarTabla('l-ings-tbl',this.value)" style="width:100%;padding:.45rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.83rem;margin-bottom:.6rem">
+<div id="l-ings-tbl"><p style="color:var(--mut)">Cargando...</p></div>
+</div>
+</div>
+
+<div id="l-recs" style="display:none">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">Recetas con ingredientes. Edita rendimiento y cantidades.</p>
+</div>
+<div class="card" style="overflow-x:auto">
+<div id="l-recs-tbl"><p style="color:var(--mut)">Cargando...</p></div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Nuevo Producto -->
+<div class="modal-bg" id="modal-new-prod">
+<div class="modal">
+<h3>Nuevo Producto</h3>
+<div class="frow">
+<div class="fg"><label>C&oacute;digo</label><input id="mnp-codigo" placeholder="IN-007"></div>
+<div class="fg"><label>Nombre</label><input id="mnp-nombre" placeholder="Galletas de chocolate"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Precio venta</label><input type="number" id="mnp-precio" step="0.01" placeholder="100"></div>
+<div class="fg"><label>Costo producci&oacute;n</label><input type="number" id="mnp-costo" step="0.01" placeholder="35"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Stock m&iacute;nimo</label><input type="number" id="mnp-minimo" step="1" value="0"></div>
+<div class="fg"><label>IVA</label><select id="mnp-iva"><option value="0.16">16%</option><option value="0.00">0%</option><option value="exento">Exento</option></select></div>
+</div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="cobrar" style="flex:1" onclick="crearProducto()">Crear Producto</button>
+<button class="limpiar" style="flex:0 0 auto;padding:.5rem 1.2rem" onclick="cerrarModal('modal-new-prod')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Nuevo Ingrediente -->
+<div class="modal-bg" id="modal-new-ing">
+<div class="modal">
+<h3>Nuevo Ingrediente</h3>
+<div class="frow">
+<div class="fg"><label>Nombre</label><input id="mni-nombre" placeholder="Vainilla"></div>
+<div class="fg"><label>Unidad</label><select id="mni-unidad"><option value="kg">kg</option><option value="g">g</option><option value="l">litro</option><option value="ml">ml</option><option value="pz">pieza</option></select></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Costo unitario ($)</label><input type="number" id="mni-costo" step="0.01" placeholder="50"></div>
+<div class="fg"><label>Stock m&iacute;nimo</label><input type="number" id="mni-minimo" step="0.01" value="0"></div>
+</div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="cobrar" style="flex:1" onclick="crearIngrediente()">Crear Ingrediente</button>
+<button class="limpiar" style="flex:0 0 auto;padding:.5rem 1.2rem" onclick="cerrarModal('modal-new-ing')">Cancelar</button>
+</div>
+</div>
 </div>
 
 <!-- MODAL NUEVO PEDIDO -->
@@ -501,6 +584,7 @@ function go(p) {
   if (p === 'ped') cargarPedidos();
   if (p === 'dash') cargarDashboard();
   if (p === 'corte') generarCorte();
+  if (p === 'listas') cargarListas();
   window.scrollTo(0, 0);
 }
 
@@ -843,6 +927,7 @@ function guardarProducto() {
     toast('Producto actualizado');
     cerrarModal('modal-edit-prod');
     cargarProductos();
+    cargarListaProductos();
   }).catch(function() { toast('Error al guardar', true); });
 }
 
@@ -859,9 +944,10 @@ function guardarAjuste() {
   var motivo = document.getElementById('maj-motivo').value;
   api('POST', '/inventario/productos/' + id + '/ajuste-stock?cantidad=' + nuevoStock + '&motivo=' + encodeURIComponent(motivo))
   .then(function(r) {
-    toast(r.producto + ': ' + r.stock_anterior + ' → ' + r.stock_nuevo + ' pzas');
+    toast(r.producto + ': ' + r.stock_anterior + ' \u2192 ' + r.stock_nuevo + ' pzas');
     cerrarModal('modal-ajuste');
     cargarProductos();
+    cargarListaProductos();
   }).catch(function() { toast('Error al ajustar stock', true); });
 }
 
@@ -891,6 +977,7 @@ function guardarIngrediente() {
     toast('Ingrediente actualizado');
     cerrarModal('modal-edit-ing');
     cargarIngredientes();
+    cargarListaIngredientes();
   }).catch(function() { toast('Error al guardar', true); });
 }
 
@@ -970,7 +1057,181 @@ function guardarReceta() {
     toast('Receta actualizada');
     cerrarModal('modal-edit-rec');
     cargarRecetas();
+    cargarListaRecetas();
   }).catch(function() { toast('Error al guardar receta', true); });
+}
+
+// ─── Listas page ─────────────────────────────────────────────────
+function listTab(tab) {
+  ['l-prods','l-ings','l-recs'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#listas .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+}
+
+function filtrarTabla(id, q) {
+  q = q.toLowerCase();
+  var rows = document.querySelectorAll('#' + id + ' table tr');
+  for (var i = 1; i < rows.length; i++) {
+    var txt = rows[i].textContent.toLowerCase();
+    rows[i].style.display = txt.indexOf(q) >= 0 ? '' : 'none';
+  }
+}
+
+function cargarListas() {
+  cargarListaProductos();
+  cargarListaIngredientes();
+  cargarListaRecetas();
+}
+
+function cargarListaProductos() {
+  api('GET', '/inventario/productos').then(function(prods) {
+    var h = '<table class="tbl"><tr><th>C&oacute;digo</th><th>Producto</th><th>Precio</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th>IVA</th><th></th></tr>';
+    for (var i = 0; i < prods.length; i++) {
+      var p = prods[i];
+      var stock = parseFloat(p.stock_actual) || 0;
+      var min = parseFloat(p.stock_minimo) || 0;
+      var precio = parseFloat(p.precio_unitario) || 0;
+      var costo = parseFloat(p.costo_produccion) || 0;
+      var iva = p.tasa_iva === '0.16' ? '16%' : p.tasa_iva === '0.00' ? '0%' : 'Ext';
+      h += '<tr>';
+      h += '<td style="color:var(--mut);font-size:.78rem">' + p.codigo + '</td>';
+      h += '<td><strong>' + p.nombre + '</strong></td>';
+      h += '<td>$' + precio.toFixed(0) + '</td>';
+      h += '<td style="color:var(--mut)">$' + costo.toFixed(0) + '</td>';
+      h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + p.nombre.replace(/'/g,"\\'") + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline">' + Math.round(stock) + '</a></td>';
+      h += '<td>' + Math.round(min) + '</td>';
+      h += '<td>' + iva + '</td>';
+      h += '<td><a href="#" onclick="editarProducto(' + p.id + ');return false" title="Editar" style="font-size:.9rem">&#9998;</a></td>';
+      h += '</tr>';
+    }
+    h += '</table>';
+    document.getElementById('l-prods-tbl').innerHTML = h;
+  }).catch(function() {
+    document.getElementById('l-prods-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>';
+  });
+}
+
+function cargarListaIngredientes() {
+  api('GET', '/inventario/ingredientes').then(function(ings) {
+    _allIngs = ings;
+    var h = '<table class="tbl"><tr><th>Ingrediente</th><th>Stock</th><th>Unidad</th><th>Costo</th><th>M&iacute;n</th><th>Estado</th><th></th></tr>';
+    for (var i = 0; i < ings.length; i++) {
+      var g = ings[i];
+      var stock = parseFloat(g.stock_actual) || 0;
+      var min = parseFloat(g.stock_minimo) || 0;
+      var costo = parseFloat(g.costo_unitario) || 0;
+      var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
+      var txt = stock <= 0 ? 'Urgente' : stock <= min ? 'Pedir' : 'OK';
+      h += '<tr>';
+      h += '<td><strong>' + g.nombre + '</strong></td>';
+      h += '<td>' + stock.toFixed(1) + '</td>';
+      h += '<td>' + g.unidad_medida + '</td>';
+      h += '<td>$' + costo.toFixed(0) + '</td>';
+      h += '<td>' + min + '</td>';
+      h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
+      h += '<td><a href="#" onclick="editarIngrediente(' + g.id + ');return false" title="Editar" style="font-size:.9rem">&#9998;</a></td>';
+      h += '</tr>';
+    }
+    h += '</table>';
+    document.getElementById('l-ings-tbl').innerHTML = h;
+  }).catch(function() {
+    document.getElementById('l-ings-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>';
+  });
+}
+
+function cargarListaRecetas() {
+  api('GET', '/recetas/').then(function(recs) {
+    var h = '';
+    for (var i = 0; i < recs.length; i++) {
+      var r = recs[i];
+      var rend = Math.round(parseFloat(r.rendimiento));
+      h += '<div class="card" style="margin-bottom:.6rem;padding:.8rem 1rem">';
+      h += '<div style="display:flex;justify-content:space-between;align-items:center">';
+      h += '<div><strong>' + r.nombre + '</strong> <span style="color:var(--mut);font-size:.82rem">&mdash; rinde ' + rend + ' pzas';
+      if (r.tiempo_horneado_min) h += ' &bull; ' + r.tiempo_horneado_min + ' min';
+      if (r.temperatura_horneado_c) h += ' &bull; ' + r.temperatura_horneado_c + '&deg;C';
+      h += '</span></div>';
+      h += '<a href="#" onclick="editarReceta(' + r.id + ');return false" style="font-size:.9rem;cursor:pointer" title="Editar">&#9998;</a>';
+      h += '</div>';
+      if (r.ingredientes && r.ingredientes.length) {
+        h += '<div style="margin-top:.4rem;display:flex;flex-wrap:wrap;gap:.3rem">';
+        for (var j = 0; j < r.ingredientes.length; j++) {
+          var ri = r.ingredientes[j];
+          var ingNom = '(ID ' + ri.ingrediente_id + ')';
+          for (var k = 0; k < _allIngs.length; k++) {
+            if (_allIngs[k].id === ri.ingrediente_id) { ingNom = _allIngs[k].nombre; break; }
+          }
+          h += '<span class="badge bok" style="font-weight:400">' + ingNom + ' ' + parseFloat(ri.cantidad) + '</span>';
+        }
+        h += '</div>';
+      }
+      h += '</div>';
+    }
+    if (!h) h = '<p style="color:var(--mut)">Sin recetas</p>';
+    document.getElementById('l-recs-tbl').innerHTML = h;
+  }).catch(function() {
+    document.getElementById('l-recs-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>';
+  });
+}
+
+// ─── Create new product/ingredient ──────────────────────────────
+function nuevoProducto() {
+  document.getElementById('mnp-codigo').value = '';
+  document.getElementById('mnp-nombre').value = '';
+  document.getElementById('mnp-precio').value = '';
+  document.getElementById('mnp-costo').value = '';
+  document.getElementById('mnp-minimo').value = '0';
+  document.getElementById('mnp-iva').value = '0.16';
+  document.getElementById('modal-new-prod').classList.add('on');
+}
+
+function crearProducto() {
+  var codigo = document.getElementById('mnp-codigo').value.trim();
+  var nombre = document.getElementById('mnp-nombre').value.trim();
+  var precio = parseFloat(document.getElementById('mnp-precio').value);
+  if (!codigo || !nombre || !precio) { toast('Llena código, nombre y precio', true); return; }
+  var data = {
+    codigo: codigo,
+    nombre: nombre,
+    precio_unitario: precio,
+    costo_produccion: parseFloat(document.getElementById('mnp-costo').value) || 0,
+    stock_minimo: parseFloat(document.getElementById('mnp-minimo').value) || 0,
+    tasa_iva: document.getElementById('mnp-iva').value,
+  };
+  api('POST', '/inventario/productos', data).then(function() {
+    toast('Producto creado: ' + nombre);
+    cerrarModal('modal-new-prod');
+    cargarListaProductos();
+    cargarProductos();
+  }).catch(function() { toast('Error al crear producto', true); });
+}
+
+function nuevoIngrediente() {
+  document.getElementById('mni-nombre').value = '';
+  document.getElementById('mni-unidad').value = 'kg';
+  document.getElementById('mni-costo').value = '';
+  document.getElementById('mni-minimo').value = '0';
+  document.getElementById('modal-new-ing').classList.add('on');
+}
+
+function crearIngrediente() {
+  var nombre = document.getElementById('mni-nombre').value.trim();
+  if (!nombre) { toast('Escribe el nombre del ingrediente', true); return; }
+  var data = {
+    nombre: nombre,
+    unidad_medida: document.getElementById('mni-unidad').value,
+    costo_unitario: parseFloat(document.getElementById('mni-costo').value) || 0,
+    stock_minimo: parseFloat(document.getElementById('mni-minimo').value) || 0,
+  };
+  api('POST', '/inventario/ingredientes', data).then(function() {
+    toast('Ingrediente creado: ' + nombre);
+    cerrarModal('modal-new-ing');
+    cargarListaIngredientes();
+    cargarIngredientes();
+  }).catch(function() { toast('Error al crear ingrediente', true); });
 }
 
 // ─── Connection status ────────────────────────────────────────────
