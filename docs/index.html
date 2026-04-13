@@ -166,6 +166,14 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div id="d-alertas"><div class="srow" style="color:var(--mut)"><span>Sin alertas</span></div></div>
 </div>
 </div>
+<div class="row r2">
+<div class="card"><h3>Caducidades pr&oacute;ximas</h3>
+<div id="d-caducidad"><div class="srow" style="color:var(--mut)"><span>Sin alertas de caducidad</span></div></div>
+</div>
+<div class="card"><h3>Pron&oacute;stico de hoy</h3>
+<div id="d-pronostico"><div class="srow" style="color:var(--mut)"><span>Conecta para ver sugerencia</span></div></div>
+</div>
+</div>
 </div>
 
 <!-- POS -->
@@ -239,6 +247,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <span class="tab" onclick="invTab('compras')">Registrar compra</span>
 <span class="tab" onclick="invTab('hornear')">Hornear</span>
 <span class="tab" onclick="invTab('conteo')">Conteo nocturno</span>
+<span class="tab" onclick="invTab('pronostico')">Pron&oacute;stico</span>
 </div>
 
 <div id="inv-productos">
@@ -316,6 +325,14 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div id="conteo-list"><p style="color:var(--mut);font-size:.83rem">Cargando productos...</p></div>
 <button class="cobrar" style="margin-top:.8rem" onclick="guardarConteo()">Guardar Conteo</button>
 </div>
+
+<div id="inv-pronostico" style="display:none">
+<p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Sugerencia de producci&oacute;n basada en ventas de las &uacute;ltimas 4 semanas (mismo d&iacute;a).</p>
+<div class="card">
+<h3>Qu&eacute; hornear hoy</h3>
+<div id="pronostico-list"><p style="color:var(--mut);font-size:.83rem">Cargando pron&oacute;stico...</p></div>
+</div>
+</div>
 </div>
 
 <!-- CORTE DE CAJA -->
@@ -373,6 +390,27 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <p style="font-size:.72rem;color:var(--mut);margin-top:.5rem">* Utilidad bruta = ventas - compras de ingredientes. No incluye renta, n&oacute;mina ni otros gastos fijos.</p>
 </div>
 </div>
+
+<!-- Gastos fijos -->
+<div class="card" style="margin-bottom:1rem">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+<h3 style="margin:0">Gastos fijos mensuales</h3>
+<button class="cobrar" style="width:auto;padding:.3rem .8rem;font-size:.78rem;margin:0" onclick="abrirNuevoGasto()">+ Agregar</button>
+</div>
+<div id="c-gastos-fijos-list"><p style="color:var(--mut);font-size:.83rem;text-align:center">Cargando...</p></div>
+<div id="c-gastos-fijos-total" style="display:none;border-top:2px solid var(--brd);padding-top:.5rem;margin-top:.5rem">
+<div class="srow" style="font-weight:700"><span>Total mensual</span><span id="c-gf-total">$0</span></div>
+<div class="srow"><span>Equivalente diario</span><span id="c-gf-diario" style="color:var(--mut)">$0</span></div>
+</div>
+</div>
+
+<!-- Historial cortes -->
+<div class="card">
+<h3>Historial de cortes</h3>
+<div id="c-historial" style="max-height:300px;overflow-y:auto">
+<p style="color:var(--mut);font-size:.83rem;text-align:center">Cargando...</p>
+</div>
+</div>
 </div>
 
 <!-- LISTAS (Admin) -->
@@ -382,6 +420,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <span class="tab active" onclick="listTab('l-prods')">Productos</span>
 <span class="tab" onclick="listTab('l-ings')">Ingredientes</span>
 <span class="tab" onclick="listTab('l-recs')">Recetas</span>
+<span class="tab" onclick="listTab('l-clientes')">Clientes</span>
 </div>
 
 <div id="l-prods">
@@ -415,6 +454,26 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 <div class="card" style="overflow-x:auto">
 <div id="l-recs-tbl"><p style="color:var(--mut)">Cargando...</p></div>
+</div>
+</div>
+
+<div id="l-clientes" style="display:none">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">Clientes registrados. Click en un cliente para ver su historial.</p>
+<button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="nuevoCliente()">+ Nuevo Cliente</button>
+</div>
+<div class="card">
+<input type="text" id="l-clientes-buscar" placeholder="Buscar cliente..." oninput="filtrarTabla('l-clientes-tbl',this.value)" style="width:100%;padding:.45rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.83rem;margin-bottom:.6rem">
+<div id="l-clientes-tbl"><p style="color:var(--mut)">Cargando...</p></div>
+</div>
+<div id="l-cliente-detalle" class="card" style="display:none;margin-top:1rem">
+<h3 id="lcd-nombre">Cliente</h3>
+<div class="row r3" style="margin-bottom:.5rem">
+<div class="card kpi g"><div class="n" id="lcd-total">$0</div><div class="l">Total compras</div></div>
+<div class="card kpi"><div class="n" id="lcd-visitas">0</div><div class="l">Visitas</div></div>
+<div class="card kpi a"><div class="n" id="lcd-promedio">$0</div><div class="l">Ticket promedio</div></div>
+</div>
+<div id="lcd-compras" style="max-height:250px;overflow-y:auto"></div>
 </div>
 </div>
 </div>
@@ -565,6 +624,45 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 </div>
 </div><!-- /wrap -->
+
+<!-- MODAL: Gasto Fijo -->
+<div class="modal-bg" id="modal-gasto">
+<div class="modal" style="max-width:380px">
+<h3 id="mg-title">Nuevo gasto fijo</h3>
+<input type="hidden" id="mg-id" value="">
+<div class="fg"><label>Concepto</label><input id="mg-concepto" placeholder="Renta, Luz, Gas, N&oacute;mina..."></div>
+<div class="frow">
+<div class="fg"><label>Monto ($)</label><input type="number" id="mg-monto" step="0.01" placeholder="5000"></div>
+<div class="fg"><label>Periodicidad</label><select id="mg-periodicidad"><option value="mensual">Mensual</option><option value="quincenal">Quincenal</option><option value="semanal">Semanal</option></select></div>
+</div>
+<div class="fg"><label>Notas (opcional)</label><input id="mg-notas" placeholder=""></div>
+<div style="display:flex;gap:.5rem;margin-top:1rem">
+<button class="cobrar" style="flex:1" onclick="guardarGasto()">Guardar</button>
+<button class="limpiar" style="flex:1" onclick="cerrarModal('modal-gasto')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Nuevo Cliente -->
+<div class="modal-bg" id="modal-cliente">
+<div class="modal" style="max-width:420px">
+<h3>Nuevo cliente</h3>
+<div class="fg"><label>Nombre *</label><input id="mc-nombre" placeholder="Mar&iacute;a Garc&iacute;a"></div>
+<div class="frow">
+<div class="fg"><label>Tel&eacute;fono</label><input id="mc-tel" placeholder="442 123 4567"></div>
+<div class="fg"><label>Email</label><input id="mc-email" placeholder="correo@mail.com"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>RFC (facturaci&oacute;n)</label><input id="mc-rfc" placeholder="XAXX010101000" maxlength="13" style="text-transform:uppercase"></div>
+<div class="fg"><label>R&eacute;gimen fiscal</label><input id="mc-regimen" placeholder="612"></div>
+</div>
+<div class="fg"><label>Notas</label><input id="mc-notas" placeholder=""></div>
+<div style="display:flex;gap:.5rem;margin-top:1rem">
+<button class="cobrar" style="flex:1" onclick="guardarCliente()">Guardar</button>
+<button class="limpiar" style="flex:1" onclick="cerrarModal('modal-cliente')">Cancelar</button>
+</div>
+</div>
+</div>
 
 <!-- MODAL: Facturar -->
 <div class="modal-bg" id="modal-facturar">
@@ -1589,7 +1687,7 @@ function conectarAPI() {
 
 // ─── Inventario tabs ──────────────────────────────────────────────
 function invTab(tab) {
-  ['productos','ingredientes','compras','hornear','conteo'].forEach(function(t) {
+  ['productos','ingredientes','compras','hornear','conteo','pronostico'].forEach(function(t) {
     var el = document.getElementById('inv-' + t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
@@ -1598,6 +1696,7 @@ function invTab(tab) {
   if (tab === 'productos') cargarProductos();
   if (tab === 'ingredientes') cargarIngredientes();
   if (tab === 'conteo') cargarConteo();
+  if (tab === 'pronostico') cargarPronostico();
 }
 
 function registrarCompra() {
@@ -1824,19 +1923,32 @@ function exportarCorte() {
   var tickets = document.getElementById('c-tickets').textContent;
   var gastos = document.getElementById('c-gastos-total').textContent;
   var utilidad = document.getElementById('c-util-neta').textContent;
-  var txt = 'CORTE DE CAJA - JACARANDA\n';
-  txt += fecha + '\n';
-  txt += '========================\n';
-  txt += 'Efectivo: ' + ef + '\n';
-  txt += 'Tarjeta: ' + tar + '\n';
-  txt += 'Transferencia: ' + trans + '\n';
-  txt += '------------------------\n';
-  txt += 'Total ventas: ' + total + '\n';
-  txt += 'Tickets: ' + tickets + '\n';
-  txt += 'Gastos: ' + gastos + '\n';
-  txt += 'Utilidad: ' + utilidad + '\n';
-  txt += '========================\n';
-  txt += 'Jacaranda - sharing flavors';
+  var fondo = document.getElementById('c-fondo').value || '2000';
+  var real = document.getElementById('c-real').value || '--';
+  var dif = document.getElementById('c-dif').textContent;
+  var diasNombre = ['Domingo','Lunes','Martes','Mi\u00e9rcoles','Jueves','Viernes','S\u00e1bado'];
+  var d = new Date(fecha + 'T12:00:00');
+  var diaNombre = diasNombre[d.getDay()];
+  var txt = '\ud83c\udf5e *CORTE DE CAJA*\n';
+  txt += '*Jacaranda* \u2014 ' + diaNombre + ' ' + fecha + '\n';
+  txt += '\n';
+  txt += '\ud83d\udcb0 *Ventas por m\u00e9todo:*\n';
+  txt += '  \ud83d\udcb5 Efectivo: ' + ef + '\n';
+  txt += '  \ud83d\udcb3 Tarjeta: ' + tar + '\n';
+  txt += '  \ud83c\udfe6 Transferencia: ' + trans + '\n';
+  txt += '\n';
+  txt += '\ud83d\udcca *Resumen:*\n';
+  txt += '  Total ventas: ' + total + '\n';
+  txt += '  Tickets: ' + tickets + '\n';
+  txt += '  Gastos (compras): ' + gastos + '\n';
+  txt += '  *Utilidad: ' + utilidad + '*\n';
+  txt += '\n';
+  txt += '\ud83d\udcdd *Caja:*\n';
+  txt += '  Fondo: $' + fondo + '\n';
+  txt += '  Contado: $' + real + '\n';
+  txt += '  Diferencia: ' + dif + '\n';
+  txt += '\n';
+  txt += '\u2728 _Jacaranda - sharing flavors_';
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(txt).then(function() { toast('Corte copiado — pégalo en WhatsApp'); });
   } else {
@@ -2299,12 +2411,13 @@ function guardarReceta() {
 
 // ─── Listas page ─────────────────────────────────────────────────
 function listTab(tab) {
-  ['l-prods','l-ings','l-recs'].forEach(function(t) {
+  ['l-prods','l-ings','l-recs','l-clientes'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('#listas .tab').forEach(function(t) { t.classList.remove('active'); });
   event.target.classList.add('active');
+  if (tab === 'l-clientes') cargarListaClientes();
 }
 
 function filtrarTabla(id, q) {
@@ -2320,6 +2433,7 @@ function cargarListas() {
   cargarListaProductos();
   cargarListaIngredientes();
   cargarListaRecetas();
+  cargarListaClientes();
 }
 
 function cargarListaProductos() {
@@ -2569,6 +2683,8 @@ function cargarCorte() {
   });
   // Load expenses for selected date
   cargarGastos(hoy);
+  cargarGastosFijos();
+  cargarHistorialCortes();
 }
 
 function cargarGastos(fecha) {
@@ -2629,6 +2745,204 @@ function realizarCorte() {
     var dif = parseFloat(corte.diferencia) || 0;
     toast('Corte registrado \u2014 Diferencia: $' + dif.toFixed(2));
   }).catch(function(e) { toast(e.message || 'Error al registrar corte', true); });
+}
+
+// ─── Clientes ────────────────────────────────────────────────────
+function cargarListaClientes() {
+  api('GET', '/clientes/').then(function(cls) {
+    if (!cls.length) { document.getElementById('l-clientes-tbl').innerHTML = '<p style="color:var(--mut)">Sin clientes registrados</p>'; return; }
+    var h = '<table class="tbl"><tr><th>Nombre</th><th>Tel&eacute;fono</th><th>Email</th><th>RFC</th><th>Puntos</th></tr>';
+    for (var i = 0; i < cls.length; i++) {
+      var c = cls[i];
+      h += '<tr style="cursor:pointer" onclick="verHistorialCliente(' + c.id + ')">';
+      h += '<td><strong>' + c.nombre + '</strong></td>';
+      h += '<td>' + (c.telefono || '-') + '</td>';
+      h += '<td style="font-size:.78rem">' + (c.email || '-') + '</td>';
+      h += '<td style="font-size:.78rem">' + (c.rfc || '-') + '</td>';
+      h += '<td>' + (c.puntos_acumulados || 0) + '</td>';
+      h += '</tr>';
+    }
+    h += '</table>';
+    document.getElementById('l-clientes-tbl').innerHTML = h;
+  }).catch(function() {
+    document.getElementById('l-clientes-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>';
+  });
+}
+
+function verHistorialCliente(id) {
+  api('GET', '/clientes/' + id + '/historial').then(function(d) {
+    document.getElementById('lcd-nombre').textContent = d.cliente.nombre + (d.cliente.telefono ? ' — ' + d.cliente.telefono : '');
+    document.getElementById('lcd-total').textContent = fmt(d.total_compras);
+    document.getElementById('lcd-visitas').textContent = d.numero_visitas;
+    document.getElementById('lcd-promedio').textContent = fmt(d.ticket_promedio);
+    var h = '';
+    for (var i = 0; i < d.compras.length; i++) {
+      var c = d.compras[i];
+      h += '<div class="srow"><span>' + c.folio + ' &bull; ' + c.fecha + '</span><span class="green">$' + c.total.toFixed(2) + '</span></div>';
+    }
+    if (!h) h = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin compras registradas</p>';
+    document.getElementById('lcd-compras').innerHTML = h;
+    document.getElementById('l-cliente-detalle').style.display = 'block';
+  }).catch(function() { toast('Error al cargar historial', true); });
+}
+
+function nuevoCliente() {
+  document.getElementById('mc-nombre').value = '';
+  document.getElementById('mc-tel').value = '';
+  document.getElementById('mc-email').value = '';
+  document.getElementById('mc-rfc').value = '';
+  document.getElementById('mc-regimen').value = '';
+  document.getElementById('mc-notas').value = '';
+  document.getElementById('modal-cliente').classList.add('on');
+}
+
+function guardarCliente() {
+  var nombre = document.getElementById('mc-nombre').value.trim();
+  if (!nombre) { toast('El nombre es obligatorio', true); return; }
+  api('POST', '/clientes/', {
+    nombre: nombre,
+    telefono: document.getElementById('mc-tel').value.trim() || null,
+    email: document.getElementById('mc-email').value.trim() || null,
+    rfc: document.getElementById('mc-rfc').value.trim().toUpperCase() || null,
+    regimen_fiscal: document.getElementById('mc-regimen').value.trim() || null,
+    notas: document.getElementById('mc-notas').value.trim() || null,
+  }).then(function() {
+    toast('Cliente creado');
+    cerrarModal('modal-cliente');
+    cargarListaClientes();
+  }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+
+// ─── Gastos fijos ────────────────────────────────────────────────
+function cargarGastosFijos() {
+  api('GET', '/punto-de-venta/gastos-fijos').then(function(gastos) {
+    if (!gastos.length) {
+      document.getElementById('c-gastos-fijos-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin gastos fijos. Agrega renta, luz, etc.</p>';
+      document.getElementById('c-gastos-fijos-total').style.display = 'none';
+      return;
+    }
+    var h = '';
+    var total = 0;
+    for (var i = 0; i < gastos.length; i++) {
+      var g = gastos[i];
+      var m = g.monto;
+      if (g.periodicidad === 'quincenal') m = g.monto * 2;
+      else if (g.periodicidad === 'semanal') m = g.monto * 4.33;
+      total += m;
+      h += '<div class="srow">';
+      h += '<span>' + g.concepto + ' <span style="font-size:.72rem;color:var(--mut)">(' + g.periodicidad + ')</span></span>';
+      h += '<span style="display:flex;align-items:center;gap:.3rem">';
+      h += '<span style="color:#b91c1c;font-weight:600">$' + g.monto.toFixed(0) + '</span>';
+      h += '<a href="#" onclick="editarGasto(' + g.id + ',\'' + g.concepto.replace(/'/g,"\\'") + '\',' + g.monto + ',\'' + g.periodicidad + '\',\'' + (g.notas||'').replace(/'/g,"\\'") + '\');return false" style="font-size:.8rem">&#9998;</a>';
+      h += '<a href="#" onclick="eliminarGasto(' + g.id + ');return false" style="font-size:.8rem;color:#b91c1c">&times;</a>';
+      h += '</span></div>';
+    }
+    document.getElementById('c-gastos-fijos-list').innerHTML = h;
+    document.getElementById('c-gastos-fijos-total').style.display = 'block';
+    document.getElementById('c-gf-total').textContent = '$' + total.toFixed(0);
+    document.getElementById('c-gf-diario').textContent = '$' + (total / 30).toFixed(0);
+  }).catch(function() {
+    document.getElementById('c-gastos-fijos-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar</p>';
+  });
+}
+
+function abrirNuevoGasto() {
+  document.getElementById('mg-id').value = '';
+  document.getElementById('mg-title').textContent = 'Nuevo gasto fijo';
+  document.getElementById('mg-concepto').value = '';
+  document.getElementById('mg-monto').value = '';
+  document.getElementById('mg-periodicidad').value = 'mensual';
+  document.getElementById('mg-notas').value = '';
+  document.getElementById('modal-gasto').classList.add('on');
+}
+
+function editarGasto(id, concepto, monto, periodicidad, notas) {
+  document.getElementById('mg-id').value = id;
+  document.getElementById('mg-title').textContent = 'Editar gasto fijo';
+  document.getElementById('mg-concepto').value = concepto;
+  document.getElementById('mg-monto').value = monto;
+  document.getElementById('mg-periodicidad').value = periodicidad;
+  document.getElementById('mg-notas').value = notas;
+  document.getElementById('modal-gasto').classList.add('on');
+}
+
+function guardarGasto() {
+  var id = document.getElementById('mg-id').value;
+  var data = {
+    concepto: document.getElementById('mg-concepto').value.trim(),
+    monto: parseFloat(document.getElementById('mg-monto').value) || 0,
+    periodicidad: document.getElementById('mg-periodicidad').value,
+    notas: document.getElementById('mg-notas').value.trim() || null,
+  };
+  if (!data.concepto || !data.monto) { toast('Llena concepto y monto', true); return; }
+  var method = id ? 'PUT' : 'POST';
+  var url = id ? '/punto-de-venta/gastos-fijos/' + id : '/punto-de-venta/gastos-fijos';
+  api(method, url, data).then(function() {
+    toast('Gasto guardado');
+    cerrarModal('modal-gasto');
+    cargarGastosFijos();
+  }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+
+function eliminarGasto(id) {
+  if (!confirm('Eliminar este gasto fijo?')) return;
+  api('DELETE', '/punto-de-venta/gastos-fijos/' + id).then(function() {
+    toast('Gasto eliminado');
+    cargarGastosFijos();
+  }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+
+// ─── Historial cortes ────────────────────────────────────────────
+function cargarHistorialCortes() {
+  api('GET', '/punto-de-venta/cortes-caja?limit=15').then(function(cortes) {
+    if (!cortes.length) {
+      document.getElementById('c-historial').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin cortes registrados</p>';
+      return;
+    }
+    var h = '<table class="tbl"><tr><th>Fecha</th><th>Ventas</th><th>Tickets</th><th>Efectivo</th><th>Diferencia</th></tr>';
+    for (var i = 0; i < cortes.length; i++) {
+      var c = cortes[i];
+      var f = new Date(c.fecha).toLocaleDateString('es-MX', {day:'2-digit',month:'short'});
+      var dif = parseFloat(c.diferencia) || 0;
+      var difColor = Math.abs(dif) < 1 ? 'var(--grn)' : '#b91c1c';
+      h += '<tr>';
+      h += '<td>' + f + '</td>';
+      h += '<td class="green">$' + parseFloat(c.total_ventas).toFixed(0) + '</td>';
+      h += '<td>' + c.numero_ventas + '</td>';
+      h += '<td>$' + parseFloat(c.total_ventas_efectivo).toFixed(0) + '</td>';
+      h += '<td style="color:' + difColor + ';font-weight:600">$' + dif.toFixed(2) + '</td>';
+      h += '</tr>';
+    }
+    h += '</table>';
+    document.getElementById('c-historial').innerHTML = h;
+  }).catch(function() {
+    document.getElementById('c-historial').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar</p>';
+  });
+}
+
+// ─── Pronóstico producción ───────────────────────────────────────
+function cargarPronostico() {
+  api('GET', '/reportes/pronostico-produccion').then(function(items) {
+    if (!items.length) {
+      document.getElementById('pronostico-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Sin datos suficientes. Se necesitan al menos 1 semana de ventas.</p>';
+      return;
+    }
+    var h = '<table class="tbl"><tr><th>Producto</th><th>Stock</th><th>Prom. venta</th><th>Hornear</th></tr>';
+    for (var i = 0; i < items.length; i++) {
+      var p = items[i];
+      var cls = p.sugerido_hornear > 0 ? 'font-weight:700;color:var(--v)' : 'color:var(--mut)';
+      h += '<tr>';
+      h += '<td>' + p.nombre + '</td>';
+      h += '<td>' + Math.round(p.stock_actual) + '</td>';
+      h += '<td>' + p.promedio_venta_dia + '</td>';
+      h += '<td style="' + cls + '">' + p.sugerido_hornear + '</td>';
+      h += '</tr>';
+    }
+    h += '</table>';
+    document.getElementById('pronostico-list').innerHTML = h;
+  }).catch(function() {
+    document.getElementById('pronostico-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar</p>';
+  });
 }
 
 // ─── Dashboard data ───────────────────────────────────────────────
@@ -2708,6 +3022,31 @@ function cargarDashboard() {
       }
     }
     renderDashAlertas(a);
+  }).catch(function(){});
+
+  // Alertas de caducidad
+  api('GET', '/reportes/alertas-caducidad?dias=7').then(function(items) {
+    if (!items.length) { document.getElementById('d-caducidad').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Sin alertas de caducidad</span></div>'; return; }
+    var h = '';
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      var cls = it.vencido ? 'bout' : it.dias_restantes <= 2 ? 'blow' : 'bok';
+      var txt = it.vencido ? 'Vencido' : it.dias_restantes + ' d\u00edas';
+      h += '<div class="srow"><span>' + it.ingrediente + ' (Lote: ' + it.numero_lote + ')</span><span class="badge ' + cls + '">' + txt + '</span></div>';
+    }
+    document.getElementById('d-caducidad').innerHTML = h;
+  }).catch(function(){});
+
+  // Pronóstico rápido
+  api('GET', '/reportes/pronostico-produccion').then(function(items) {
+    var hornear = items.filter(function(p) { return p.sugerido_hornear > 0; });
+    if (!hornear.length) { document.getElementById('d-pronostico').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Stock suficiente</span></div>'; return; }
+    var h = '';
+    for (var i = 0; i < Math.min(hornear.length, 5); i++) {
+      var p = hornear[i];
+      h += '<div class="srow"><span>' + p.nombre + '</span><span style="font-weight:700;color:var(--v)">' + p.sugerido_hornear + ' pzas</span></div>';
+    }
+    document.getElementById('d-pronostico').innerHTML = h;
   }).catch(function(){});
 }
 var _dashAlertas = '';

@@ -31,3 +31,4 @@ from app.models.pedido import (  # noqa: F401
     Pedido, DetallePedido, EstadoPedido, OrigenPedido,
 )
 from app.models.conteo_inventario import ConteoInventario  # noqa: F401
+from app.models.gasto_fijo import GastoFijo  # noqa: F401

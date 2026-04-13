@@ -1,18 +1,43 @@
 """Rutas de punto de venta (POS)."""
 
 from datetime import date
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.usuario import Usuario
+from app.models.venta import CorteCaja
+from app.models.gasto_fijo import GastoFijo
 from app.schemas.venta import (
     VentaCreate, VentaResponse, TicketResponse, CorteCajaCreate, CorteCajaResponse,
 )
 from app.services import venta_service as svc
 
 router = APIRouter()
+
+
+# --- Schemas inline para gastos fijos ---
+class GastoFijoCreate(BaseModel):
+    concepto: str
+    monto: Decimal
+    periodicidad: str = "mensual"
+    dia_pago: int | None = None
+    notas: str | None = None
+
+
+class GastoFijoResponse(BaseModel):
+    id: int
+    concepto: str
+    monto: Decimal
+    periodicidad: str
+    dia_pago: int | None
+    notas: str | None
+    activo: bool
+    model_config = {"from_attributes": True}
 
 
 @router.post("/ventas", response_model=VentaResponse, status_code=201)
@@ -74,3 +99,51 @@ def realizar_corte(
     user: Usuario = Depends(get_current_user),
 ):
     return svc.realizar_corte_caja(db, data, user.id)
+
+
+@router.get("/cortes-caja", response_model=list[CorteCajaResponse])
+def historial_cortes(
+    limit: int = Query(default=30, le=100),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Historial de cortes de caja."""
+    return db.query(CorteCaja).order_by(desc(CorteCaja.fecha)).limit(limit).all()
+
+
+# --- Gastos fijos ---
+
+@router.get("/gastos-fijos", response_model=list[GastoFijoResponse])
+def listar_gastos_fijos(db: Session = Depends(get_db)):
+    return db.query(GastoFijo).filter(GastoFijo.activo.is_(True)).all()
+
+
+@router.post("/gastos-fijos", response_model=GastoFijoResponse, status_code=201)
+def crear_gasto_fijo(data: GastoFijoCreate, db: Session = Depends(get_db)):
+    gasto = GastoFijo(**data.model_dump())
+    db.add(gasto)
+    db.commit()
+    db.refresh(gasto)
+    return gasto
+
+
+@router.put("/gastos-fijos/{id}", response_model=GastoFijoResponse)
+def actualizar_gasto_fijo(id: int, data: GastoFijoCreate, db: Session = Depends(get_db)):
+    gasto = db.query(GastoFijo).filter(GastoFijo.id == id).first()
+    if not gasto:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    for key, value in data.model_dump().items():
+        setattr(gasto, key, value)
+    db.commit()
+    db.refresh(gasto)
+    return gasto
+
+
+@router.delete("/gastos-fijos/{id}")
+def eliminar_gasto_fijo(id: int, db: Session = Depends(get_db)):
+    gasto = db.query(GastoFijo).filter(GastoFijo.id == id).first()
+    if not gasto:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    gasto.activo = False
+    db.commit()
+    return {"ok": True}
