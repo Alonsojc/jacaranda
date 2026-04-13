@@ -3,313 +3,293 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>J A C A R A N D A - Tu postre favorito</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<title>JACARANDA flavors</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--violet:#7c3aed;--purple:#9333ea;--lavender:#c4b5fd;--cream:#fdf8f0;--dark:#1a1025;--card:#fff;--text:#3d2e4f;--muted:#8b7a9e;--green:#10b981;--amber:#f59e0b;--pink:#ec4899;--border:#e8dff0}
-body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--text);min-height:100vh}
-nav{background:#fff;border-bottom:1px solid var(--border);padding:.8rem 2rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;box-shadow:0 1px 8px rgba(124,58,237,.06)}
-nav .logo{font-family:'Playfair Display',serif;font-size:1.3rem;color:var(--violet);letter-spacing:.3em;font-weight:700}
-nav .logo span{color:var(--pink)}
-nav ul{list-style:none;display:flex;gap:1.8rem}
-nav ul li a{text-decoration:none;color:var(--muted);font-size:.85rem;font-weight:500;transition:color .2s}
-nav ul li a:hover,nav ul li a.active{color:var(--violet)}
-nav .wa-btn{background:var(--green);color:#fff;text-decoration:none;padding:.5rem 1rem;border-radius:20px;font-size:.8rem;font-weight:600;display:flex;align-items:center;gap:.4rem}
-.hero{background:linear-gradient(135deg,#7c3aed 0%,#9333ea 40%,#c026d3 100%);padding:3rem 2rem;text-align:center;color:#fff;position:relative;overflow:hidden}
-.hero::before{content:'';position:absolute;top:-50%;right:-20%;width:500px;height:500px;background:radial-gradient(circle,rgba(255,255,255,.08) 0%,transparent 70%);border-radius:50%}
-.hero h1{font-family:'Playfair Display',serif;font-size:2.8rem;letter-spacing:.4em;margin-bottom:.3rem}
-.hero p{font-size:1.1rem;color:#e9d5ff;font-weight:300}
-.hero .loc{font-size:.85rem;color:#ddd6fe;margin-top:.8rem}
-.app{display:flex;min-height:calc(100vh - 200px)}
-.sidebar{width:220px;background:#fff;border-right:1px solid var(--border);padding:1rem 0;flex-shrink:0}
-.sidebar a{display:flex;align-items:center;gap:.6rem;padding:.7rem 1.2rem;text-decoration:none;color:var(--muted);font-size:.85rem;font-weight:500;border-left:3px solid transparent;transition:all .2s}
-.sidebar a:hover,.sidebar a.active{color:var(--violet);background:#f5f0ff;border-left-color:var(--violet)}
-.sidebar a svg{width:18px;height:18px}
-.main{flex:1;padding:1.5rem 2rem;max-width:1100px}
-.main h2{font-family:'Playfair Display',serif;font-size:1.5rem;color:var(--dark);margin-bottom:1.2rem}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
-.kpi{background:#fff;border-radius:14px;padding:1.2rem;border:1px solid var(--border);text-align:center}
-.kpi .val{font-size:1.8rem;font-weight:700;color:var(--violet)}
-.kpi .lbl{font-size:.78rem;color:var(--muted);margin-top:.2rem}
-.kpi.green .val{color:var(--green)}
-.kpi.pink .val{color:var(--pink)}
-.kpi.amber .val{color:var(--amber)}
-.panels{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
-.panel{background:#fff;border-radius:14px;padding:1.3rem;border:1px solid var(--border)}
-.panel h3{font-size:.95rem;font-weight:600;color:var(--dark);margin-bottom:.8rem;display:flex;align-items:center;gap:.4rem}
-.sale-row{display:flex;justify-content:space-between;padding:.45rem 0;border-bottom:1px solid #f3f0f7;font-size:.85rem}
-.sale-row:last-child{border:none}
-.sale-row .amt{font-weight:600;color:var(--green)}
-.sale-row .time{color:var(--muted);font-size:.75rem}
-.prod-row{display:flex;align-items:center;gap:.8rem;padding:.45rem 0;border-bottom:1px solid #f3f0f7;font-size:.85rem}
-.prod-row:last-child{border:none}
-.prod-row .rank{width:22px;height:22px;border-radius:50%;background:var(--violet);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0}
-.prod-row .qty{margin-left:auto;color:var(--muted);font-size:.8rem}
-.bar-chart{margin-top:.5rem}
-.bar-row{display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem;font-size:.8rem}
-.bar-row .day{width:30px;color:var(--muted);text-align:right}
-.bar-row .bar{height:22px;border-radius:6px;background:linear-gradient(90deg,var(--violet),var(--pink));min-width:4px}
-.bar-row .bv{color:var(--muted);font-size:.75rem}
-.pos{display:grid;grid-template-columns:1fr 340px;gap:1.2rem}
-.pos-products{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;align-content:start}
-.pos-item{background:#fff;border-radius:12px;padding:1rem;text-align:center;border:1px solid var(--border);cursor:pointer;transition:all .15s}
-.pos-item:hover{border-color:var(--violet);box-shadow:0 4px 12px rgba(124,58,237,.12)}
-.pos-item .emoji{font-size:2rem;margin-bottom:.3rem}
-.pos-item .pname{font-weight:600;font-size:.85rem}
-.pos-item .pprice{color:var(--violet);font-weight:700;font-size:.95rem;margin-top:.2rem}
-.pos-item .piva{font-size:.65rem;padding:.1rem .4rem;border-radius:4px;display:inline-block;margin-top:.2rem}
-.piva0{background:#d1fae5;color:#047857}
-.piva16{background:#fef3c7;color:#92400e}
-.pos-ticket{background:#fff;border-radius:14px;padding:1.3rem;border:1px solid var(--border)}
-.pos-ticket h3{font-size:.95rem;margin-bottom:.8rem;color:var(--dark)}
-.ticket-item{display:flex;justify-content:space-between;font-size:.84rem;padding:.35rem 0;border-bottom:1px solid #f3f0f7}
-.ticket-item:last-child{border:none}
-.ticket-total{display:flex;justify-content:space-between;font-size:1.1rem;font-weight:700;color:var(--violet);padding:.6rem 0;border-top:2px solid var(--violet);margin-top:.5rem}
-.btn{display:block;width:100%;padding:.8rem;border:none;border-radius:10px;font-size:.95rem;font-weight:600;cursor:pointer;margin-top:.8rem;transition:opacity .2s}
-.btn-primary{background:linear-gradient(135deg,var(--violet),var(--purple));color:#fff}
-.btn-primary:hover{opacity:.9}
-.inv-table{width:100%;border-collapse:collapse;font-size:.84rem}
-.inv-table th{text-align:left;padding:.65rem .8rem;background:#f5f0ff;color:var(--violet);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
-.inv-table td{padding:.6rem .8rem;border-bottom:1px solid #f3f0f7}
-.inv-table tr:hover{background:#faf8ff}
-.stock-badge{padding:.15rem .5rem;border-radius:6px;font-size:.72rem;font-weight:600}
-.stock-ok{background:#d1fae5;color:#047857}
-.stock-low{background:#fef3c7;color:#92400e}
-.stock-out{background:#fee2e2;color:#b91c1c}
-.section-tabs{display:flex;gap:.5rem;margin-bottom:1.2rem}
-.tab{padding:.45rem 1rem;border-radius:8px;font-size:.82rem;font-weight:500;border:1px solid var(--border);background:#fff;color:var(--muted);cursor:pointer}
-.tab.active{background:var(--violet);color:#fff;border-color:var(--violet)}
-.footer{text-align:center;padding:2rem;background:#fff;border-top:1px solid var(--border);color:var(--muted);font-size:.82rem}
-.footer a{color:var(--violet);text-decoration:none}
-.page{display:none}
-.page.active{display:block}
-@media(max-width:768px){
-nav ul{display:none}.sidebar{display:none}.main{padding:1rem}
-.kpis{grid-template-columns:repeat(2,1fr)}.panels{grid-template-columns:1fr}
-.pos{grid-template-columns:1fr}.pos-products{grid-template-columns:repeat(2,1fr)}
-.hero h1{font-size:1.8rem;letter-spacing:.2em}
-}
+:root{--v:#7c3aed;--p:#9333ea;--lav:#c4b5fd;--cream:#fdf8f0;--dk:#1a1025;--txt:#3d2e4f;--mut:#8b7a9e;--grn:#10b981;--amb:#f59e0b;--pk:#ec4899;--brd:#e8dff0}
+body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--txt);min-height:100vh}
+nav{background:#fff;border-bottom:1px solid var(--brd);padding:.7rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.logo{font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--v);letter-spacing:.3em;font-weight:700}
+.logo span{color:var(--pk)}
+.nav-links{display:flex;gap:.3rem}
+.nav-links a{text-decoration:none;color:var(--mut);font-size:.82rem;font-weight:500;padding:.5rem .8rem;border-radius:8px;cursor:pointer}
+.nav-links a:hover,.nav-links a.on{color:var(--v);background:#f5f0ff}
+.wa{background:var(--grn)!important;color:#fff!important;border-radius:20px!important;font-size:.78rem!important}
+.hero{background:linear-gradient(135deg,#7c3aed,#c026d3);padding:2rem;text-align:center;color:#fff}
+.hero h1{font-family:'Playfair Display',serif;font-size:2.2rem;letter-spacing:.4em}
+.hero p{color:#e9d5ff;font-size:1rem;margin-top:.2rem}
+.hero small{color:#ddd6fe;font-size:.8rem}
+.wrap{max-width:1100px;margin:0 auto;padding:1.5rem}
+.page{display:none}.page.on{display:block}
+.row{display:grid;gap:1rem;margin-bottom:1rem}
+.r4{grid-template-columns:repeat(4,1fr)}
+.r2{grid-template-columns:1fr 1fr}
+.r3{grid-template-columns:1fr 1fr 1fr}
+.card{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd)}
+.card h3{font-size:.9rem;font-weight:600;margin-bottom:.7rem;color:var(--dk)}
+.kpi{text-align:center}
+.kpi .n{font-size:1.7rem;font-weight:700;color:var(--v)}
+.kpi .l{font-size:.75rem;color:var(--mut);margin-top:.15rem}
+.kpi.g .n{color:var(--grn)}.kpi.p .n{color:var(--pk)}.kpi.a .n{color:var(--amb)}
+.srow{display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f3f0f7;font-size:.83rem}
+.srow:last-child{border:none}
+.green{color:var(--grn);font-weight:600}
+.badge{padding:.15rem .5rem;border-radius:6px;font-size:.7rem;font-weight:600}
+.bok{background:#d1fae5;color:#047857}.blow{background:#fef3c7;color:#92400e}.bout{background:#fee2e2;color:#b91c1c}
+.bpend{background:#e9d5ff;color:#7c3aed}.bconf{background:#dbeafe;color:#1d4ed8}.bprep{background:#fef3c7;color:#92400e}.blist{background:#d1fae5;color:#047857}
+h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-bottom:1rem}
+/* POS */
+.pos-grid{display:grid;grid-template-columns:1fr 320px;gap:1rem}
+.prods{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem;align-content:start}
+.pi{background:#fff;border-radius:10px;padding:.8rem;text-align:center;border:1px solid var(--brd);cursor:pointer;transition:all .15s}
+.pi:hover{border-color:var(--v);box-shadow:0 3px 10px rgba(124,58,237,.1)}
+.pi .em{font-size:1.8rem}.pi .pn{font-weight:600;font-size:.82rem;margin-top:.2rem}
+.pi .pp{color:var(--v);font-weight:700;font-size:.9rem;margin-top:.15rem}
+.iv{font-size:.6rem;padding:.1rem .35rem;border-radius:4px;display:inline-block;margin-top:.15rem}
+.iv0{background:#d1fae5;color:#047857}.iv16{background:#fef3c7;color:#92400e}
+.tkt{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd)}
+.tkt h3{font-size:.9rem;margin-bottom:.6rem}
+.ti{display:flex;justify-content:space-between;font-size:.82rem;padding:.3rem 0;border-bottom:1px solid #f3f0f7}
+.ttot{display:flex;justify-content:space-between;font-size:1.1rem;font-weight:700;color:var(--v);padding:.5rem 0;border-top:2px solid var(--v);margin-top:.4rem}
+.pmt{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.7rem}
+.pbtn{padding:.7rem;border:2px solid var(--brd);border-radius:10px;background:#fff;cursor:pointer;text-align:center;font-weight:600;font-size:.82rem;transition:all .15s}
+.pbtn:hover{border-color:var(--v)}
+.pbtn.sel{border-color:var(--v);background:#f5f0ff;color:var(--v)}
+.cobrar{display:block;width:100%;padding:.7rem;border:none;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;margin-top:.6rem;background:linear-gradient(135deg,var(--v),var(--p));color:#fff}
+.limpiar{display:block;width:100%;padding:.5rem;border:none;border-radius:8px;font-size:.82rem;cursor:pointer;margin-top:.4rem;background:#f3f0f7;color:var(--v)}
+/* Tabla */
+.tbl{width:100%;border-collapse:collapse;font-size:.82rem}
+.tbl th{text-align:left;padding:.55rem .7rem;background:#f5f0ff;color:var(--v);font-weight:600;font-size:.75rem;text-transform:uppercase}
+.tbl td{padding:.5rem .7rem;border-bottom:1px solid #f3f0f7}
+/* Pedidos */
+.ped{background:#fff;border-radius:10px;padding:1rem;border:1px solid var(--brd);margin-bottom:.7rem}
+.ped .ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem}
+.ped .pf{font-weight:700;color:var(--v);font-size:.9rem}
+.ped .pc{font-size:.83rem;color:var(--dk)}
+.ped .pd{font-size:.78rem;color:var(--mut);margin-top:.3rem}
+.ped .pi2{font-size:.82rem;margin-top:.3rem}
+.modal-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:100;justify-content:center;align-items:center}
+.modal-bg.on{display:flex}
+.modal{background:#fff;border-radius:14px;padding:1.5rem;width:90%;max-width:500px;max-height:85vh;overflow-y:auto}
+.modal h3{font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:1rem}
+.fg{margin-bottom:.8rem}
+.fg label{display:block;font-size:.78rem;font-weight:600;color:var(--mut);margin-bottom:.25rem}
+.fg input,.fg select,.fg textarea{width:100%;padding:.5rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.85rem;font-family:inherit}
+.fg textarea{resize:vertical;height:60px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+.footer{text-align:center;padding:1.5rem;color:var(--mut);font-size:.8rem;border-top:1px solid var(--brd);margin-top:2rem}
+.footer a{color:var(--v);text-decoration:none}
+@media(max-width:768px){.r4{grid-template-columns:1fr 1fr}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.prods{grid-template-columns:repeat(2,1fr)}.nav-links{gap:0}.nav-links a{padding:.4rem .5rem;font-size:.75rem}}
 </style>
 </head>
 <body>
-
 <nav>
 <div class="logo">JACARANDA <span>flavors</span></div>
-<ul>
-<li><a href="#" class="active" onclick="showPage('dashboard')">Dashboard</a></li>
-<li><a href="#" onclick="showPage('pos')">Punto de Venta</a></li>
-<li><a href="#" onclick="showPage('inventario')">Inventario</a></li>
-<li><a href="#" onclick="showPage('info')">Sistema</a></li>
-</ul>
-<a href="https://wa.me/5214424670397" target="_blank" class="wa-btn">&#9742; WhatsApp</a>
+<div class="nav-links">
+<a class="on" onclick="go('dash')">Inicio</a>
+<a onclick="go('pos')">Venta</a>
+<a onclick="go('ped')">Pedidos</a>
+<a onclick="go('inv')">Inventario</a>
+<a onclick="go('corte')">Corte</a>
+<a href="https://wa.me/5214424670397" target="_blank" class="wa">WhatsApp</a>
+</div>
 </nav>
-
 <div class="hero">
 <h1>JACARANDA</h1>
 <p>Tu postre favorito</p>
-<div class="loc">Plaza Distrito Marqu&eacute;s, Quer&eacute;taro, QRO &bull; L-V 9:30-18:30 &bull; S&aacute;b 10:30-14:30</div>
+<small>Plaza Distrito Marqu&eacute;s, Quer&eacute;taro &bull; L-V 9:30-18:30 &bull; S&aacute;b 10:30-14:30 &bull; <a href="https://instagram.com/jacaranda.flavors" target="_blank" style="color:#e9d5ff">@jacaranda.flavors</a></small>
 </div>
-
-<div class="app">
-<div class="sidebar">
-<a href="#" class="active" onclick="showPage('dashboard')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Dashboard</a>
-<a href="#" onclick="showPage('pos')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg> Punto de Venta</a>
-<a href="#" onclick="showPage('inventario')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg> Inventario</a>
-<a href="#" onclick="showPage('info')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg> Sistema</a>
-<a href="https://instagram.com/jacaranda.flavors" target="_blank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg> Instagram</a>
-<a href="https://wa.me/5214424670397" target="_blank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> WhatsApp</a>
-</div>
-
-<div class="main">
+<div class="wrap">
 
 <!-- DASHBOARD -->
-<div class="page active" id="page-dashboard">
-<h2>Dashboard - Hoy, 12 de Abril 2026</h2>
-<div class="kpis">
-<div class="kpi green"><div class="val">$14,850</div><div class="lbl">Ventas del d&iacute;a</div></div>
-<div class="kpi"><div class="val">47</div><div class="lbl">Tickets emitidos</div></div>
-<div class="kpi pink"><div class="val">$316</div><div class="lbl">Ticket promedio</div></div>
-<div class="kpi amber"><div class="val">3</div><div class="lbl">Alertas stock bajo</div></div>
+<div class="page on" id="dash">
+<h2>Dashboard &mdash; Hoy</h2>
+<div class="row r4">
+<div class="card kpi g"><div class="n">$14,850</div><div class="l">Ventas del d&iacute;a</div></div>
+<div class="card kpi"><div class="n">$9,200</div><div class="l">Efectivo (CLIP)</div></div>
+<div class="card kpi p"><div class="n">$5,650</div><div class="l">Tarjeta (BBVA)</div></div>
+<div class="card kpi a"><div class="n">47</div><div class="l">Tickets</div></div>
 </div>
-<div class="panels">
-<div class="panel">
-<h3>&#128200; Ventas de la semana</h3>
-<div class="bar-chart">
-<div class="bar-row"><span class="day">Lun</span><div class="bar" style="width:70%"></div><span class="bv">$12,400</span></div>
-<div class="bar-row"><span class="day">Mar</span><div class="bar" style="width:65%"></div><span class="bv">$11,200</span></div>
-<div class="bar-row"><span class="day">Mi&eacute;</span><div class="bar" style="width:80%"></div><span class="bv">$13,800</span></div>
-<div class="bar-row"><span class="day">Jue</span><div class="bar" style="width:60%"></div><span class="bv">$10,500</span></div>
-<div class="bar-row"><span class="day">Vie</span><div class="bar" style="width:90%"></div><span class="bv">$15,600</span></div>
-<div class="bar-row"><span class="day">S&aacute;b</span><div class="bar" style="width:100%"></div><span class="bv">$18,200</span></div>
+<div class="row r2">
+<div class="card"><h3>Productos m&aacute;s vendidos</h3>
+<div class="srow"><span>1. Nutella</span><span class="green">32 pzas</span></div>
+<div class="srow"><span>2. Manzana</span><span class="green">24 pzas</span></div>
+<div class="srow"><span>3. Brownies</span><span class="green">18 pzas</span></div>
+<div class="srow"><span>4. Galletas</span><span class="green">15 pzas</span></div>
+<div class="srow"><span>5. Velas</span><span class="green">8 pzas</span></div>
 </div>
-</div>
-<div class="panel">
-<h3>&#127942; M&aacute;s vendidos hoy</h3>
-<div class="prod-row"><span class="rank">1</span><span>Concha chocolate</span><span class="qty">84 pzas</span></div>
-<div class="prod-row"><span class="rank">2</span><span>Bolillo</span><span class="qty">120 pzas</span></div>
-<div class="prod-row"><span class="rank">3</span><span>Cuerno</span><span class="qty">56 pzas</span></div>
-<div class="prod-row"><span class="rank">4</span><span>Polvor&oacute;n</span><span class="qty">42 pzas</span></div>
-<div class="prod-row"><span class="rank">5</span><span>Pastel chocolate 1kg</span><span class="qty">8 pzas</span></div>
+<div class="card"><h3>Pedidos de hoy</h3>
+<div class="srow"><span>P-00012 &bull; Jimena &bull; Hotel La Grande</span><span class="badge blist">Listo</span></div>
+<div class="srow"><span>P-00013 &bull; Carlos &bull; Recoger 14:00</span><span class="badge bprep">Preparando</span></div>
+<div class="srow"><span>P-00014 &bull; Mar&iacute;a &bull; Entregar 17:00</span><span class="badge bconf">Confirmado</span></div>
+<div class="srow"><span>P-00015 &bull; Andrea &bull; Recoger 18:00</span><span class="badge bpend">Recibido</span></div>
 </div>
 </div>
-<div class="panels">
-<div class="panel">
-<h3>&#128176; &Uacute;ltimas ventas</h3>
-<div class="sale-row"><span>Ticket T-0047 <span class="time">15:42</span></span><span class="amt">$463.50</span></div>
-<div class="sale-row"><span>Ticket T-0046 <span class="time">15:18</span></span><span class="amt">$87.00</span></div>
-<div class="sale-row"><span>Ticket T-0045 <span class="time">14:55</span></span><span class="amt">$1,250.00</span></div>
-<div class="sale-row"><span>Ticket T-0044 <span class="time">14:30</span></span><span class="amt">$156.50</span></div>
-<div class="sale-row"><span>Ticket T-0043 <span class="time">14:02</span></span><span class="amt">$320.00</span></div>
+<div class="row r2">
+<div class="card"><h3>Inventario - Conteo de anoche</h3>
+<div class="srow"><span>Nutella</span><span>45 pzas</span></div>
+<div class="srow"><span>Manzana</span><span>30 pzas</span></div>
+<div class="srow"><span>Brownies</span><span>25 pzas</span></div>
+<div class="srow"><span>Galletas (6pz)</span><span>20 bolsas</span></div>
+<div class="srow"><span>Velas</span><span>12 pzas</span></div>
 </div>
-<div class="panel">
-<h3>&#9888;&#65039; Alertas</h3>
-<div class="sale-row"><span>Harina de trigo</span><span class="stock-badge stock-low">Stock bajo: 5kg</span></div>
-<div class="sale-row"><span>Mantequilla</span><span class="stock-badge stock-low">Stock bajo: 2kg</span></div>
-<div class="sale-row"><span>Chocolate cobertura</span><span class="stock-badge stock-out">Agotado</span></div>
-<div class="sale-row"><span>Temp. refrigerador #2</span><span class="stock-badge stock-low">6.2&deg;C (l&iacute;mite 4&deg;C)</span></div>
+<div class="card"><h3>Alertas</h3>
+<div class="srow"><span>Galletas</span><span class="badge blow">Quedan 5</span></div>
+<div class="srow"><span>Velas</span><span class="badge blow">Quedan 4</span></div>
+<div class="srow"><span>Ticket T-0039 sin producto anotado</span><span class="badge bout">Revisar</span></div>
 </div>
 </div>
 </div>
 
-<!-- PUNTO DE VENTA -->
-<div class="page" id="page-pos">
+<!-- POS -->
+<div class="page" id="pos">
 <h2>Punto de Venta</h2>
-<div class="pos">
-<div class="pos-products">
-<div class="pos-item" onclick="addItem('Bolillo',2.50,0)"><div class="emoji">&#127838;</div><div class="pname">Bolillo</div><div class="pprice">$2.50</div><span class="piva piva0">IVA 0%</span></div>
-<div class="pos-item" onclick="addItem('Telera',2.50,0)"><div class="emoji">&#127838;</div><div class="pname">Telera</div><div class="pprice">$2.50</div><span class="piva piva0">IVA 0%</span></div>
-<div class="pos-item" onclick="addItem('Concha choco',15,0)"><div class="emoji">&#127850;</div><div class="pname">Concha choco</div><div class="pprice">$15.00</div><span class="piva piva0">IVA 0%</span></div>
-<div class="pos-item" onclick="addItem('Concha vainilla',15,0)"><div class="emoji">&#127856;</div><div class="pname">Concha vainilla</div><div class="pprice">$15.00</div><span class="piva piva0">IVA 0%</span></div>
-<div class="pos-item" onclick="addItem('Cuerno',15,0)"><div class="emoji">&#129360;</div><div class="pname">Cuerno</div><div class="pprice">$15.00</div><span class="piva piva0">IVA 0%</span></div>
-<div class="pos-item" onclick="addItem('Polvor&oacute;n',12,0)"><div class="emoji">&#127850;</div><div class="pname">Polvor&oacute;n</div><div class="pprice">$12.00</div><span class="piva piva0">IVA 0%</span></div>
-<div class="pos-item" onclick="addItem('Pastel choco 1kg',350,16)"><div class="emoji">&#127874;</div><div class="pname">Pastel choco 1kg</div><div class="pprice">$350.00</div><span class="piva piva16">IVA 16%</span></div>
-<div class="pos-item" onclick="addItem('Pastel 3 leches 1kg',380,16)"><div class="emoji">&#127874;</div><div class="pname">3 Leches 1kg</div><div class="pprice">$380.00</div><span class="piva piva16">IVA 16%</span></div>
-<div class="pos-item" onclick="addItem('Galletas (6pz)',85,16)"><div class="emoji">&#127850;</div><div class="pname">Galletas (6pz)</div><div class="pprice">$85.00</div><span class="piva piva16">IVA 16%</span></div>
+<div class="pos-grid">
+<div class="prods">
+<div class="pi" onclick="add('Nutella',85,16)"><div class="em">&#127856;</div><div class="pn">Nutella</div><div class="pp">$85</div><span class="iv iv16">IVA 16%</span></div>
+<div class="pi" onclick="add('Manzana',75,16)"><div class="em">&#127822;</div><div class="pn">Manzana</div><div class="pp">$75</div><span class="iv iv16">IVA 16%</span></div>
+<div class="pi" onclick="add('Brownies',45,16)"><div class="em">&#127851;</div><div class="pn">Brownies</div><div class="pp">$45</div><span class="iv iv16">IVA 16%</span></div>
+<div class="pi" onclick="add('Galletas 6pz',85,16)"><div class="em">&#127850;</div><div class="pn">Galletas 6pz</div><div class="pp">$85</div><span class="iv iv16">IVA 16%</span></div>
+<div class="pi" onclick="add('Velas',35,16)"><div class="em">&#127870;</div><div class="pn">Velas</div><div class="pp">$35</div><span class="iv iv16">IVA 16%</span></div>
+<div class="pi" onclick="add('Pastel 1kg',350,16)"><div class="em">&#127874;</div><div class="pn">Pastel 1kg</div><div class="pp">$350</div><span class="iv iv16">IVA 16%</span></div>
+<div class="pi" onclick="add('Bolillo',2.5,0)"><div class="em">&#127838;</div><div class="pn">Bolillo</div><div class="pp">$2.50</div><span class="iv iv0">IVA 0%</span></div>
+<div class="pi" onclick="add('Concha',15,0)"><div class="em">&#127849;</div><div class="pn">Concha</div><div class="pp">$15</div><span class="iv iv0">IVA 0%</span></div>
+<div class="pi" onclick="add('Cuerno',15,0)"><div class="em">&#129360;</div><div class="pn">Cuerno</div><div class="pp">$15</div><span class="iv iv0">IVA 0%</span></div>
 </div>
-<div class="pos-ticket">
-<h3>&#128196; Ticket de Venta</h3>
-<div id="ticket-items"></div>
-<div id="ticket-summary" style="display:none">
-<div class="ticket-item"><span>Subtotal</span><span id="t-sub">$0.00</span></div>
-<div class="ticket-item"><span>IVA 0%</span><span>$0.00</span></div>
-<div class="ticket-item"><span>IVA 16%</span><span id="t-iva">$0.00</span></div>
-<div class="ticket-total"><span>TOTAL</span><span id="t-total">$0.00</span></div>
+<div class="tkt">
+<h3>Ticket</h3>
+<div id="titems"></div>
+<div id="tsum" style="display:none">
+<div class="ti"><span>Subtotal</span><span id="tsub"></span></div>
+<div class="ti"><span>IVA 16%</span><span id="tiva"></span></div>
+<div class="ttot"><span>TOTAL</span><span id="ttot"></span></div>
 </div>
-<button class="btn btn-primary" onclick="cobrar()">Cobrar</button>
-<button class="btn" style="background:#f3f0f7;color:var(--violet)" onclick="limpiar()">Limpiar</button>
+<div style="font-size:.78rem;color:var(--mut);margin:.6rem 0 .3rem;font-weight:600">M&eacute;todo de pago:</div>
+<div class="pmt">
+<div class="pbtn sel" id="pm-ef" onclick="setPm('ef')">&#128181; Efectivo (CLIP)</div>
+<div class="pbtn" id="pm-ta" onclick="setPm('ta')">&#128179; Tarjeta (BBVA)</div>
+</div>
+<button class="cobrar" onclick="cobrar()">Cobrar</button>
+<button class="limpiar" onclick="limpiar()">Limpiar</button>
 </div>
 </div>
+</div>
+
+<!-- PEDIDOS -->
+<div class="page" id="ped">
+<h2>Pedidos <button class="cobrar" style="display:inline;width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0 0 0 1rem;vertical-align:middle" onclick="document.getElementById('modal-ped').classList.add('on')">+ Nuevo Pedido</button></h2>
+<div class="row r3" style="margin-bottom:.5rem">
+<div class="card kpi"><div class="n">4</div><div class="l">Hoy</div></div>
+<div class="card kpi a"><div class="n">2</div><div class="l">Ma&ntilde;ana</div></div>
+<div class="card kpi p"><div class="n">7</div><div class="l">Esta semana</div></div>
+</div>
+<div class="ped"><div class="ph"><span class="pf">P-00012</span><span class="badge blist">Listo</span></div><div class="pc"><strong>Jimena</strong> &bull; Hotel La Grande &bull; Entregar 12:00</div><div class="pi2">1x Pastel Nutella 1.5kg con letrero "Feliz Cumplea&ntilde;os"</div><div class="pd">WhatsApp &bull; Anticipo $200 &bull; Total $520</div></div>
+<div class="ped"><div class="ph"><span class="pf">P-00013</span><span class="badge bprep">Preparando</span></div><div class="pc"><strong>Carlos M.</strong> &bull; Recoger en tienda &bull; 14:00</div><div class="pi2">2x Brownies, 1x Galletas 6pz, 1x Pastel Manzana 1kg</div><div class="pd">Tienda &bull; Total $560</div></div>
+<div class="ped"><div class="ph"><span class="pf">P-00014</span><span class="badge bconf">Confirmado</span></div><div class="pc"><strong>Mar&iacute;a L.</strong> &bull; Entregar Juriquilla &bull; 17:00</div><div class="pi2">1x Pastel Tres Leches 2kg, 12x Conchas surtidas</div><div class="pd">WhatsApp &bull; Anticipo $300 &bull; Total $850</div></div>
+<div class="ped"><div class="ph"><span class="pf">P-00015</span><span class="badge bpend">Recibido</span></div><div class="pc"><strong>Andrea S.</strong> &bull; Recoger en tienda &bull; 18:00</div><div class="pi2">3x Nutella individual</div><div class="pd">Instagram &bull; Total $255</div></div>
 </div>
 
 <!-- INVENTARIO -->
-<div class="page" id="page-inventario">
-<h2>Inventario</h2>
-<div class="section-tabs">
-<span class="tab active">Productos</span>
-<span class="tab">Ingredientes</span>
-<span class="tab">Proveedores</span>
-</div>
-<div class="panel" style="overflow-x:auto">
-<table class="inv-table">
-<tr><th>Producto</th><th>Categor&iacute;a</th><th>Precio</th><th>IVA</th><th>Stock</th><th>Estado</th></tr>
-<tr><td>Bolillo</td><td>Pan Blanco</td><td>$2.50</td><td>0%</td><td>200</td><td><span class="stock-badge stock-ok">OK</span></td></tr>
-<tr><td>Telera</td><td>Pan Blanco</td><td>$2.50</td><td>0%</td><td>150</td><td><span class="stock-badge stock-ok">OK</span></td></tr>
-<tr><td>Concha chocolate</td><td>Pan Dulce</td><td>$15.00</td><td>0%</td><td>80</td><td><span class="stock-badge stock-ok">OK</span></td></tr>
-<tr><td>Concha vainilla</td><td>Pan Dulce</td><td>$15.00</td><td>0%</td><td>75</td><td><span class="stock-badge stock-ok">OK</span></td></tr>
-<tr><td>Cuerno</td><td>Pan Dulce</td><td>$15.00</td><td>0%</td><td>60</td><td><span class="stock-badge stock-ok">OK</span></td></tr>
-<tr><td>Polvor&oacute;n</td><td>Pan Dulce</td><td>$12.00</td><td>0%</td><td>45</td><td><span class="stock-badge stock-ok">OK</span></td></tr>
-<tr><td>Pastel chocolate 1kg</td><td>Pasteler&iacute;a</td><td>$350.00</td><td>16%</td><td>5</td><td><span class="stock-badge stock-low">Bajo</span></td></tr>
-<tr><td>Pastel tres leches 1kg</td><td>Pasteler&iacute;a</td><td>$380.00</td><td>16%</td><td>4</td><td><span class="stock-badge stock-low">Bajo</span></td></tr>
+<div class="page" id="inv">
+<h2>Inventario &mdash; Conteo nocturno</h2>
+<p style="font-size:.85rem;color:var(--mut);margin-bottom:1rem">Lo que se cont&oacute; anoche. Inicio del d&iacute;a + horneado - vendido = esperado. Si no cuadra, se marca la diferencia.</p>
+<div class="card" style="overflow-x:auto">
+<table class="tbl">
+<tr><th>Producto</th><th>Anoche</th><th>+ Horneado</th><th>- Vendido</th><th>Esperado</th><th>Conteo real</th><th>Dif</th><th>Estado</th></tr>
+<tr><td>Nutella</td><td>45</td><td>+20</td><td>-32</td><td>33</td><td>33</td><td>0</td><td><span class="badge bok">OK</span></td></tr>
+<tr><td>Manzana</td><td>30</td><td>+15</td><td>-24</td><td>21</td><td>21</td><td>0</td><td><span class="badge bok">OK</span></td></tr>
+<tr><td>Brownies</td><td>25</td><td>+12</td><td>-18</td><td>19</td><td>17</td><td style="color:#b91c1c;font-weight:700">-2</td><td><span class="badge bout">Revisar</span></td></tr>
+<tr><td>Galletas 6pz</td><td>20</td><td>+0</td><td>-15</td><td>5</td><td>5</td><td>0</td><td><span class="badge blow">Stock bajo</span></td></tr>
+<tr><td>Velas</td><td>12</td><td>+0</td><td>-8</td><td>4</td><td>4</td><td>0</td><td><span class="badge blow">Stock bajo</span></td></tr>
+<tr><td>Bolillo</td><td>0</td><td>+200</td><td>-120</td><td>80</td><td>80</td><td>0</td><td><span class="badge bok">OK</span></td></tr>
+<tr><td>Concha</td><td>0</td><td>+100</td><td>-56</td><td>44</td><td>44</td><td>0</td><td><span class="badge bok">OK</span></td></tr>
+<tr><td>Cuerno</td><td>0</td><td>+80</td><td>-42</td><td>38</td><td>38</td><td>0</td><td><span class="badge bok">OK</span></td></tr>
 </table>
 </div>
 </div>
 
-<!-- SISTEMA -->
-<div class="page" id="page-info">
-<h2>Acerca del Sistema</h2>
-<div class="kpis" style="margin-bottom:1.5rem">
-<div class="kpi"><div class="val">9</div><div class="lbl">M&oacute;dulos</div></div>
-<div class="kpi green"><div class="val">50</div><div class="lbl">Tests pasando</div></div>
-<div class="kpi pink"><div class="val">8</div><div class="lbl">Leyes cumplidas</div></div>
-<div class="kpi amber"><div class="val">6,200+</div><div class="lbl">L&iacute;neas de c&oacute;digo</div></div>
+<!-- CORTE DE CAJA -->
+<div class="page" id="corte">
+<h2>Corte de Caja</h2>
+<div class="row r2">
+<div class="card">
+<h3>Resumen del d&iacute;a</h3>
+<div class="srow"><span>Total ventas</span><span class="green">$14,850.00</span></div>
+<div class="srow"><span>Efectivo (CLIP)</span><span>$9,200.00</span></div>
+<div class="srow"><span>Tarjeta (BBVA)</span><span>$5,650.00</span></div>
+<div class="srow"><span>Tickets efectivo</span><span>29</span></div>
+<div class="srow"><span>Tickets tarjeta</span><span>18</span></div>
+<div class="srow" style="border-top:2px solid var(--v);font-weight:700;color:var(--v)"><span>Total tickets</span><span>47</span></div>
 </div>
-<div class="panels">
-<div class="panel">
-<h3>&#9878;&#65039; Cumplimiento Legal</h3>
-<div class="sale-row"><span><strong>SAT / CFF</strong></span><span>CFDI 4.0</span></div>
-<div class="sale-row"><span><strong>LIVA</strong></span><span>IVA 0% / 16%</span></div>
-<div class="sale-row"><span><strong>LISR Art. 96</strong></span><span>ISR n&oacute;mina</span></div>
-<div class="sale-row"><span><strong>LFT</strong></span><span>Vacaciones, aguinaldo, PTU</span></div>
-<div class="sale-row"><span><strong>LSS / IMSS</strong></span><span>Cuotas obrero-patronales</span></div>
-<div class="sale-row"><span><strong>COFEPRIS</strong></span><span>NOM-251 higiene</span></div>
-<div class="sale-row"><span><strong>NOM-051</strong></span><span>Sellos de advertencia</span></div>
-<div class="sale-row"><span><strong>LFPC</strong></span><span>Protecci&oacute;n consumidor</span></div>
-</div>
-<div class="panel">
-<h3>&#128640; Tecnolog&iacute;a</h3>
-<div class="sale-row"><span>Backend</span><span>Python + FastAPI</span></div>
-<div class="sale-row"><span>ORM</span><span>SQLAlchemy</span></div>
-<div class="sale-row"><span>Base de datos</span><span>SQLite</span></div>
-<div class="sale-row"><span>Auth</span><span>JWT custom (stdlib)</span></div>
-<div class="sale-row"><span>Facturaci&oacute;n</span><span>CFDI 4.0 XML</span></div>
-<div class="sale-row"><span>Tests</span><span>pytest (50 tests)</span></div>
+<div class="card">
+<h3>Cuadre de caja</h3>
+<div class="srow"><span>Fondo inicial</span><span>$2,000.00</span></div>
+<div class="srow"><span>+ Ventas efectivo</span><span>$9,200.00</span></div>
+<div class="srow"><span>- Retiros</span><span>$0.00</span></div>
+<div class="srow" style="font-weight:700"><span>Efectivo esperado</span><span>$11,200.00</span></div>
+<div class="srow" style="font-weight:700"><span>Efectivo real (contado)</span><span>$11,200.00</span></div>
+<div class="srow" style="font-weight:700;color:var(--grn)"><span>Diferencia</span><span>$0.00 &#10004;</span></div>
 </div>
 </div>
-<div class="panel" style="margin-top:1rem">
-<h3>&#128187; Inicio r&aacute;pido</h3>
-<pre style="background:#1a1025;color:var(--lavender);padding:1rem;border-radius:10px;font-size:.85rem;overflow-x:auto;line-height:1.8">pip install -r requirements.txt
-python scripts/init_db.py
-uvicorn main:app --reload
-<span style="color:#8b7a9e"># Abrir http://localhost:8000/docs</span></pre>
-<p style="margin-top:.6rem;font-size:.85rem">Credenciales: <strong>admin@jacaranda.mx</strong> / <strong>admin1234</strong></p>
+<div class="card">
+<h3>Desglose por producto</h3>
+<table class="tbl">
+<tr><th>Producto</th><th>Qty</th><th>Efectivo</th><th>Tarjeta</th><th>Total</th></tr>
+<tr><td>Nutella</td><td>32</td><td>$1,530</td><td>$1,190</td><td>$2,720</td></tr>
+<tr><td>Manzana</td><td>24</td><td>$900</td><td>$900</td><td>$1,800</td></tr>
+<tr><td>Brownies</td><td>18</td><td>$450</td><td>$360</td><td>$810</td></tr>
+<tr><td>Galletas 6pz</td><td>15</td><td>$680</td><td>$595</td><td>$1,275</td></tr>
+<tr><td>Velas</td><td>8</td><td>$140</td><td>$140</td><td>$280</td></tr>
+<tr><td>Bolillo</td><td>120</td><td>$300</td><td>$0</td><td>$300</td></tr>
+<tr><td>Concha</td><td>56</td><td>$520</td><td>$320</td><td>$840</td></tr>
+<tr><td>Cuerno</td><td>42</td><td>$380</td><td>$250</td><td>$630</td></tr>
+</table>
 </div>
 </div>
 
+</div>
+
+<!-- MODAL NUEVO PEDIDO -->
+<div class="modal-bg" id="modal-ped">
+<div class="modal">
+<h3>Nuevo Pedido</h3>
+<div class="frow">
+<div class="fg"><label>Nombre del cliente</label><input id="np-nom" placeholder="Jimena"></div>
+<div class="fg"><label>Tel&eacute;fono</label><input id="np-tel" placeholder="442 467 0397"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Fecha de entrega</label><input type="date" id="np-fecha"></div>
+<div class="fg"><label>Hora</label><input id="np-hora" placeholder="14:00"></div>
+</div>
+<div class="fg"><label>Lugar de entrega</label><input id="np-lugar" placeholder="Hotel La Grande / Recoger en tienda"></div>
+<div class="fg"><label>Productos</label><textarea id="np-prod" placeholder="1x Pastel Nutella 1.5kg con letrero&#10;2x Brownies"></textarea></div>
+<div class="frow">
+<div class="fg"><label>Anticipo</label><input type="number" id="np-ant" placeholder="0"></div>
+<div class="fg"><label>Origen</label><select><option>WhatsApp</option><option>Tienda</option><option>Instagram</option><option>Tel&eacute;fono</option></select></div>
+</div>
+<div class="fg"><label>Notas internas</label><input id="np-notas" placeholder="Sin fresas, alergia a nuez..."></div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="cobrar" style="flex:1" onclick="guardarPed()">Guardar Pedido</button>
+<button class="limpiar" style="flex:0 0 auto;padding:.5rem 1.2rem" onclick="document.getElementById('modal-ped').classList.remove('on')">Cancelar</button>
+</div>
 </div>
 </div>
 
 <div class="footer">
-<strong style="font-family:'Playfair Display',serif;letter-spacing:.2em;color:var(--violet)">JACARANDA</strong> flavors &mdash; Tu postre favorito<br>
-Plaza Distrito Marqu&eacute;s, Quer&eacute;taro, QRO &bull;
-<a href="https://instagram.com/jacaranda.flavors" target="_blank">@jacaranda.flavors</a> &bull;
-<a href="https://wa.me/5214424670397" target="_blank">WhatsApp</a>
+<strong style="font-family:'Playfair Display',serif;letter-spacing:.2em;color:var(--v)">JACARANDA</strong> <span style="color:var(--pk)">flavors</span> &mdash; Tu postre favorito<br>
+Plaza Distrito Marqu&eacute;s, Quer&eacute;taro &bull; <a href="https://instagram.com/jacaranda.flavors" target="_blank">@jacaranda.flavors</a> &bull; <a href="https://wa.me/5214424670397" target="_blank">WhatsApp</a>
 </div>
 
 <script>
-var cart=[];
-function showPage(p){
-document.querySelectorAll('.page').forEach(function(el){el.classList.remove('active')});
-document.getElementById('page-'+p).classList.add('active');
-document.querySelectorAll('nav ul li a').forEach(function(a){a.classList.remove('active')});
-document.querySelectorAll('.sidebar a').forEach(function(a){a.classList.remove('active')});
-}
-function addItem(name,price,iva){
-var found=false;
-for(var i=0;i<cart.length;i++){if(cart[i].name===name){cart[i].qty++;found=true;break;}}
-if(!found)cart.push({name:name,price:price,iva:iva,qty:1});
-renderTicket();
-}
-function renderTicket(){
-var html='',sub=0,ivaTotal=0;
-for(var i=0;i<cart.length;i++){
-var c=cart[i],line=c.price*c.qty;sub+=line;
-ivaTotal+=c.iva===16?line*0.16:0;
-html+='<div class="ticket-item"><span>'+c.qty+'x '+c.name+'</span><span>$'+line.toFixed(2)+'</span></div>';
-}
-document.getElementById('ticket-items').innerHTML=html;
-document.getElementById('ticket-summary').style.display=cart.length?'block':'none';
-document.getElementById('t-sub').textContent='$'+sub.toFixed(2);
-document.getElementById('t-iva').textContent='$'+ivaTotal.toFixed(2);
-document.getElementById('t-total').textContent='$'+(sub+ivaTotal).toFixed(2);
-}
-function cobrar(){
-if(!cart.length)return;
-alert('Venta registrada: $'+document.getElementById('t-total').textContent+'\nTicket T-'+(Math.floor(Math.random()*9000)+1000));
-limpiar();
-}
-function limpiar(){cart=[];renderTicket();}
+var cart=[],pm='ef',sales=[];
+function go(p){document.querySelectorAll('.page').forEach(function(e){e.classList.remove('on')});document.getElementById(p).classList.add('on');document.querySelectorAll('.nav-links a:not(.wa)').forEach(function(a){a.classList.remove('on')});}
+function add(n,pr,iv){var f=false;for(var i=0;i<cart.length;i++){if(cart[i].n===n){cart[i].q++;f=true;break;}}if(!f)cart.push({n:n,p:pr,iv:iv,q:1});ren();}
+function ren(){var h='',s=0,iv=0;for(var i=0;i<cart.length;i++){var c=cart[i],l=c.p*c.q;s+=l;iv+=c.iv===16?l*.16:0;h+='<div class="ti"><span>'+c.q+'x '+c.n+'</span><span>$'+l.toFixed(2)+'</span></div>';}document.getElementById('titems').innerHTML=h;document.getElementById('tsum').style.display=cart.length?'block':'none';document.getElementById('tsub').textContent='$'+s.toFixed(2);document.getElementById('tiva').textContent='$'+iv.toFixed(2);document.getElementById('ttot').textContent='$'+(s+iv).toFixed(2);}
+function setPm(m){pm=m;document.getElementById('pm-ef').classList.toggle('sel',m==='ef');document.getElementById('pm-ta').classList.toggle('sel',m==='ta');}
+function cobrar(){if(!cart.length)return;var t=document.getElementById('ttot').textContent;var mp=pm==='ef'?'Efectivo (CLIP)':'Tarjeta (BBVA)';alert('Venta registrada\n'+t+' - '+mp+'\nTicket T-'+(Math.floor(Math.random()*9000)+1000));limpiar();}
+function limpiar(){cart=[];ren();}
+function guardarPed(){var n=document.getElementById('np-nom').value;if(!n){alert('Escribe el nombre del cliente');return;}alert('Pedido guardado para '+n);document.getElementById('modal-ped').classList.remove('on');}
 </script>
-
 </body>
 </html>
