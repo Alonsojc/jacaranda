@@ -632,6 +632,7 @@ function go(p) {
   document.querySelectorAll('.nav-links a[data-pg]').forEach(function(a) {
     a.classList.toggle('on', a.getAttribute('data-pg') === p);
   });
+  localStorage.setItem('jacaranda_tab', p);
   if (p === 'ped') cargarPedidos();
   if (p === 'dash') cargarDashboard();
   if (p === 'pos') cargarPOSProductos();
@@ -1870,9 +1871,9 @@ function autoConectar() {
   login('admin@jacaranda.mx', 'admin1234').then(function() {
     _reconectar = 0;
     setConnected(true);
-    cargarDashboard();
+    var tab = localStorage.getItem('jacaranda_tab') || 'dash';
+    go(tab);
     cargarInventarioCompleto();
-    cargarPOSProductos();
   }).catch(function() {
     _reconectar++;
     if (_reconectar <= 3) {
