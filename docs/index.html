@@ -651,9 +651,7 @@ function generarCorte() {
     var fondo = parseFloat(document.getElementById('c-fondo').value) || 0;
     document.getElementById('c-esperado').textContent = '$' + (fondo + total).toLocaleString('es-MX',{minimumFractionDigits:2});
     toast('Corte generado');
-  }).catch(function() {
-    toast('Sin conexi\u00f3n al servidor', true);
-  });
+  }).catch(function(){});
 }
 
 function calcularDiferencia() {
