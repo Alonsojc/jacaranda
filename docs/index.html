@@ -42,14 +42,17 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 /* POS */
 .pos-grid{display:grid;grid-template-columns:1fr 340px;gap:1rem;align-items:start}
 .pos-prods{max-height:calc(100vh - 180px);overflow-y:auto;padding-right:.3rem}
-.prods{display:grid;grid-template-columns:repeat(4,1fr);gap:.7rem;align-content:start}
-.pi{background:#fff;border-radius:12px;padding:1rem .8rem;text-align:center;border:1px solid var(--brd);cursor:pointer;transition:all .2s;user-select:none}
-.pi:hover{border-color:var(--v);box-shadow:0 4px 15px rgba(196,152,138,.2);transform:translateY(-1px)}
+.prods{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;align-content:start}
+.pi{background:#fff;border-radius:14px;padding:0;text-align:center;border:1px solid var(--brd);cursor:pointer;transition:all .2s;user-select:none;overflow:hidden;display:flex;flex-direction:column;align-items:center}
+.pi:hover{border-color:var(--v);box-shadow:0 6px 20px rgba(196,152,138,.18);transform:translateY(-2px)}
 .pi:active{transform:scale(.97);box-shadow:none}
-.pi .em{font-size:2.2rem;display:block;margin-bottom:.2rem}.pi .pn{font-weight:600;font-size:.85rem;margin-top:.2rem}
-.pi .pp{color:var(--v);font-weight:700;font-size:.95rem;margin-top:.15rem}
-.iv{font-size:.6rem;padding:.1rem .35rem;border-radius:4px;display:inline-block;margin-top:.15rem}
-.iv0{background:#d1fae5;color:#047857}.iv16{background:#fef3c7;color:#92400e}
+.pi-img{width:100%;height:90px;object-fit:cover;display:block}
+.pi-noimg{width:100%;height:90px;background:linear-gradient(135deg,#f5eeeb,#ede3df);display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--v);opacity:.4}
+.pi-body{padding:.6rem .7rem .7rem;width:100%}
+.pi .pn{font-weight:600;font-size:.82rem;line-height:1.2;min-height:2em;display:flex;align-items:center;justify-content:center}
+.pi .pp{color:var(--v);font-weight:700;font-size:1.1rem;margin-top:.2rem}
+.pi .pi-stock{font-size:.7rem;color:var(--mut);margin-top:.15rem}
+.pi.pi-out{opacity:.45;pointer-events:none}
 .tkt{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd)}
 .tkt h3{font-size:.9rem;margin-bottom:.6rem}
 .ti{display:flex;justify-content:space-between;font-size:.82rem;padding:.35rem 0;border-bottom:1px solid #f0e8e5}
@@ -105,7 +108,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 /* Connection dot */
 .conn-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;background:#ef4444;vertical-align:middle}
 .conn-dot.on{background:var(--grn);box-shadow:0 0 6px rgba(16,185,129,.5)}
-@media(max-width:768px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.prods{grid-template-columns:repeat(3,1fr)}.nav-links{gap:0}.nav-links a{padding:.4rem .5rem;font-size:.75rem}.pmt{grid-template-columns:1fr!important}}
+@media(max-width:768px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.prods{grid-template-columns:repeat(2,1fr)}.nav-links{gap:0}.nav-links a{padding:.4rem .5rem;font-size:.75rem}.pmt{grid-template-columns:1fr!important}}
 </style>
 </head>
 <body>
@@ -917,26 +920,33 @@ function limpiar() { cart = []; ren(); }
 
 function cargarPOSProductos() {
   api('GET', '/inventario/productos').then(function(prods) {
+    // Filtrar activos y ordenar: con stock primero, agotados al final
+    var activos = [];
+    for (var i = 0; i < prods.length; i++) { if (prods[i].activo) activos.push(prods[i]); }
+    activos.sort(function(a, b) {
+      var sa = parseFloat(a.stock_actual) || 0, sb = parseFloat(b.stock_actual) || 0;
+      if (sa > 0 && sb <= 0) return -1;
+      if (sa <= 0 && sb > 0) return 1;
+      return a.nombre.localeCompare(b.nombre);
+    });
     var h = '<div class="prods">';
-    for (var i = 0; i < prods.length; i++) {
-      var p = prods[i];
-      if (!p.activo) continue;
+    for (var i = 0; i < activos.length; i++) {
+      var p = activos[i];
       var precio = parseFloat(p.precio_unitario) || 0;
       var stock = parseFloat(p.stock_actual) || 0;
       var iv = p.tasa_iva === '0.16' ? 0.16 : 0;
-      var ivCls = iv > 0 ? 'iv16' : 'iv0';
-      var ivTxt = iv > 0 ? 'IVA 16%' : 'IVA 0%';
       var agotado = stock <= 0;
-      h += '<div class="pi' + (agotado ? '" style="opacity:.5;pointer-events:none"' : '"') + ' onclick="add(' + p.id + ',\'' + p.nombre.replace(/'/g,"\\'") + '\',' + precio + ',' + iv + ')">';
+      h += '<div class="pi' + (agotado ? ' pi-out' : '') + '" onclick="add(' + p.id + ',\'' + p.nombre.replace(/'/g,"\\'") + '\',' + precio + ',' + iv + ')">';
       if (p.imagen) {
-        h += '<img src="' + p.imagen + '" style="width:54px;height:54px;border-radius:8px;object-fit:cover;margin-bottom:.2rem">';
+        h += '<img class="pi-img" src="' + p.imagen + '">';
+      } else {
+        h += '<div class="pi-noimg">\uD83C\uDF5E</div>';
       }
+      h += '<div class="pi-body">';
       h += '<span class="pn">' + p.nombre + '</span>';
       h += '<span class="pp">$' + precio.toFixed(0) + '</span>';
-      h += '<span style="font-size:.7rem;color:var(--mut)">' + Math.round(stock) + ' pzas</span>';
-      h += '<span class="iv ' + ivCls + '">' + ivTxt + '</span>';
-      if (agotado) h += '<span style="font-size:.7rem;color:#b91c1c;font-weight:600">Agotado</span>';
-      h += '</div>';
+      h += '<span class="pi-stock">' + (agotado ? 'Agotado' : Math.round(stock) + ' pzas') + '</span>';
+      h += '</div></div>';
     }
     h += '</div>';
     document.getElementById('pos-products').innerHTML = h;
