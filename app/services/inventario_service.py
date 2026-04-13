@@ -145,11 +145,22 @@ def crear_producto(db: Session, data: ProductoCreate) -> Producto:
     return producto
 
 
-def actualizar_producto(db: Session, id: int, data: ProductoUpdate) -> Producto:
+def actualizar_producto(db: Session, id: int, data: ProductoUpdate, usuario_id: int | None = None) -> Producto:
+    from app.models.inventario import HistorialPrecio
     producto = db.query(Producto).filter(Producto.id == id).first()
     if not producto:
         raise ValueError("Producto no encontrado")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    updates = data.model_dump(exclude_unset=True)
+    # Log price change
+    if "precio_unitario" in updates and updates["precio_unitario"] != producto.precio_unitario:
+        historial = HistorialPrecio(
+            producto_id=id,
+            precio_anterior=producto.precio_unitario,
+            precio_nuevo=updates["precio_unitario"],
+            usuario_id=usuario_id,
+        )
+        db.add(historial)
+    for key, value in updates.items():
         setattr(producto, key, value)
     db.commit()
     db.refresh(producto)

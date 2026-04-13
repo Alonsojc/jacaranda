@@ -170,6 +170,10 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div><!-- pos-prods -->
 <div class="tkt">
 <h3>Ticket</h3>
+<div id="pos-offline-banner" style="display:none;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:.5rem .7rem;margin-bottom:.5rem;font-size:.78rem;color:#92400e">
+&#9888; Modo offline &mdash; <span id="pos-pending-count">0</span> ventas pendientes
+<button onclick="sincronizarVentas()" style="margin-left:.3rem;padding:.2rem .5rem;border:1px solid #92400e;border-radius:5px;background:#fff;font-size:.72rem;cursor:pointer;font-weight:600;color:#92400e">Sincronizar</button>
+</div>
 <div id="titems"></div>
 <div id="tsum" style="display:none">
 <div class="ti"><span>Subtotal</span><span id="tsub"></span></div>
@@ -332,10 +336,8 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="srow"><span>Efectivo real</span><span id="c-contado" style="font-weight:700">--</span></div>
 <div class="srow" style="font-weight:700"><span>Diferencia</span><span id="c-dif">--</span></div>
 </div>
-<div style="display:flex;gap:.5rem;margin-top:.6rem">
-<button class="cobrar" style="flex:1" onclick="realizarCorte()">Registrar Corte</button>
-<button class="limpiar" style="flex:0 0 auto;padding:.5rem 1rem" onclick="exportarCorte()">Copiar resumen</button>
-</div>
+<button class="cobrar" style="margin-top:.6rem" onclick="realizarCorte()">Registrar Corte</button>
+<button class="limpiar" style="margin-top:.4rem" onclick="exportarCorte()">Copiar resumen</button>
 </div>
 <div class="card">
 <h3>Ventas del d&iacute;a</h3>
@@ -373,9 +375,12 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 
 <div id="l-prods">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
 <p style="font-size:.83rem;color:var(--mut);margin:0">Todos los productos. Edita precios, m&iacute;nimos, stock.</p>
+<div style="display:flex;gap:.4rem">
+<button class="limpiar" style="padding:.4rem .8rem;font-size:.78rem;margin:0" onclick="subirFotosMasivo()">&#128247; Subir fotos</button>
 <button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="nuevoProducto()">+ Nuevo Producto</button>
+</div>
 </div>
 <div class="card" style="overflow-x:auto">
 <input type="text" id="l-prods-buscar" placeholder="Buscar producto..." oninput="filtrarTabla('l-prods-tbl',this.value)" style="width:100%;padding:.45rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.83rem;margin-bottom:.6rem">
@@ -522,6 +527,21 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 </div>
 
+<!-- MODAL: Merma -->
+<div class="modal-bg" id="modal-merma">
+<div class="modal" style="max-width:380px">
+<h3>Registrar Merma</h3>
+<input type="hidden" id="mm-id">
+<p id="mm-info" style="font-size:.85rem;color:var(--mut);margin-bottom:.8rem"></p>
+<div class="fg"><label>Cantidad (piezas)</label><input type="number" id="mm-cant" step="1" min="1" value="1"></div>
+<div class="fg"><label>Motivo</label><select id="mm-motivo"><option>Se ech&oacute; a perder</option><option>Caduc&oacute;</option><option>Roto / da&ntilde;ado</option><option>Degustaci&oacute;n</option><option>Otro</option></select></div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button onclick="guardarMerma()" style="flex:1;padding:.6rem;border:none;border-radius:10px;background:#ef4444;color:#fff;font-weight:600;font-size:.85rem;cursor:pointer">Registrar merma</button>
+<button class="limpiar" style="flex:1;padding:.5rem 1.2rem" onclick="cerrarModal('modal-merma')">Cancelar</button>
+</div>
+</div>
+</div>
+
 <!-- MODAL: Editar Ingrediente -->
 <div class="modal-bg" id="modal-edit-ing">
 <div class="modal">
@@ -631,6 +651,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 <div style="display:flex;gap:.5rem">
 <button class="cobrar" style="flex:1" onclick="copiarTicket()">Copiar Ticket</button>
+<button class="cobrar" style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5)" onclick="imprimirTicket()">&#128424; Imprimir</button>
 <button class="limpiar" style="flex:1;padding:.5rem 1.2rem" onclick="cerrarModal('modal-ticket')">Cerrar</button>
 </div>
 </div>
@@ -648,6 +669,8 @@ Plaza Distrito Marqu&eacute;s, Quer&eacute;taro &bull; <a href="https://instagra
 var API_URL = localStorage.getItem('jacaranda_api') || 'https://web-production-b51486.up.railway.app';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
+var _offline = false;
+var _ventasPendientes = JSON.parse(localStorage.getItem('jacaranda_ventas_pendientes') || '[]');
 
 // ─── Toast ────────────────────────────────────────────────────────
 function toast(msg, isErr) {
@@ -879,9 +902,58 @@ function procesarVenta() {
     cerrarModal('modal-cobrar');
     limpiar();
     mostrarTicket(venta);
-    cargarPOSProductos(); // Refresh stock badges
+    cargarPOSProductos();
   }).catch(function(e) {
-    toast(e.message || 'Error al registrar venta', true);
+    // Offline: queue sale for later sync
+    if (!navigator.onLine || _offline) {
+      body._cartItems = cart.map(function(c){ return {n:c.n,q:c.q,p:c.p,desc:c.desc||0}; });
+      body._total = total;
+      body._timestamp = new Date().toISOString();
+      _ventasPendientes.push(body);
+      localStorage.setItem('jacaranda_ventas_pendientes', JSON.stringify(_ventasPendientes));
+      cerrarModal('modal-cobrar');
+      limpiar();
+      actualizarBannerOffline();
+      toast('Venta guardada offline (' + _ventasPendientes.length + ' pendientes)');
+    } else {
+      toast(e.message || 'Error al registrar venta', true);
+    }
+  });
+}
+
+function actualizarBannerOffline() {
+  var banner = document.getElementById('pos-offline-banner');
+  var count = document.getElementById('pos-pending-count');
+  if (_offline || _ventasPendientes.length > 0) {
+    banner.style.display = 'block';
+    count.textContent = _ventasPendientes.length;
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function sincronizarVentas() {
+  if (!_ventasPendientes.length) return;
+  var pending = _ventasPendientes.slice();
+  var ok = 0, fail = 0;
+  var chain = Promise.resolve();
+  for (var i = 0; i < pending.length; i++) {
+    (function(venta) {
+      var body = {detalles: venta.detalles, forma_pago: venta.forma_pago, metodo_pago: venta.metodo_pago, monto_recibido: venta.monto_recibido};
+      if (venta.pagos) body.pagos = venta.pagos;
+      chain = chain.then(function() {
+        return api('POST', '/punto-de-venta/ventas', body).then(function() { ok++; }).catch(function() { fail++; });
+      });
+    })(pending[i]);
+  }
+  chain.then(function() {
+    _ventasPendientes = [];
+    localStorage.removeItem('jacaranda_ventas_pendientes');
+    toast(ok + ' ventas sincronizadas' + (fail ? ', ' + fail + ' fallaron' : ''));
+    _offline = false;
+    actualizarBannerOffline();
+    cargarPOSProductos();
+    cargarCorte();
   });
 }
 
@@ -1033,8 +1105,7 @@ function splitNombreVariante(nombre) {
 
 var _posGroups = {}; // cache for variant picker
 
-function cargarPOSProductos() {
-  api('GET', '/inventario/productos').then(function(prods) {
+function renderPOSFromData(prods) {
     // Filtrar activos
     var activos = [];
     for (var i = 0; i < prods.length; i++) { if (prods[i].activo) activos.push(prods[i]); }
@@ -1108,8 +1179,25 @@ function cargarPOSProductos() {
     }
     h += '</div>';
     document.getElementById('pos-products').innerHTML = h;
+}
+
+function cargarPOSProductos() {
+  api('GET', '/inventario/productos').then(function(prods) {
+    localStorage.setItem('jacaranda_prods_cache', JSON.stringify(prods));
+    _offline = false;
+    actualizarBannerOffline();
+    renderPOSFromData(prods);
   }).catch(function() {
-    document.getElementById('pos-products').innerHTML = '<p style="color:var(--mut);text-align:center;padding:2rem">Error al cargar productos. Verifica la conexi\u00f3n.</p>';
+    // Offline: use cached products
+    var cached = localStorage.getItem('jacaranda_prods_cache');
+    if (cached) {
+      _offline = true;
+      actualizarBannerOffline();
+      renderPOSFromData(JSON.parse(cached));
+      toast('Modo offline — usando productos en cach\u00e9');
+    } else {
+      document.getElementById('pos-products').innerHTML = '<p style="color:var(--mut);text-align:center;padding:2rem">Sin conexi\u00f3n y sin cach\u00e9 de productos.</p>';
+    }
   });
 }
 
@@ -1528,11 +1616,119 @@ function exportarCorte() {
 }
 
 // ─── Dynamic inventory loading ───────────────────────────────────
+// ─── Merma ───────────────────────────────────────────────────────
+function abrirMerma(id, nombre, stock) {
+  document.getElementById('mm-id').value = id;
+  document.getElementById('mm-info').textContent = nombre + ' — Stock actual: ' + stock + ' pzas';
+  document.getElementById('mm-cant').value = 1;
+  document.getElementById('modal-merma').classList.add('on');
+}
+
+function guardarMerma() {
+  var id = document.getElementById('mm-id').value;
+  var cant = document.getElementById('mm-cant').value;
+  var motivo = document.getElementById('mm-motivo').value;
+  api('POST', '/inventario/productos/' + id + '/merma?cantidad=' + cant + '&motivo=' + encodeURIComponent(motivo)).then(function(r) {
+    toast(r.mensaje);
+    cerrarModal('modal-merma');
+    cargarProductos();
+    cargarPOSProductos();
+  }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+
+// ─── Imprimir ticket térmica ─────────────────────────────────────
+function imprimirTicket() {
+  if (!_ultimoTicket) { toast('No hay ticket para imprimir', true); return; }
+  var tk = _ultimoTicket;
+  var w = window.open('', '_blank', 'width=300,height=600');
+  var h = '<html><head><style>';
+  h += 'body{font-family:monospace;font-size:12px;width:58mm;margin:0 auto;padding:4mm}';
+  h += '.c{text-align:center} .b{font-weight:bold} .line{border-top:1px dashed #000;margin:4px 0}';
+  h += '.row{display:flex;justify-content:space-between} .big{font-size:16px}';
+  h += '@media print{@page{size:58mm auto;margin:0}}';
+  h += '</style></head><body>';
+  h += '<div class="c b">JACARANDA</div>';
+  h += '<div class="c" style="font-size:10px">sharing flavors</div>';
+  h += '<div class="c" style="font-size:9px">Plaza Distrito Marqu\u00e9s, Qro.</div>';
+  h += '<div class="line"></div>';
+  h += '<div class="c b">' + tk.folio + '</div>';
+  h += '<div class="c" style="font-size:10px">' + (tk.fecha || '') + '</div>';
+  h += '<div class="line"></div>';
+  if (tk.productos) {
+    for (var i = 0; i < tk.productos.length; i++) {
+      var p = tk.productos[i];
+      h += '<div class="row"><span>' + p.cantidad + 'x ' + p.nombre + '</span><span>$' + p.subtotal.toFixed(2) + '</span></div>';
+    }
+  }
+  h += '<div class="line"></div>';
+  h += '<div class="row"><span>Subtotal</span><span>' + tk.subtotal + '</span></div>';
+  h += '<div class="row"><span>IVA</span><span>' + tk.iva + '</span></div>';
+  h += '<div class="row b big"><span>TOTAL</span><span>' + tk.total + '</span></div>';
+  h += '<div class="line"></div>';
+  h += '<div class="row"><span>M\u00e9todo</span><span>' + tk.metodo_pago + '</span></div>';
+  if (tk.monto_recibido && tk.monto_recibido !== '$0.00') h += '<div class="row"><span>Recibido</span><span>' + tk.monto_recibido + '</span></div>';
+  if (tk.cambio && tk.cambio !== '$0.00') h += '<div class="row"><span>Cambio</span><span>' + tk.cambio + '</span></div>';
+  h += '<div class="line"></div>';
+  h += '<div class="c" style="font-size:9px;margin-top:8px">Gracias por su compra</div>';
+  h += '<div class="c" style="font-size:9px">@jacaranda.flavors</div>';
+  h += '</body></html>';
+  w.document.write(h);
+  w.document.close();
+  setTimeout(function() { w.print(); }, 300);
+}
+
+// ─── Fotos masivas ───────────────────────────────────────────────
+function subirFotosMasivo() {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.multiple = true;
+  input.accept = 'image/*';
+  input.onchange = function() {
+    if (!input.files || !input.files.length) return;
+    var fd = new FormData();
+    for (var i = 0; i < input.files.length; i++) {
+      fd.append('archivos', input.files[i]);
+    }
+    toast('Subiendo ' + input.files.length + ' fotos...');
+    fetch(API_URL + '/api/v1/inventario/productos/imagenes-masivo', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + TOKEN },
+      body: fd
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      toast(data.mensaje);
+      if (data.resultados) {
+        var noMatch = data.resultados.filter(function(r) { return !r.ok; });
+        if (noMatch.length) {
+          alert('Sin coincidencia:\n' + noMatch.map(function(r) { return r.archivo; }).join('\n'));
+        }
+      }
+      cargarPOSProductos();
+      cargarListaProductos();
+    }).catch(function() { toast('Error al subir fotos', true); });
+  };
+  input.click();
+}
+
+// ─── Historial de precios ────────────────────────────────────────
+function verHistorialPrecio(productoId, nombre) {
+  api('GET', '/inventario/productos/' + productoId + '/historial-precios').then(function(hist) {
+    if (!hist.length) { toast('Sin cambios de precio registrados'); return; }
+    var msg = 'Historial de precios: ' + nombre + '\n\n';
+    for (var i = 0; i < hist.length; i++) {
+      var h = hist[i];
+      var fecha = h.fecha ? new Date(h.fecha).toLocaleDateString('es-MX') : '';
+      msg += fecha + ': $' + h.precio_anterior + ' \u2192 $' + h.precio_nuevo + '\n';
+    }
+    alert(msg);
+  }).catch(function() { toast('Error al cargar historial', true); });
+}
+
+// ─── Dynamic inventory loading ───────────────────────────────────
 var _allIngs = []; // Cache for ingredient list (used in recipe edit)
 
 function cargarProductos() {
   api('GET', '/inventario/productos').then(function(prods) {
-    var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th style="width:80px"></th></tr>';
+    var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th style="width:120px"></th></tr>';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
       var stock = parseFloat(p.stock_actual) || 0;
@@ -1540,12 +1736,17 @@ function cargarProductos() {
       var precio = parseFloat(p.precio_unitario) || 0;
       var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
       var txt = stock <= 0 ? 'Agotado' : stock <= min ? 'Bajo' : 'OK';
+      var esc = p.nombre.replace(/'/g,"\\'");
       h += '<tr><td>' + p.nombre + '</td>';
       h += '<td>$' + precio.toFixed(0) + '</td>';
-      h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + p.nombre.replace(/'/g,"\\'") + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline;cursor:pointer">' + Math.round(stock) + ' pzas</a></td>';
+      h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline;cursor:pointer">' + Math.round(stock) + ' pzas</a></td>';
       h += '<td>' + Math.round(min) + '</td>';
       h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
-      h += '<td><a href="#" onclick="editarProducto(' + p.id + ');return false" style="font-size:.9rem;cursor:pointer" title="Editar">&#9998;</a></td>';
+      h += '<td>';
+      h += '<a href="#" onclick="editarProducto(' + p.id + ');return false" style="font-size:.9rem;cursor:pointer;margin-right:.4rem" title="Editar">&#9998;</a>';
+      h += '<a href="#" onclick="abrirMerma(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="font-size:.9rem;cursor:pointer;margin-right:.4rem" title="Registrar merma">&#128465;</a>';
+      h += '<a href="#" onclick="verHistorialPrecio(' + p.id + ',\'' + esc + '\');return false" style="font-size:.8rem;cursor:pointer" title="Historial de precios">&#128200;</a>';
+      h += '</td>';
       h += '</tr>';
     }
     h += '</table>';
@@ -1893,7 +2094,7 @@ function cargarListas() {
 
 function cargarListaProductos() {
   api('GET', '/inventario/productos').then(function(prods) {
-    var h = '<table class="tbl"><tr><th>C&oacute;digo</th><th>Producto</th><th>Precio</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th>IVA</th><th></th></tr>';
+    var h = '<table class="tbl"><tr><th>C&oacute;digo</th><th>Producto</th><th>Precio</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th>IVA</th><th style="width:100px"></th></tr>';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
       var stock = parseFloat(p.stock_actual) || 0;
@@ -1901,15 +2102,20 @@ function cargarListaProductos() {
       var precio = parseFloat(p.precio_unitario) || 0;
       var costo = parseFloat(p.costo_produccion) || 0;
       var iva = p.tasa_iva === '0.16' ? '16%' : p.tasa_iva === '0.00' ? '0%' : 'Ext';
+      var esc = p.nombre.replace(/'/g,"\\'");
       h += '<tr>';
       h += '<td style="color:var(--mut);font-size:.78rem">' + p.codigo + '</td>';
       h += '<td><strong>' + p.nombre + '</strong></td>';
       h += '<td>$' + precio.toFixed(0) + '</td>';
       h += '<td style="color:var(--mut)">$' + costo.toFixed(0) + '</td>';
-      h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + p.nombre.replace(/'/g,"\\'") + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline">' + Math.round(stock) + '</a></td>';
+      h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline">' + Math.round(stock) + '</a></td>';
       h += '<td>' + Math.round(min) + '</td>';
       h += '<td>' + iva + '</td>';
-      h += '<td><a href="#" onclick="editarProducto(' + p.id + ');return false" title="Editar" style="font-size:.9rem">&#9998;</a></td>';
+      h += '<td>';
+      h += '<a href="#" onclick="editarProducto(' + p.id + ');return false" title="Editar" style="font-size:.9rem;margin-right:.3rem">&#9998;</a>';
+      h += '<a href="#" onclick="abrirMerma(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" title="Merma" style="font-size:.9rem;margin-right:.3rem">&#128465;</a>';
+      h += '<a href="#" onclick="verHistorialPrecio(' + p.id + ',\'' + esc + '\');return false" title="Historial precios" style="font-size:.8rem">&#128200;</a>';
+      h += '</td>';
       h += '</tr>';
     }
     h += '</table>';
@@ -2296,7 +2502,8 @@ function autoConectar() {
     var tab = localStorage.getItem('jacaranda_tab') || 'dash';
     go(tab);
     cargarInventarioCompleto();
-    cargarPedidos(); // badge de pedidos pendientes
+    cargarPedidos();
+    if (_ventasPendientes.length) sincronizarVentas();
   }).catch(function() {
     _reconectar++;
     if (_reconectar <= 3) {
@@ -2309,6 +2516,7 @@ function autoConectar() {
   });
 }
 
+actualizarBannerOffline();
 autoConectar();
 </script>
 </body>
