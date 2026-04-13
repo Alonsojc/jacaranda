@@ -52,7 +52,10 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .pi .pn{font-weight:600;font-size:.82rem;line-height:1.25}
 .pi-var{display:inline-block;background:#dbeafe;color:#1d4ed8;font-size:.65rem;font-weight:600;padding:.15rem .45rem;border-radius:5px;margin-top:.25rem;letter-spacing:.01em}
 .pi .pp{color:var(--v);font-weight:700;font-size:1.1rem;margin-top:.3rem}
-.pi .pi-stock{font-size:.7rem;color:var(--mut);margin-top:.15rem}
+.pi-stock-chip{display:inline-block;font-size:.65rem;font-weight:600;padding:.15rem .45rem;border-radius:5px;margin-top:.2rem;letter-spacing:.01em}
+.pi-stk-ok{background:#d1fae5;color:#047857}
+.pi-stk-low{background:#fef3c7;color:#92400e}
+.pi-stk-out{background:#fee2e2;color:#b91c1c}
 .pi .pi-iva{font-size:.6rem;color:var(--mut);margin-top:.1rem}
 .pi.pi-out{opacity:.45;pointer-events:none}
 .tkt{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd)}
@@ -956,7 +959,10 @@ function cargarPOSProductos() {
       h += '<span class="pn">' + parts.nombre + '</span>';
       if (parts.variante) h += '<span class="pi-var">' + parts.variante + '</span>';
       h += '<span class="pp">$' + precio.toFixed(0) + '</span>';
-      h += '<span class="pi-stock">' + (agotado ? 'Agotado' : Math.round(stock) + ' pzas') + '</span>';
+      var min = parseFloat(p.stock_minimo) || 0;
+      var stkCls = agotado ? 'pi-stk-out' : (stock <= min ? 'pi-stk-low' : 'pi-stk-ok');
+      var stkTxt = agotado ? 'Agotado' : Math.round(stock) + ' pzas';
+      h += '<span class="pi-stock-chip ' + stkCls + '">' + stkTxt + '</span>';
       h += '<span class="pi-iva">IVA ' + (iv > 0 ? '16%' : '0%') + '</span>';
       h += '</div></div>';
     }
