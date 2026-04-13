@@ -322,8 +322,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="card kpi"><div class="n" id="c-total-tar">$0</div><div class="l">Tarjeta</div></div>
 <div class="card kpi a"><div class="n" id="c-total-trans">$0</div><div class="l">Transferencia</div></div>
 </div>
-<div class="row r2">
-<div class="card" style="overflow:hidden;min-width:0">
+<div class="card" style="margin-bottom:1rem">
 <h3>Cuadre de caja</h3>
 <div class="srow"><span>Total ventas del d&iacute;a</span><span class="green" id="c-total">$0.00</span></div>
 <div class="srow"><span>Tickets</span><span id="c-tickets">0</span></div>
@@ -339,14 +338,13 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <button class="cobrar" style="margin-top:.6rem" onclick="realizarCorte()">Registrar Corte</button>
 <button class="limpiar" style="margin-top:.4rem" onclick="exportarCorte()">Copiar resumen</button>
 </div>
+<div class="row r2">
 <div class="card">
 <h3>Ventas del d&iacute;a</h3>
 <div id="c-ventas-list" style="max-height:300px;overflow-y:auto">
 <p style="color:var(--mut);text-align:center;padding:1rem;font-size:.85rem">Cargando ventas...</p>
 </div>
 </div>
-</div>
-<div class="row r2">
 <div class="card">
 <h3>Gastos del d&iacute;a (compras)</h3>
 <div class="srow"><span>Total gastos</span><span style="color:#b91c1c;font-weight:700" id="c-gastos-total">$0.00</span></div>
@@ -355,6 +353,8 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <p style="color:var(--mut);font-size:.83rem;text-align:center">Sin compras hoy</p>
 </div>
 </div>
+</div>
+<div class="row r2">
 <div class="card">
 <h3>Utilidad del d&iacute;a</h3>
 <div class="srow"><span>Ventas totales</span><span class="green" id="c-util-ventas">$0.00</span></div>
