@@ -49,9 +49,11 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .pi-img{width:100%;height:90px;object-fit:cover;display:block}
 .pi-noimg{width:100%;height:90px;background:linear-gradient(135deg,#f5eeeb,#ede3df);display:flex;align-items:center;justify-content:center;font-size:2rem;color:var(--v);opacity:.4}
 .pi-body{padding:.6rem .7rem .7rem;width:100%}
-.pi .pn{font-weight:600;font-size:.82rem;line-height:1.2;min-height:2em;display:flex;align-items:center;justify-content:center}
-.pi .pp{color:var(--v);font-weight:700;font-size:1.1rem;margin-top:.2rem}
+.pi .pn{font-weight:600;font-size:.82rem;line-height:1.25}
+.pi-var{display:inline-block;background:#dbeafe;color:#1d4ed8;font-size:.65rem;font-weight:600;padding:.15rem .45rem;border-radius:5px;margin-top:.25rem;letter-spacing:.01em}
+.pi .pp{color:var(--v);font-weight:700;font-size:1.1rem;margin-top:.3rem}
 .pi .pi-stock{font-size:.7rem;color:var(--mut);margin-top:.15rem}
+.pi .pi-iva{font-size:.6rem;color:var(--mut);margin-top:.1rem}
 .pi.pi-out{opacity:.45;pointer-events:none}
 .tkt{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd)}
 .tkt h3{font-size:.9rem;margin-bottom:.6rem}
@@ -918,6 +920,13 @@ function fallbackCopy(txt) {
 
 function limpiar() { cart = []; ren(); }
 
+function splitNombreVariante(nombre) {
+  // Detectar variantes al final del nombre: ind., chico, grande, x16, etc.
+  var m = nombre.match(/^(.+?)\s+(ind\.?|chico|grande|mediano|mini|x\d+|individual)$/i);
+  if (m) return { nombre: m[1], variante: m[2] };
+  return { nombre: nombre, variante: null };
+}
+
 function cargarPOSProductos() {
   api('GET', '/inventario/productos').then(function(prods) {
     // Filtrar activos y ordenar: con stock primero, agotados al final
@@ -943,9 +952,12 @@ function cargarPOSProductos() {
         h += '<div class="pi-noimg">\uD83C\uDF5E</div>';
       }
       h += '<div class="pi-body">';
-      h += '<span class="pn">' + p.nombre + '</span>';
+      var parts = splitNombreVariante(p.nombre);
+      h += '<span class="pn">' + parts.nombre + '</span>';
+      if (parts.variante) h += '<span class="pi-var">' + parts.variante + '</span>';
       h += '<span class="pp">$' + precio.toFixed(0) + '</span>';
       h += '<span class="pi-stock">' + (agotado ? 'Agotado' : Math.round(stock) + ' pzas') + '</span>';
+      h += '<span class="pi-iva">IVA ' + (iv > 0 ? '16%' : '0%') + '</span>';
       h += '</div></div>';
     }
     h += '</div>';
