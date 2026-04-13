@@ -163,3 +163,84 @@ def alertas_caducidad(dias: int = Query(default=7), db: Session = Depends(get_db
         }
         for l in lotes
     ]
+
+
+@router.post("/ingredientes/{ingrediente_id}/compra")
+def registrar_compra_ingrediente(
+    ingrediente_id: int,
+    cantidad: float = Query(...),
+    costo: float = Query(0),
+    proveedor: str = Query(""),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Registrar entrada de ingrediente (compra a proveedor)."""
+    from app.models.inventario import Ingrediente, MovimientoInventario, TipoMovimiento, LoteIngrediente
+    from datetime import datetime, timezone, timedelta, date
+    from decimal import Decimal
+
+    ingrediente = db.query(Ingrediente).filter(Ingrediente.id == ingrediente_id).first()
+    if not ingrediente:
+        raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
+
+    ingrediente.stock_actual += Decimal(str(cantidad))
+
+    # Registrar movimiento
+    mov = MovimientoInventario(
+        ingrediente_id=ingrediente_id,
+        tipo=TipoMovimiento.ENTRADA_COMPRA,
+        cantidad=Decimal(str(cantidad)),
+        referencia=f"Compra - {proveedor}" if proveedor else "Compra",
+        usuario_id=user.id,
+    )
+    db.add(mov)
+
+    # Crear lote
+    hoy = date.today()
+    lote = LoteIngrediente(
+        ingrediente_id=ingrediente_id,
+        numero_lote=f"L-{datetime.now().strftime('%Y%m%d%H%M')}",
+        fecha_recepcion=hoy,
+        fecha_caducidad=hoy + timedelta(days=30),
+        cantidad=Decimal(str(cantidad)),
+        cantidad_disponible=Decimal(str(cantidad)),
+        costo_unitario=Decimal(str(costo)) if costo else Decimal("0"),
+        proveedor_id=None,
+    )
+    db.add(lote)
+    db.commit()
+    db.refresh(ingrediente)
+
+    return {
+        "mensaje": f"Compra registrada: {cantidad} de {ingrediente.nombre}",
+        "stock_actual": float(ingrediente.stock_actual),
+    }
+
+
+@router.post("/productos/{producto_id}/ajuste-stock")
+def ajustar_stock_producto(
+    producto_id: int,
+    cantidad: int = Query(..., description="Nueva cantidad en stock"),
+    motivo: str = Query("Conteo nocturno"),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Ajustar stock de producto terminado (conteo nocturno del pizarrón)."""
+    from app.models.inventario import Producto
+    from decimal import Decimal
+
+    producto = db.query(Producto).filter(Producto.id == producto_id).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    anterior = producto.stock_actual
+    producto.stock_actual = Decimal(str(cantidad))
+    db.commit()
+
+    return {
+        "producto": producto.nombre,
+        "stock_anterior": float(anterior),
+        "stock_nuevo": cantidad,
+        "diferencia": float(Decimal(str(cantidad)) - anterior),
+        "motivo": motivo,
+    }

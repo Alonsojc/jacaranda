@@ -195,8 +195,16 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 
 <!-- INVENTARIO -->
 <div class="page" id="inv">
-<h2>Inventario &mdash; Conteo nocturno</h2>
-<p style="font-size:.85rem;color:var(--mut);margin-bottom:1rem">Lo que se cont&oacute; anoche. Inicio del d&iacute;a + horneado - vendido = esperado. Si no cuadra, se marca la diferencia.</p>
+<h2>Inventario</h2>
+<div class="section-tabs" style="margin-bottom:1rem">
+<span class="tab active" onclick="invTab('productos')">Productos terminados</span>
+<span class="tab" onclick="invTab('ingredientes')">Ingredientes</span>
+<span class="tab" onclick="invTab('compras')">Registrar compra</span>
+<span class="tab" onclick="invTab('hornear')">Hornear</span>
+</div>
+
+<div id="inv-productos">
+<p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Conteo nocturno. Inicio + horneado - vendido = esperado. Click en "Conteo real" para ajustar.</p>
 <div class="card" style="overflow-x:auto">
 <table class="tbl">
 <tr><th>Producto</th><th>Anoche</th><th>+ Horneado</th><th>- Vendido</th><th>Esperado</th><th>Conteo real</th><th>Dif</th><th>Estado</th></tr>
@@ -205,10 +213,65 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <tr><td>Brownies</td><td>25</td><td>+12</td><td>-18</td><td>19</td><td>17</td><td style="color:#b91c1c;font-weight:700">-2</td><td><span class="badge bout">Revisar</span></td></tr>
 <tr><td>Galletas 6pz</td><td>20</td><td>+0</td><td>-15</td><td>5</td><td>5</td><td>0</td><td><span class="badge blow">Stock bajo</span></td></tr>
 <tr><td>Velas</td><td>12</td><td>+0</td><td>-8</td><td>4</td><td>4</td><td>0</td><td><span class="badge blow">Stock bajo</span></td></tr>
-<tr><td>Bolillo</td><td>0</td><td>+200</td><td>-120</td><td>80</td><td>80</td><td>0</td><td><span class="badge bok">OK</span></td></tr>
-<tr><td>Concha</td><td>0</td><td>+100</td><td>-56</td><td>44</td><td>44</td><td>0</td><td><span class="badge bok">OK</span></td></tr>
-<tr><td>Cuerno</td><td>0</td><td>+80</td><td>-42</td><td>38</td><td>38</td><td>0</td><td><span class="badge bok">OK</span></td></tr>
 </table>
+</div>
+</div>
+
+<div id="inv-ingredientes" style="display:none">
+<p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Stock actual de ingredientes. Se descuenta autom&aacute;ticamente al hornear.</p>
+<div class="card" style="overflow-x:auto">
+<table class="tbl">
+<tr><th>Ingrediente</th><th>Stock</th><th>Unidad</th><th>M&iacute;nimo</th><th>Estado</th></tr>
+<tr><td>Harina de trigo</td><td>25</td><td>kg</td><td>10</td><td><span class="badge bok">OK</span></td></tr>
+<tr><td>Az&uacute;car</td><td>15</td><td>kg</td><td>8</td><td><span class="badge bok">OK</span></td></tr>
+<tr><td>Mantequilla</td><td>3</td><td>kg</td><td>5</td><td><span class="badge blow">Pedir</span></td></tr>
+<tr><td>Huevo</td><td>120</td><td>pza</td><td>60</td><td><span class="badge bok">OK</span></td></tr>
+<tr><td>Nutella</td><td>4</td><td>kg</td><td>5</td><td><span class="badge blow">Pedir</span></td></tr>
+<tr><td>Chocolate</td><td>2</td><td>kg</td><td>3</td><td><span class="badge bout">Urgente</span></td></tr>
+<tr><td>Leche</td><td>10</td><td>lt</td><td>8</td><td><span class="badge bok">OK</span></td></tr>
+<tr><td>Levadura</td><td>2</td><td>kg</td><td>1</td><td><span class="badge bok">OK</span></td></tr>
+</table>
+</div>
+</div>
+
+<div id="inv-compras" style="display:none">
+<p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Registra la compra de ingredientes cuando llega el proveedor.</p>
+<div class="card">
+<h3>Nueva compra de ingrediente</h3>
+<div class="frow">
+<div class="fg"><label>Ingrediente</label><select id="compra-ing">
+<option value="1">Harina de trigo</option><option value="2">Az&uacute;car</option>
+<option value="3">Mantequilla</option><option value="4">Huevo</option>
+<option value="5">Nutella</option><option value="6">Chocolate</option>
+<option value="7">Leche</option><option value="8">Levadura</option>
+</select></div>
+<div class="fg"><label>Cantidad</label><input type="number" id="compra-cant" placeholder="10"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Costo total</label><input type="number" id="compra-costo" placeholder="250"></div>
+<div class="fg"><label>Proveedor</label><input id="compra-prov" placeholder="Costco, Central de abastos..."></div>
+</div>
+<button class="cobrar" onclick="registrarCompra()">Registrar compra</button>
+</div>
+</div>
+
+<div id="inv-hornear" style="display:none">
+<p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Selecciona qu&eacute; vas a hornear. Se descuentan los ingredientes y se suman los productos.</p>
+<div class="card">
+<h3>Hornear</h3>
+<div class="frow">
+<div class="fg"><label>Receta</label><select id="horn-receta">
+<option value="1">Nutella (rinde 12 pzas)</option>
+<option value="2">Manzana (rinde 12 pzas)</option>
+<option value="3">Brownies (rinde 20 pzas)</option>
+<option value="4">Galletas (rinde 6 bolsas)</option>
+<option value="5">Conchas (rinde 24 pzas)</option>
+<option value="6">Bolillos (rinde 50 pzas)</option>
+</select></div>
+<div class="fg"><label>Tandas</label><input type="number" id="horn-cant" value="1" min="1"></div>
+</div>
+<button class="cobrar" onclick="hornear()">Hornear</button>
+</div>
 </div>
 </div>
 
@@ -433,6 +496,45 @@ function conectarAPI() {
       alert('No se pudo conectar. Verifica la URL.');
     });
   }
+}
+
+// ─── Inventario tabs ──────────────────────────────────────────────
+function invTab(tab) {
+  ['productos','ingredientes','compras','hornear'].forEach(function(t) {
+    var el = document.getElementById('inv-' + t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#inv .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+}
+
+function registrarCompra() {
+  var ing = document.getElementById('compra-ing');
+  var cant = document.getElementById('compra-cant').value;
+  var costo = document.getElementById('compra-costo').value || 0;
+  var prov = document.getElementById('compra-prov').value || '';
+  if (!cant) { alert('Escribe la cantidad'); return; }
+
+  api('POST', '/inventario/ingredientes/' + ing.value + '/compra?cantidad=' + cant + '&costo=' + costo + '&proveedor=' + encodeURIComponent(prov))
+  .then(function(r) { alert(r.mensaje + '\nStock actual: ' + r.stock_actual); })
+  .catch(function() { alert('Compra registrada (modo local): ' + cant + ' de ' + ing.options[ing.selectedIndex].text); });
+}
+
+function hornear() {
+  var rec = document.getElementById('horn-receta');
+  var cant = document.getElementById('horn-cant').value || 1;
+
+  api('POST', '/recetas/' + rec.value + '/hornear?cantidad=' + cant)
+  .then(function(r) { alert(r.mensaje + '\nPiezas producidas: ' + r.piezas_producidas + '\nStock: ' + r.stock_producto); })
+  .catch(function(e) {
+    if (e && e.detail && e.detail.faltantes) {
+      var msg = 'Faltan ingredientes:\n';
+      e.detail.faltantes.forEach(function(f) { msg += '- ' + f.ingrediente + ': necesitas ' + f.necesario + ', tienes ' + f.disponible + '\n'; });
+      alert(msg);
+    } else {
+      alert('Horneado registrado (modo local): ' + cant + 'x ' + rec.options[rec.selectedIndex].text);
+    }
+  });
 }
 
 // Auto-conectar si hay URL guardada

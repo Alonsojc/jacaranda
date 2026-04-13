@@ -98,3 +98,61 @@ def completar_produccion(
         return svc.completar_produccion(db, id, cantidad_producida, cantidad_merma)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{receta_id}/hornear")
+def hornear(
+    receta_id: int,
+    cantidad: int = Query(1, description="Cuántas tandas hornear"),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """
+    Hornear: descuenta ingredientes según receta y suma productos terminados.
+    Ejemplo: hornear 2 tandas de Nutella = descuenta 2x ingredientes, suma 2x productos.
+    """
+    from app.models.receta import Receta, RecetaIngrediente
+    from app.models.inventario import Ingrediente, Producto
+
+    receta = db.query(Receta).filter(Receta.id == receta_id).first()
+    if not receta:
+        raise HTTPException(status_code=404, detail="Receta no encontrada")
+
+    # Verificar que hay suficientes ingredientes
+    faltantes = []
+    for ri in receta.ingredientes:
+        ingrediente = db.query(Ingrediente).filter(Ingrediente.id == ri.ingrediente_id).first()
+        necesario = ri.cantidad * cantidad
+        if ingrediente and ingrediente.stock_actual < necesario:
+            faltantes.append({
+                "ingrediente": ingrediente.nombre,
+                "necesario": float(necesario),
+                "disponible": float(ingrediente.stock_actual),
+            })
+
+    if faltantes:
+        raise HTTPException(status_code=400, detail={
+            "mensaje": "No hay suficientes ingredientes",
+            "faltantes": faltantes,
+        })
+
+    # Descontar ingredientes
+    for ri in receta.ingredientes:
+        ingrediente = db.query(Ingrediente).filter(Ingrediente.id == ri.ingrediente_id).first()
+        if ingrediente:
+            ingrediente.stock_actual -= ri.cantidad * cantidad
+
+    # Sumar producto terminado
+    piezas = 0
+    producto = db.query(Producto).filter(Producto.id == receta.producto_id).first()
+    if producto:
+        piezas = int(receta.rendimiento or 1) * cantidad
+        producto.stock_actual += Decimal(str(piezas))
+
+    db.commit()
+
+    return {
+        "mensaje": f"Horneado: {cantidad}x {receta.nombre}",
+        "piezas_producidas": piezas if producto else 0,
+        "stock_producto": float(producto.stock_actual) if producto else 0,
+    }
