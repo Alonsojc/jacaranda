@@ -10,7 +10,45 @@ from sqlalchemy import func, and_, extract
 
 from app.models.venta import Venta, DetalleVenta, EstadoVenta
 from app.models.empleado import RegistroNomina
-from app.models.inventario import MovimientoInventario, TipoMovimiento
+from app.models.inventario import MovimientoInventario, TipoMovimiento, Ingrediente
+
+
+def gastos_hoy(db: Session) -> dict:
+    """Retorna gastos del día (compras de ingredientes)."""
+    hoy_inicio = datetime.combine(date.today(), datetime.min.time())
+    hoy_fin = datetime.combine(date.today(), datetime.max.time())
+
+    compras = db.query(MovimientoInventario).filter(
+        and_(
+            MovimientoInventario.tipo == TipoMovimiento.ENTRADA_COMPRA,
+            MovimientoInventario.fecha >= hoy_inicio,
+            MovimientoInventario.fecha <= hoy_fin,
+        )
+    ).order_by(MovimientoInventario.fecha.desc()).all()
+
+    total = sum(m.cantidad * m.costo_unitario for m in compras)
+
+    desglose = []
+    for m in compras:
+        nombre = "Ingrediente"
+        if m.ingrediente_id:
+            ing = db.query(Ingrediente).filter(Ingrediente.id == m.ingrediente_id).first()
+            if ing:
+                nombre = ing.nombre
+        desglose.append({
+            "ingrediente": nombre,
+            "cantidad": float(m.cantidad),
+            "costo_unitario": float(m.costo_unitario),
+            "total": float(m.cantidad * m.costo_unitario),
+            "referencia": m.referencia,
+            "hora": m.fecha.strftime("%H:%M") if m.fecha else "",
+        })
+
+    return {
+        "total_gastos": float(total),
+        "numero_compras": len(compras),
+        "desglose": desglose,
+    }
 
 
 def reporte_ventas_periodo(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
