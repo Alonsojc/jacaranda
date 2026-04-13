@@ -404,12 +404,19 @@ function toast(msg, isErr) {
 }
 
 // ─── API helpers ──────────────────────────────────────────────────
-function api(method, path, body) {
+function api(method, path, body, _retry) {
   if (!API_URL) return Promise.reject('offline');
   var opts = {method: method, headers: {'Content-Type':'application/json'}};
   if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
   if (body) opts.body = JSON.stringify(body);
   return fetch(API_URL + '/api/v1' + path, opts).then(function(r) {
+    if (r.status === 401 && !_retry) {
+      // Token expirado, re-login y reintentar
+      return login('admin@jacaranda.mx', 'admin1234').then(function() {
+        setConnected(true);
+        return api(method, path, body, true);
+      });
+    }
     if (!r.ok) throw new Error(r.status);
     return r.json();
   });
@@ -713,9 +720,37 @@ function cargarDashboard() {
 }
 
 // Auto-conectar si hay URL guardada
-if (API_URL && TOKEN) {
-  cargarDashboard();
+function autoConectar() {
+  if (!API_URL) return;
+  // Intentar usar token existente
+  if (TOKEN) {
+    api('GET', '/reportes/dashboard').then(function(d) {
+      setConnected(true);
+      document.getElementById('d-ventas').textContent = fmt(d.ventas_hoy);
+      document.getElementById('d-ef').textContent = fmt(d.efectivo);
+      document.getElementById('d-clip').textContent = fmt(d.clip);
+      document.getElementById('d-bbva').textContent = fmt(d.bbva);
+      document.getElementById('d-tickets').textContent = d.tickets || 0;
+    }).catch(function() {
+      // Token expirado, re-login automático
+      reLogin();
+    });
+  } else {
+    reLogin();
+  }
 }
+
+function reLogin() {
+  if (!API_URL) return;
+  login('admin@jacaranda.mx', 'admin1234').then(function() {
+    setConnected(true);
+    cargarDashboard();
+  }).catch(function() {
+    setConnected(false);
+  });
+}
+
+autoConectar();
 </script>
 </body>
 </html>
