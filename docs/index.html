@@ -23,7 +23,7 @@ nav{background:#fff;border-bottom:1px solid var(--brd);padding:.7rem 1.5rem;disp
 .wrap{max-width:1100px;margin:0 auto;padding:1.5rem}
 .page{display:none}.page.on{display:block}
 .row{display:grid;gap:1rem;margin-bottom:1rem}
-.r4{grid-template-columns:repeat(4,1fr)}
+.r4{grid-template-columns:repeat(4,1fr)}.r5{grid-template-columns:repeat(5,1fr)}
 .r2{grid-template-columns:1fr 1fr}
 .r3{grid-template-columns:1fr 1fr 1fr}
 .card{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd)}
@@ -80,7 +80,7 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
 .footer{text-align:center;padding:1.5rem;color:var(--mut);font-size:.8rem;border-top:1px solid var(--brd);margin-top:2rem}
 .footer a{color:var(--v);text-decoration:none}
-@media(max-width:768px){.r4{grid-template-columns:1fr 1fr}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.prods{grid-template-columns:repeat(2,1fr)}.nav-links{gap:0}.nav-links a{padding:.4rem .5rem;font-size:.75rem}}
+@media(max-width:768px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.prods{grid-template-columns:repeat(2,1fr)}.nav-links{gap:0}.nav-links a{padding:.4rem .5rem;font-size:.75rem}.pmt{grid-template-columns:1fr!important}}
 </style>
 </head>
 <body>
@@ -105,11 +105,12 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <!-- DASHBOARD -->
 <div class="page on" id="dash">
 <h2>Dashboard &mdash; Hoy</h2>
-<div class="row r4">
+<div class="row r5">
 <div class="card kpi g"><div class="n">$14,850</div><div class="l">Ventas del d&iacute;a</div></div>
-<div class="card kpi"><div class="n">$9,200</div><div class="l">Efectivo (CLIP)</div></div>
-<div class="card kpi p"><div class="n">$5,650</div><div class="l">Tarjeta (BBVA)</div></div>
-<div class="card kpi a"><div class="n">47</div><div class="l">Tickets</div></div>
+<div class="card kpi"><div class="n">$4,200</div><div class="l">Efectivo</div></div>
+<div class="card kpi p"><div class="n">$6,100</div><div class="l">CLIP</div></div>
+<div class="card kpi a"><div class="n">$4,550</div><div class="l">BBVA</div></div>
+<div class="card kpi"><div class="n">47</div><div class="l">Tickets</div></div>
 </div>
 <div class="row r2">
 <div class="card"><h3>Productos m&aacute;s vendidos</h3>
@@ -166,9 +167,10 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="ttot"><span>TOTAL</span><span id="ttot"></span></div>
 </div>
 <div style="font-size:.78rem;color:var(--mut);margin:.6rem 0 .3rem;font-weight:600">M&eacute;todo de pago:</div>
-<div class="pmt">
-<div class="pbtn sel" id="pm-ef" onclick="setPm('ef')">&#128181; Efectivo (CLIP)</div>
-<div class="pbtn" id="pm-ta" onclick="setPm('ta')">&#128179; Tarjeta (BBVA)</div>
+<div class="pmt" style="grid-template-columns:1fr 1fr 1fr">
+<div class="pbtn sel" id="pm-ef" onclick="setPm('ef')">&#128181; Efectivo</div>
+<div class="pbtn" id="pm-clip" onclick="setPm('clip')">&#128179; CLIP</div>
+<div class="pbtn" id="pm-bbva" onclick="setPm('bbva')">&#127974; BBVA</div>
 </div>
 <button class="cobrar" onclick="cobrar()">Cobrar</button>
 <button class="limpiar" onclick="limpiar()">Limpiar</button>
@@ -216,34 +218,36 @@ h2{font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="card">
 <h3>Resumen del d&iacute;a</h3>
 <div class="srow"><span>Total ventas</span><span class="green">$14,850.00</span></div>
-<div class="srow"><span>Efectivo (CLIP)</span><span>$9,200.00</span></div>
-<div class="srow"><span>Tarjeta (BBVA)</span><span>$5,650.00</span></div>
-<div class="srow"><span>Tickets efectivo</span><span>29</span></div>
-<div class="srow"><span>Tickets tarjeta</span><span>18</span></div>
+<div class="srow"><span>Efectivo</span><span>$4,200.00</span></div>
+<div class="srow"><span>CLIP (tarjeta)</span><span>$6,100.00</span></div>
+<div class="srow"><span>BBVA (tarjeta)</span><span>$4,550.00</span></div>
+<div class="srow"><span>Tickets efectivo</span><span>15</span></div>
+<div class="srow"><span>Tickets CLIP</span><span>19</span></div>
+<div class="srow"><span>Tickets BBVA</span><span>13</span></div>
 <div class="srow" style="border-top:2px solid var(--v);font-weight:700;color:var(--v)"><span>Total tickets</span><span>47</span></div>
 </div>
 <div class="card">
 <h3>Cuadre de caja</h3>
 <div class="srow"><span>Fondo inicial</span><span>$2,000.00</span></div>
-<div class="srow"><span>+ Ventas efectivo</span><span>$9,200.00</span></div>
+<div class="srow"><span>+ Ventas efectivo</span><span>$4,200.00</span></div>
 <div class="srow"><span>- Retiros</span><span>$0.00</span></div>
-<div class="srow" style="font-weight:700"><span>Efectivo esperado</span><span>$11,200.00</span></div>
-<div class="srow" style="font-weight:700"><span>Efectivo real (contado)</span><span>$11,200.00</span></div>
+<div class="srow" style="font-weight:700"><span>Efectivo esperado</span><span>$6,200.00</span></div>
+<div class="srow" style="font-weight:700"><span>Efectivo real (contado)</span><span>$6,200.00</span></div>
 <div class="srow" style="font-weight:700;color:var(--grn)"><span>Diferencia</span><span>$0.00 &#10004;</span></div>
 </div>
 </div>
 <div class="card">
 <h3>Desglose por producto</h3>
 <table class="tbl">
-<tr><th>Producto</th><th>Qty</th><th>Efectivo</th><th>Tarjeta</th><th>Total</th></tr>
-<tr><td>Nutella</td><td>32</td><td>$1,530</td><td>$1,190</td><td>$2,720</td></tr>
-<tr><td>Manzana</td><td>24</td><td>$900</td><td>$900</td><td>$1,800</td></tr>
-<tr><td>Brownies</td><td>18</td><td>$450</td><td>$360</td><td>$810</td></tr>
-<tr><td>Galletas 6pz</td><td>15</td><td>$680</td><td>$595</td><td>$1,275</td></tr>
-<tr><td>Velas</td><td>8</td><td>$140</td><td>$140</td><td>$280</td></tr>
-<tr><td>Bolillo</td><td>120</td><td>$300</td><td>$0</td><td>$300</td></tr>
-<tr><td>Concha</td><td>56</td><td>$520</td><td>$320</td><td>$840</td></tr>
-<tr><td>Cuerno</td><td>42</td><td>$380</td><td>$250</td><td>$630</td></tr>
+<tr><th>Producto</th><th>Qty</th><th>Efectivo</th><th>CLIP</th><th>BBVA</th><th>Total</th></tr>
+<tr><td>Nutella</td><td>32</td><td>$850</td><td>$1,020</td><td>$850</td><td>$2,720</td></tr>
+<tr><td>Manzana</td><td>24</td><td>$450</td><td>$750</td><td>$600</td><td>$1,800</td></tr>
+<tr><td>Brownies</td><td>18</td><td>$270</td><td>$315</td><td>$225</td><td>$810</td></tr>
+<tr><td>Galletas 6pz</td><td>15</td><td>$340</td><td>$510</td><td>$425</td><td>$1,275</td></tr>
+<tr><td>Velas</td><td>8</td><td>$105</td><td>$105</td><td>$70</td><td>$280</td></tr>
+<tr><td>Bolillo</td><td>120</td><td>$200</td><td>$50</td><td>$50</td><td>$300</td></tr>
+<tr><td>Concha</td><td>56</td><td>$280</td><td>$340</td><td>$220</td><td>$840</td></tr>
+<tr><td>Cuerno</td><td>42</td><td>$210</td><td>$250</td><td>$170</td><td>$630</td></tr>
 </table>
 </div>
 </div>
@@ -286,8 +290,8 @@ var cart=[],pm='ef',sales=[];
 function go(p){document.querySelectorAll('.page').forEach(function(e){e.classList.remove('on')});document.getElementById(p).classList.add('on');document.querySelectorAll('.nav-links a:not(.wa)').forEach(function(a){a.classList.remove('on')});}
 function add(n,pr,iv){var f=false;for(var i=0;i<cart.length;i++){if(cart[i].n===n){cart[i].q++;f=true;break;}}if(!f)cart.push({n:n,p:pr,iv:iv,q:1});ren();}
 function ren(){var h='',s=0,iv=0;for(var i=0;i<cart.length;i++){var c=cart[i],l=c.p*c.q;s+=l;iv+=c.iv===16?l*.16:0;h+='<div class="ti"><span>'+c.q+'x '+c.n+'</span><span>$'+l.toFixed(2)+'</span></div>';}document.getElementById('titems').innerHTML=h;document.getElementById('tsum').style.display=cart.length?'block':'none';document.getElementById('tsub').textContent='$'+s.toFixed(2);document.getElementById('tiva').textContent='$'+iv.toFixed(2);document.getElementById('ttot').textContent='$'+(s+iv).toFixed(2);}
-function setPm(m){pm=m;document.getElementById('pm-ef').classList.toggle('sel',m==='ef');document.getElementById('pm-ta').classList.toggle('sel',m==='ta');}
-function cobrar(){if(!cart.length)return;var t=document.getElementById('ttot').textContent;var mp=pm==='ef'?'Efectivo (CLIP)':'Tarjeta (BBVA)';alert('Venta registrada\n'+t+' - '+mp+'\nTicket T-'+(Math.floor(Math.random()*9000)+1000));limpiar();}
+function setPm(m){pm=m;document.getElementById('pm-ef').classList.toggle('sel',m==='ef');document.getElementById('pm-clip').classList.toggle('sel',m==='clip');document.getElementById('pm-bbva').classList.toggle('sel',m==='bbva');}
+function cobrar(){if(!cart.length)return;var t=document.getElementById('ttot').textContent;var nombres={ef:'Efectivo',clip:'CLIP',bbva:'BBVA'};alert('Venta registrada\n'+t+' - '+nombres[pm]+'\nTicket T-'+(Math.floor(Math.random()*9000)+1000));limpiar();}
 function limpiar(){cart=[];ren();}
 function guardarPed(){var n=document.getElementById('np-nom').value;if(!n){alert('Escribe el nombre del cliente');return;}alert('Pedido guardado para '+n);document.getElementById('modal-ped').classList.remove('on');}
 </script>
