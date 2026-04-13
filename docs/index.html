@@ -127,11 +127,6 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <a href="https://wa.me/5214424670397" target="_blank" class="wa">WhatsApp</a>
 </div>
 </nav>
-<div class="hero">
-<h1>Jacaranda</h1>
-<p>sharing flavors</p>
-<small>Plaza Distrito Marqu&eacute;s, Quer&eacute;taro &bull; L-V 9:30-18:30 &bull; S&aacute;b 10:30-14:30 &bull; <a href="https://instagram.com/jacaranda.flavors" target="_blank" style="color:rgba(255,255,255,.8)">@jacaranda.flavors</a></small>
-</div>
 <div class="wrap">
 
 <!-- DASHBOARD -->
@@ -164,39 +159,8 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="page" id="pos">
 <h2>Punto de Venta</h2>
 <div class="pos-grid">
-<div class="pos-prods">
-<div style="font-size:.7rem;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.4rem">Individuales</div>
-<div class="prods">
-<div class="pi" onclick="add('Nutella Pie ind.',100,16)"><div class="em">&#127849;</div><div class="pn">Nutella Pie</div><div class="pp">$100</div></div>
-<div class="pi" onclick="add('Apple Crumble ind.',100,16)"><div class="em">&#127822;</div><div class="pn">Apple Crumble</div><div class="pp">$100</div></div>
-<div class="pi" onclick="add('Lemon Pie ind.',100,16)"><div class="em">&#127819;</div><div class="pn">Lemon Pie</div><div class="pp">$100</div></div>
-<div class="pi" onclick="add('Rosca Enjambre ind.',100,16)"><div class="em">&#127851;</div><div class="pn">Enjambre ind.</div><div class="pp">$100</div></div>
-<div class="pi" onclick="add('Brownie',70,16)"><div class="em">&#127851;</div><div class="pn">Brownie</div><div class="pp">$70</div></div>
-<div class="pi" onclick="add('Galletas x4',55,16)"><div class="em">&#127850;</div><div class="pn">Galletas x4</div><div class="pp">$55</div></div>
-</div>
-<div style="font-size:.7rem;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.1em;margin:.8rem 0 .4rem">Pies y Postres</div>
-<div class="prods">
-<div class="pi" onclick="add('Nutella Pie chico',275,16)"><div class="em">&#127849;</div><div class="pn">Nutella ch.</div><div class="pp">$275</div></div>
-<div class="pi" onclick="add('Nutella Pie grande',400,16)"><div class="em">&#127849;</div><div class="pn">Nutella gde.</div><div class="pp">$400</div></div>
-<div class="pi" onclick="add('Apple Crumble chico',275,16)"><div class="em">&#127822;</div><div class="pn">Apple ch.</div><div class="pp">$275</div></div>
-<div class="pi" onclick="add('Apple Crumble grande',400,16)"><div class="em">&#127822;</div><div class="pn">Apple gde.</div><div class="pp">$400</div></div>
-<div class="pi" onclick="add('Lemon Pie chico',275,16)"><div class="em">&#127819;</div><div class="pn">Lemon ch.</div><div class="pp">$275</div></div>
-<div class="pi" onclick="add('Lemon Pie grande',400,16)"><div class="em">&#127819;</div><div class="pn">Lemon gde.</div><div class="pp">$400</div></div>
-<div class="pi" onclick="add('Pastel de D&aacute;til',480,16)"><div class="em">&#127856;</div><div class="pn">Pastel D&aacute;til</div><div class="pp">$480</div></div>
-<div class="pi" onclick="add('Rosca Enjambre gde.',500,16)"><div class="em">&#127856;</div><div class="pn">Enjambre gde.</div><div class="pp">$500</div></div>
-<div class="pi" onclick="add('Rosca de Cazares',400,16)"><div class="em">&#127798;</div><div class="pn">Rosca Cazares</div><div class="pp">$400</div></div>
-<div class="pi" onclick="add('Rosca Chocolate',450,16)"><div class="em">&#127851;</div><div class="pn">Rosca Choco</div><div class="pp">$450</div></div>
-<div class="pi" onclick="add('Panqu&eacute; Zanahoria',370,16)"><div class="em">&#129365;</div><div class="pn">Panqu&eacute; Zanahoria</div><div class="pp">$370</div></div>
-<div class="pi" onclick="add('Panqu&eacute; Pl&aacute;tano',350,16)"><div class="em">&#127820;</div><div class="pn">Panqu&eacute; Pl&aacute;tano</div><div class="pp">$350</div></div>
-</div>
-<div style="font-size:.7rem;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.1em;margin:.8rem 0 .4rem">Cajas de Regalo</div>
-<div class="prods">
-<div class="pi" onclick="add('Caja Brownies x16',370,16)"><div class="em">&#127873;</div><div class="pn">Brownies x16</div><div class="pp">$370</div></div>
-<div class="pi" onclick="add('Caja Blondies x16',370,16)"><div class="em">&#127873;</div><div class="pn">Blondies x16</div><div class="pp">$370</div></div>
-<div class="pi" onclick="add('Polvorones Nuez',260,16)"><div class="em">&#127873;</div><div class="pn">Polvorones x25</div><div class="pp">$260</div></div>
-<div class="pi" onclick="add('Linzer x7',250,16)"><div class="em">&#127873;</div><div class="pn">Linzer x7</div><div class="pp">$250</div></div>
-<div class="pi" onclick="add('Galletas Avena x20',300,16)"><div class="em">&#127873;</div><div class="pn">Avena x20</div><div class="pp">$300</div></div>
-</div>
+<div class="pos-prods" id="pos-products">
+<p style="color:var(--mut);text-align:center;padding:2rem">Cargando productos...</p>
 </div><!-- pos-prods -->
 <div class="tkt">
 <h3>Ticket</h3>
@@ -292,31 +256,34 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 
 <!-- CORTE DE CAJA -->
 <div class="page" id="corte">
-<h2>Corte de Caja <button class="cobrar" style="display:inline;width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0 0 0 1rem;vertical-align:middle" onclick="generarCorte()">Generar Corte</button></h2>
+<h2>Corte de Caja</h2>
+<div class="row r3" style="margin-bottom:.5rem">
+<div class="card kpi g"><div class="n" id="c-total-ef">$0</div><div class="l">Efectivo</div></div>
+<div class="card kpi"><div class="n" id="c-total-tar">$0</div><div class="l">Tarjeta</div></div>
+<div class="card kpi a"><div class="n" id="c-total-trans">$0</div><div class="l">Transferencia</div></div>
+</div>
 <div class="row r2">
 <div class="card">
-<h3>Resumen del d&iacute;a</h3>
-<div id="corte-resumen">
-<div class="srow"><span>Total ventas</span><span class="green" id="c-total">$0.00</span></div>
-<div class="srow"><span>Tickets</span><span id="c-tickets">0</span></div>
-</div>
-</div>
-<div class="card">
 <h3>Cuadre de caja</h3>
+<div class="srow"><span>Total ventas del d&iacute;a</span><span class="green" id="c-total">$0.00</span></div>
+<div class="srow"><span>Tickets</span><span id="c-tickets">0</span></div>
+<div style="border-top:2px solid var(--brd);margin:.8rem 0;padding-top:.8rem">
 <div class="frow" style="margin-bottom:.6rem">
 <div class="fg"><label>Fondo inicial</label><input type="number" id="c-fondo" value="2000" style="font-weight:700"></div>
 <div class="fg"><label>Efectivo contado</label><input type="number" id="c-real" placeholder="Cuenta el efectivo..." style="font-weight:700" oninput="calcularDiferencia()"></div>
 </div>
-<div id="corte-cuadre">
-<div class="srow"><span>Fondo + ventas efectivo</span><span id="c-esperado" style="font-weight:700">$2,000.00</span></div>
+<div class="srow"><span>Esperado (fondo + ventas efectivo)</span><span id="c-esperado" style="font-weight:700">$2,000.00</span></div>
 <div class="srow"><span>Efectivo real</span><span id="c-contado" style="font-weight:700">--</span></div>
 <div class="srow" style="font-weight:700"><span>Diferencia</span><span id="c-dif">--</span></div>
 </div>
+<button class="cobrar" style="margin-top:.6rem" onclick="realizarCorte()">Registrar Corte</button>
+</div>
+<div class="card">
+<h3>Ventas del d&iacute;a</h3>
+<div id="c-ventas-list" style="max-height:400px;overflow-y:auto">
+<p style="color:var(--mut);text-align:center;padding:1rem;font-size:.85rem">Cargando ventas...</p>
 </div>
 </div>
-<div class="card" id="corte-desglose">
-<h3>Desglose por producto</h3>
-<p style="text-align:center;color:var(--mut);padding:1rem;font-size:.85rem">Haz click en "Generar Corte" para ver el desglose del d&iacute;a</p>
 </div>
 </div>
 
@@ -520,6 +487,36 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 </div>
 
+<!-- MODAL: Cobrar -->
+<div class="modal-bg" id="modal-cobrar">
+<div class="modal">
+<h3>Cobrar</h3>
+<div style="text-align:center;margin-bottom:1rem">
+<div style="font-size:2rem;font-weight:700;color:var(--v)" id="mc-total">$0.00</div>
+<div style="font-size:.85rem;color:var(--mut)" id="mc-metodo">Efectivo</div>
+</div>
+<div id="mc-efectivo">
+<div class="fg"><label>Monto recibido</label><input type="number" id="mc-recibido" step="0.01" oninput="calcCambio()" style="font-size:1.2rem;font-weight:700;text-align:center"></div>
+<div style="text-align:center;font-size:1.1rem;font-weight:600;margin:.5rem 0">Cambio: <span id="mc-cambio" style="color:var(--grn)">$0.00</span></div>
+</div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="cobrar" style="flex:1" onclick="procesarVenta()">Confirmar Venta</button>
+<button class="limpiar" style="flex:1;padding:.5rem 1.2rem" onclick="cerrarModal('modal-cobrar')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Ticket confirmación -->
+<div class="modal-bg" id="modal-ticket">
+<div class="modal" style="text-align:center">
+<div style="font-size:3rem;margin-bottom:.5rem">&#10003;</div>
+<h3 style="color:var(--grn)">Venta Registrada</h3>
+<div id="mt-folio" style="font-size:1.3rem;font-weight:700;color:var(--v);margin:.5rem 0"></div>
+<div id="mt-detalles" style="text-align:left;margin:1rem 0"></div>
+<button class="cobrar" style="width:100%" onclick="cerrarModal('modal-ticket')">Cerrar</button>
+</div>
+</div>
+
 <div class="toast" id="toast"></div>
 <div class="footer">
 <strong style="font-family:'DM Serif Display',serif;letter-spacing:.2em;color:var(--v);font-weight:400">Jacaranda</strong> <span style="color:var(--mut);font-size:.75rem">sharing flavors</span><br>
@@ -556,7 +553,7 @@ function api(method, path, body, _retry) {
         return api(method, path, body, true);
       });
     }
-    if (!r.ok) throw new Error(r.status);
+    if (!r.ok) return r.json().catch(function(){return {};}).then(function(body){var e=new Error(typeof body.detail==='string'?body.detail:r.status);e.status=r.status;throw e;});
     return r.json();
   });
 }
@@ -583,18 +580,19 @@ function go(p) {
   });
   if (p === 'ped') cargarPedidos();
   if (p === 'dash') cargarDashboard();
-  if (p === 'corte') generarCorte();
+  if (p === 'pos') cargarPOSProductos();
+  if (p === 'corte') cargarCorte();
   if (p === 'listas') cargarListas();
   window.scrollTo(0, 0);
 }
 
 // ─── POS ──────────────────────────────────────────────────────────
-function add(n, pr, iv) {
+function add(id, n, pr, iv) {
   var f = false;
   for (var i = 0; i < cart.length; i++) {
-    if (cart[i].n === n) { cart[i].q++; f = true; break; }
+    if (cart[i].id === id) { cart[i].q++; f = true; break; }
   }
-  if (!f) cart.push({n:n, p:pr, iv:iv, q:1});
+  if (!f) cart.push({id:id, n:n, p:pr, iv:iv, q:1});
   ren();
 }
 
@@ -603,7 +601,7 @@ function ren() {
   for (var i = 0; i < cart.length; i++) {
     var c = cart[i], l = c.p * c.q;
     s += l;
-    iv += c.iv === 16 ? l * 0.16 : 0;
+    iv += l * c.iv;
     h += '<div class="ti" style="align-items:center">';
     h += '<span style="display:flex;align-items:center;gap:.4rem">';
     h += '<span class="qty-btn" onclick="cartQty(' + i + ',-1)">-</span>';
@@ -632,29 +630,111 @@ function setPm(m) {
 
 function cobrar() {
   if (!cart.length) return;
-  var total = document.getElementById('ttot').textContent;
-  var terminales = {ef:'efectivo', clip:'clip', bbva:'bbva'};
-  var nombres = {ef:'Efectivo', clip:'CLIP', bbva:'BBVA'};
+  var s = 0, iv = 0;
+  for (var i = 0; i < cart.length; i++) {
+    var l = cart[i].p * cart[i].q;
+    s += l; iv += l * cart[i].iv;
+  }
+  var total = s + iv;
+  document.getElementById('mc-total').textContent = '$' + total.toFixed(2);
+  var nombres = {ef:'Efectivo', clip:'Tarjeta (CLIP)', bbva:'Transferencia (BBVA)'};
+  document.getElementById('mc-metodo').textContent = nombres[pm];
+  var efDiv = document.getElementById('mc-efectivo');
+  if (pm === 'ef') {
+    efDiv.style.display = 'block';
+    document.getElementById('mc-recibido').value = '';
+    document.getElementById('mc-cambio').textContent = '$0.00';
+    document.getElementById('mc-cambio').style.color = 'var(--grn)';
+  } else {
+    efDiv.style.display = 'none';
+  }
+  document.getElementById('modal-cobrar').classList.add('on');
+  if (pm === 'ef') setTimeout(function(){document.getElementById('mc-recibido').focus();},100);
+}
 
-  // Intentar registrar en el backend
-  var items = cart.map(function(c) {
-    return {producto_nombre: c.n, cantidad: c.q, precio: c.p, iva: c.iv};
+function calcCambio() {
+  var total = parseFloat(document.getElementById('mc-total').textContent.replace(/[^0-9.-]/g,'')) || 0;
+  var recibido = parseFloat(document.getElementById('mc-recibido').value) || 0;
+  var cambio = recibido - total;
+  var el = document.getElementById('mc-cambio');
+  el.textContent = '$' + Math.max(0, cambio).toFixed(2);
+  el.style.color = cambio >= 0 ? 'var(--grn)' : '#b91c1c';
+}
+
+function procesarVenta() {
+  var s = 0, iv = 0;
+  for (var i = 0; i < cart.length; i++) {
+    var l = cart[i].p * cart[i].q; s += l; iv += l * cart[i].iv;
+  }
+  var total = s + iv;
+  var metodos = {ef:'01', clip:'04', bbva:'03'};
+  var monto = total;
+  if (pm === 'ef') {
+    monto = parseFloat(document.getElementById('mc-recibido').value) || 0;
+    if (monto < total) { toast('El monto recibido es menor al total', true); return; }
+  }
+  var detalles = cart.map(function(c) {
+    return {producto_id: c.id, cantidad: c.q, descuento: 0};
   });
-
   api('POST', '/punto-de-venta/ventas', {
-    items: items,
-    metodo_pago: pm === 'ef' ? '01' : '04',
-    terminal: terminales[pm]
+    detalles: detalles,
+    metodo_pago: metodos[pm],
+    forma_pago: 'PUE',
+    monto_recibido: monto
   }).then(function(venta) {
-    toast('Venta ' + venta.folio + ' registrada ' + total + ' - ' + nombres[pm]);
+    cerrarModal('modal-cobrar');
     limpiar();
-  }).catch(function() {
-    toast('Venta registrada (local) ' + total + ' - ' + nombres[pm]);
-    limpiar();
+    mostrarTicket(venta);
+    cargarPOSProductos(); // Refresh stock badges
+  }).catch(function(e) {
+    toast(e.message || 'Error al registrar venta', true);
   });
 }
 
+function mostrarTicket(venta) {
+  document.getElementById('mt-folio').textContent = venta.folio;
+  var cambio = parseFloat(venta.cambio) || 0;
+  var metodos = {'01':'Efectivo','04':'Tarjeta','28':'Tarjeta D\u00e9bito','03':'Transferencia'};
+  var h = '';
+  h += '<div class="srow"><span>Total</span><span class="green" style="font-size:1.2rem">$' + parseFloat(venta.total).toFixed(2) + '</span></div>';
+  h += '<div class="srow"><span>Subtotal</span><span>$' + parseFloat(venta.subtotal).toFixed(2) + '</span></div>';
+  h += '<div class="srow"><span>IVA</span><span>$' + parseFloat(venta.total_impuestos).toFixed(2) + '</span></div>';
+  h += '<div class="srow"><span>M\u00e9todo</span><span>' + (metodos[venta.metodo_pago] || venta.metodo_pago) + '</span></div>';
+  if (cambio > 0) {
+    h += '<div class="srow"><span>Cambio</span><span style="color:var(--grn);font-weight:700">$' + cambio.toFixed(2) + '</span></div>';
+  }
+  document.getElementById('mt-detalles').innerHTML = h;
+  document.getElementById('modal-ticket').classList.add('on');
+}
+
 function limpiar() { cart = []; ren(); }
+
+function cargarPOSProductos() {
+  api('GET', '/inventario/productos').then(function(prods) {
+    var h = '<div class="prods">';
+    for (var i = 0; i < prods.length; i++) {
+      var p = prods[i];
+      if (!p.activo) continue;
+      var precio = parseFloat(p.precio_unitario) || 0;
+      var stock = parseFloat(p.stock_actual) || 0;
+      var iv = p.tasa_iva === '0.16' ? 0.16 : 0;
+      var ivCls = iv > 0 ? 'iv16' : 'iv0';
+      var ivTxt = iv > 0 ? 'IVA 16%' : 'IVA 0%';
+      var agotado = stock <= 0;
+      h += '<div class="pi' + (agotado ? '" style="opacity:.5;pointer-events:none"' : '"') + ' onclick="add(' + p.id + ',\'' + p.nombre.replace(/'/g,"\\'") + '\',' + precio + ',' + iv + ')">';
+      h += '<span class="pn">' + p.nombre + '</span>';
+      h += '<span class="pp">$' + precio.toFixed(0) + '</span>';
+      h += '<span style="font-size:.7rem;color:var(--mut)">' + Math.round(stock) + ' pzas</span>';
+      h += '<span class="iv ' + ivCls + '">' + ivTxt + '</span>';
+      if (agotado) h += '<span style="font-size:.7rem;color:#b91c1c;font-weight:600">Agotado</span>';
+      h += '</div>';
+    }
+    h += '</div>';
+    document.getElementById('pos-products').innerHTML = h;
+  }).catch(function() {
+    document.getElementById('pos-products').innerHTML = '<p style="color:var(--mut);text-align:center;padding:2rem">Error al cargar productos. Verifica la conexi\u00f3n.</p>';
+  });
+}
 
 // ─── Pedidos ──────────────────────────────────────────────────────
 function guardarPed() {
@@ -1252,29 +1332,69 @@ function setConnecting() {
 }
 
 // ─── Corte de caja ────────────────────────────────────────────────
-function generarCorte() {
-  api('GET', '/reportes/dashboard').then(function(d) {
-    var vh = d.ventas_hoy || {};
-    var total = Number(vh.total||0);
-    document.getElementById('c-total').textContent = '$' + total.toLocaleString('es-MX',{minimumFractionDigits:2});
-    document.getElementById('c-tickets').textContent = vh.numero_ventas || 0;
+var _efTotal = 0;
+
+function cargarCorte() {
+  // Load today's ventas for the breakdown and list
+  var hoy = new Date().toISOString().split('T')[0];
+  api('GET', '/punto-de-venta/ventas?fecha_inicio=' + hoy + '&fecha_fin=' + hoy).then(function(ventas) {
+    var efTotal = 0, tarTotal = 0, transTotal = 0, totalGeneral = 0, tickets = 0;
+    var h = '';
+    var metodos = {'01':'Efectivo','04':'Tarjeta','28':'Tarjeta','03':'Transferencia'};
+    for (var i = 0; i < ventas.length; i++) {
+      var v = ventas[i];
+      var tot = parseFloat(v.total) || 0;
+      var met = metodos[v.metodo_pago] || v.metodo_pago;
+      var estado = v.estado === 'cancelada' ? ' <span class="badge bout">Cancelada</span>' : '';
+      if (v.estado !== 'cancelada') {
+        totalGeneral += tot; tickets++;
+        if (v.metodo_pago === '01') efTotal += tot;
+        else if (v.metodo_pago === '04' || v.metodo_pago === '28') tarTotal += tot;
+        else if (v.metodo_pago === '03') transTotal += tot;
+      }
+      var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
+      h += '<div class="srow"><span>' + v.folio + ' &bull; ' + hora + ' &bull; ' + met + estado + '</span>';
+      h += '<span style="font-weight:600' + (v.estado==='cancelada'?';text-decoration:line-through;color:var(--mut)':'') + '">$' + tot.toFixed(2) + '</span></div>';
+    }
+    if (!h) h = '<p style="color:var(--mut);text-align:center;padding:.5rem;font-size:.85rem">Sin ventas hoy</p>';
+    document.getElementById('c-ventas-list').innerHTML = h;
+    document.getElementById('c-total-ef').textContent = '$' + efTotal.toLocaleString('es-MX',{minimumFractionDigits:0});
+    document.getElementById('c-total-tar').textContent = '$' + tarTotal.toLocaleString('es-MX',{minimumFractionDigits:0});
+    document.getElementById('c-total-trans').textContent = '$' + transTotal.toLocaleString('es-MX',{minimumFractionDigits:0});
+    document.getElementById('c-total').textContent = '$' + totalGeneral.toLocaleString('es-MX',{minimumFractionDigits:2});
+    document.getElementById('c-tickets').textContent = tickets;
+    _efTotal = efTotal;
     var fondo = parseFloat(document.getElementById('c-fondo').value) || 0;
-    document.getElementById('c-esperado').textContent = '$' + (fondo + total).toLocaleString('es-MX',{minimumFractionDigits:2});
-    toast('Corte generado');
-  }).catch(function(){});
+    document.getElementById('c-esperado').textContent = '$' + (fondo + efTotal).toLocaleString('es-MX',{minimumFractionDigits:2});
+  }).catch(function(){
+    document.getElementById('c-ventas-list').innerHTML = '<p style="color:var(--mut);text-align:center;padding:.5rem;font-size:.85rem">Error al cargar ventas</p>';
+  });
 }
 
 function calcularDiferencia() {
   var real = parseFloat(document.getElementById('c-real').value);
   if (isNaN(real)) { document.getElementById('c-contado').textContent = '--'; document.getElementById('c-dif').textContent = '--'; return; }
   document.getElementById('c-contado').textContent = '$' + real.toLocaleString('es-MX',{minimumFractionDigits:2});
-  var esperadoText = document.getElementById('c-esperado').textContent.replace(/[^0-9.-]/g,'');
-  var esperado = parseFloat(esperadoText) || 0;
+  var fondo = parseFloat(document.getElementById('c-fondo').value) || 0;
+  var esperado = fondo + _efTotal;
+  document.getElementById('c-esperado').textContent = '$' + esperado.toLocaleString('es-MX',{minimumFractionDigits:2});
   var dif = real - esperado;
   var difEl = document.getElementById('c-dif');
   difEl.textContent = '$' + dif.toFixed(2);
   difEl.style.color = Math.abs(dif) < 1 ? 'var(--grn)' : '#b91c1c';
   if (Math.abs(dif) < 1) difEl.textContent += ' \u2714';
+}
+
+function realizarCorte() {
+  var fondo = parseFloat(document.getElementById('c-fondo').value) || 0;
+  var real = parseFloat(document.getElementById('c-real').value);
+  if (isNaN(real)) { toast('Ingresa el efectivo contado', true); return; }
+  api('POST', '/punto-de-venta/corte-caja', {
+    fondo_inicial: fondo, efectivo_real: real
+  }).then(function(corte) {
+    var dif = parseFloat(corte.diferencia) || 0;
+    toast('Corte registrado \u2014 Diferencia: $' + dif.toFixed(2));
+  }).catch(function(e) { toast(e.message || 'Error al registrar corte', true); });
 }
 
 // ─── Dashboard data ───────────────────────────────────────────────
@@ -1352,6 +1472,7 @@ function autoConectar() {
     setConnected(true);
     cargarDashboard();
     cargarInventarioCompleto();
+    cargarPOSProductos();
   }).catch(function() {
     _reconectar++;
     if (_reconectar <= 3) {
