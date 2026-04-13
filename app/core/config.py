@@ -83,6 +83,12 @@ class Settings(BaseSettings):
     BBVA_TOKEN_URL: str = "https://connect.bbva.com/token"
     BBVA_ACCOUNT_ID: str = ""
 
+    # PAXSTORE Cloud API (terminal PAX A910S)
+    PAXSTORE_API_KEY: str = ""
+    PAXSTORE_API_SECRET: str = ""
+    PAXSTORE_API_URL: str = "https://api.whatspos.com/p-market-api"
+    PAX_TERMINAL_SN: str = "2841093742"  # S/N de la terminal Jacaranda
+
     # --- COFEPRIS ---
     TEMPERATURA_MAXIMA_REFRIGERACION: Decimal = Decimal("4.0")  # °C
     TEMPERATURA_MAXIMA_CONGELACION: Decimal = Decimal("-18.0")  # °C
