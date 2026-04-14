@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from app.api.routes import (
     auth, inventario, recetas, punto_de_venta,
     clientes, facturacion, empleados, cofepris, reportes,
-    pedidos, whatsapp, contabilidad,
+    pedidos, whatsapp, contabilidad, ia,
 )
 
 router = APIRouter()
@@ -22,3 +22,4 @@ router.include_router(reportes.router, prefix="/reportes", tags=["Reportes e Imp
 router.include_router(pedidos.router, prefix="/pedidos", tags=["Pedidos"])
 router.include_router(whatsapp.router, prefix="/whatsapp", tags=["WhatsApp Business"])
 router.include_router(contabilidad.router, prefix="/contabilidad", tags=["Contabilidad"])
+router.include_router(ia.router, prefix="/ia", tags=["IA / Pronósticos"])
