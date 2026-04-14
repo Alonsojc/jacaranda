@@ -518,3 +518,232 @@ def historial_compras_cliente(db: Session, cliente_id: int) -> dict:
             for v in ventas
         ],
     }
+
+
+# ─── Reporte de mermas ─────────────────────────────────────────────
+
+def reporte_mermas(
+    db: Session, dias: int = 30,
+) -> dict:
+    """Resumen de mermas en los últimos N días."""
+    from datetime import timedelta
+    from app.models.inventario import Producto
+
+    limite = datetime.combine(
+        date.today() - timedelta(days=dias), datetime.min.time(),
+    )
+
+    mermas = db.query(MovimientoInventario).filter(
+        and_(
+            MovimientoInventario.tipo.in_([
+                TipoMovimiento.SALIDA_MERMA,
+                TipoMovimiento.SALIDA_CADUCIDAD,
+            ]),
+            MovimientoInventario.fecha >= limite,
+        )
+    ).order_by(MovimientoInventario.fecha.desc()).all()
+
+    # Aggregate by product/ingredient
+    por_producto: dict[int, dict] = {}
+    total_unidades = 0
+    total_costo = Decimal("0")
+
+    for m in mermas:
+        if m.producto_id:
+            key = ("producto", m.producto_id)
+        elif m.ingrediente_id:
+            key = ("ingrediente", m.ingrediente_id)
+        else:
+            continue
+
+        if key not in por_producto:
+            nombre = "Desconocido"
+            costo_ref = Decimal("0")
+            if m.producto_id:
+                prod = db.query(Producto).filter(Producto.id == m.producto_id).first()
+                if prod:
+                    nombre = prod.nombre
+                    costo_ref = prod.costo_produccion
+            elif m.ingrediente_id:
+                ing = db.query(Ingrediente).filter(Ingrediente.id == m.ingrediente_id).first()
+                if ing:
+                    nombre = ing.nombre
+                    costo_ref = ing.costo_unitario
+            por_producto[key] = {
+                "tipo": key[0], "id": key[1], "nombre": nombre,
+                "total_cantidad": 0, "costo_estimado": Decimal("0"),
+                "costo_unitario_ref": float(costo_ref), "movimientos": 0,
+            }
+
+        costo_u = m.costo_unitario if m.costo_unitario else Decimal(str(por_producto[key]["costo_unitario_ref"]))
+        por_producto[key]["total_cantidad"] += float(m.cantidad)
+        por_producto[key]["costo_estimado"] += m.cantidad * costo_u
+        por_producto[key]["movimientos"] += 1
+        total_unidades += float(m.cantidad)
+        total_costo += m.cantidad * costo_u
+
+    desglose = sorted(por_producto.values(), key=lambda x: x["costo_estimado"], reverse=True)
+    for item in desglose:
+        item["costo_estimado"] = float(item["costo_estimado"])
+
+    return {
+        "dias": dias,
+        "total_mermas": len(mermas),
+        "total_unidades": total_unidades,
+        "costo_total_estimado": float(total_costo),
+        "desglose": desglose,
+        "detalle": [
+            {
+                "id": m.id,
+                "tipo": m.tipo.value,
+                "producto_id": m.producto_id,
+                "ingrediente_id": m.ingrediente_id,
+                "cantidad": float(m.cantidad),
+                "referencia": m.referencia,
+                "notas": m.notas,
+                "fecha": m.fecha.strftime("%Y-%m-%d %H:%M") if m.fecha else "",
+            }
+            for m in mermas[:100]  # Limit detail to 100
+        ],
+    }
+
+
+# ─── Kardex de ingrediente ─────────────────────────────────────────
+
+def kardex_ingrediente(db: Session, ingrediente_id: int, limit: int = 100) -> dict:
+    """Historial de movimientos con saldo acumulado para un ingrediente."""
+    ing = db.query(Ingrediente).filter(Ingrediente.id == ingrediente_id).first()
+    if not ing:
+        raise ValueError("Ingrediente no encontrado")
+
+    movimientos = db.query(MovimientoInventario).filter(
+        MovimientoInventario.ingrediente_id == ingrediente_id,
+    ).order_by(MovimientoInventario.fecha.asc()).all()
+
+    kardex = []
+    saldo = Decimal("0")
+    tipo_labels = {
+        "entrada_compra": "Compra",
+        "entrada_produccion": "Producción",
+        "entrada_devolucion": "Devolución",
+        "entrada_ajuste": "Ajuste +",
+        "salida_venta": "Venta",
+        "salida_produccion": "Uso receta",
+        "salida_merma": "Merma",
+        "salida_ajuste": "Ajuste -",
+        "salida_caducidad": "Caducidad",
+    }
+
+    for m in movimientos:
+        es_entrada = m.tipo.value.startswith("entrada")
+        cantidad = float(m.cantidad)
+        saldo += m.cantidad if es_entrada else -m.cantidad
+        kardex.append({
+            "id": m.id,
+            "fecha": m.fecha.strftime("%Y-%m-%d %H:%M") if m.fecha else "",
+            "tipo": tipo_labels.get(m.tipo.value, m.tipo.value),
+            "entrada": cantidad if es_entrada else 0,
+            "salida": 0 if es_entrada else cantidad,
+            "saldo": float(saldo),
+            "costo_unitario": float(m.costo_unitario),
+            "referencia": m.referencia or "",
+        })
+
+    # Return last N entries (most recent) but keep correct saldo
+    kardex_reciente = kardex[-limit:] if len(kardex) > limit else kardex
+
+    return {
+        "ingrediente_id": ing.id,
+        "nombre": ing.nombre,
+        "unidad_medida": ing.unidad_medida.value,
+        "stock_actual": float(ing.stock_actual),
+        "total_movimientos": len(movimientos),
+        "kardex": kardex_reciente,
+    }
+
+
+# ─── Dashboard de empleados ────────────────────────────────────────
+
+def dashboard_empleados(db: Session) -> dict:
+    """Resumen de empleados: cumpleaños próximos, documentos por vencer."""
+    from datetime import timedelta
+    from app.models.empleado import Empleado
+
+    hoy = date.today()
+    empleados = db.query(Empleado).filter(Empleado.activo.is_(True)).all()
+
+    cumpleanios = []
+    docs_por_vencer = []
+    resumen = {
+        "total_activos": len(empleados),
+        "por_departamento": {},
+    }
+
+    for emp in empleados:
+        # Count by department
+        dept = emp.departamento.value if emp.departamento else "otro"
+        resumen["por_departamento"][dept] = resumen["por_departamento"].get(dept, 0) + 1
+
+        # Birthdays in next 30 days
+        if emp.fecha_nacimiento:
+            cumple_este_anio = emp.fecha_nacimiento.replace(year=hoy.year)
+            if cumple_este_anio < hoy:
+                cumple_este_anio = cumple_este_anio.replace(year=hoy.year + 1)
+            dias_para = (cumple_este_anio - hoy).days
+            if dias_para <= 30:
+                edad = hoy.year - emp.fecha_nacimiento.year
+                cumpleanios.append({
+                    "nombre": f"{emp.nombre} {emp.apellido_paterno}",
+                    "fecha": cumple_este_anio.strftime("%d/%m"),
+                    "dias_para": dias_para,
+                    "edad": edad,
+                })
+
+        # Health card / medical revision
+        if emp.fecha_ultima_revision_medica:
+            dias_desde = (hoy - emp.fecha_ultima_revision_medica).days
+            if dias_desde > 330:  # Alert 35 days before annual renewal
+                docs_por_vencer.append({
+                    "empleado": f"{emp.nombre} {emp.apellido_paterno}",
+                    "documento": "Revisión médica",
+                    "fecha": emp.fecha_ultima_revision_medica.isoformat(),
+                    "dias_vencido": dias_desde - 365 if dias_desde > 365 else 0,
+                    "urgente": dias_desde > 365,
+                })
+        elif emp.tiene_tarjeta_salud:
+            docs_por_vencer.append({
+                "empleado": f"{emp.nombre} {emp.apellido_paterno}",
+                "documento": "Revisión médica",
+                "fecha": None,
+                "dias_vencido": 0,
+                "urgente": True,
+            })
+
+        # Hygiene training
+        if emp.fecha_capacitacion_higiene:
+            dias_desde_cap = (hoy - emp.fecha_capacitacion_higiene).days
+            if dias_desde_cap > 330:
+                docs_por_vencer.append({
+                    "empleado": f"{emp.nombre} {emp.apellido_paterno}",
+                    "documento": "Capacitación higiene",
+                    "fecha": emp.fecha_capacitacion_higiene.isoformat(),
+                    "dias_vencido": dias_desde_cap - 365 if dias_desde_cap > 365 else 0,
+                    "urgente": dias_desde_cap > 365,
+                })
+        elif not emp.capacitacion_higiene:
+            docs_por_vencer.append({
+                "empleado": f"{emp.nombre} {emp.apellido_paterno}",
+                "documento": "Capacitación higiene pendiente",
+                "fecha": None,
+                "dias_vencido": 0,
+                "urgente": True,
+            })
+
+    cumpleanios.sort(key=lambda x: x["dias_para"])
+    docs_por_vencer.sort(key=lambda x: (not x["urgente"], -x.get("dias_vencido", 0)))
+
+    return {
+        "resumen": resumen,
+        "cumpleanios": cumpleanios,
+        "documentos_por_vencer": docs_por_vencer,
+    }

@@ -202,6 +202,14 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div id="d-pronostico"><div class="srow" style="color:var(--mut)"><span>Conecta para ver sugerencia</span></div></div>
 </div>
 </div>
+<div class="row r2">
+<div class="card"><h3>Equipo &#127874;</h3>
+<div id="d-emp-cumple"><div class="srow" style="color:var(--mut)"><span>Cargando...</span></div></div>
+</div>
+<div class="card"><h3>Documentos empleados</h3>
+<div id="d-emp-docs" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Cargando...</span></div></div>
+</div>
+</div>
 </div>
 
 <!-- POS -->
@@ -576,6 +584,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <span class="tab active" onclick="repTab('rep-ventas')">Ventas</span>
 <span class="tab" onclick="repTab('rep-prod')">Productos</span>
 <span class="tab" onclick="repTab('rep-marg')">M&aacute;rgenes</span>
+<span class="tab" onclick="repTab('rep-mermas')">Mermas</span>
 <span class="tab" onclick="repTab('rep-fiscal')">Fiscal</span>
 </div>
 <button onclick="exportarReporteCSV()" class="limpiar" style="padding:.35rem .7rem;font-size:.78rem;margin:0;white-space:nowrap">&#128190; Exportar CSV</button>
@@ -616,6 +625,25 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 <div id="rep-marg" style="display:none">
 <div class="card"><h3>Margen de ganancia por producto</h3><p style="font-size:.78rem;color:var(--mut);margin-bottom:.5rem">Precio venta - costo producci&oacute;n. Ordena de mayor a menor margen %.</p><div id="rep-margenes"></div></div>
+</div>
+<div id="rep-mermas" style="display:none">
+<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
+<span style="font-size:.83rem;color:var(--mut)">Periodo:</span>
+<select id="rep-merma-dias" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit">
+<option value="7">7 d&iacute;as</option>
+<option value="30" selected>30 d&iacute;as</option>
+<option value="90">90 d&iacute;as</option>
+</select>
+<button onclick="cargarReporteMermas()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Consultar</button>
+<button onclick="exportarMermasCSV()" class="limpiar" style="padding:.35rem .7rem;font-size:.78rem;margin:0">&#128229; CSV</button>
+</div>
+<div class="row r3" style="margin-bottom:.8rem">
+<div class="card kpi" style="border-left:3px solid #ef4444"><div class="n" id="rep-merma-total">0</div><div class="l">Mermas registradas</div></div>
+<div class="card kpi" style="border-left:3px solid #f59e0b"><div class="n" id="rep-merma-uds">0</div><div class="l">Unidades perdidas</div></div>
+<div class="card kpi" style="border-left:3px solid #b91c1c"><div class="n" id="rep-merma-costo">$0</div><div class="l">Costo estimado</div></div>
+</div>
+<div class="card" style="margin-bottom:1rem"><h3>Mermas por producto/ingrediente</h3><div id="rep-merma-desglose"></div></div>
+<div class="card"><h3>Detalle de movimientos</h3><div id="rep-merma-detalle" style="max-height:300px;overflow-y:auto"></div></div>
 </div>
 <div id="rep-fiscal" style="display:none">
 <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
@@ -721,7 +749,10 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <h2>Usuarios</h2>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;gap:.4rem">
 <p style="font-size:.83rem;color:var(--mut);margin:0">Gestiona usuarios y permisos de acceso por m&oacute;dulo.</p>
+<div style="display:flex;gap:.4rem">
+<button class="limpiar" style="padding:.4rem .8rem;font-size:.78rem;margin:0" onclick="descargarBackup()">&#128190; Backup BD</button>
 <button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="abrirNuevoUsuario()">+ Nuevo Usuario</button>
+</div>
 </div>
 <div id="usuarios-list" class="card">
 <p style="color:var(--mut);padding:.5rem">Cargando usuarios...</p>
@@ -754,6 +785,16 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <button class="cobrar" style="flex:1" onclick="guardarGasto()">Guardar</button>
 <button class="limpiar" style="flex:1" onclick="cerrarModal('modal-gasto')">Cancelar</button>
 </div>
+</div>
+</div>
+
+<!-- MODAL: Kardex -->
+<div class="modal-bg" id="modal-kardex">
+<div class="modal" style="max-width:700px">
+<h3 id="mk-titulo">Kardex</h3>
+<div id="mk-resumen" style="margin-bottom:.5rem"></div>
+<div id="mk-tabla" style="max-height:400px;overflow-y:auto"><p style="color:var(--mut)">Cargando...</p></div>
+<button class="limpiar" onclick="cerrarModal('modal-kardex')">Cerrar</button>
 </div>
 </div>
 
@@ -2873,7 +2914,8 @@ function cargarListaIngredientes() {
       h += '<td>$' + fmt(costo) + '</td>';
       h += '<td>' + min + '</td>';
       h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
-      h += '<td><a href="#" onclick="editarIngrediente(' + g.id + ');return false" title="Editar" style="font-size:.9rem">&#9998;</a></td>';
+      h += '<td><a href="#" onclick="editarIngrediente(' + g.id + ');return false" title="Editar" style="font-size:.9rem;margin-right:.3rem">&#9998;</a>';
+      h += '<a href="#" onclick="verKardex(' + g.id + ',\'' + g.nombre.replace(/'/g,"\\'") + '\');return false" title="Kardex" style="font-size:.8rem">&#128209;</a></td>';
       h += '</tr>';
     }
     h += '</table>';
@@ -3547,6 +3589,9 @@ function cargarDashboard() {
   // Week-over-week comparison
   cargarComparativoSemanal();
 
+  // Employee dashboard
+  cargarDashEmpleados();
+
   // Load top products
   var hoy = new Date();
   var inicio = hoy.getFullYear() + '-' + String(hoy.getMonth()+1).padStart(2,'0') + '-01';
@@ -3749,13 +3794,14 @@ function iniciarPollPedidos() {
 
 // ─── Reportes ────────────────────────────────────────────────────
 function repTab(tab) {
-  ['rep-ventas','rep-prod','rep-marg','rep-fiscal'].forEach(function(t) {
+  ['rep-ventas','rep-prod','rep-marg','rep-mermas','rep-fiscal'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('#rep .tab').forEach(function(t) { t.classList.remove('active'); });
   event.target.classList.add('active');
   if (tab === 'rep-marg') cargarMargenes();
+  if (tab === 'rep-mermas') cargarReporteMermas();
 }
 
 function initReportes() {
@@ -3880,6 +3926,118 @@ function cargarReporteFiscal() {
     h += '<div class="srow" style="border-top:2px solid var(--brd);padding-top:.4rem;margin-top:.3rem;font-weight:700"><span>ISR provisional (' + (r.tasa_provisional * 100).toFixed(2) + '%)</span><span>$' + fmt(r.isr_provisional) + '</span></div>';
     document.getElementById('rep-isr').innerHTML = h;
   }).catch(function() { document.getElementById('rep-isr').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar ISR</p>'; });
+}
+
+// ─── Reporte de mermas ────────────────────────────────────────────
+var _mermasData = null;
+function cargarReporteMermas() {
+  var dias = document.getElementById('rep-merma-dias').value || 30;
+  api('GET', '/reportes/mermas?dias=' + dias).then(function(r) {
+    _mermasData = r;
+    document.getElementById('rep-merma-total').textContent = r.total_mermas;
+    document.getElementById('rep-merma-uds').textContent = Math.round(r.total_unidades);
+    document.getElementById('rep-merma-costo').textContent = '$' + fmt(r.costo_total_estimado);
+    // Desglose
+    var h = '';
+    if (!r.desglose.length) { h = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin mermas en este periodo</p>'; }
+    else {
+      var maxC = r.desglose[0].costo_estimado || 1;
+      for (var i = 0; i < r.desglose.length; i++) {
+        var d = r.desglose[i];
+        var w = maxC > 0 ? (d.costo_estimado / maxC * 100) : 0;
+        h += '<div class="srow"><span>' + d.nombre + ' <span style="font-size:.72rem;color:var(--mut)">(' + d.tipo + ', ' + d.movimientos + ' mov)</span></span>';
+        h += '<span style="display:flex;align-items:center;gap:.4rem"><span style="display:inline-block;width:' + Math.max(w, 3) + 'px;height:8px;background:#ef4444;border-radius:3px"></span>';
+        h += '<span style="font-weight:600;color:#b91c1c;white-space:nowrap">' + Math.round(d.total_cantidad) + ' uds &bull; $' + fmt(d.costo_estimado) + '</span></span></div>';
+      }
+    }
+    document.getElementById('rep-merma-desglose').innerHTML = h;
+    // Detalle
+    var hd = '';
+    if (r.detalle.length) {
+      hd = '<table class="tbl"><tr><th>Fecha</th><th>Tipo</th><th>Cant</th><th>Referencia</th></tr>';
+      for (var j = 0; j < r.detalle.length; j++) {
+        var m = r.detalle[j];
+        var tipo = m.tipo === 'salida_merma' ? 'Merma' : 'Caducidad';
+        hd += '<tr><td>' + m.fecha + '</td><td><span class="badge bout">' + tipo + '</span></td><td>' + m.cantidad + '</td><td style="color:var(--mut)">' + (m.referencia || m.notas || '') + '</td></tr>';
+      }
+      hd += '</table>';
+    } else { hd = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin movimientos</p>'; }
+    document.getElementById('rep-merma-detalle').innerHTML = hd;
+  }).catch(function() { toast('Error al cargar mermas', true); });
+}
+
+function exportarMermasCSV() {
+  if (!_mermasData || !_mermasData.desglose.length) { toast('Primero consulta las mermas', true); return; }
+  var csv = 'Tipo,Nombre,Cantidad,Movimientos,Costo Estimado\n';
+  for (var i = 0; i < _mermasData.desglose.length; i++) {
+    var d = _mermasData.desglose[i];
+    csv += d.tipo + ',"' + d.nombre.replace(/"/g,'""') + '",' + d.total_cantidad + ',' + d.movimientos + ',' + d.costo_estimado + '\n';
+  }
+  _descargarCSV('mermas_' + new Date().toISOString().split('T')[0] + '.csv', csv);
+}
+
+// ─── Kardex de ingrediente ────────────────────────────────────────
+function verKardex(ingredienteId, nombre) {
+  document.getElementById('mk-titulo').textContent = 'Kardex \u2014 ' + nombre;
+  document.getElementById('mk-tabla').innerHTML = '<p style="color:var(--mut)">Cargando...</p>';
+  document.getElementById('mk-resumen').innerHTML = '';
+  document.getElementById('modal-kardex').classList.add('on');
+  api('GET', '/reportes/kardex/' + ingredienteId).then(function(r) {
+    document.getElementById('mk-resumen').innerHTML =
+      '<div class="srow"><span>Stock actual</span><span style="font-weight:700">' + r.stock_actual + ' ' + r.unidad_medida + '</span></div>' +
+      '<div class="srow"><span>Total movimientos</span><span>' + r.total_movimientos + '</span></div>';
+    if (!r.kardex.length) {
+      document.getElementById('mk-tabla').innerHTML = '<p style="color:var(--mut);text-align:center">Sin movimientos</p>';
+      return;
+    }
+    var h = '<table class="tbl"><tr><th>Fecha</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th>Saldo</th><th>Ref.</th></tr>';
+    for (var i = 0; i < r.kardex.length; i++) {
+      var k = r.kardex[i];
+      h += '<tr>';
+      h += '<td style="white-space:nowrap">' + k.fecha + '</td>';
+      h += '<td>' + k.tipo + '</td>';
+      h += '<td style="color:var(--grn);font-weight:600">' + (k.entrada > 0 ? '+' + k.entrada : '') + '</td>';
+      h += '<td style="color:#b91c1c;font-weight:600">' + (k.salida > 0 ? '-' + k.salida : '') + '</td>';
+      h += '<td style="font-weight:700">' + k.saldo.toFixed(1) + '</td>';
+      h += '<td style="color:var(--mut);font-size:.75rem">' + k.referencia + '</td>';
+      h += '</tr>';
+    }
+    h += '</table>';
+    document.getElementById('mk-tabla').innerHTML = h;
+  }).catch(function() {
+    document.getElementById('mk-tabla').innerHTML = '<p style="color:var(--mut)">Error al cargar kardex</p>';
+  });
+}
+
+// ─── Dashboard empleados ──────────────────────────────────────────
+function cargarDashEmpleados() {
+  api('GET', '/reportes/empleados-dashboard').then(function(r) {
+    // Cumpleaños
+    var hc = '';
+    if (r.cumpleanios.length) {
+      for (var i = 0; i < r.cumpleanios.length; i++) {
+        var c = r.cumpleanios[i];
+        var badge = c.dias_para === 0 ? '<span class="badge blist">Hoy!</span>' : '<span class="badge bok">en ' + c.dias_para + 'd</span>';
+        hc += '<div class="srow"><span>' + c.nombre + ' (' + c.fecha + ')</span>' + badge + '</div>';
+      }
+    } else { hc = '<div class="srow" style="color:var(--mut)"><span>Sin cumplea\u00f1os pr\u00f3ximos</span></div>'; }
+    hc += '<div class="srow" style="border-top:1px solid var(--brd);padding-top:.3rem;margin-top:.3rem;font-size:.75rem;color:var(--mut)"><span>Equipo activo: ' + r.resumen.total_activos + ' personas</span></div>';
+    document.getElementById('d-emp-cumple').innerHTML = hc;
+    // Documentos
+    var hd = '';
+    if (r.documentos_por_vencer.length) {
+      for (var j = 0; j < r.documentos_por_vencer.length; j++) {
+        var d = r.documentos_por_vencer[j];
+        var cls = d.urgente ? 'bout' : 'blow';
+        var txt = d.urgente ? 'Vencido' : 'Pr\u00f3ximo';
+        hd += '<div class="srow"><span>' + d.empleado + ' &bull; ' + d.documento + '</span><span class="badge ' + cls + '">' + txt + '</span></div>';
+      }
+    } else { hd = '<div class="srow" style="color:var(--grn)"><span>Documentos al d\u00eda</span></div>'; }
+    document.getElementById('d-emp-docs').innerHTML = hd;
+  }).catch(function() {
+    document.getElementById('d-emp-cumple').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Sin datos</span></div>';
+    document.getElementById('d-emp-docs').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Sin datos</span></div>';
+  });
 }
 
 // ─── Facturaci\u00f3n CFDI ─────────────────────────────────────────────
@@ -4267,6 +4425,28 @@ var _moduloNombres = {
   dash:'Inicio', pos:'Venta', ped:'Pedidos', inv:'Inventario',
   corte:'Corte', rep:'Reportes', listas:'Listas', cofepris:'COFEPRIS', usuarios:'Usuarios'
 };
+
+function descargarBackup() {
+  if (!_apiURL) { toast('Conecta al servidor primero', true); return; }
+  var token = localStorage.getItem('j_token');
+  var a = document.createElement('a');
+  a.href = _apiURL + '/api/v1/reportes/backup';
+  // Use fetch to add auth header
+  fetch(_apiURL + '/api/v1/reportes/backup', {
+    headers: {'Authorization': 'Bearer ' + token}
+  }).then(function(r) {
+    if (!r.ok) throw new Error('Error ' + r.status);
+    return r.blob();
+  }).then(function(blob) {
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'jacaranda_backup_' + new Date().toISOString().split('T')[0] + '.db';
+    link.click();
+    URL.revokeObjectURL(url);
+    toast('Backup descargado');
+  }).catch(function(e) { toast(e.message || 'Error al descargar backup', true); });
+}
 
 function cargarUsuarios() {
   api('GET', '/auth/usuarios').then(function(users) {
