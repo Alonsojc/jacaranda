@@ -87,24 +87,33 @@ def extraer_datos_ticket(image_bytes: bytes, content_type: str) -> dict:
         ],
     }
 
+    headers = {
+        "x-api-key": settings.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+    if content_type == "application/pdf":
+        headers["anthropic-beta"] = "pdfs-2024-09-25"
+
     try:
         response = httpx.post(
             CLAUDE_API_URL,
             json=payload,
-            headers={
-                "x-api-key": settings.ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            timeout=30.0,
+            headers=headers,
+            timeout=60.0,
         )
         response.raise_for_status()
     except httpx.TimeoutException:
-        return {"error": "Timeout al procesar la imagen. Intenta con una foto más pequeña."}
+        return {"error": "Timeout al procesar. Intenta con un archivo más pequeño."}
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 401:
             return {"error": "API key inválida. Verifica ANTHROPIC_API_KEY."}
-        return {"error": f"Error del API: {e.response.status_code}"}
+        # Show actual API error for debugging
+        try:
+            detail = e.response.json().get("error", {}).get("message", "")
+        except Exception:
+            detail = ""
+        return {"error": f"Error del API ({e.response.status_code}): {detail}" if detail else f"Error del API: {e.response.status_code}"}
     except httpx.HTTPError:
         return {"error": "Error de conexión con el servicio de OCR."}
 
