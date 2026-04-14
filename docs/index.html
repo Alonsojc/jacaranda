@@ -1001,10 +1001,11 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div id="mt-facturar-wrap" style="display:none;margin-bottom:.5rem">
 <button onclick="abrirFacturar()" style="width:100%;padding:.5rem;border:2px solid #2563eb;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-weight:600;font-size:.82rem;cursor:pointer">&#128196; Facturar (CFDI)</button>
 </div>
-<div style="display:flex;gap:.5rem">
-<button class="cobrar" style="flex:1" onclick="copiarTicket()">Copiar Ticket</button>
-<button class="cobrar" style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5)" onclick="imprimirTicket()">&#128424; Imprimir</button>
-<button class="limpiar" style="flex:1;padding:.5rem 1.2rem" onclick="cerrarModal('modal-ticket')">Cerrar</button>
+<div style="display:flex;gap:.5rem;flex-wrap:wrap">
+<button class="cobrar" style="flex:1;min-width:120px" onclick="copiarTicket()">Copiar Ticket</button>
+<button class="cobrar" style="flex:1;min-width:120px;background:linear-gradient(135deg,#25d366,#128c7e)" onclick="compartirWhatsApp()">&#128172; WhatsApp</button>
+<button class="cobrar" style="flex:1;min-width:120px;background:linear-gradient(135deg,#6366f1,#4f46e5)" onclick="imprimirTicket()">&#128424; Imprimir</button>
+<button class="limpiar" style="flex:1;min-width:120px;padding:.5rem 1.2rem" onclick="cerrarModal('modal-ticket')">Cerrar</button>
 </div>
 </div>
 </div>
@@ -1483,6 +1484,28 @@ function copiarTicket() {
       toast('Ticket copiado al portapapeles');
     }).catch(function() { fallbackCopy(txt); });
   } else { fallbackCopy(txt); }
+}
+
+function compartirWhatsApp() {
+  var tk = _ultimoTicket;
+  if (!tk) { toast('No hay ticket', true); return; }
+  var txt = '*' + tk.razon_social + '*\n';
+  txt += 'RFC: ' + tk.rfc + '\n';
+  txt += '─────────────────\n';
+  txt += 'Folio: ' + tk.folio + '\n';
+  txt += 'Fecha: ' + tk.fecha + '\n';
+  txt += '─────────────────\n';
+  for (var i = 0; i < tk.productos.length; i++) {
+    var p = tk.productos[i];
+    txt += p.cantidad + 'x ' + p.nombre + '  $' + fmt(p.subtotal) + '\n';
+  }
+  txt += '─────────────────\n';
+  txt += '*TOTAL: ' + tk.total + '*\n';
+  txt += 'Pago: ' + tk.metodo_pago + '\n';
+  txt += '─────────────────\n';
+  txt += '_' + tk.leyenda_fiscal + '_\n';
+  txt += '\n_Jacaranda - sharing flavors_ 🌸';
+  window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
 }
 
 function fallbackCopy(txt) {
