@@ -123,8 +123,9 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 /* Discount inline */
 .desc-input{width:55px;padding:.2rem .3rem;border:1px solid var(--brd);border-radius:5px;font-size:.72rem;font-family:inherit;text-align:center}
 .desc-input:focus{outline:none;border-color:var(--v)}
-@media(max-width:900px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.prods{grid-template-columns:repeat(3,1fr)}.nav-links{flex-wrap:wrap;gap:.15rem}.nav-links a{padding:.4rem .55rem;font-size:.73rem}.pmt{grid-template-columns:1fr!important}}
-@media(max-width:600px){.prods{grid-template-columns:repeat(2,1fr)}.qty-btn{width:32px;height:32px;font-size:1rem}.cobrar{padding:1rem;font-size:1rem}.pi-body{padding:.5rem}.frow{grid-template-columns:1fr}.wrap{padding:.8rem}nav{padding:.5rem .8rem}}
+@media(max-width:900px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.pos-prods{max-height:none}.prods{grid-template-columns:repeat(3,1fr)}.nav-links{flex-wrap:wrap;gap:.15rem}.nav-links a{padding:.4rem .55rem;font-size:.73rem}.pmt{grid-template-columns:1fr!important}#pos-btn-prods{display:block!important}.tkt{position:sticky;bottom:0;z-index:10}}
+@media(max-width:600px){.prods{grid-template-columns:repeat(2,1fr)}.qty-btn{width:36px;height:36px;font-size:1.1rem}.cobrar{padding:1rem;font-size:1rem}.pi-body{padding:.5rem}.pi-img,.pi-noimg{height:70px}.frow{grid-template-columns:1fr}.wrap{padding:.8rem}nav{padding:.5rem .8rem}.pbtn{padding:.9rem .5rem;font-size:.85rem}.ti{padding:.45rem 0;font-size:.85rem}.tkt h3{font-size:1rem}}
+@media(max-width:420px){.prods{grid-template-columns:1fr 1fr}.pi .pn{font-size:.78rem}.pi .pp{font-size:1rem}.nav-links a{padding:.35rem .4rem;font-size:.68rem}}
 </style>
 </head>
 <body>
@@ -171,6 +172,10 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="card kpi g"><div class="n" id="d-ventas">$0</div><div class="l">Ventas del d&iacute;a</div></div>
 <div class="card kpi"><div class="n" id="d-tickets">0</div><div class="l">Tickets hoy</div></div>
 <div class="card kpi a"><div class="n" id="d-mes">$0</div><div class="l">Ventas del mes</div></div>
+</div>
+<div class="card" style="margin-bottom:1rem">
+<h3>Comparativo semanal</h3>
+<div id="d-week-compare"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
 </div>
 <div class="row r2">
 <div class="card"><h3>Productos m&aacute;s vendidos</h3>
@@ -479,6 +484,12 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 </div>
 
+<!-- Punto de equilibrio -->
+<div class="card" style="margin-bottom:1rem">
+<h3>Punto de equilibrio</h3>
+<div id="c-punto-eq"><p style="color:var(--mut);font-size:.83rem;text-align:center">Cargando...</p></div>
+</div>
+
 <!-- Historial cortes -->
 <div class="card">
 <h3>Historial de cortes</h3>
@@ -501,7 +512,8 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div id="l-prods">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
 <p style="font-size:.83rem;color:var(--mut);margin:0">Todos los productos. Edita precios, m&iacute;nimos, stock.</p>
-<div style="display:flex;gap:.4rem">
+<div style="display:flex;gap:.4rem;flex-wrap:wrap">
+<button class="limpiar" style="padding:.4rem .8rem;font-size:.78rem;margin:0" onclick="exportarListaProductosCSV()">&#128229; CSV</button>
 <button class="limpiar" style="padding:.4rem .8rem;font-size:.78rem;margin:0" onclick="subirFotosMasivo()">&#128247; Subir fotos</button>
 <button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="nuevoProducto()">+ Nuevo Producto</button>
 </div>
@@ -513,9 +525,12 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 
 <div id="l-ings" style="display:none">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
 <p style="font-size:.83rem;color:var(--mut);margin:0">Ingredientes y materias primas. Edita costos y m&iacute;nimos.</p>
+<div style="display:flex;gap:.4rem">
+<button class="limpiar" style="padding:.4rem .8rem;font-size:.78rem;margin:0" onclick="exportarListaIngredientesCSV()">&#128229; CSV</button>
 <button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="nuevoIngrediente()">+ Nuevo Ingrediente</button>
+</div>
 </div>
 <div class="card" style="overflow-x:auto">
 <input type="text" id="l-ings-buscar" placeholder="Buscar ingrediente..." oninput="filtrarTabla('l-ings-tbl',this.value)" style="width:100%;padding:.45rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.83rem;margin-bottom:.6rem">
@@ -2868,6 +2883,32 @@ function cargarListaIngredientes() {
   });
 }
 
+function exportarListaProductosCSV() {
+  api('GET', '/inventario/productos').then(function(prods) {
+    var csv = 'Codigo,Producto,Precio,Costo,Stock,Minimo,IVA,Unidad\n';
+    for (var i = 0; i < prods.length; i++) {
+      var p = prods[i];
+      var iva = p.tasa_iva === '0.16' ? '16%' : p.tasa_iva === '0.00' ? '0%' : 'Exento';
+      csv += '"' + (p.codigo||'') + '","' + (p.nombre||'').replace(/"/g,'""') + '",' + (p.precio_unitario||0) + ',' + (p.costo_produccion||0) + ',' + (p.stock_actual||0) + ',' + (p.stock_minimo||0) + ',' + iva + ',' + (p.unidad_medida||'') + '\n';
+    }
+    _descargarCSV('productos_' + new Date().toISOString().split('T')[0] + '.csv', csv);
+  }).catch(function() { toast('Error al exportar', true); });
+}
+
+function exportarListaIngredientesCSV() {
+  api('GET', '/inventario/ingredientes').then(function(ings) {
+    var csv = 'Ingrediente,Stock,Unidad,Costo Unitario,Minimo,Estado\n';
+    for (var i = 0; i < ings.length; i++) {
+      var g = ings[i];
+      var stock = parseFloat(g.stock_actual) || 0;
+      var min = parseFloat(g.stock_minimo) || 0;
+      var estado = stock <= 0 ? 'Urgente' : stock <= min ? 'Pedir' : 'OK';
+      csv += '"' + (g.nombre||'').replace(/"/g,'""') + '",' + stock + ',' + (g.unidad_medida||'') + ',' + (g.costo_unitario||0) + ',' + min + ',' + estado + '\n';
+    }
+    _descargarCSV('ingredientes_' + new Date().toISOString().split('T')[0] + '.csv', csv);
+  }).catch(function() { toast('Error al exportar', true); });
+}
+
 function cargarListaRecetas() {
   api('GET', '/recetas/').then(function(recs) {
     var h = '';
@@ -3061,6 +3102,7 @@ function cargarCorte() {
   // Load expenses for selected date
   cargarGastos(hoy);
   cargarGastosFijos();
+  cargarPuntoEquilibrio();
   cargarHistorialCortes();
   // Pre-fill historial dates (last 7 days)
   var hvff = document.getElementById('hv-ff');
@@ -3279,6 +3321,62 @@ function eliminarGasto(id) {
   }).catch(function(e) { toast(e.message || 'Error', true); });
 }
 
+// ─── Punto de equilibrio ─────────────────────────────────────────
+function cargarPuntoEquilibrio() {
+  Promise.all([
+    api('GET', '/punto-de-venta/gastos-fijos'),
+    api('GET', '/reportes/ventas-por-dia?dias=30')
+  ]).then(function(res) {
+    var gastos = res[0], ventas = res[1];
+    // Calculate monthly fixed costs
+    var costoMensual = 0;
+    for (var i = 0; i < gastos.length; i++) {
+      var g = gastos[i];
+      if (g.periodicidad === 'quincenal') costoMensual += g.monto * 2;
+      else if (g.periodicidad === 'semanal') costoMensual += g.monto * 4.33;
+      else costoMensual += g.monto;
+    }
+    // Calculate daily average from last 30 days (excluding zero days)
+    var diasConVenta = 0, totalVentas = 0;
+    for (var j = 0; j < ventas.length; j++) {
+      if (ventas[j].total > 0) { diasConVenta++; totalVentas += ventas[j].total; }
+    }
+    var promDiario = diasConVenta > 0 ? totalVentas / diasConVenta : 0;
+    var costoDiario = costoMensual / 30;
+    var ventasMes = promDiario * 30;
+    var el = document.getElementById('c-punto-eq');
+    if (!gastos.length) {
+      el.innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Agrega gastos fijos para calcular</p>';
+      return;
+    }
+    var pct = ventasMes > 0 ? (costoMensual / ventasMes * 100) : 0;
+    var superavit = ventasMes - costoMensual;
+    var diasParaCubrir = promDiario > 0 ? Math.ceil(costoMensual / promDiario) : 0;
+    var barColor = pct >= 100 ? '#ef4444' : pct >= 80 ? '#f59e0b' : '#10b981';
+    var barW = Math.min(pct, 100);
+    var h = '';
+    h += '<div style="margin-bottom:.6rem">';
+    h += '<div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:.3rem"><span>Gastos fijos</span><span>Ventas promedio (30d)</span></div>';
+    h += '<div style="background:#f0e8e5;border-radius:6px;height:18px;overflow:hidden;position:relative">';
+    h += '<div style="background:' + barColor + ';height:100%;width:' + barW + '%;border-radius:6px;transition:width .5s"></div>';
+    h += '</div>';
+    h += '<div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--mut);margin-top:.2rem"><span>$' + fmt(costoMensual) + '/mes</span><span>$' + fmt(ventasMes) + '/mes</span></div>';
+    h += '</div>';
+    h += '<div class="srow"><span>Promedio diario de ventas</span><span class="green">$' + fmt(promDiario) + '</span></div>';
+    h += '<div class="srow"><span>Costo fijo diario</span><span style="color:#b91c1c">$' + fmt(costoDiario) + '</span></div>';
+    if (diasParaCubrir > 0) {
+      h += '<div class="srow"><span>D\u00edas para cubrir gastos</span><span style="font-weight:700">' + diasParaCubrir + ' de 30</span></div>';
+    }
+    h += '<div class="srow" style="border-top:2px solid var(--brd);padding-top:.5rem;margin-top:.3rem">';
+    h += '<span style="font-weight:700">' + (superavit >= 0 ? 'Margen despu\u00e9s de fijos' : 'D\u00e9ficit mensual') + '</span>';
+    h += '<span style="font-weight:700;color:' + (superavit >= 0 ? 'var(--grn)' : '#ef4444') + '">$' + fmt(Math.abs(superavit)) + '</span>';
+    h += '</div>';
+    el.innerHTML = h;
+  }).catch(function() {
+    document.getElementById('c-punto-eq').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Error al calcular</p>';
+  });
+}
+
 // ─── Historial cortes ────────────────────────────────────────────
 function cargarHistorialCortes() {
   api('GET', '/punto-de-venta/cortes-caja?limit=15').then(function(cortes) {
@@ -3446,6 +3544,9 @@ function cargarDashboard() {
     document.getElementById('d-mes').textContent = '$' + fmt(vm.total);
   }).catch(function(){});
 
+  // Week-over-week comparison
+  cargarComparativoSemanal();
+
   // Load top products
   var hoy = new Date();
   var inicio = hoy.getFullYear() + '-' + String(hoy.getMonth()+1).padStart(2,'0') + '-01';
@@ -3572,6 +3673,59 @@ function renderDashAlertas(extra) {
   } else {
     document.getElementById('d-alertas').innerHTML = '<div class="srow" style="color:var(--grn)"><span>Todo en orden</span></div>';
   }
+}
+
+function cargarComparativoSemanal() {
+  api('GET', '/reportes/ventas-por-dia?dias=14').then(function(dias) {
+    var diasSemana = ['Dom','Lun','Mar','Mi\u00e9','Jue','Vie','S\u00e1b'];
+    // Split into this week and last week
+    var semanaAct = dias.slice(-7);
+    var semanaAnt = dias.slice(0, 7);
+    var totalAct = 0, totalAnt = 0, ticketsAct = 0, ticketsAnt = 0;
+    for (var i = 0; i < semanaAct.length; i++) { totalAct += semanaAct[i].total; ticketsAct += semanaAct[i].tickets; }
+    for (var j = 0; j < semanaAnt.length; j++) { totalAnt += semanaAnt[j].total; ticketsAnt += semanaAnt[j].tickets; }
+    var cambio = totalAnt > 0 ? ((totalAct - totalAnt) / totalAnt * 100) : 0;
+    var flecha = cambio > 0 ? '\u25B2' : cambio < 0 ? '\u25BC' : '\u25CF';
+    var color = cambio > 0 ? 'var(--grn)' : cambio < 0 ? '#ef4444' : 'var(--mut)';
+    var h = '<div style="display:flex;gap:1rem;margin-bottom:.6rem;flex-wrap:wrap">';
+    h += '<div style="flex:1;min-width:120px"><div style="font-size:.72rem;color:var(--mut);text-transform:uppercase;letter-spacing:.03em">Esta semana</div>';
+    h += '<div style="font-size:1.2rem;font-weight:700;color:var(--v)">$' + fmt(totalAct) + '</div>';
+    h += '<div style="font-size:.75rem;color:var(--mut)">' + ticketsAct + ' tickets</div></div>';
+    h += '<div style="flex:1;min-width:120px"><div style="font-size:.72rem;color:var(--mut);text-transform:uppercase;letter-spacing:.03em">Semana anterior</div>';
+    h += '<div style="font-size:1.2rem;font-weight:700;color:var(--mut)">$' + fmt(totalAnt) + '</div>';
+    h += '<div style="font-size:.75rem;color:var(--mut)">' + ticketsAnt + ' tickets</div></div>';
+    h += '<div style="flex:1;min-width:100px;display:flex;align-items:center;justify-content:center">';
+    h += '<span style="font-size:1.3rem;font-weight:700;color:' + color + '">' + flecha + ' ' + Math.abs(cambio).toFixed(1) + '%</span></div>';
+    h += '</div>';
+    // Day by day comparison
+    var maxVal = 1;
+    for (var k = 0; k < 7; k++) {
+      var va = semanaAct[k] ? semanaAct[k].total : 0;
+      var vb = semanaAnt[k] ? semanaAnt[k].total : 0;
+      if (va > maxVal) maxVal = va;
+      if (vb > maxVal) maxVal = vb;
+    }
+    h += '<div style="font-size:.72rem;color:var(--mut);margin-bottom:.3rem;display:flex;gap:.5rem"><span style="display:inline-block;width:8px;height:8px;background:var(--v);border-radius:2px"></span> Esta semana <span style="display:inline-block;width:8px;height:8px;background:#ddd;border-radius:2px;margin-left:.3rem"></span> Anterior</div>';
+    for (var d = 0; d < 7; d++) {
+      var diaFecha = semanaAct[d] ? new Date(semanaAct[d].fecha + 'T12:00:00') : null;
+      var diaLabel = diaFecha ? diasSemana[diaFecha.getDay()] : '';
+      var vAct = semanaAct[d] ? semanaAct[d].total : 0;
+      var vAnt = semanaAnt[d] ? semanaAnt[d].total : 0;
+      var wAct = maxVal > 0 ? (vAct / maxVal * 100) : 0;
+      var wAnt = maxVal > 0 ? (vAnt / maxVal * 100) : 0;
+      h += '<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.25rem;font-size:.75rem">';
+      h += '<span style="min-width:28px;text-align:right;color:var(--mut)">' + diaLabel + '</span>';
+      h += '<div style="flex:1;display:flex;flex-direction:column;gap:2px">';
+      h += '<div style="background:var(--v);height:6px;width:' + Math.max(wAct, 1) + '%;border-radius:3px"></div>';
+      h += '<div style="background:#ddd;height:6px;width:' + Math.max(wAnt, 1) + '%;border-radius:3px"></div>';
+      h += '</div>';
+      h += '<span style="min-width:55px;text-align:right;font-weight:600">$' + fmt(vAct) + '</span>';
+      h += '</div>';
+    }
+    document.getElementById('d-week-compare').innerHTML = h;
+  }).catch(function() {
+    document.getElementById('d-week-compare').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Sin datos</p>';
+  });
 }
 
 // Auto-conectar si hay URL guardada (con reintentos para Railway cold start)
