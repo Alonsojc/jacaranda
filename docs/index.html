@@ -345,6 +345,11 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <h3>Recetas <span style="font-size:.75rem;color:var(--mut);font-weight:400">— click &#9998; para editar ingredientes y rendimiento</span></h3>
 <div id="recetas-list"><p style="color:var(--mut);font-size:.83rem">Cargando recetas...</p></div>
 </div>
+<div id="sin-receta-card" class="card" style="margin-top:1rem;display:none">
+<h3>Productos sin receta</h3>
+<p style="font-size:.78rem;color:var(--mut);margin-bottom:.5rem">Estos productos no tienen receta. Crea una para poder hornear y descontar ingredientes.</p>
+<div id="sin-receta-list"></div>
+</div>
 </div>
 </div>
 
@@ -2425,12 +2430,33 @@ function cargarRecetas() {
           api('GET', '/recetas/' + id + '/costo').then(function(c) {
             var costEl = document.getElementById('rc-cost-' + id);
             var pzaEl = document.getElementById('rc-pza-' + id);
-            if (costEl) costEl.textContent = '$' + c.fmt(costo_total_ingredientes);
-            if (pzaEl) { pzaEl.textContent = '$' + c.costo_por_pieza.toFixed(1); pzaEl.style.color = 'var(--v)'; pzaEl.style.fontWeight = '600'; }
+            if (costEl) costEl.textContent = '$' + fmt(c.costo_total_ingredientes);
+            if (pzaEl) { pzaEl.textContent = '$' + fmt(c.costo_por_pieza); pzaEl.style.color = 'var(--v)'; pzaEl.style.fontWeight = '600'; }
           }).catch(function(){});
         })(recs[k].id);
       }
     }
+
+    // Find products without recipes
+    var productoIdsConReceta = {};
+    for (var p = 0; p < recs.length; p++) {
+      if (recs[p].producto_id) productoIdsConReceta[recs[p].producto_id] = true;
+    }
+    api('GET', '/inventario/productos').then(function(prods) {
+      var sinReceta = prods.filter(function(pr) { return pr.activo && !productoIdsConReceta[pr.id]; });
+      var card = document.getElementById('sin-receta-card');
+      if (!sinReceta.length) { card.style.display = 'none'; return; }
+      card.style.display = 'block';
+      var h = '';
+      for (var s = 0; s < sinReceta.length; s++) {
+        var sp = sinReceta[s];
+        h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid #f0e8e5;font-size:.83rem">';
+        h += '<span>' + sp.nombre + '</span>';
+        h += '<button class="limpiar" style="padding:.2rem .5rem;font-size:.72rem" onclick="crearRecetaRapida(' + sp.id + ',\'' + sp.nombre.replace(/'/g, "\\'") + '\')">+ Crear receta</button>';
+        h += '</div>';
+      }
+      document.getElementById('sin-receta-list').innerHTML = h;
+    }).catch(function(){});
   }).catch(function() {
     document.getElementById('horn-receta').innerHTML = '<option value="">Error al cargar</option>';
   });
@@ -2584,6 +2610,23 @@ function guardarIngrediente() {
 
 // ─── Recipe editing ──────────────────────────────────────────────
 var _recIng = []; // Current recipe ingredients being edited
+
+function crearRecetaRapida(productoId, nombre) {
+  var rend = prompt('¿Cuántas piezas rinde una tanda de "' + nombre + '"?', '1');
+  if (!rend) return;
+  rend = parseInt(rend) || 1;
+  api('POST', '/recetas/', {
+    producto_id: productoId,
+    nombre: nombre,
+    rendimiento: rend,
+    ingredientes: []
+  }).then(function(rec) {
+    toast('Receta "' + nombre + '" creada. Agrega ingredientes con ✏');
+    cargarRecetas();
+    // Open editor for the new recipe
+    setTimeout(function() { editarReceta(rec.id); }, 500);
+  }).catch(function(e) { toast(e.message || 'Error al crear receta', true); });
+}
 
 function editarReceta(id) {
   api('GET', '/recetas/' + id).then(function(r) {
