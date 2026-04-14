@@ -302,10 +302,10 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Registra la compra de ingredientes cuando llega el proveedor.</p>
 <div class="card" style="margin-bottom:1rem">
 <h3>Escanear ticket de compra</h3>
-<p style="font-size:.82rem;color:var(--mut);margin-bottom:.6rem">Sube una foto o PDF del ticket y se llenan los datos autom&aacute;ticamente.</p>
+<p style="font-size:.82rem;color:var(--mut);margin-bottom:.6rem">Sube fotos o PDFs de tickets y se llenan los datos autom&aacute;ticamente. Puedes seleccionar varios archivos a la vez.</p>
 <label class="cobrar" style="padding:.5rem 1rem;font-size:.85rem;cursor:pointer;text-align:center;display:block">
-&#128247; Foto o PDF del ticket
-<input type="file" id="ocr-file" accept="image/*,application/pdf" capture="environment" onchange="escanearTicket()" style="display:none">
+&#128247; Fotos o PDFs de tickets
+<input type="file" id="ocr-file" accept="image/*,application/pdf" multiple onchange="escanearTickets()" style="display:none">
 </label>
 <p id="ocr-status" style="font-size:.82rem;color:var(--mut);margin-top:.4rem;margin-bottom:0"></p>
 <div id="ocr-result" style="display:none;margin-top:.8rem">
@@ -1818,28 +1818,63 @@ function escanearTicket() {
   status.textContent = file.type === 'application/pdf' ? 'Procesando PDF...' : 'Procesando imagen...';
   status.style.color = 'var(--amb)';
   document.getElementById('ocr-result').style.display = 'none';
-
-  var formData = new FormData();
-  formData.append('archivo', file);
-
-  // Use fetch directly (not our api() helper) for multipart upload
-  var opts = {method: 'POST', headers: {}, body: formData};
-  if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
-  fetch(API_URL + '/api/v1/inventario/ocr-ticket', opts)
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    if (data.error) {
-      status.textContent = data.error;
-      status.style.color = '#b91c1c';
-      return;
-    }
+  _enviarOCR(file).then(function(data) {
+    if (data.error) { status.textContent = data.error; status.style.color = '#b91c1c'; return; }
     status.textContent = 'Ticket le\u00eddo correctamente';
     status.style.color = 'var(--grn)';
     mostrarResultadoOCR(data);
-  })
-  .catch(function() {
-    status.textContent = 'Error al procesar el ticket';
-    status.style.color = '#b91c1c';
+  }).catch(function() { status.textContent = 'Error al procesar el ticket'; status.style.color = '#b91c1c'; });
+  fileInput.value = '';
+}
+
+function _enviarOCR(file) {
+  var formData = new FormData();
+  formData.append('archivo', file);
+  var opts = {method: 'POST', headers: {}, body: formData};
+  if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
+  return fetch(API_URL + '/api/v1/inventario/ocr-ticket', opts).then(function(r) { return r.json(); });
+}
+
+function escanearTickets() {
+  var fileInput = document.getElementById('ocr-file');
+  var files = fileInput.files;
+  if (!files || !files.length) return;
+  if (files.length === 1) { escanearTicket(); return; }
+  var status = document.getElementById('ocr-status');
+  var total = files.length, done = 0, errores = 0;
+  var todosItems = [], totalGeneral = 0, subtotalGen = 0, ivaGen = 0, iepsGen = 0, proveedores = [];
+  status.textContent = 'Procesando 0/' + total + ' archivos...';
+  status.style.color = 'var(--amb)';
+  document.getElementById('ocr-result').style.display = 'none';
+
+  var promesas = [];
+  for (var i = 0; i < files.length; i++) {
+    promesas.push(_enviarOCR(files[i]));
+  }
+  Promise.all(promesas.map(function(p) { return p.catch(function() { return {error:'fallo'}; }); }))
+  .then(function(resultados) {
+    for (var r = 0; r < resultados.length; r++) {
+      var data = resultados[r];
+      if (data.error) { errores++; continue; }
+      done++;
+      if (data.proveedor && proveedores.indexOf(data.proveedor) < 0) proveedores.push(data.proveedor);
+      if (data.items) todosItems = todosItems.concat(data.items);
+      totalGeneral += data.total || 0;
+      subtotalGen += data.subtotal || 0;
+      ivaGen += data.iva || 0;
+      iepsGen += data.ieps || 0;
+    }
+    if (done === 0) { status.textContent = 'No se pudo leer ningún archivo'; status.style.color = '#b91c1c'; return; }
+    status.textContent = done + '/' + total + ' tickets leídos' + (errores ? ' (' + errores + ' con error)' : '');
+    status.style.color = 'var(--grn)';
+    mostrarResultadoOCR({
+      proveedor: proveedores.join(', '),
+      items: todosItems,
+      subtotal: subtotalGen,
+      iva: ivaGen,
+      ieps: iepsGen,
+      total: totalGeneral
+    });
   });
   fileInput.value = '';
 }
