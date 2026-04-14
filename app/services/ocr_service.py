@@ -38,7 +38,7 @@ Reglas:
 
 def extraer_datos_ticket(image_bytes: bytes, content_type: str) -> dict:
     """
-    Envía una imagen a Claude Vision API y extrae datos del ticket.
+    Envía una imagen o PDF a Claude API y extrae datos del ticket.
 
     Returns:
         dict con proveedor, items[], total, o {"error": "mensaje"}
@@ -46,12 +46,29 @@ def extraer_datos_ticket(image_bytes: bytes, content_type: str) -> dict:
     if not settings.ANTHROPIC_API_KEY:
         return {"error": "ANTHROPIC_API_KEY no configurada. Configúrala en las variables de entorno de Railway."}
 
-    # Determine media type
-    media_type = content_type
-    if media_type not in ("image/jpeg", "image/png", "image/gif", "image/webp"):
-        media_type = "image/jpeg"  # default
+    file_b64 = base64.b64encode(image_bytes).decode("utf-8")
 
-    image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+    if content_type == "application/pdf":
+        file_block = {
+            "type": "document",
+            "source": {
+                "type": "base64",
+                "media_type": "application/pdf",
+                "data": file_b64,
+            },
+        }
+    else:
+        media_type = content_type
+        if media_type not in ("image/jpeg", "image/png", "image/gif", "image/webp"):
+            media_type = "image/jpeg"
+        file_block = {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": media_type,
+                "data": file_b64,
+            },
+        }
 
     payload = {
         "model": CLAUDE_MODEL,
@@ -60,14 +77,7 @@ def extraer_datos_ticket(image_bytes: bytes, content_type: str) -> dict:
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": image_b64,
-                        },
-                    },
+                    file_block,
                     {
                         "type": "text",
                         "text": PROMPT_OCR,

@@ -302,11 +302,11 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Registra la compra de ingredientes cuando llega el proveedor.</p>
 <div class="card" style="margin-bottom:1rem">
 <h3>Escanear ticket de compra</h3>
-<p style="font-size:.82rem;color:var(--mut);margin-bottom:.6rem">Toma una foto del ticket y se llenan los datos autom&aacute;ticamente.</p>
+<p style="font-size:.82rem;color:var(--mut);margin-bottom:.6rem">Sube una foto o PDF del ticket y se llenan los datos autom&aacute;ticamente.</p>
 <div style="display:flex;gap:.5rem;align-items:center">
 <label class="cobrar" style="flex:0 0 auto;padding:.5rem 1rem;font-size:.85rem;cursor:pointer;text-align:center;display:inline-block">
-&#128247; Foto del ticket
-<input type="file" id="ocr-file" accept="image/*" capture="environment" onchange="escanearTicket()" style="display:none">
+&#128247; Foto o PDF del ticket
+<input type="file" id="ocr-file" accept="image/*,application/pdf" capture="environment" onchange="escanearTicket()" style="display:none">
 </label>
 <span id="ocr-status" style="font-size:.82rem;color:var(--mut)"></span>
 </div>
@@ -1817,7 +1817,7 @@ function escanearTicket() {
   var file = fileInput.files[0];
   if (!file) return;
   var status = document.getElementById('ocr-status');
-  status.textContent = 'Procesando imagen...';
+  status.textContent = file.type === 'application/pdf' ? 'Procesando PDF...' : 'Procesando imagen...';
   status.style.color = 'var(--amb)';
   document.getElementById('ocr-result').style.display = 'none';
 
