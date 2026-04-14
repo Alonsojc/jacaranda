@@ -303,13 +303,11 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="card" style="margin-bottom:1rem">
 <h3>Escanear ticket de compra</h3>
 <p style="font-size:.82rem;color:var(--mut);margin-bottom:.6rem">Sube una foto o PDF del ticket y se llenan los datos autom&aacute;ticamente.</p>
-<div style="display:flex;gap:.5rem;align-items:center">
-<label class="cobrar" style="flex:0 0 auto;padding:.5rem 1rem;font-size:.85rem;cursor:pointer;text-align:center;display:inline-block">
+<label class="cobrar" style="padding:.5rem 1rem;font-size:.85rem;cursor:pointer;text-align:center;display:block">
 &#128247; Foto o PDF del ticket
 <input type="file" id="ocr-file" accept="image/*,application/pdf" capture="environment" onchange="escanearTicket()" style="display:none">
 </label>
-<span id="ocr-status" style="font-size:.82rem;color:var(--mut)"></span>
-</div>
+<p id="ocr-status" style="font-size:.82rem;color:var(--mut);margin-top:.4rem;margin-bottom:0"></p>
 <div id="ocr-result" style="display:none;margin-top:.8rem">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
 <strong style="font-size:.85rem">Productos encontrados</strong>
