@@ -3135,7 +3135,7 @@ function cargarDashboard() {
       h += '<div class="srow"><span>' + p.nombre + '</span><span style="font-weight:700;color:var(--v)">' + p.sugerido_hornear + ' pzas</span></div>';
     }
     document.getElementById('d-pronostico').innerHTML = h;
-  }).catch(function(){ document.getElementById('d-pronostico').innerHTML = '<div class="srow" style="color:var(--mut)"><span>No se pudo cargar</span></div>'; });
+  }).catch(function(){ document.getElementById('d-pronostico').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Sin datos de ventas a\u00fan</span></div>'; });
 }
 var _dashAlertas = '';
 function filtrarDashInv() {

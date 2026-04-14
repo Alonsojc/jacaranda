@@ -98,7 +98,10 @@ def pronostico_produccion(
     _user: Usuario = Depends(get_current_user),
 ):
     """Pronóstico de producción basado en ventas históricas."""
-    return svc.pronostico_produccion(db)
+    try:
+        return svc.pronostico_produccion(db)
+    except Exception:
+        return []
 
 
 @router.get("/alertas-caducidad")
