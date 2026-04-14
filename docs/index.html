@@ -1890,21 +1890,34 @@ function mostrarResultadoOCR(data) {
     var item = _ocrItems[i];
     var matchId = matchIngrediente(item.nombre);
     var nombreTicket = (item.nombre || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    var nombreEsc = (item.nombre || '').replace(/'/g, "\\'");
+    var unidad = item.unidad || 'pz';
     h += '<div style="padding:.5rem 0;border-bottom:1px solid #f0e8e5;font-size:.83rem">';
     h += '<div style="display:flex;align-items:center;gap:.4rem">';
     h += '<input type="checkbox" checked id="ocr-chk-' + i + '" style="accent-color:var(--v)">';
     h += '<span style="flex:1;font-weight:600;font-size:.82rem">' + nombreTicket + '</span>';
-    h += '<span style="min-width:50px;text-align:right">' + (item.cantidad || 1) + ' ' + (item.unidad || 'pz') + '</span>';
+    h += '<span style="min-width:50px;text-align:right">' + (item.cantidad || 1) + ' ' + unidad + '</span>';
     h += '<span style="min-width:70px;text-align:right;font-weight:600">$' + fmt(item.total || 0) + '</span>';
     h += '</div>';
-    h += '<div style="margin-top:.3rem;margin-left:1.6rem"><select id="ocr-ing-' + i + '" style="width:100%;padding:.3rem;border:1px solid var(--brd);border-radius:6px;font-size:.8rem;color:var(--txt)">';
-    if (!matchId) h += '<option value="nuevo" selected>+ Crear: ' + nombreTicket + '</option>';
-    for (var j = 0; j < _allIngs.length; j++) {
-      var sel = _allIngs[j].id === matchId ? ' selected' : '';
-      h += '<option value="' + _allIngs[j].id + '"' + sel + '>' + _allIngs[j].nombre + '</option>';
+    if (matchId) {
+      h += '<div style="margin-top:.3rem;margin-left:1.6rem;display:flex;gap:.3rem;align-items:center">';
+      h += '<select id="ocr-ing-' + i + '" style="flex:1;padding:.3rem;border:1px solid var(--brd);border-radius:6px;font-size:.8rem">';
+      for (var j = 0; j < _allIngs.length; j++) {
+        var sel = _allIngs[j].id === matchId ? ' selected' : '';
+        h += '<option value="' + _allIngs[j].id + '"' + sel + '>' + _allIngs[j].nombre + '</option>';
+      }
+      h += '</select></div>';
+    } else {
+      h += '<div style="margin-top:.3rem;margin-left:1.6rem;display:flex;gap:.3rem;align-items:center" id="ocr-row-' + i + '">';
+      h += '<button class="limpiar" style="padding:.2rem .6rem;font-size:.75rem;white-space:nowrap" onclick="crearIngDesdeOCR(' + i + ',\'' + nombreEsc + '\',\'' + unidad + '\')">+ Crear ingrediente</button>';
+      h += '<span style="font-size:.75rem;color:var(--mut)">o</span>';
+      h += '<select id="ocr-ing-' + i + '" style="flex:1;padding:.3rem;border:1px solid var(--brd);border-radius:6px;font-size:.8rem">';
+      h += '<option value="nuevo" selected>Seleccionar existente...</option>';
+      for (var j = 0; j < _allIngs.length; j++) {
+        h += '<option value="' + _allIngs[j].id + '">' + _allIngs[j].nombre + '</option>';
+      }
+      h += '</select></div>';
     }
-    if (matchId) h += '<option value="nuevo">+ Crear nuevo ingrediente</option>';
-    h += '</select></div>';
     h += '</div>';
   }
   var hayImpuestos = data.subtotal || data.iva || data.ieps;
@@ -1943,6 +1956,27 @@ function matchIngrediente(nombre) {
     }
   }
   return null;
+}
+
+function crearIngDesdeOCR(idx, nombre, unidad) {
+  // Limpiar nombre: quitar códigos, pz, kg, cj, etc. al final
+  var limpio = nombre.replace(/\s+(pz|kg|g|l|ml|cj|CJ).*$/i, '').trim();
+  // Capitalizar
+  limpio = limpio.split(' ').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); }).join(' ');
+  var unidadMap = {pz:'pieza', kg:'kg', g:'g', l:'litro', ml:'ml'};
+  var um = unidadMap[unidad] || 'pieza';
+  api('POST', '/inventario/ingredientes/', {nombre: limpio, unidad_medida: um, stock_actual: 0, stock_minimo: 0})
+  .then(function(ing) {
+    _allIngs.push(ing);
+    // Replace button row with select showing new ingredient
+    var row = document.getElementById('ocr-row-' + idx);
+    if (row) {
+      row.innerHTML = '<select id="ocr-ing-' + idx + '" style="flex:1;padding:.3rem;border:1px solid var(--brd);border-radius:6px;font-size:.8rem">'
+        + '<option value="' + ing.id + '" selected>' + ing.nombre + ' (nuevo)</option>'
+        + '</select>';
+    }
+    toast('Ingrediente "' + ing.nombre + '" creado');
+  }).catch(function(e) { toast(e.message || 'Error al crear ingrediente', true); });
 }
 
 function registrarTodoOCR() {
