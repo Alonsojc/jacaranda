@@ -1866,6 +1866,14 @@ function mostrarResultadoOCR(data) {
     h += '<span style="min-width:60px;text-align:right;font-weight:600">$' + (item.total || 0).toFixed(2) + '</span>';
     h += '</div>';
   }
+  var hayImpuestos = data.subtotal || data.iva || data.ieps;
+  if (hayImpuestos) {
+    h += '<div style="border-top:2px solid #e8ddd9;margin-top:.3rem;padding-top:.4rem;font-size:.83rem">';
+    if (data.subtotal) h += '<div style="display:flex;justify-content:space-between;padding:.15rem 0"><span>Subtotal</span><span>$' + data.subtotal.toFixed(2) + '</span></div>';
+    if (data.iva) h += '<div style="display:flex;justify-content:space-between;padding:.15rem 0"><span>IVA</span><span>$' + data.iva.toFixed(2) + '</span></div>';
+    if (data.ieps) h += '<div style="display:flex;justify-content:space-between;padding:.15rem 0"><span>IEPS</span><span>$' + data.ieps.toFixed(2) + '</span></div>';
+    h += '</div>';
+  }
   if (data.total) {
     h += '<div style="display:flex;justify-content:space-between;padding:.5rem 0;font-weight:700;font-size:.9rem">';
     h += '<span>Total del ticket</span><span>$' + data.total.toFixed(2) + '</span></div>';
