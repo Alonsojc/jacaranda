@@ -1,7 +1,9 @@
 """Rutas de autenticación y gestión de usuarios."""
 
 import json
-from fastapi import APIRouter, Depends, HTTPException, status
+import time
+from collections import defaultdict
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -16,17 +18,28 @@ from app.services.auth_service import crear_usuario, autenticar_usuario, generar
 
 router = APIRouter()
 
+# Rate limiting: max 5 intentos por IP cada 60 segundos
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+_MAX_ATTEMPTS = 5
+_WINDOW_SECONDS = 60
 
-@router.post("/registro", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
-def registro(data: UsuarioCreate, db: Session = Depends(get_db)):
-    try:
-        return crear_usuario(db, data)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+
+def _check_rate_limit(ip: str):
+    """Verifica que no se exceda el límite de intentos de login."""
+    now = time.time()
+    # Limpiar intentos viejos
+    _login_attempts[ip] = [t for t in _login_attempts[ip] if now - t < _WINDOW_SECONDS]
+    if len(_login_attempts[ip]) >= _MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Demasiados intentos. Espere un minuto.",
+        )
+    _login_attempts[ip].append(now)
 
 
 @router.post("/login", response_model=Token)
-def login(data: LoginRequest, db: Session = Depends(get_db)):
+def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    _check_rate_limit(request.client.host if request.client else "unknown")
     usuario = autenticar_usuario(db, data.email, data.password)
     if not usuario:
         raise HTTPException(
