@@ -128,6 +128,24 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </style>
 </head>
 <body>
+<!-- LOGIN SCREEN -->
+<div id="login-screen" style="position:fixed;inset:0;background:var(--cream);z-index:200;display:flex;align-items:center;justify-content:center">
+<div style="background:#fff;border-radius:16px;padding:2rem;width:90%;max-width:360px;box-shadow:0 8px 30px rgba(0,0,0,.1);text-align:center">
+<div style="font-family:'DM Serif Display',serif;font-size:1.6rem;color:var(--v);margin-bottom:.2rem">Jacaranda</div>
+<div style="font-size:.75rem;color:var(--mut);letter-spacing:.15em;margin-bottom:1.5rem">sharing flavors</div>
+<div class="fg"><label>Email</label><input type="email" id="login-email" placeholder="tu@email.com" value=""></div>
+<div class="fg"><label>Contrase&ntilde;a</label><input type="password" id="login-pass" placeholder="********" onkeydown="if(event.key==='Enter')hacerLogin()"></div>
+<button class="cobrar" style="width:100%;margin-top:.5rem" onclick="hacerLogin()">Entrar</button>
+<p id="login-error" style="color:#b91c1c;font-size:.82rem;margin-top:.5rem;display:none"></p>
+<div style="margin-top:1rem">
+<a href="#" onclick="mostrarConfigAPI();return false" style="font-size:.75rem;color:var(--mut)">Configurar servidor</a>
+<div id="login-api-cfg" style="display:none;margin-top:.5rem">
+<input type="text" id="login-api-url" placeholder="https://..." style="width:100%;padding:.4rem .6rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;margin-bottom:.3rem">
+<button class="limpiar" style="font-size:.78rem;padding:.3rem .6rem" onclick="guardarAPIUrl()">Guardar URL</button>
+</div>
+</div>
+</div>
+</div>
 <nav>
 <div class="logo">Jacaranda<span>sharing flavors</span></div>
 <div class="nav-links">
@@ -139,6 +157,8 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <a data-pg="rep" onclick="go('rep')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">Reportes</a>
 <a data-pg="listas" onclick="go('listas')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Listas</a>
 <a data-pg="cofepris" onclick="go('cofepris')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">COFEPRIS</a>
+<a data-pg="usuarios" onclick="go('usuarios')" class="nav-role" data-roles="ADMINISTRADOR">Usuarios</a>
+<a onclick="cerrarSesion()" id="btn-logout" style="display:none;cursor:pointer;color:var(--mut);font-size:.78rem;padding:.5rem .6rem" title="Cerrar sesi&oacute;n">&#9211;</a>
 <a onclick="conectarAPI()" id="btn-conn" style="cursor:pointer;background:var(--v);color:#fff;border-radius:20px;font-size:.78rem;padding:.5rem .8rem;display:inline-flex;align-items:center"><span class="conn-dot" id="conn-dot"></span>Conectar</a>
 </div>
 </nav>
@@ -638,6 +658,27 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 </div>
 </div>
+<!-- USUARIOS (Admin) -->
+<div class="page" id="usuarios">
+<h2>Usuarios</h2>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;gap:.4rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">Gestiona usuarios y permisos de acceso por m&oacute;dulo.</p>
+<button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="abrirNuevoUsuario()">+ Nuevo Usuario</button>
+</div>
+<div id="usuarios-list" class="card">
+<p style="color:var(--mut);padding:.5rem">Cargando usuarios...</p>
+</div>
+<div id="usuario-permisos" class="card" style="display:none;margin-top:1rem">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+<h3 style="margin:0" id="up-nombre">Permisos</h3>
+<button class="limpiar" style="padding:.3rem .6rem;font-size:.78rem;margin:0" onclick="document.getElementById('usuario-permisos').style.display='none'">Cerrar</button>
+</div>
+<p style="font-size:.78rem;color:var(--mut);margin-bottom:.6rem">Escoge qu&eacute; m&oacute;dulos puede ver, editar o no ver este usuario.</p>
+<div id="up-modulos"></div>
+<button class="cobrar" style="margin-top:.6rem" onclick="guardarPermisos()">Guardar permisos</button>
+</div>
+</div>
+
 </div><!-- /wrap -->
 
 <!-- MODAL: Gasto Fijo -->
@@ -965,6 +1006,28 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 </div>
 
+<!-- MODAL: Nuevo Usuario -->
+<div class="modal-bg" id="modal-usuario">
+<div class="modal" style="max-width:400px">
+<h3>Nuevo usuario</h3>
+<div class="fg"><label>Nombre</label><input id="mu-nombre" placeholder="Mar&iacute;a L&oacute;pez"></div>
+<div class="fg"><label>Email</label><input type="email" id="mu-email" placeholder="maria@jacaranda.mx"></div>
+<div class="fg"><label>Contrase&ntilde;a</label><input type="password" id="mu-pass" placeholder="M&iacute;nimo 8 caracteres"></div>
+<div class="fg"><label>Rol</label><select id="mu-rol">
+<option value="cajero">Cajero(a)</option>
+<option value="panadero">Panadero(a)</option>
+<option value="almacenista">Almacenista</option>
+<option value="gerente">Gerente</option>
+<option value="contador">Contador(a)</option>
+<option value="administrador">Administrador</option>
+</select></div>
+<div style="display:flex;gap:.5rem;margin-top:1rem">
+<button class="cobrar" style="flex:1" onclick="guardarNuevoUsuario()">Crear usuario</button>
+<button class="limpiar" style="flex:1" onclick="cerrarModal('modal-usuario')">Cancelar</button>
+</div>
+</div>
+</div>
+
 <div class="toast" id="toast"></div>
 <div class="footer">
 <strong style="font-family:'DM Serif Display',serif;letter-spacing:.2em;color:var(--v);font-weight:400">Jacaranda</strong> <span style="color:var(--mut);font-size:.75rem">sharing flavors</span><br>
@@ -997,11 +1060,9 @@ function api(method, path, body, _retry) {
   if (body) opts.body = JSON.stringify(body);
   return fetch(API_URL + '/api/v1' + path, opts).then(function(r) {
     if (r.status === 401 && !_retry) {
-      // Token expirado, re-login y reintentar
-      return login('admin@jacaranda.mx', 'admin1234').then(function() {
-        setConnected(true);
-        return api(method, path, body, true);
-      });
+      // Token expirado, mostrar login
+      cerrarSesion();
+      return Promise.reject(new Error('Sesión expirada'));
     }
     if (!r.ok) return r.json().catch(function(){return {};}).then(function(body){var e=new Error(typeof body.detail==='string'?body.detail:r.status);e.status=r.status;throw e;});
     return r.json();
@@ -1009,12 +1070,14 @@ function api(method, path, body, _retry) {
 }
 
 function login(email, pass) {
-  var fd = new URLSearchParams();
-  fd.append('username', email);
-  fd.append('password', pass);
   return fetch(API_URL + '/api/v1/auth/login', {
-    method: 'POST', body: fd
-  }).then(function(r) { return r.json(); }).then(function(d) {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email: email, password: pass})
+  }).then(function(r) {
+    if (!r.ok) throw new Error('Login failed');
+    return r.json();
+  }).then(function(d) {
     TOKEN = d.access_token;
     localStorage.setItem('jacaranda_token', TOKEN);
     return d;
@@ -1036,6 +1099,7 @@ function go(p) {
   if (p === 'listas') cargarListas();
   if (p === 'rep') initReportes();
   if (p === 'cofepris') cargarCofepris();
+  if (p === 'usuarios') cargarUsuarios();
   window.scrollTo(0, 0);
 }
 
@@ -3159,15 +3223,6 @@ function renderDashAlertas(extra) {
 // Auto-conectar si hay URL guardada (con reintentos para Railway cold start)
 // ─── Permisos por rol ─────────────────────────────────────────────
 var _userRole = 'ADMINISTRADOR';
-function aplicarPermisos() {
-  api('GET', '/auth/me').then(function(u) {
-    _userRole = u.rol || 'CAJERO';
-    document.querySelectorAll('.nav-role').forEach(function(a) {
-      var roles = (a.getAttribute('data-roles') || '').split(',');
-      a.style.display = roles.indexOf(_userRole) >= 0 ? '' : 'none';
-    });
-  }).catch(function() { /* fallback: show all */ });
-}
 
 // ─── Pedidos polling (nuevos pedidos) ────────────────────────────
 var _pedidoCount = 0;
@@ -3622,6 +3677,194 @@ function exportarFiscalCSV() {
   }).catch(function() { toast('Error al exportar', true); });
 }
 
+// ─── Login / Logout / Sesión ──────────────────────────────────────
+var _currentUser = null;
+
+function hacerLogin() {
+  var email = document.getElementById('login-email').value.trim();
+  var pass = document.getElementById('login-pass').value;
+  var errEl = document.getElementById('login-error');
+  if (!email || !pass) { errEl.textContent = 'Ingresa email y contraseña'; errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+  if (!API_URL) { errEl.textContent = 'Configura la URL del servidor primero'; errEl.style.display = 'block'; return; }
+  login(email, pass).then(function() {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('btn-logout').style.display = '';
+    setConnected(true);
+    postLogin();
+  }).catch(function() {
+    errEl.textContent = 'Email o contraseña incorrectos';
+    errEl.style.display = 'block';
+  });
+}
+
+function postLogin() {
+  api('GET', '/auth/me').then(function(u) {
+    _currentUser = u;
+    _userRole = u.rol || 'CAJERO';
+    aplicarPermisosModulos(u.permisos_modulos || {});
+    var tab = localStorage.getItem('jacaranda_tab') || 'dash';
+    // If user can't see saved tab, go to dash
+    if (u.permisos_modulos && !u.permisos_modulos[tab]) tab = 'dash';
+    go(tab);
+    cargarInventarioCompleto();
+    cargarPedidos();
+    iniciarPollPedidos();
+    cargarClientesPOS();
+    if (_ventasPendientes.length) sincronizarVentas();
+  }).catch(function(){});
+}
+
+function aplicarPermisosModulos(permisos) {
+  // Hide/show nav links based on module permissions
+  document.querySelectorAll('.nav-links a[data-pg]').forEach(function(a) {
+    var mod = a.getAttribute('data-pg');
+    if (!mod) return;
+    var perm = permisos[mod];
+    a.style.display = perm ? '' : 'none';
+  });
+  // Store for checking edit vs view
+  window._permisos = permisos;
+}
+
+function cerrarSesion() {
+  TOKEN = '';
+  localStorage.removeItem('jacaranda_token');
+  _currentUser = null;
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('btn-logout').style.display = 'none';
+  document.getElementById('login-pass').value = '';
+  document.getElementById('login-error').style.display = 'none';
+  setConnected(false);
+}
+
+function mostrarConfigAPI() {
+  var cfg = document.getElementById('login-api-cfg');
+  cfg.style.display = cfg.style.display === 'none' ? 'block' : 'none';
+  document.getElementById('login-api-url').value = API_URL || '';
+}
+
+function guardarAPIUrl() {
+  var url = document.getElementById('login-api-url').value.trim().replace(/\/$/, '');
+  if (url) {
+    API_URL = url;
+    localStorage.setItem('jacaranda_api', API_URL);
+    toast('Servidor configurado');
+  }
+}
+
+// ─── Gestión de usuarios (admin) ─────────────────────────────────
+var _editPermsUserId = null;
+var _moduloNombres = {
+  dash:'Inicio', pos:'Venta', ped:'Pedidos', inv:'Inventario',
+  corte:'Corte', rep:'Reportes', listas:'Listas', cofepris:'COFEPRIS', usuarios:'Usuarios'
+};
+
+function cargarUsuarios() {
+  api('GET', '/auth/usuarios').then(function(users) {
+    var h = '<table class="tbl"><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th style="width:120px"></th></tr>';
+    for (var i = 0; i < users.length; i++) {
+      var u = users[i];
+      var rolNombres = {administrador:'Admin',gerente:'Gerente',cajero:'Cajero',panadero:'Panadero',almacenista:'Almacenista',contador:'Contador'};
+      var cls = u.activo ? 'bok' : 'bout';
+      var txt = u.activo ? 'Activo' : 'Inactivo';
+      h += '<tr><td><strong>' + u.nombre + '</strong></td>';
+      h += '<td style="font-size:.78rem;color:var(--mut)">' + u.email + '</td>';
+      h += '<td>' + (rolNombres[u.rol]||u.rol) + '</td>';
+      h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
+      h += '<td>';
+      h += '<a href="#" onclick="editarPermisos(' + u.id + ',\'' + u.nombre.replace(/'/g,"\\'") + '\',\'' + u.rol + '\');return false" style="font-size:.8rem;cursor:pointer;margin-right:.4rem" title="Permisos">&#128274;</a>';
+      h += '<a href="#" onclick="toggleUsuario(' + u.id + ');return false" style="font-size:.8rem;cursor:pointer;margin-right:.4rem" title="Activar/Desactivar">&#9940;</a>';
+      h += '<a href="#" onclick="resetPassword(' + u.id + ',\'' + u.nombre.replace(/'/g,"\\'") + '\');return false" style="font-size:.8rem;cursor:pointer" title="Cambiar contraseña">&#128273;</a>';
+      h += '</td></tr>';
+    }
+    h += '</table>';
+    document.getElementById('usuarios-list').innerHTML = h;
+  }).catch(function() {
+    document.getElementById('usuarios-list').innerHTML = '<p style="color:var(--mut);padding:.5rem">Error al cargar usuarios</p>';
+  });
+}
+
+function abrirNuevoUsuario() {
+  document.getElementById('mu-nombre').value = '';
+  document.getElementById('mu-email').value = '';
+  document.getElementById('mu-pass').value = '';
+  document.getElementById('mu-rol').value = 'cajero';
+  document.getElementById('modal-usuario').classList.add('on');
+}
+
+function guardarNuevoUsuario() {
+  var nombre = document.getElementById('mu-nombre').value.trim();
+  var email = document.getElementById('mu-email').value.trim();
+  var pass = document.getElementById('mu-pass').value;
+  var rol = document.getElementById('mu-rol').value;
+  if (!nombre || !email || !pass) { toast('Todos los campos son obligatorios', true); return; }
+  if (pass.length < 8) { toast('La contraseña debe tener al menos 8 caracteres', true); return; }
+  api('POST', '/auth/usuarios', {nombre:nombre, email:email, password:pass, rol:rol}).then(function() {
+    toast('Usuario creado');
+    cerrarModal('modal-usuario');
+    cargarUsuarios();
+  }).catch(function(e) { toast(e.message || 'Error al crear usuario', true); });
+}
+
+function editarPermisos(userId, nombre, rol) {
+  _editPermsUserId = userId;
+  document.getElementById('up-nombre').textContent = 'Permisos — ' + nombre;
+  // Load current user permissions
+  api('GET', '/auth/usuarios').then(function(users) {
+    var user = users.find(function(u) { return u.id === userId; });
+    if (!user) return;
+    var perms = user.permisos_modulos || {};
+    var mods = ['dash','pos','ped','inv','corte','rep','listas','cofepris','usuarios'];
+    var h = '';
+    for (var i = 0; i < mods.length; i++) {
+      var m = mods[i];
+      var cur = perms[m] || 'oculto';
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f0e8e5">';
+      h += '<span style="font-weight:500;font-size:.85rem">' + (_moduloNombres[m]||m) + '</span>';
+      h += '<select data-mod="' + m + '" style="padding:.3rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem">';
+      h += '<option value="oculto"' + (cur==='oculto'?' selected':'') + '>Oculto</option>';
+      h += '<option value="ver"' + (cur==='ver'?' selected':'') + '>Solo ver</option>';
+      h += '<option value="editar"' + (cur==='editar'?' selected':'') + '>Editar</option>';
+      h += '</select></div>';
+    }
+    document.getElementById('up-modulos').innerHTML = h;
+    document.getElementById('usuario-permisos').style.display = 'block';
+  }).catch(function() { toast('Error', true); });
+}
+
+function guardarPermisos() {
+  var selects = document.querySelectorAll('#up-modulos select');
+  var perms = {};
+  for (var i = 0; i < selects.length; i++) {
+    var mod = selects[i].getAttribute('data-mod');
+    var val = selects[i].value;
+    if (val !== 'oculto') perms[mod] = val;
+  }
+  api('PUT', '/auth/usuarios/' + _editPermsUserId + '/permisos', {permisos:perms}).then(function() {
+    toast('Permisos guardados');
+    document.getElementById('usuario-permisos').style.display = 'none';
+    cargarUsuarios();
+  }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+
+function toggleUsuario(id) {
+  if (!confirm('¿Activar/desactivar este usuario?')) return;
+  api('DELETE', '/auth/usuarios/' + id).then(function(r) {
+    toast(r.activo ? 'Usuario activado' : 'Usuario desactivado');
+    cargarUsuarios();
+  }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+
+function resetPassword(id, nombre) {
+  var pass = prompt('Nueva contraseña para ' + nombre + ' (mínimo 8 caracteres):');
+  if (!pass) return;
+  if (pass.length < 8) { toast('Mínimo 8 caracteres', true); return; }
+  api('PUT', '/auth/usuarios/' + id + '/password', {password:pass}).then(function() {
+    toast('Contraseña actualizada');
+  }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+
 // ─── Ordenar tablas al hacer click en encabezado ─────────────────
 // Map of data-backed tables: container id -> {data array, sort field extractor, render fn}
 var _invProdSortCol = null, _invProdSortAsc = true;
@@ -3713,27 +3956,30 @@ _sortObserver.observe(document.body, {childList: true, subtree: true});
 var _reconectar = 0;
 
 function autoConectar() {
-  if (!API_URL) return;
+  if (!API_URL) { document.getElementById('login-screen').style.display = 'flex'; return; }
+  var savedToken = localStorage.getItem('jacaranda_token');
+  if (!savedToken) { document.getElementById('login-screen').style.display = 'flex'; return; }
+  // Try to reuse saved token
+  TOKEN = savedToken;
   setConnecting();
-  login('admin@jacaranda.mx', 'admin1234').then(function() {
+  api('GET', '/auth/me').then(function(u) {
     _reconectar = 0;
     setConnected(true);
-    aplicarPermisos();
-    var tab = localStorage.getItem('jacaranda_tab') || 'dash';
-    go(tab);
-    cargarInventarioCompleto();
-    cargarPedidos();
-    iniciarPollPedidos();
-    cargarClientesPOS();
-    if (_ventasPendientes.length) sincronizarVentas();
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('btn-logout').style.display = '';
+    postLogin();
   }).catch(function() {
+    // Token invalid or server down
+    TOKEN = '';
+    localStorage.removeItem('jacaranda_token');
     _reconectar++;
-    if (_reconectar <= 3) {
+    if (_reconectar <= 2) {
       // Railway puede tardar en despertar, reintentar
       setTimeout(autoConectar, _reconectar * 3000);
     } else {
       setConnected(false);
       _reconectar = 0;
+      document.getElementById('login-screen').style.display = 'flex';
     }
   });
 }

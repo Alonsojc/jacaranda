@@ -25,6 +25,7 @@ class UsuarioResponse(BaseModel):
     nombre: str
     email: str
     rol: RolUsuario
+    permisos_modulos: dict
     activo: bool
     creado_en: datetime
 
