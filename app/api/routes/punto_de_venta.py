@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -74,6 +75,21 @@ def obtener_venta(id: int, db: Session = Depends(get_db), _user: Usuario = Depen
 def obtener_ticket(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     try:
         return svc.generar_ticket(db, id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/ventas/{id}/ticket/pdf")
+def ticket_pdf(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+    """Descarga ticket de venta en PDF."""
+    from app.services import pdf_service
+    try:
+        ticket_data = svc.generar_ticket(db, id)
+        buf = pdf_service.generar_ticket_pdf(ticket_data)
+        return StreamingResponse(
+            buf, media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=ticket_{ticket_data['folio']}.pdf"},
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
