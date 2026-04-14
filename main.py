@@ -9,17 +9,38 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.core.database import engine, Base
+from app.core.database import engine, Base, SessionLocal
+from app.core.security import get_password_hash
 from app.api.routes import router as api_router
 
 # Importar todos los modelos para que se registren en Base.metadata
 import app.models  # noqa: F401
+from app.models.usuario import Usuario, RolUsuario
+
+
+def _seed_admin():
+    """Crea usuario administrador por defecto si no existe ninguno."""
+    db = SessionLocal()
+    try:
+        admin = db.query(Usuario).filter(Usuario.rol == RolUsuario.ADMINISTRADOR).first()
+        if not admin:
+            admin = Usuario(
+                nombre="Administrador",
+                email="admin@jacaranda.mx",
+                hashed_password=get_password_hash("admin1234"),
+                rol=RolUsuario.ADMINISTRADOR,
+            )
+            db.add(admin)
+            db.commit()
+    finally:
+        db.close()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Crear tablas al inicio
     Base.metadata.create_all(bind=engine)
+    _seed_admin()
     yield
 
 
