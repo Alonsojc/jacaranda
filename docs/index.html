@@ -1035,6 +1035,7 @@ Plaza Distrito Marqu&eacute;s, Quer&eacute;taro &bull; <a href="https://instagra
 <script>
 // ─── Config ───────────────────────────────────────────────────────
 // Cambiar API_URL cuando el backend esté desplegado
+function fmt(n) { var x = parseFloat(n) || 0; return x.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
 var API_URL = localStorage.getItem('jacaranda_api') || 'https://web-production-b51486.up.railway.app';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
@@ -1128,19 +1129,19 @@ function ren() {
     h += '<strong>' + c.q + '</strong>';
     h += '<span class="qty-btn" onclick="cartQty(' + i + ',1)">+</span>';
     h += ' ' + c.n;
-    if (d > 0) h += ' <span style="font-size:.65rem;color:#b91c1c">-$' + d.toFixed(0) + '</span>';
+    if (d > 0) h += ' <span style="font-size:.65rem;color:#b91c1c">-$' + fmt(d) + '</span>';
     h += '</span>';
     h += '<span style="display:flex;align-items:center;gap:.4rem">';
     h += '<span class="qty-btn" onclick="cartDesc(' + i + ')" title="Descuento" style="font-size:.65rem">%</span>';
-    h += '$' + (l - d).toFixed(2);
+    h += '$' + fmt((l - d));
     h += '<span class="qty-btn rm" onclick="cartRm(' + i + ')">&times;</span></span></div>';
   }
   document.getElementById('titems').innerHTML = h;
   document.getElementById('tsum').style.display = cart.length ? 'block' : 'none';
-  document.getElementById('tsub').textContent = '$' + s.toFixed(2);
-  if (dsc > 0) document.getElementById('tsub').textContent += ' (-$' + dsc.toFixed(0) + ')';
-  document.getElementById('tiva').textContent = '$' + iv.toFixed(2);
-  document.getElementById('ttot').textContent = '$' + (s + iv).toFixed(2);
+  document.getElementById('tsub').textContent = '$' + fmt(s);
+  if (dsc > 0) document.getElementById('tsub').textContent += ' (-$' + fmt(dsc) + ')';
+  document.getElementById('tiva').textContent = '$' + fmt(iv);
+  document.getElementById('ttot').textContent = '$' + fmt((s + iv));
   var bp = document.getElementById('pos-btn-prods');
   if (bp) bp.style.display = (cart.length && window.innerWidth <= 900) ? '' : 'none';
 }
@@ -1150,7 +1151,7 @@ function cartDesc(i) {
   _descIdx = i;
   var c = cart[i];
   var total = c.p * c.q;
-  document.getElementById('md-info').textContent = c.n + ' — $' + total.toFixed(0);
+  document.getElementById('md-info').textContent = c.n + ' — $' + fmt(total);
   document.getElementById('md-monto').value = c.desc > 0 ? c.desc : '';
   document.getElementById('md-preview').textContent = (c.desc || 0).toFixed(0);
   document.getElementById('modal-desc').classList.add('on');
@@ -1200,7 +1201,7 @@ function cobrar() {
   if (!cart.length) return;
   _splitMode = false;
   var total = _cartTotal();
-  document.getElementById('mc-total').textContent = '$' + total.toFixed(2);
+  document.getElementById('mc-total').textContent = '$' + fmt(total);
   var nombres = {ef:'Efectivo', clip:'Tarjeta (CLIP)', bbva:'Transferencia (BBVA)'};
   document.getElementById('mc-metodo').textContent = nombres[pm];
   document.getElementById('mc-single').style.display = 'block';
@@ -1236,7 +1237,7 @@ function calcCambio() {
   var recibido = parseFloat(document.getElementById('mc-recibido').value) || 0;
   var cambio = recibido - total;
   var el = document.getElementById('mc-cambio');
-  el.textContent = '$' + Math.max(0, cambio).toFixed(2);
+  el.textContent = '$' + fmt(Math.max(0, cambio));
   el.style.color = cambio >= 0 ? 'var(--grn)' : '#b91c1c';
 }
 
@@ -1248,14 +1249,14 @@ function calcSplit() {
   var suma = ef + tar + trans;
   var falta = total - suma;
   var faltaEl = document.getElementById('mc-sp-falta');
-  faltaEl.textContent = falta > 0 ? '$' + falta.toFixed(2) : '$0.00';
+  faltaEl.textContent = falta > 0 ? '$' + fmt(falta) : '$0.00';
   faltaEl.style.color = falta > 0 ? '#b91c1c' : 'var(--grn)';
   // Change is only from cash portion: cash given minus what cash needs to cover
   var noEf = tar + trans;
   var cashNeeded = Math.max(0, total - noEf);
   var cambio = ef > cashNeeded ? ef - cashNeeded : 0;
   var cambioEl = document.getElementById('mc-sp-cambio');
-  cambioEl.textContent = '$' + cambio.toFixed(2);
+  cambioEl.textContent = '$' + fmt(cambio);
   cambioEl.style.color = 'var(--grn)';
 }
 
@@ -1377,11 +1378,11 @@ function mostrarTicket(venta) {
     var cambio = parseFloat(venta.cambio) || 0;
     var metodos = {'01':'Efectivo','04':'Tarjeta','28':'Tarjeta D\u00e9bito','03':'Transferencia'};
     var h = '';
-    h += '<div class="srow"><span>Total</span><span class="green" style="font-size:1.2rem">$' + parseFloat(venta.total).toFixed(2) + '</span></div>';
-    h += '<div class="srow"><span>Subtotal</span><span>$' + parseFloat(venta.subtotal).toFixed(2) + '</span></div>';
-    h += '<div class="srow"><span>IVA</span><span>$' + parseFloat(venta.total_impuestos).toFixed(2) + '</span></div>';
+    h += '<div class="srow"><span>Total</span><span class="green" style="font-size:1.2rem">$' + fmt(venta.total) + '</span></div>';
+    h += '<div class="srow"><span>Subtotal</span><span>$' + fmt(venta.subtotal) + '</span></div>';
+    h += '<div class="srow"><span>IVA</span><span>$' + fmt(venta.total_impuestos) + '</span></div>';
     h += '<div class="srow"><span>M\u00e9todo</span><span>' + (metodos[venta.metodo_pago] || venta.metodo_pago) + '</span></div>';
-    if (cambio > 0) h += '<div class="srow"><span>Cambio</span><span style="color:var(--grn);font-weight:700">$' + cambio.toFixed(2) + '</span></div>';
+    if (cambio > 0) h += '<div class="srow"><span>Cambio</span><span style="color:var(--grn);font-weight:700">$' + fmt(cambio) + '</span></div>';
     document.getElementById('mt-detalles').innerHTML = h;
     document.getElementById('mt-productos').innerHTML = '';
     _ultimoTicket = null;
@@ -1406,7 +1407,7 @@ function renderTicket(tk) {
     p += '<div style="border-top:1px solid var(--brd);padding-top:.5rem;margin-top:.3rem">';
     for (var i = 0; i < tk.productos.length; i++) {
       var pr = tk.productos[i];
-      p += '<div class="srow"><span>' + pr.cantidad + 'x ' + pr.nombre + '</span><span>$' + pr.subtotal.toFixed(2) + '</span></div>';
+      p += '<div class="srow"><span>' + pr.cantidad + 'x ' + pr.nombre + '</span><span>$' + fmt(pr.subtotal) + '</span></div>';
     }
     p += '</div>';
   }
@@ -1461,7 +1462,7 @@ function copiarTicket() {
   txt += '─────────────────────\n';
   for (var i = 0; i < tk.productos.length; i++) {
     var p = tk.productos[i];
-    txt += p.cantidad + 'x ' + p.nombre + '  $' + p.subtotal.toFixed(2) + '\n';
+    txt += p.cantidad + 'x ' + p.nombre + '  $' + fmt(p.subtotal) + '\n';
   }
   txt += '─────────────────────\n';
   txt += 'Subtotal:  ' + tk.subtotal + '\n';
@@ -1571,11 +1572,11 @@ function renderPOSFromData(prods) {
       h += '<span class="pn">' + g.nombre + '</span>';
       if (!single) {
         h += '<span class="pi-var">' + items.length + ' presentaciones</span>';
-        h += '<span class="pp">$' + pMin.toFixed(0) + (pMin !== pMax ? ' - $' + pMax.toFixed(0) : '') + '</span>';
+        h += '<span class="pp">$' + fmt(pMin) + (pMin !== pMax ? ' - $' + fmt(pMax) : '') + '</span>';
       } else {
         var parts = splitNombreVariante(items[0].nombre);
         if (parts.variante) h += '<span class="pi-var">' + parts.variante + '</span>';
-        h += '<span class="pp">$' + pMin.toFixed(0) + '</span>';
+        h += '<span class="pp">$' + fmt(pMin) + '</span>';
       }
       var stkCls = allOut ? 'pi-stk-out' : (stockTotal <= minTotal ? 'pi-stk-low' : 'pi-stk-ok');
       var stkTxt = allOut ? 'Agotado' : Math.round(stockTotal) + ' pzas';
@@ -1628,7 +1629,7 @@ function abrirVariantes(key) {
       + 'onmouseout="this.style.borderColor=\'\';this.style.background=\'\'" '
       + 'onclick="add(' + p.id + ',\'' + p.nombre.replace(/'/g,"\\'") + '\',' + precio + ',' + iv + ');cerrarModal(\'modal-variante\')">';
     h += '<div><strong style="font-size:.9rem">' + label + '</strong>';
-    h += '<span style="margin-left:.5rem;color:var(--v);font-weight:700;font-size:.95rem">$' + precio.toFixed(0) + '</span></div>';
+    h += '<span style="margin-left:.5rem;color:var(--v);font-weight:700;font-size:.95rem">$' + fmt(precio) + '</span></div>';
     h += '<span class="pi-stock-chip ' + stkCls + '">' + stkTxt + '</span>';
     h += '</div>';
   }
@@ -1898,20 +1899,20 @@ function mostrarResultadoOCR(data) {
     h += '<option value="nuevo">+ Nuevo ingrediente</option>';
     h += '</select>';
     h += '<span style="min-width:50px;text-align:right">' + (item.cantidad || 1) + ' ' + (item.unidad || 'pz') + '</span>';
-    h += '<span style="min-width:60px;text-align:right;font-weight:600">$' + (item.total || 0).toFixed(2) + '</span>';
+    h += '<span style="min-width:60px;text-align:right;font-weight:600">$' + fmt(item.total || 0) + '</span>';
     h += '</div>';
   }
   var hayImpuestos = data.subtotal || data.iva || data.ieps;
   if (hayImpuestos) {
     h += '<div style="border-top:2px solid #e8ddd9;margin-top:.3rem;padding-top:.4rem;font-size:.83rem">';
-    if (data.subtotal) h += '<div style="display:flex;justify-content:space-between;padding:.15rem 0"><span>Subtotal</span><span>$' + data.subtotal.toFixed(2) + '</span></div>';
-    if (data.iva) h += '<div style="display:flex;justify-content:space-between;padding:.15rem 0"><span>IVA</span><span>$' + data.iva.toFixed(2) + '</span></div>';
-    if (data.ieps) h += '<div style="display:flex;justify-content:space-between;padding:.15rem 0"><span>IEPS</span><span>$' + data.ieps.toFixed(2) + '</span></div>';
+    if (data.subtotal) h += '<div style="display:flex;justify-content:space-between;padding:.15rem 0"><span>Subtotal</span><span>$' + fmt(data.subtotal) + '</span></div>';
+    if (data.iva) h += '<div style="display:flex;justify-content:space-between;padding:.15rem 0"><span>IVA</span><span>$' + fmt(data.iva) + '</span></div>';
+    if (data.ieps) h += '<div style="display:flex;justify-content:space-between;padding:.15rem 0"><span>IEPS</span><span>$' + fmt(data.ieps) + '</span></div>';
     h += '</div>';
   }
   if (data.total) {
     h += '<div style="display:flex;justify-content:space-between;padding:.5rem 0;font-weight:700;font-size:.9rem">';
-    h += '<span>Total del ticket</span><span>$' + data.total.toFixed(2) + '</span></div>';
+    h += '<span>Total del ticket</span><span>$' + fmt(data.total) + '</span></div>';
   }
   document.getElementById('ocr-items').innerHTML = h;
 }
@@ -2137,7 +2138,7 @@ function imprimirTicket() {
   if (tk.productos) {
     for (var i = 0; i < tk.productos.length; i++) {
       var p = tk.productos[i];
-      h += '<div class="row"><span>' + p.cantidad + 'x ' + p.nombre + '</span><span>$' + p.subtotal.toFixed(2) + '</span></div>';
+      h += '<div class="row"><span>' + p.cantidad + 'x ' + p.nombre + '</span><span>$' + fmt(p.subtotal) + '</span></div>';
     }
   }
   h += '<div class="line"></div>';
@@ -2251,7 +2252,7 @@ function renderInvProductos() {
     var txt = stock <= 0 ? 'Agotado' : stock <= min ? 'Bajo' : 'OK';
     var esc = p.nombre.replace(/'/g,"\\'");
     h += '<tr><td>' + p.nombre + '</td>';
-    h += '<td>$' + precio.toFixed(0) + '</td>';
+    h += '<td>$' + fmt(precio) + '</td>';
     h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline;cursor:pointer">' + Math.round(stock) + ' pzas</a></td>';
     h += '<td>' + Math.round(min) + '</td>';
     h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
@@ -2292,7 +2293,7 @@ function cargarIngredientes() {
       var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
       var txt = stock <= 0 ? 'Urgente' : stock <= min ? 'Pedir' : 'OK';
       h += '<tr><td>' + g.nombre + '</td><td>' + stock.toFixed(1) + '</td><td>' + g.unidad_medida + '</td>';
-      h += '<td>$' + costo.toFixed(0) + '</td><td>' + min + '</td>';
+      h += '<td>$' + fmt(costo) + '</td><td>' + min + '</td>';
       h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
       h += '<td><a href="#" onclick="editarIngrediente(' + g.id + ');return false" style="font-size:.9rem;cursor:pointer" title="Editar">&#9998;</a></td>';
       h += '</tr>';
@@ -2354,7 +2355,7 @@ function cargarRecetas() {
           api('GET', '/recetas/' + id + '/costo').then(function(c) {
             var costEl = document.getElementById('rc-cost-' + id);
             var pzaEl = document.getElementById('rc-pza-' + id);
-            if (costEl) costEl.textContent = '$' + c.costo_total_ingredientes.toFixed(0);
+            if (costEl) costEl.textContent = '$' + c.fmt(costo_total_ingredientes);
             if (pzaEl) { pzaEl.textContent = '$' + c.costo_por_pieza.toFixed(1); pzaEl.style.color = 'var(--v)'; pzaEl.style.fontWeight = '600'; }
           }).catch(function(){});
         })(recs[k].id);
@@ -2631,8 +2632,8 @@ function cargarListaProductos() {
       var esc = p.nombre.replace(/'/g,"\\'");
       h += '<tr>';
       h += '<td><strong>' + p.nombre + '</strong></td>';
-      h += '<td>$' + precio.toFixed(0) + '</td>';
-      h += '<td style="color:var(--mut)">$' + costo.toFixed(0) + '</td>';
+      h += '<td>$' + fmt(precio) + '</td>';
+      h += '<td style="color:var(--mut)">$' + fmt(costo) + '</td>';
       h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline">' + Math.round(stock) + '</a></td>';
       h += '<td>' + Math.round(min) + '</td>';
       h += '<td>' + iva + '</td>';
@@ -2665,7 +2666,7 @@ function cargarListaIngredientes() {
       h += '<td><strong>' + g.nombre + '</strong></td>';
       h += '<td>' + stock.toFixed(1) + '</td>';
       h += '<td>' + g.unidad_medida + '</td>';
-      h += '<td>$' + costo.toFixed(0) + '</td>';
+      h += '<td>$' + fmt(costo) + '</td>';
       h += '<td>' + min + '</td>';
       h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
       h += '<td><a href="#" onclick="editarIngrediente(' + g.id + ');return false" title="Editar" style="font-size:.9rem">&#9998;</a></td>';
@@ -2716,7 +2717,7 @@ function cargarListaRecetas() {
         api('GET', '/recetas/' + id + '/costo').then(function(c) {
           var el = document.getElementById('lr-cost-' + id);
           if (el) {
-            el.innerHTML = '<span class="badge" style="background:#fef3c7;color:#92400e">$' + c.costo_total_ingredientes.toFixed(0) + ' total</span> <span class="badge" style="background:#dbeafe;color:#1d4ed8">$' + c.costo_por_pieza.toFixed(1) + '/pza</span>';
+            el.innerHTML = '<span class="badge" style="background:#fef3c7;color:#92400e">$' + fmt(costo_total_ingredientes) + ' total</span> <span class="badge" style="background:#dbeafe;color:#1d4ed8">$' + fmt(c.costo_por_pieza) + '/pza</span>';
           }
         }).catch(function(){});
       })(recs[m].id);
@@ -2845,20 +2846,20 @@ function cargarCorte() {
       var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
       h += '<div class="srow" style="cursor:pointer" onclick="verTicket(' + v.id + ',' + (v.estado==='cancelada') + ')">';
       h += '<span>' + v.folio + ' &bull; ' + hora + ' &bull; ' + met + estado + '</span>';
-      h += '<span style="font-weight:600' + (v.estado==='cancelada'?';text-decoration:line-through;color:var(--mut)':'') + '">$' + tot.toFixed(2) + '</span></div>';
+      h += '<span style="font-weight:600' + (v.estado==='cancelada'?';text-decoration:line-through;color:var(--mut)':'') + '">$' + fmt(tot) + '</span></div>';
     }
     if (!h) h = '<p style="color:var(--mut);text-align:center;padding:.5rem;font-size:.85rem">Sin ventas hoy</p>';
     document.getElementById('c-ventas-list').innerHTML = h;
-    document.getElementById('c-total-ef').textContent = '$' + efTotal.toLocaleString('es-MX',{minimumFractionDigits:0});
-    document.getElementById('c-total-tar').textContent = '$' + tarTotal.toLocaleString('es-MX',{minimumFractionDigits:0});
-    document.getElementById('c-total-trans').textContent = '$' + transTotal.toLocaleString('es-MX',{minimumFractionDigits:0});
-    document.getElementById('c-total').textContent = '$' + totalGeneral.toLocaleString('es-MX',{minimumFractionDigits:2});
+    document.getElementById('c-total-ef').textContent = '$' + fmt(efTotal);
+    document.getElementById('c-total-tar').textContent = '$' + fmt(tarTotal);
+    document.getElementById('c-total-trans').textContent = '$' + fmt(transTotal);
+    document.getElementById('c-total').textContent = '$' + fmt(totalGeneral);
     document.getElementById('c-tickets').textContent = tickets;
     _efTotal = efTotal;
     _totalVentasDia = totalGeneral;
     var fondo = parseFloat(document.getElementById('c-fondo').value) || 0;
-    document.getElementById('c-esperado').textContent = '$' + (fondo + efTotal).toLocaleString('es-MX',{minimumFractionDigits:2});
-    document.getElementById('c-util-ventas').textContent = '$' + totalGeneral.toLocaleString('es-MX',{minimumFractionDigits:2});
+    document.getElementById('c-esperado').textContent = '$' + fmt(fondo + efTotal);
+    document.getElementById('c-util-ventas').textContent = '$' + fmt(totalGeneral);
     actualizarUtilidad();
   }).catch(function(){
     document.getElementById('c-ventas-list').innerHTML = '<p style="color:var(--mut);text-align:center;padding:.5rem;font-size:.85rem">Error al cargar ventas</p>';
@@ -2872,9 +2873,9 @@ function cargarCorte() {
 function cargarGastos(fecha) {
   var q = fecha ? '?fecha=' + fecha : '';
   api('GET', '/reportes/gastos-hoy' + q).then(function(g) {
-    document.getElementById('c-gastos-total').textContent = '$' + g.total_gastos.toLocaleString('es-MX',{minimumFractionDigits:2});
+    document.getElementById('c-gastos-total').textContent = '$' + fmt(g.total_gastos);
     document.getElementById('c-gastos-num').textContent = g.numero_compras;
-    document.getElementById('c-util-gastos').textContent = '$' + g.total_gastos.toLocaleString('es-MX',{minimumFractionDigits:2});
+    document.getElementById('c-util-gastos').textContent = '$' + fmt(g.total_gastos);
     window._totalGastosDia = g.total_gastos;
     actualizarUtilidad();
     if (g.desglose.length) {
@@ -2882,7 +2883,7 @@ function cargarGastos(fecha) {
       for (var i = 0; i < g.desglose.length; i++) {
         var d = g.desglose[i];
         h += '<div class="srow"><span>' + d.ingrediente + ' (' + d.cantidad + ') &bull; ' + d.hora + '</span>';
-        h += '<span>$' + d.total.toFixed(2) + '</span></div>';
+        h += '<span>$' + fmt(d.total) + '</span></div>';
       }
       document.getElementById('c-gastos-list').innerHTML = h;
     } else {
@@ -2899,20 +2900,20 @@ function actualizarUtilidad() {
   var gastos = window._totalGastosDia || 0;
   var util = ventas - gastos;
   var el = document.getElementById('c-util-neta');
-  el.textContent = '$' + util.toLocaleString('es-MX',{minimumFractionDigits:2});
+  el.textContent = '$' + fmt(util);
   el.style.color = util >= 0 ? 'var(--grn)' : '#b91c1c';
 }
 
 function calcularDiferencia() {
   var real = parseFloat(document.getElementById('c-real').value);
   if (isNaN(real)) { document.getElementById('c-contado').textContent = '--'; document.getElementById('c-dif').textContent = '--'; return; }
-  document.getElementById('c-contado').textContent = '$' + real.toLocaleString('es-MX',{minimumFractionDigits:2});
+  document.getElementById('c-contado').textContent = '$' + fmt(real);
   var fondo = parseFloat(document.getElementById('c-fondo').value) || 0;
   var esperado = fondo + _efTotal;
-  document.getElementById('c-esperado').textContent = '$' + esperado.toLocaleString('es-MX',{minimumFractionDigits:2});
+  document.getElementById('c-esperado').textContent = '$' + fmt(esperado);
   var dif = real - esperado;
   var difEl = document.getElementById('c-dif');
-  difEl.textContent = '$' + dif.toFixed(2);
+  difEl.textContent = '$' + fmt(dif);
   difEl.style.color = Math.abs(dif) < 1 ? 'var(--grn)' : '#b91c1c';
   if (Math.abs(dif) < 1) difEl.textContent += ' \u2714';
 }
@@ -2925,7 +2926,7 @@ function realizarCorte() {
     fondo_inicial: fondo, efectivo_real: real
   }).then(function(corte) {
     var dif = parseFloat(corte.diferencia) || 0;
-    toast('Corte registrado \u2014 Diferencia: $' + dif.toFixed(2));
+    toast('Corte registrado \u2014 Diferencia: $' + fmt(dif));
   }).catch(function(e) { toast(e.message || 'Error al registrar corte', true); });
 }
 
@@ -2955,13 +2956,13 @@ function verHistorialCliente(id) {
   api('GET', '/clientes/' + id + '/historial').then(function(d) {
     var ptsInfo = d.puntos ? ' — ' + d.puntos + ' pts' : '';
     document.getElementById('lcd-nombre').textContent = d.cliente.nombre + (d.cliente.telefono ? ' — ' + d.cliente.telefono : '') + ptsInfo;
-    document.getElementById('lcd-total').textContent = fmt(d.total_compras);
+    document.getElementById('lcd-total').textContent = '$' + fmt(d.total_compras);
     document.getElementById('lcd-visitas').textContent = d.numero_visitas;
-    document.getElementById('lcd-promedio').textContent = fmt(d.ticket_promedio);
+    document.getElementById('lcd-promedio').textContent = '$' + fmt(d.ticket_promedio);
     var h = '';
     for (var i = 0; i < d.compras.length; i++) {
       var c = d.compras[i];
-      h += '<div class="srow"><span>' + c.folio + ' &bull; ' + c.fecha + '</span><span class="green">$' + c.total.toFixed(2) + '</span></div>';
+      h += '<div class="srow"><span>' + c.folio + ' &bull; ' + c.fecha + '</span><span class="green">$' + fmt(c.total) + '</span></div>';
     }
     if (!h) h = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin compras registradas</p>';
     document.getElementById('lcd-compras').innerHTML = h;
@@ -3016,15 +3017,15 @@ function cargarGastosFijos() {
       h += '<div class="srow">';
       h += '<span>' + g.concepto + ' <span style="font-size:.72rem;color:var(--mut)">(' + g.periodicidad + ')</span></span>';
       h += '<span style="display:flex;align-items:center;gap:.3rem">';
-      h += '<span style="color:#b91c1c;font-weight:600">$' + g.monto.toFixed(0) + '</span>';
+      h += '<span style="color:#b91c1c;font-weight:600">$' + g.fmt(monto) + '</span>';
       h += '<a href="#" onclick="editarGasto(' + g.id + ',\'' + g.concepto.replace(/'/g,"\\'") + '\',' + g.monto + ',\'' + g.periodicidad + '\',\'' + (g.notas||'').replace(/'/g,"\\'") + '\');return false" style="font-size:.8rem">&#9998;</a>';
       h += '<a href="#" onclick="eliminarGasto(' + g.id + ');return false" style="font-size:.8rem;color:#b91c1c">&times;</a>';
       h += '</span></div>';
     }
     document.getElementById('c-gastos-fijos-list').innerHTML = h;
     document.getElementById('c-gastos-fijos-total').style.display = 'block';
-    document.getElementById('c-gf-total').textContent = '$' + total.toFixed(0);
-    document.getElementById('c-gf-diario').textContent = '$' + (total / 30).toFixed(0);
+    document.getElementById('c-gf-total').textContent = '$' + fmt(total);
+    document.getElementById('c-gf-diario').textContent = '$' + fmt(total / 30);
   }).catch(function() {
     document.getElementById('c-gastos-fijos-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar</p>';
   });
@@ -3091,10 +3092,10 @@ function cargarHistorialCortes() {
       var difColor = Math.abs(dif) < 1 ? 'var(--grn)' : '#b91c1c';
       h += '<tr>';
       h += '<td>' + f + '</td>';
-      h += '<td class="green">$' + parseFloat(c.total_ventas).toFixed(0) + '</td>';
+      h += '<td class="green">$' + fmt(c.total_ventas) + '</td>';
       h += '<td>' + c.numero_ventas + '</td>';
-      h += '<td>$' + parseFloat(c.total_ventas_efectivo).toFixed(0) + '</td>';
-      h += '<td style="color:' + difColor + ';font-weight:600">$' + dif.toFixed(2) + '</td>';
+      h += '<td>$' + fmt(c.total_ventas_efectivo) + '</td>';
+      h += '<td style="color:' + difColor + ';font-weight:600">$' + fmt(dif) + '</td>';
       h += '</tr>';
     }
     h += '</table>';
@@ -3130,7 +3131,6 @@ function cargarPronostico() {
 }
 
 // ─── Dashboard data ───────────────────────────────────────────────
-function fmt(n) { return '$' + Number(n||0).toLocaleString('es-MX'); }
 
 function cargarDashboard() {
   _dashAlertas = '';
@@ -3138,9 +3138,9 @@ function cargarDashboard() {
   api('GET', '/reportes/dashboard').then(function(d) {
     var vh = d.ventas_hoy || {};
     var vm = d.ventas_mes || {};
-    document.getElementById('d-ventas').textContent = fmt(vh.total);
+    document.getElementById('d-ventas').textContent = '$' + fmt(vh.total);
     document.getElementById('d-tickets').textContent = vh.numero_ventas || 0;
-    document.getElementById('d-mes').textContent = fmt(vm.total);
+    document.getElementById('d-mes').textContent = '$' + fmt(vm.total);
   }).catch(function(){});
 
   // Load top products
@@ -3318,15 +3318,15 @@ function cargarReporteVentas() {
   if (!fi || !ff) { toast('Selecciona fechas', true); return; }
   api('GET', '/reportes/ventas?fecha_inicio=' + fi + '&fecha_fin=' + ff).then(function(r) {
     var res = r.resumen;
-    document.getElementById('rep-total').textContent = '$' + res.total.toLocaleString('es-MX',{minimumFractionDigits:0});
+    document.getElementById('rep-total').textContent = '$' + fmt(res.total);
     document.getElementById('rep-tickets').textContent = res.numero_ventas;
-    document.getElementById('rep-promedio').textContent = '$' + res.ticket_promedio.toFixed(0);
+    document.getElementById('rep-promedio').textContent = '$' + res.fmt(ticket_promedio);
     // Por método
     var metodos = {'01':'Efectivo','04':'Tarjeta','28':'Tarjeta D.','03':'Transferencia'};
     var hm = '';
     for (var k in r.por_metodo_pago) {
       var m = r.por_metodo_pago[k];
-      hm += '<div class="srow"><span>' + (metodos[k]||k) + ' (' + m.cantidad + ')</span><span class="green">$' + m.total.toLocaleString('es-MX',{minimumFractionDigits:0}) + '</span></div>';
+      hm += '<div class="srow"><span>' + (metodos[k]||k) + ' (' + m.cantidad + ')</span><span class="green">$' + fmt(m.total) + '</span></div>';
     }
     document.getElementById('rep-metodo').innerHTML = hm || '<p style="color:var(--mut);font-size:.83rem">Sin datos</p>';
     // Por día
@@ -3336,7 +3336,7 @@ function cargarReporteVentas() {
       var dd = r.por_dia[d2];
       var pct = maxDia > 0 ? (dd.total / maxDia * 100) : 0;
       var dia = new Date(d2 + 'T12:00:00').toLocaleDateString('es-MX',{weekday:'short',day:'numeric',month:'short'});
-      hd += '<div class="bar-row"><span class="bar-label">' + dia + '</span><div class="bar-fill" style="width:' + pct + '%"></div><span class="bar-val">$' + dd.total.toFixed(0) + '</span></div>';
+      hd += '<div class="bar-row"><span class="bar-label">' + dia + '</span><div class="bar-fill" style="width:' + pct + '%"></div><span class="bar-val">$' + dd.fmt(total) + '</span></div>';
     }
     document.getElementById('rep-dia').innerHTML = hd || '<p style="color:var(--mut);font-size:.83rem">Sin ventas</p>';
   }).catch(function() { toast('Error al cargar reporte', true); });
@@ -3349,7 +3349,7 @@ function cargarReporteVentas() {
       var d = dias[j];
       var pct = maxT > 0 ? (d.total / maxT * 100) : 0;
       var dia = new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'short'});
-      hc += '<div class="bar-row"><span class="bar-label" style="min-width:60px;font-size:.72rem">' + dia + '</span><div class="bar-fill" style="width:' + pct + '%;height:14px"></div><span class="bar-val" style="font-size:.72rem">$' + d.total.toFixed(0) + '</span></div>';
+      hc += '<div class="bar-row"><span class="bar-label" style="min-width:60px;font-size:.72rem">' + dia + '</span><div class="bar-fill" style="width:' + pct + '%;height:14px"></div><span class="bar-val" style="font-size:.72rem">$' + d.fmt(total) + '</span></div>';
     }
     document.getElementById('rep-chart').innerHTML = hc || '<p style="color:var(--mut);font-size:.83rem">Sin datos</p>';
   }).catch(function(){});
@@ -3366,7 +3366,7 @@ function cargarReporteProductos() {
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
       var pct = (p.cantidad_vendida / maxQ * 100);
-      h += '<div class="bar-row"><span class="bar-label">' + p.nombre + '</span><div class="bar-fill" style="width:' + pct + '%"></div><span class="bar-val">' + p.cantidad_vendida + ' pzas &bull; $' + p.ingresos.toFixed(0) + '</span></div>';
+      h += '<div class="bar-row"><span class="bar-label">' + p.nombre + '</span><div class="bar-fill" style="width:' + pct + '%"></div><span class="bar-val">' + p.cantidad_vendida + ' pzas &bull; $' + p.fmt(ingresos) + '</span></div>';
     }
     document.getElementById('rep-top-prods').innerHTML = h;
   }).catch(function() { toast('Error al cargar productos', true); });
@@ -3380,9 +3380,9 @@ function cargarMargenes() {
       var p = prods[i];
       var color = p.margen_pct >= 50 ? 'var(--grn)' : p.margen_pct >= 25 ? 'var(--amb)' : '#b91c1c';
       h += '<tr><td>' + p.nombre + '</td>';
-      h += '<td>$' + p.precio.toFixed(0) + '</td>';
-      h += '<td style="color:var(--mut)">$' + p.costo.toFixed(0) + '</td>';
-      h += '<td style="font-weight:600;color:' + color + '">$' + p.margen.toFixed(0) + '</td>';
+      h += '<td>$' + fmt(p.precio) + '</td>';
+      h += '<td style="color:var(--mut)">$' + fmt(p.costo) + '</td>';
+      h += '<td style="font-weight:600;color:' + color + '">$' + fmt(p.margen) + '</td>';
       h += '<td><span class="badge" style="background:' + color + '20;color:' + color + '">' + p.margen_pct + '%</span></td>';
       h += '<td>' + Math.round(p.stock) + '</td></tr>';
     }
@@ -3396,21 +3396,21 @@ function cargarReporteFiscal() {
   var anio = document.getElementById('rep-fanio').value;
   api('GET', '/reportes/impuestos/iva-mensual?mes=' + mes + '&anio=' + anio).then(function(r) {
     var h = '';
-    h += '<div class="srow"><span>Base gravada 16%</span><span>$' + r.iva_trasladado.tasa_16.base.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
-    h += '<div class="srow"><span>IVA trasladado 16%</span><span style="font-weight:700">$' + r.iva_trasladado.tasa_16.iva.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
-    h += '<div class="srow"><span>Base tasa 0%</span><span>$' + r.iva_trasladado.tasa_0.base.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
-    h += '<div class="srow"><span>IVA acreditable</span><span style="color:#b91c1c">$' + r.iva_acreditable.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
-    h += '<div class="srow" style="border-top:2px solid var(--brd);padding-top:.4rem;margin-top:.3rem;font-weight:700"><span>IVA por pagar</span><span>$' + r.iva_por_pagar.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
-    if (r.iva_a_favor > 0) h += '<div class="srow"><span>IVA a favor</span><span class="green">$' + r.iva_a_favor.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
+    h += '<div class="srow"><span>Base gravada 16%</span><span>$' + fmt(r.iva_trasladado.tasa_16.base) + '</span></div>';
+    h += '<div class="srow"><span>IVA trasladado 16%</span><span style="font-weight:700">$' + fmt(r.iva_trasladado.tasa_16.iva) + '</span></div>';
+    h += '<div class="srow"><span>Base tasa 0%</span><span>$' + fmt(r.iva_trasladado.tasa_0.base) + '</span></div>';
+    h += '<div class="srow"><span>IVA acreditable</span><span style="color:#b91c1c">$' + fmt(r.iva_acreditable) + '</span></div>';
+    h += '<div class="srow" style="border-top:2px solid var(--brd);padding-top:.4rem;margin-top:.3rem;font-weight:700"><span>IVA por pagar</span><span>$' + fmt(r.iva_por_pagar) + '</span></div>';
+    if (r.iva_a_favor > 0) h += '<div class="srow"><span>IVA a favor</span><span class="green">$' + fmt(r.iva_a_favor) + '</span></div>';
     document.getElementById('rep-iva').innerHTML = h;
   }).catch(function() { document.getElementById('rep-iva').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar IVA</p>'; });
   api('GET', '/reportes/impuestos/isr-provisional?mes=' + mes + '&anio=' + anio).then(function(r) {
     var h = '';
-    h += '<div class="srow"><span>Ingresos acumulados</span><span class="green">$' + r.ingresos_acumulados.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
-    h += '<div class="srow"><span>Compras</span><span>$' + r.deducciones_acumuladas.compras.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
-    h += '<div class="srow"><span>N\u00f3mina</span><span>$' + r.deducciones_acumuladas.nomina.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
-    h += '<div class="srow"><span>Utilidad fiscal</span><span style="font-weight:700">$' + r.utilidad_fiscal.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
-    h += '<div class="srow" style="border-top:2px solid var(--brd);padding-top:.4rem;margin-top:.3rem;font-weight:700"><span>ISR provisional (' + (r.tasa_provisional * 100).toFixed(2) + '%)</span><span>$' + r.isr_provisional.toLocaleString('es-MX',{minimumFractionDigits:2}) + '</span></div>';
+    h += '<div class="srow"><span>Ingresos acumulados</span><span class="green">$' + fmt(r.ingresos_acumulados) + '</span></div>';
+    h += '<div class="srow"><span>Compras</span><span>$' + fmt(r.deducciones_acumuladas.compras) + '</span></div>';
+    h += '<div class="srow"><span>N\u00f3mina</span><span>$' + fmt(r.deducciones_acumuladas.nomina) + '</span></div>';
+    h += '<div class="srow"><span>Utilidad fiscal</span><span style="font-weight:700">$' + fmt(r.utilidad_fiscal) + '</span></div>';
+    h += '<div class="srow" style="border-top:2px solid var(--brd);padding-top:.4rem;margin-top:.3rem;font-weight:700"><span>ISR provisional (' + (r.tasa_provisional * 100).toFixed(2) + '%)</span><span>$' + fmt(r.isr_provisional) + '</span></div>';
     document.getElementById('rep-isr').innerHTML = h;
   }).catch(function() { document.getElementById('rep-isr').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar ISR</p>'; });
 }
@@ -3609,7 +3609,7 @@ function selClientePOS() {
   api('GET', '/clientes/' + cid + '/puntos').then(function(r) {
     if (r.puntos > 0) {
       puntosEl.style.display = 'inline';
-      puntosEl.innerHTML = r.puntos + ' pts = $' + r.descuento_disponible.toFixed(0);
+      puntosEl.innerHTML = r.puntos + ' pts = $' + r.fmt(descuento_disponible);
     } else {
       puntosEl.style.display = 'inline';
       puntosEl.innerHTML = '0 pts';
