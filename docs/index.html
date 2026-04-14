@@ -3126,15 +3126,16 @@ function cargarDashboard() {
 
   // Pronóstico rápido
   api('GET', '/reportes/pronostico-produccion').then(function(items) {
+    if (!items.length) { document.getElementById('d-pronostico').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Sin datos de ventas a\u00fan</span></div>'; return; }
     var hornear = items.filter(function(p) { return p.sugerido_hornear > 0; });
-    if (!hornear.length) { document.getElementById('d-pronostico').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Stock suficiente</span></div>'; return; }
+    if (!hornear.length) { document.getElementById('d-pronostico').innerHTML = '<div class="srow" style="color:var(--grn)"><span>Stock suficiente para hoy</span></div>'; return; }
     var h = '';
-    for (var i = 0; i < Math.min(hornear.length, 5); i++) {
+    for (var i = 0; i < hornear.length; i++) {
       var p = hornear[i];
       h += '<div class="srow"><span>' + p.nombre + '</span><span style="font-weight:700;color:var(--v)">' + p.sugerido_hornear + ' pzas</span></div>';
     }
     document.getElementById('d-pronostico').innerHTML = h;
-  }).catch(function(){});
+  }).catch(function(){ document.getElementById('d-pronostico').innerHTML = '<div class="srow" style="color:var(--mut)"><span>No se pudo cargar</span></div>'; });
 }
 var _dashAlertas = '';
 function filtrarDashInv() {
