@@ -160,6 +160,38 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .prod-btn-start{background:var(--grn);color:#fff}.prod-btn-start:hover{opacity:.85}
 .prod-btn-done{background:var(--v);color:#fff}.prod-btn-done:hover{opacity:.85}
 .prod-btn-merma{background:#fee2e2;color:#b91c1c}.prod-btn-merma:hover{background:#fecaca}
+/* Contabilidad */
+.conta-section{margin-bottom:1rem}
+.conta-row{display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f0e8e5;font-size:.83rem}
+.conta-row:last-child{border:none}
+.conta-row.total{border-top:2px solid var(--v);font-weight:700;padding-top:.5rem;margin-top:.3rem}
+.conta-row .cr-label{color:var(--dk)}.conta-row .cr-val{font-weight:600}
+.conta-row .cr-val.pos{color:var(--grn)}.conta-row .cr-val.neg{color:#b91c1c}
+.conta-cat-lvl1{font-weight:700;font-size:.88rem;color:var(--dk);padding:.5rem 0 .2rem;border-bottom:2px solid var(--v)}
+.conta-cat-lvl2{font-weight:600;font-size:.83rem;color:var(--v);padding:.3rem 0 .1rem .5rem}
+.conta-cat-lvl3{font-size:.82rem;padding:.2rem 0 .2rem 1.5rem;border-bottom:1px solid #f5eeeb}
+/* Mobile bottom nav */
+.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.97);backdrop-filter:blur(10px);border-top:1px solid var(--brd);z-index:60;padding:.3rem 0 env(safe-area-inset-bottom,.3rem);box-shadow:0 -2px 10px rgba(0,0,0,.06)}
+.mobile-nav{justify-content:space-around;align-items:center}
+.mn-item{display:flex;flex-direction:column;align-items:center;text-decoration:none;color:var(--mut);font-size:.65rem;padding:.2rem .5rem;cursor:pointer;transition:color .15s;-webkit-tap-highlight-color:transparent}
+.mn-item.on{color:var(--v)}
+.mn-icon{font-size:1.2rem;line-height:1.3}
+.mn-label{font-weight:500}
+.mobile-menu{display:none;position:fixed;inset:0;z-index:70}
+.mobile-menu.on{display:block}
+.mm-overlay{position:absolute;inset:0;background:rgba(0,0,0,.3)}
+.mm-sheet{position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:16px 16px 0 0;max-height:70vh;overflow-y:auto;animation:sheetUp .25s ease-out}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.mm-items{padding:.5rem 0}
+.mm-link{display:block;padding:.7rem 1.2rem;font-size:.88rem;color:var(--dk);text-decoration:none;cursor:pointer;transition:background .15s}
+.mm-link:hover,.mm-link:active{background:#faf3f0}
+@media(max-width:768px){
+.mobile-nav{display:flex}
+nav .nav-links a[data-pg]{display:none!important}
+nav .nav-links #btn-notif,nav .nav-links #btn-logout{display:none!important}
+nav .nav-links #btn-conn{display:none!important}
+body{padding-bottom:60px}
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
@@ -193,6 +225,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <a data-pg="rep" onclick="go('rep')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">Reportes</a>
 <a data-pg="listas" onclick="go('listas')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Listas</a>
 <a data-pg="prod" onclick="go('prod')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO">Producci&oacute;n</a>
+<a data-pg="conta" onclick="go('conta')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">Contabilidad</a>
 <a data-pg="cofepris" onclick="go('cofepris')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">COFEPRIS</a>
 <a data-pg="usuarios" onclick="go('usuarios')" class="nav-role" data-roles="ADMINISTRADOR">Usuarios</a>
 <a onclick="toggleNotifPanel()" id="btn-notif" style="display:none;cursor:pointer;color:var(--mut);font-size:.95rem;padding:.5rem .4rem;position:relative" title="Notificaciones">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:2px;right:0;background:#ef4444;color:#fff;font-size:.55rem;font-weight:700;padding:.05rem .3rem;border-radius:8px;min-width:14px;text-align:center"></span></a>
@@ -928,7 +961,122 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 </div>
 
+<!-- CONTABILIDAD -->
+<div class="page" id="conta">
+<h2>Contabilidad</h2>
+<div class="section-tabs" style="margin-bottom:1rem">
+<span class="tab active" onclick="contaTab('conta-edores')">Estado de Resultados</span>
+<span class="tab" onclick="contaTab('conta-balance')">Balance General</span>
+<span class="tab" onclick="contaTab('conta-banco')">Conciliaci&oacute;n Bancaria</span>
+<span class="tab" onclick="contaTab('conta-polizas')">P&oacute;lizas</span>
+<span class="tab" onclick="contaTab('conta-catalogo')">Cat&aacute;logo</span>
+</div>
+
+<!-- Estado de resultados -->
+<div id="conta-edores">
+<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
+<span style="font-size:.83rem;color:var(--mut)">Periodo:</span>
+<input type="date" id="conta-er-fi" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit">
+<span style="font-size:.83rem;color:var(--mut)">a</span>
+<input type="date" id="conta-er-ff" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit">
+<button onclick="cargarEdoResultados()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Consultar</button>
+<button onclick="contaSetRango(30)" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0">30 d&iacute;as</button>
+<button onclick="contaSetRango(90)" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0">90 d&iacute;as</button>
+</div>
+<div id="conta-er-content">
+<div class="card"><p style="color:var(--mut);font-size:.83rem;padding:.5rem">Selecciona un periodo y consulta.</p></div>
+</div>
+</div>
+
+<!-- Balance general -->
+<div id="conta-balance" style="display:none">
+<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
+<span style="font-size:.83rem;color:var(--mut)">Fecha de corte:</span>
+<input type="date" id="conta-bg-fecha" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit">
+<button onclick="cargarBalanceGeneral()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Consultar</button>
+</div>
+<div id="conta-bg-content">
+<div class="card"><p style="color:var(--mut);font-size:.83rem;padding:.5rem">Selecciona fecha de corte.</p></div>
+</div>
+</div>
+
+<!-- Conciliación bancaria -->
+<div id="conta-banco" style="display:none">
+<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
+<span style="font-size:.83rem;color:var(--mut)">Mes:</span>
+<select id="conta-bk-mes" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem">
+<option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option><option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option><option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+</select>
+<select id="conta-bk-anio" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem">
+<option value="2026">2026</option><option value="2025">2025</option>
+</select>
+<button onclick="cargarConciliacion()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Consultar</button>
+<button onclick="abrirNuevoMovBanco()" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0">+ Movimiento</button>
+</div>
+<div id="conta-bk-content">
+<div class="card"><p style="color:var(--mut);font-size:.83rem;padding:.5rem">Selecciona mes para conciliar.</p></div>
+</div>
+</div>
+
+<!-- Pólizas / Libro diario -->
+<div id="conta-polizas" style="display:none">
+<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
+<span style="font-size:.83rem;color:var(--mut)">Periodo:</span>
+<input type="date" id="conta-ld-fi" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit">
+<span style="font-size:.83rem;color:var(--mut)">a</span>
+<input type="date" id="conta-ld-ff" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit">
+<button onclick="cargarLibroDiario()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Consultar</button>
+<button onclick="abrirNuevoAsiento()" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0">+ P&oacute;liza</button>
+</div>
+<div id="conta-ld-content">
+<div class="card"><p style="color:var(--mut);font-size:.83rem;padding:.5rem">Selecciona periodo.</p></div>
+</div>
+</div>
+
+<!-- Catálogo de cuentas -->
+<div id="conta-catalogo" style="display:none">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">Cat&aacute;logo de cuentas contables (est&aacute;ndar SAT)</p>
+<div style="display:flex;gap:.4rem">
+<button onclick="seedearCatalogo()" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0">Sembrar default</button>
+<button onclick="cargarCatalogoCuentas()" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0">&#8635; Refrescar</button>
+</div>
+</div>
+<div id="conta-cat-content">
+<div class="card"><p style="color:var(--mut);font-size:.83rem;padding:.5rem">Cargando...</p></div>
+</div>
+</div>
+</div>
+
 </div><!-- /wrap -->
+
+<!-- MOBILE BOTTOM NAV -->
+<div class="mobile-nav" id="mobile-nav">
+<a onclick="go('dash')" data-pg="dash" class="mn-item on"><span class="mn-icon">&#127968;</span><span class="mn-label">Inicio</span></a>
+<a onclick="go('pos')" data-pg="pos" class="mn-item"><span class="mn-icon">&#128179;</span><span class="mn-label">Venta</span></a>
+<a onclick="go('ped')" data-pg="ped" class="mn-item"><span class="mn-icon">&#128203;</span><span class="mn-label">Pedidos</span></a>
+<a onclick="go('inv')" data-pg="inv" class="mn-item"><span class="mn-icon">&#128230;</span><span class="mn-label">Inventario</span></a>
+<a onclick="toggleMobileMenu()" class="mn-item"><span class="mn-icon">&#9776;</span><span class="mn-label">M&aacute;s</span></a>
+</div>
+<div class="mobile-menu" id="mobile-menu">
+<div class="mm-overlay" onclick="toggleMobileMenu()"></div>
+<div class="mm-sheet">
+<div style="padding:.8rem 1rem;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;align-items:center">
+<strong style="font-size:.9rem;color:var(--dk)">M&aacute;s opciones</strong>
+<a onclick="toggleMobileMenu()" style="cursor:pointer;font-size:1.2rem;color:var(--mut)">&times;</a>
+</div>
+<div class="mm-items">
+<a onclick="go('corte');toggleMobileMenu()" class="mm-link">&#128200; Corte de caja</a>
+<a onclick="go('prod');toggleMobileMenu()" class="mm-link">&#127838; Producci&oacute;n</a>
+<a onclick="go('rep');toggleMobileMenu()" class="mm-link">&#128202; Reportes</a>
+<a onclick="go('conta');toggleMobileMenu()" class="mm-link">&#128209; Contabilidad</a>
+<a onclick="go('listas');toggleMobileMenu()" class="mm-link">&#128221; Listas</a>
+<a onclick="go('cofepris');toggleMobileMenu()" class="mm-link">&#9879; COFEPRIS</a>
+<a onclick="go('usuarios');toggleMobileMenu()" class="mm-link">&#128101; Usuarios</a>
+<a onclick="cerrarSesion();toggleMobileMenu()" class="mm-link" style="color:#b91c1c">&#9211; Cerrar sesi&oacute;n</a>
+</div>
+</div>
+</div>
 
 <!-- MODAL: Nueva Orden Producción -->
 <div class="modal-bg" id="modal-orden-prod">
@@ -960,6 +1108,52 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div style="display:flex;gap:.5rem;margin-top:1rem">
 <button class="cobrar" style="flex:1" onclick="completarOrdenProduccion()">&#10003; Completar</button>
 <button class="limpiar" style="flex:1" onclick="cerrarModal('modal-completar-prod')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Nuevo Asiento Contable -->
+<div class="modal-bg" id="modal-asiento">
+<div class="modal" style="max-width:550px">
+<h3>Nueva p&oacute;liza contable</h3>
+<div class="frow">
+<div class="fg"><label>Fecha</label><input type="date" id="ma-fecha"></div>
+<div class="fg"><label>Tipo</label><select id="ma-tipo"><option value="diario">Diario</option><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option><option value="nomina">N&oacute;mina</option><option value="ajuste">Ajuste</option></select></div>
+</div>
+<div class="fg"><label>Concepto</label><input id="ma-concepto" placeholder="Registro de venta del d&iacute;a..."></div>
+<div style="margin:.6rem 0">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+<strong style="font-size:.82rem;color:var(--dk)">L&iacute;neas (partida doble)</strong>
+<button onclick="agregarLineaAsiento()" class="limpiar" style="padding:.2rem .5rem;font-size:.72rem;margin:0">+ L&iacute;nea</button>
+</div>
+<div id="ma-lineas"></div>
+<div id="ma-saldo" style="font-size:.82rem;font-weight:600;text-align:right;margin-top:.3rem"></div>
+</div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="cobrar" style="flex:1" onclick="guardarAsiento()">Registrar p&oacute;liza</button>
+<button class="limpiar" style="flex:1" onclick="cerrarModal('modal-asiento')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Nuevo Movimiento Bancario -->
+<div class="modal-bg" id="modal-mov-banco">
+<div class="modal" style="max-width:400px">
+<h3>Nuevo movimiento bancario</h3>
+<div class="frow">
+<div class="fg"><label>Fecha</label><input type="date" id="mmb-fecha"></div>
+<div class="fg"><label>Referencia</label><input id="mmb-ref" placeholder="No. transacci&oacute;n"></div>
+</div>
+<div class="fg"><label>Concepto</label><input id="mmb-concepto" placeholder="Dep&oacute;sito venta terminal..."></div>
+<div class="frow">
+<div class="fg"><label>Dep&oacute;sito</label><input type="number" id="mmb-deposito" step="0.01" value="0"></div>
+<div class="fg"><label>Retiro</label><input type="number" id="mmb-retiro" step="0.01" value="0"></div>
+</div>
+<div class="fg"><label>Saldo</label><input type="number" id="mmb-saldo" step="0.01" value="0"></div>
+<div class="fg"><label>Notas</label><input id="mmb-notas" placeholder=""></div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="cobrar" style="flex:1" onclick="guardarMovBanco()">Registrar</button>
+<button class="limpiar" style="flex:1" onclick="cerrarModal('modal-mov-banco')">Cancelar</button>
 </div>
 </div>
 </div>
@@ -1387,6 +1581,10 @@ function go(p) {
   document.querySelectorAll('.nav-links a[data-pg]').forEach(function(a) {
     a.classList.toggle('on', a.getAttribute('data-pg') === p);
   });
+  // Mobile bottom nav highlight
+  document.querySelectorAll('.mn-item[data-pg]').forEach(function(a) {
+    a.classList.toggle('on', a.getAttribute('data-pg') === p);
+  });
   localStorage.setItem('jacaranda_tab', p);
   if (p === 'ped') cargarPedidos();
   if (p === 'dash') cargarDashboard();
@@ -1395,6 +1593,7 @@ function go(p) {
   if (p === 'listas') cargarListas();
   if (p === 'rep') initReportes();
   if (p === 'prod') cargarProduccion();
+  if (p === 'conta') initContabilidad();
   if (p === 'cofepris') cargarCofepris();
   if (p === 'usuarios') cargarUsuarios();
   window.scrollTo(0, 0);
@@ -5213,6 +5412,330 @@ document.addEventListener('change', function(e) {
   }
 });
 
+// ─── Contabilidad ─────────────────────────────────────────────────
+var _contaCuentas = [];
+
+function contaTab(tab) {
+  ['conta-edores','conta-balance','conta-banco','conta-polizas','conta-catalogo'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#conta .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  if (tab === 'conta-catalogo') cargarCatalogoCuentas();
+}
+
+function initContabilidad() {
+  var hoy = new Date().toISOString().split('T')[0];
+  var hace30 = new Date(Date.now() - 30*86400000).toISOString().split('T')[0];
+  document.getElementById('conta-er-fi').value = hace30;
+  document.getElementById('conta-er-ff').value = hoy;
+  document.getElementById('conta-bg-fecha').value = hoy;
+  document.getElementById('conta-ld-fi').value = hace30;
+  document.getElementById('conta-ld-ff').value = hoy;
+  var mes = new Date().getMonth() + 1;
+  document.getElementById('conta-bk-mes').value = mes;
+  // Load cuentas for asiento modal
+  api('GET', '/contabilidad/cuentas').then(function(cat) {
+    _contaCuentas = [];
+    for (var tipo in cat) {
+      for (var i = 0; i < cat[tipo].length; i++) {
+        if (cat[tipo][i].nivel === 3) _contaCuentas.push(cat[tipo][i]);
+      }
+    }
+  }).catch(function(){});
+}
+
+function contaSetRango(dias) {
+  var hoy = new Date().toISOString().split('T')[0];
+  var desde = new Date(Date.now() - dias*86400000).toISOString().split('T')[0];
+  document.getElementById('conta-er-fi').value = desde;
+  document.getElementById('conta-er-ff').value = hoy;
+  cargarEdoResultados();
+}
+
+function cargarEdoResultados() {
+  var fi = document.getElementById('conta-er-fi').value;
+  var ff = document.getElementById('conta-er-ff').value;
+  if (!fi || !ff) { toast('Selecciona fechas', true); return; }
+  api('GET', '/contabilidad/estado-resultados?fecha_inicio=' + fi + '&fecha_fin=' + ff).then(function(r) {
+    var h = '<div class="row r4" style="margin-bottom:1rem">';
+    h += '<div class="card kpi g"><div class="n">$' + fmt(r.ingresos_netos) + '</div><div class="l">Ingresos netos</div></div>';
+    h += '<div class="card kpi a"><div class="n">$' + fmt(r.costo_ventas) + '</div><div class="l">Costo de ventas</div></div>';
+    h += '<div class="card kpi"><div class="n">$' + fmt(r.utilidad_bruta) + '</div><div class="l">Utilidad bruta (' + r.margen_bruto_pct + '%)</div></div>';
+    var cls = r.utilidad_neta >= 0 ? 'g' : '';
+    h += '<div class="card kpi ' + cls + '"><div class="n">$' + fmt(r.utilidad_neta) + '</div><div class="l">Utilidad neta (' + r.margen_neto_pct + '%)</div></div>';
+    h += '</div>';
+    h += '<div class="row r2">';
+    // Left: detalle
+    h += '<div class="card"><h3>Estado de resultados</h3>';
+    h += '<div class="conta-row"><span class="cr-label">Ingresos brutos</span><span class="cr-val pos">$' + fmt(r.ingresos_brutos) + '</span></div>';
+    h += '<div class="conta-row"><span class="cr-label">&nbsp;&nbsp;IVA cobrado</span><span class="cr-val">$' + fmt(r.iva_cobrado) + '</span></div>';
+    h += '<div class="conta-row"><span class="cr-label"><strong>Ingresos netos</strong></span><span class="cr-val pos">$' + fmt(r.ingresos_netos) + '</span></div>';
+    h += '<div class="conta-row"><span class="cr-label">(-) Costo de ventas</span><span class="cr-val neg">$' + fmt(r.costo_ventas) + '</span></div>';
+    h += '<div class="conta-row total"><span class="cr-label">Utilidad bruta</span><span class="cr-val">$' + fmt(r.utilidad_bruta) + '</span></div>';
+    h += '<div class="conta-row"><span class="cr-label">(-) Gastos operaci\u00f3n</span><span class="cr-val neg">$' + fmt(r.total_gastos_operacion) + '</span></div>';
+    if (r.mermas > 0) h += '<div class="conta-row"><span class="cr-label">(-) Mermas</span><span class="cr-val neg">$' + fmt(r.mermas) + '</span></div>';
+    h += '<div class="conta-row total"><span class="cr-label">Utilidad operaci\u00f3n</span><span class="cr-val">$' + fmt(r.utilidad_operacion) + '</span></div>';
+    h += '<div class="conta-row"><span class="cr-label">(-) ISR estimado (30%)</span><span class="cr-val neg">$' + fmt(r.isr_estimado) + '</span></div>';
+    h += '<div class="conta-row total"><span class="cr-label">UTILIDAD NETA</span><span class="cr-val ' + (r.utilidad_neta >= 0 ? 'pos' : 'neg') + '">$' + fmt(r.utilidad_neta) + '</span></div>';
+    h += '</div>';
+    // Right: gastos desglose
+    h += '<div class="card"><h3>Desglose de gastos</h3>';
+    for (var k in r.gastos_operacion) {
+      h += '<div class="conta-row"><span class="cr-label">' + k + '</span><span class="cr-val">$' + fmt(r.gastos_operacion[k]) + '</span></div>';
+    }
+    if (Object.keys(r.gastos_operacion).length === 0) h += '<p style="color:var(--mut);font-size:.82rem">Sin gastos registrados</p>';
+    h += '<div class="conta-row total"><span class="cr-label">Total gastos</span><span class="cr-val">$' + fmt(r.total_gastos_operacion) + '</span></div>';
+    h += '</div></div>';
+    document.getElementById('conta-er-content').innerHTML = h;
+  }).catch(function() { toast('Error al cargar estado de resultados', true); });
+}
+
+function cargarBalanceGeneral() {
+  var fecha = document.getElementById('conta-bg-fecha').value;
+  var qs = fecha ? '?fecha_corte=' + fecha : '';
+  api('GET', '/contabilidad/balance-general' + qs).then(function(r) {
+    var h = '<div class="row r3" style="margin-bottom:1rem">';
+    h += '<div class="card kpi g"><div class="n">$' + fmt(r.total_activos) + '</div><div class="l">Total activos</div></div>';
+    h += '<div class="card kpi"><div class="n">$' + fmt(r.total_pasivos) + '</div><div class="l">Total pasivos</div></div>';
+    h += '<div class="card kpi p"><div class="n">$' + fmt(r.total_capital) + '</div><div class="l">Capital</div></div>';
+    h += '</div>';
+    h += '<div class="row r3">';
+    // Activos
+    h += '<div class="card"><h3>Activos</h3>';
+    for (var i = 0; i < r.activos.length; i++) {
+      h += '<div class="conta-row"><span class="cr-label">' + r.activos[i].cuenta + '</span><span class="cr-val">$' + fmt(r.activos[i].saldo) + '</span></div>';
+    }
+    h += '<div class="conta-row total"><span class="cr-label">Total</span><span class="cr-val pos">$' + fmt(r.total_activos) + '</span></div></div>';
+    // Pasivos
+    h += '<div class="card"><h3>Pasivos</h3>';
+    for (var j = 0; j < r.pasivos.length; j++) {
+      h += '<div class="conta-row"><span class="cr-label">' + r.pasivos[j].cuenta + '</span><span class="cr-val">$' + fmt(r.pasivos[j].saldo) + '</span></div>';
+    }
+    h += '<div class="conta-row total"><span class="cr-label">Total</span><span class="cr-val">$' + fmt(r.total_pasivos) + '</span></div></div>';
+    // Capital
+    h += '<div class="card"><h3>Capital</h3>';
+    for (var k = 0; k < r.capital.length; k++) {
+      h += '<div class="conta-row"><span class="cr-label">' + r.capital[k].cuenta + '</span><span class="cr-val">$' + fmt(r.capital[k].saldo) + '</span></div>';
+    }
+    h += '<div class="conta-row total"><span class="cr-label">Total</span><span class="cr-val">$' + fmt(r.total_capital) + '</span></div></div>';
+    h += '</div>';
+    var badge = r.cuadra ? '<span class="badge bok">Cuadra \u2713</span>' : '<span class="badge bout">Descuadrado \u2717</span>';
+    h += '<div class="card" style="text-align:center;padding:.6rem"><span style="font-size:.85rem;font-weight:600">A = P + C &bull; ' + badge + ' &bull; Corte: ' + r.fecha_corte + '</span></div>';
+    document.getElementById('conta-bg-content').innerHTML = h;
+  }).catch(function() { toast('Error al cargar balance', true); });
+}
+
+function cargarConciliacion() {
+  var mes = document.getElementById('conta-bk-mes').value;
+  var anio = document.getElementById('conta-bk-anio').value;
+  api('GET', '/contabilidad/banco/conciliacion?mes=' + mes + '&anio=' + anio).then(function(r) {
+    var h = '<div class="row r4" style="margin-bottom:1rem">';
+    h += '<div class="card kpi g"><div class="n">$' + fmt(r.saldo_banco) + '</div><div class="l">Saldo banco</div></div>';
+    h += '<div class="card kpi"><div class="n">$' + fmt(r.saldo_sistema) + '</div><div class="l">Saldo sistema</div></div>';
+    var dCls = Math.abs(r.diferencia) < 1 ? 'g' : '';
+    h += '<div class="card kpi ' + dCls + '"><div class="n">$' + fmt(r.diferencia) + '</div><div class="l">Diferencia</div></div>';
+    h += '<div class="card kpi"><div class="n">' + r.porcentaje_conciliado + '%</div><div class="l">Conciliado (' + r.conciliados + '/' + r.total_movimientos + ')</div></div>';
+    h += '</div>';
+    // Movimientos banco
+    h += '<div class="card" style="margin-bottom:1rem"><h3>Movimientos bancarios</h3>';
+    if (r.movimientos_banco.length === 0) {
+      h += '<p style="color:var(--mut);font-size:.83rem">Sin movimientos registrados</p>';
+    } else {
+      h += '<table class="tbl"><tr><th>Fecha</th><th>Concepto</th><th>Dep\u00f3sito</th><th>Retiro</th><th>Estado</th><th></th></tr>';
+      for (var i = 0; i < r.movimientos_banco.length; i++) {
+        var m = r.movimientos_banco[i];
+        h += '<tr><td>' + m.fecha + '</td><td>' + m.concepto + '</td>';
+        h += '<td class="green">$' + fmt(m.deposito) + '</td>';
+        h += '<td style="color:#b91c1c">$' + fmt(m.retiro) + '</td>';
+        h += '<td><span class="badge ' + (m.conciliado ? 'bok' : 'blow') + '">' + (m.conciliado ? '\u2713' : 'Pendiente') + '</span></td>';
+        h += '<td>' + (m.conciliado ? '' : '<button class="limpiar" style="padding:.2rem .4rem;font-size:.7rem;margin:0" onclick="conciliarMov(' + m.id + ')">\u2713</button>') + '</td>';
+        h += '</tr>';
+      }
+      h += '</table>';
+    }
+    h += '</div>';
+    // Ventas sin conciliar
+    if (r.ventas_no_conciliadas.length > 0) {
+      h += '<div class="card"><h3>Ventas sin conciliar</h3>';
+      h += '<table class="tbl"><tr><th>Folio</th><th>Fecha</th><th>Total</th><th>M\u00e9todo</th></tr>';
+      for (var j = 0; j < r.ventas_no_conciliadas.length; j++) {
+        var v = r.ventas_no_conciliadas[j];
+        h += '<tr><td>' + v.folio + '</td><td>' + (v.fecha ? v.fecha.split('T')[0] : '') + '</td>';
+        h += '<td class="green">$' + fmt(v.total) + '</td><td>' + v.metodo + '</td></tr>';
+      }
+      h += '</table></div>';
+    }
+    document.getElementById('conta-bk-content').innerHTML = h;
+  }).catch(function() { toast('Error al cargar conciliaci\u00f3n', true); });
+}
+
+function conciliarMov(id) {
+  api('POST', '/contabilidad/banco/movimientos/' + id + '/conciliar').then(function() {
+    toast('Movimiento conciliado');
+    cargarConciliacion();
+  }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+
+function cargarLibroDiario() {
+  var fi = document.getElementById('conta-ld-fi').value;
+  var ff = document.getElementById('conta-ld-ff').value;
+  if (!fi || !ff) { toast('Selecciona fechas', true); return; }
+  api('GET', '/contabilidad/libro-diario?fecha_inicio=' + fi + '&fecha_fin=' + ff).then(function(asientos) {
+    if (!asientos.length) { document.getElementById('conta-ld-content').innerHTML = '<div class="card"><p style="color:var(--mut);font-size:.83rem">Sin p\u00f3lizas en este periodo</p></div>'; return; }
+    var h = '';
+    for (var i = 0; i < asientos.length; i++) {
+      var a = asientos[i];
+      h += '<div class="card" style="margin-bottom:.7rem"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">';
+      h += '<span style="font-weight:700;font-size:.88rem;color:var(--dk)">' + a.numero + '</span>';
+      h += '<span style="font-size:.78rem;color:var(--mut)">' + a.fecha + ' \u2022 ' + a.tipo + '</span></div>';
+      h += '<p style="font-size:.82rem;color:var(--mut);margin-bottom:.4rem">' + a.concepto + '</p>';
+      h += '<table class="tbl"><tr><th>Cuenta</th><th>Debe</th><th>Haber</th></tr>';
+      for (var j = 0; j < a.lineas.length; j++) {
+        var l = a.lineas[j];
+        h += '<tr><td>' + l.cuenta_codigo + ' ' + l.cuenta_nombre + '</td>';
+        h += '<td style="color:var(--grn)">' + (l.debe > 0 ? '$' + fmt(l.debe) : '') + '</td>';
+        h += '<td style="color:#b91c1c">' + (l.haber > 0 ? '$' + fmt(l.haber) : '') + '</td></tr>';
+      }
+      h += '<tr style="font-weight:700;border-top:2px solid var(--brd)"><td>TOTAL</td>';
+      h += '<td style="color:var(--grn)">$' + fmt(a.total_debe) + '</td>';
+      h += '<td style="color:#b91c1c">$' + fmt(a.total_haber) + '</td></tr>';
+      h += '</table></div>';
+    }
+    document.getElementById('conta-ld-content').innerHTML = h;
+  }).catch(function() { toast('Error al cargar libro diario', true); });
+}
+
+function cargarCatalogoCuentas() {
+  api('GET', '/contabilidad/cuentas').then(function(cat) {
+    var tipos = ['activo','pasivo','capital','ingreso','costo','gasto'];
+    var nombres = {activo:'Activo',pasivo:'Pasivo',capital:'Capital',ingreso:'Ingresos',costo:'Costos',gasto:'Gastos'};
+    var h = '';
+    for (var t = 0; t < tipos.length; t++) {
+      var cuentas = cat[tipos[t]];
+      if (!cuentas || !cuentas.length) continue;
+      for (var i = 0; i < cuentas.length; i++) {
+        var c = cuentas[i];
+        var cls = c.nivel === 1 ? 'conta-cat-lvl1' : c.nivel === 2 ? 'conta-cat-lvl2' : 'conta-cat-lvl3';
+        h += '<div class="' + cls + '"><span>' + c.codigo + '</span> &mdash; <span>' + c.nombre + '</span></div>';
+      }
+    }
+    if (!h) h = '<p style="color:var(--mut);font-size:.83rem">Cat\u00e1logo vac\u00edo. Haz click en "Sembrar default" para crear el cat\u00e1logo est\u00e1ndar SAT.</p>';
+    document.getElementById('conta-cat-content').innerHTML = '<div class="card">' + h + '</div>';
+  }).catch(function() { toast('Error al cargar cat\u00e1logo', true); });
+}
+
+function seedearCatalogo() {
+  api('POST', '/contabilidad/cuentas/seed').then(function(r) {
+    toast(r.cuentas_creadas + ' cuentas creadas');
+    cargarCatalogoCuentas();
+  }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+
+// Asiento modal
+var _maLineas = 0;
+
+function abrirNuevoAsiento() {
+  document.getElementById('ma-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('ma-concepto').value = '';
+  document.getElementById('ma-tipo').value = 'diario';
+  _maLineas = 0;
+  document.getElementById('ma-lineas').innerHTML = '';
+  agregarLineaAsiento();
+  agregarLineaAsiento();
+  document.getElementById('modal-asiento').classList.add('on');
+}
+
+function agregarLineaAsiento() {
+  var idx = _maLineas++;
+  var opts = '<option value="">Selecciona cuenta...</option>';
+  for (var i = 0; i < _contaCuentas.length; i++) {
+    opts += '<option value="' + _contaCuentas[i].codigo + '">' + _contaCuentas[i].codigo + ' - ' + _contaCuentas[i].nombre + '</option>';
+  }
+  var h = '<div class="frow" style="margin-bottom:.3rem;align-items:end" id="ma-ln-' + idx + '">';
+  h += '<div class="fg" style="flex:2;margin-bottom:0"><select class="ma-cuenta" style="width:100%;padding:.35rem;border:1px solid var(--brd);border-radius:6px;font-size:.78rem">' + opts + '</select></div>';
+  h += '<div class="fg" style="margin-bottom:0"><input type="number" class="ma-debe" step="0.01" value="0" style="width:100%;padding:.35rem;border:1px solid var(--brd);border-radius:6px;font-size:.78rem" placeholder="Debe" oninput="calcSaldoAsiento()"></div>';
+  h += '<div class="fg" style="margin-bottom:0"><input type="number" class="ma-haber" step="0.01" value="0" style="width:100%;padding:.35rem;border:1px solid var(--brd);border-radius:6px;font-size:.78rem" placeholder="Haber" oninput="calcSaldoAsiento()"></div>';
+  h += '</div>';
+  document.getElementById('ma-lineas').insertAdjacentHTML('beforeend', h);
+}
+
+function calcSaldoAsiento() {
+  var debes = document.querySelectorAll('.ma-debe');
+  var haberes = document.querySelectorAll('.ma-haber');
+  var td = 0, th = 0;
+  for (var i = 0; i < debes.length; i++) td += parseFloat(debes[i].value) || 0;
+  for (var j = 0; j < haberes.length; j++) th += parseFloat(haberes[j].value) || 0;
+  var diff = td - th;
+  var el = document.getElementById('ma-saldo');
+  el.style.color = Math.abs(diff) < 0.01 ? 'var(--grn)' : '#b91c1c';
+  el.textContent = 'Debe: $' + td.toFixed(2) + ' | Haber: $' + th.toFixed(2) + (Math.abs(diff) < 0.01 ? ' \u2713 Cuadra' : ' \u2717 Dif: $' + diff.toFixed(2));
+}
+
+function guardarAsiento() {
+  var fecha = document.getElementById('ma-fecha').value;
+  var concepto = document.getElementById('ma-concepto').value.trim();
+  var tipo = document.getElementById('ma-tipo').value;
+  if (!fecha || !concepto) { toast('Completa fecha y concepto', true); return; }
+  var cuentas = document.querySelectorAll('.ma-cuenta');
+  var debes = document.querySelectorAll('.ma-debe');
+  var haberes = document.querySelectorAll('.ma-haber');
+  var lineas = [];
+  for (var i = 0; i < cuentas.length; i++) {
+    var cc = cuentas[i].value;
+    var d = parseFloat(debes[i].value) || 0;
+    var hb = parseFloat(haberes[i].value) || 0;
+    if (cc && (d > 0 || hb > 0)) {
+      lineas.push({cuenta_codigo: cc, debe: d, haber: hb});
+    }
+  }
+  if (lineas.length < 2) { toast('M\u00ednimo 2 l\u00edneas', true); return; }
+  api('POST', '/contabilidad/asientos', {
+    fecha: fecha, concepto: concepto, tipo: tipo, lineas: lineas
+  }).then(function(r) {
+    cerrarModal('modal-asiento');
+    toast('P\u00f3liza ' + r.numero + ' registrada');
+    cargarLibroDiario();
+  }).catch(function(e) { toast(e.message || 'Error al registrar', true); });
+}
+
+// Movimiento bancario
+function abrirNuevoMovBanco() {
+  document.getElementById('mmb-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('mmb-concepto').value = '';
+  document.getElementById('mmb-ref').value = '';
+  document.getElementById('mmb-deposito').value = '0';
+  document.getElementById('mmb-retiro').value = '0';
+  document.getElementById('mmb-saldo').value = '0';
+  document.getElementById('mmb-notas').value = '';
+  document.getElementById('modal-mov-banco').classList.add('on');
+}
+
+function guardarMovBanco() {
+  var data = {
+    fecha: document.getElementById('mmb-fecha').value,
+    concepto: document.getElementById('mmb-concepto').value.trim(),
+    referencia: document.getElementById('mmb-ref').value.trim() || null,
+    deposito: parseFloat(document.getElementById('mmb-deposito').value) || 0,
+    retiro: parseFloat(document.getElementById('mmb-retiro').value) || 0,
+    saldo: parseFloat(document.getElementById('mmb-saldo').value) || 0,
+    notas: document.getElementById('mmb-notas').value.trim() || null
+  };
+  if (!data.fecha || !data.concepto) { toast('Completa fecha y concepto', true); return; }
+  api('POST', '/contabilidad/banco/movimientos', data).then(function() {
+    cerrarModal('modal-mov-banco');
+    toast('Movimiento registrado');
+    cargarConciliacion();
+  }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+
+// ─── Mobile menu ──────────────────────────────────────────────────
+function toggleMobileMenu() {
+  var menu = document.getElementById('mobile-menu');
+  menu.classList.toggle('on');
+}
+
 // ─── PDF Downloads ────────────────────────────────────────────────
 function descargarReporteVentasPDF() {
   var fi = document.getElementById('rep-fi').value;
@@ -5352,7 +5875,7 @@ function guardarAPIUrl() {
 var _editPermsUserId = null;
 var _moduloNombres = {
   dash:'Inicio', pos:'Venta', ped:'Pedidos', inv:'Inventario',
-  corte:'Corte', rep:'Reportes', listas:'Listas', prod:'Producción', cofepris:'COFEPRIS', usuarios:'Usuarios'
+  corte:'Corte', rep:'Reportes', listas:'Listas', prod:'Producción', conta:'Contabilidad', cofepris:'COFEPRIS', usuarios:'Usuarios'
 };
 
 function descargarBackup() {
