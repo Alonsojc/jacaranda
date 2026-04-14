@@ -10,7 +10,7 @@ from app.models.venta import MetodoPago, FormaPago, EstadoVenta
 class DetalleVentaCreate(BaseModel):
     producto_id: int
     cantidad: Decimal = Field(..., gt=0)
-    descuento: Decimal = Decimal("0")
+    descuento: Decimal = Field(default=Decimal("0"), ge=0)
 
 
 class PagoVentaCreate(BaseModel):
@@ -23,7 +23,7 @@ class VentaCreate(BaseModel):
     cliente_id: int | None = None
     metodo_pago: MetodoPago = MetodoPago.EFECTIVO
     forma_pago: FormaPago = FormaPago.PUE
-    monto_recibido: Decimal = Decimal("0")
+    monto_recibido: Decimal = Field(default=Decimal("0"), ge=0)
     notas: str | None = None
     detalles: list[DetalleVentaCreate] = Field(..., min_length=1)
     pagos: list[PagoVentaCreate] | None = None  # Split payments (optional)
@@ -95,8 +95,8 @@ class TicketResponse(BaseModel):
 # --- Corte de caja ---
 
 class CorteCajaCreate(BaseModel):
-    fondo_inicial: Decimal
-    efectivo_real: Decimal
+    fondo_inicial: Decimal = Field(..., ge=0)
+    efectivo_real: Decimal = Field(..., ge=0)
     notas: str | None = None
 
 

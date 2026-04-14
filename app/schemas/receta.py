@@ -7,7 +7,7 @@ from datetime import datetime
 
 class RecetaIngredienteSchema(BaseModel):
     ingrediente_id: int
-    cantidad: Decimal
+    cantidad: Decimal = Field(..., gt=0)
     notas: str | None = None
 
 
@@ -16,17 +16,17 @@ class RecetaCreate(BaseModel):
     nombre: str = Field(..., max_length=200)
     descripcion: str | None = None
     instrucciones: str | None = None
-    rendimiento: Decimal
-    tiempo_preparacion_min: int | None = None
-    tiempo_horneado_min: int | None = None
-    temperatura_horneado_c: int | None = None
+    rendimiento: Decimal = Field(..., gt=0)
+    tiempo_preparacion_min: int | None = Field(default=None, gt=0)
+    tiempo_horneado_min: int | None = Field(default=None, gt=0)
+    temperatura_horneado_c: int | None = Field(default=None, gt=0)
     ingredientes: list[RecetaIngredienteSchema] = []
 
 
 class RecetaUpdate(BaseModel):
     nombre: str | None = None
     instrucciones: str | None = None
-    rendimiento: Decimal | None = None
+    rendimiento: Decimal | None = Field(default=None, gt=0)
     tiempo_preparacion_min: int | None = None
     tiempo_horneado_min: int | None = None
     temperatura_horneado_c: int | None = None
@@ -72,7 +72,7 @@ class CostoRecetaResponse(BaseModel):
 
 class OrdenProduccionCreate(BaseModel):
     receta_id: int
-    cantidad_lotes: Decimal = Decimal("1")
+    cantidad_lotes: Decimal = Field(default=Decimal("1"), gt=0)
     fecha_programada: datetime
     responsable_id: int | None = None
     notas: str | None = None
