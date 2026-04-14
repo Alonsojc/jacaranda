@@ -87,6 +87,12 @@ def actualizar_usuario(
     usuario = db.query(Usuario).filter(Usuario.id == id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if data.email and data.email != usuario.email:
+        existente = db.query(Usuario).filter(
+            Usuario.email == data.email, Usuario.id != id
+        ).first()
+        if existente:
+            raise HTTPException(status_code=400, detail="Ese email ya está en uso")
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(usuario, key, value)
     db.commit()

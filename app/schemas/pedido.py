@@ -2,13 +2,13 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class DetallePedidoCreate(BaseModel):
     descripcion: str
-    cantidad: int = 1
-    precio_unitario: Decimal = Decimal("0")
+    cantidad: int = Field(default=1, gt=0)
+    precio_unitario: Decimal = Field(default=Decimal("0"), ge=0)
     producto_id: int | None = None
     notas: str | None = None
 
@@ -21,7 +21,7 @@ class PedidoCreate(BaseModel):
     hora_entrega: str | None = None
     lugar_entrega: str | None = None
     origen: str = "whatsapp"
-    anticipo: Decimal = Decimal("0")
+    anticipo: Decimal = Field(default=Decimal("0"), ge=0)
     notas: str | None = None
     notas_internas: str | None = None
     detalles: list[DetallePedidoCreate]

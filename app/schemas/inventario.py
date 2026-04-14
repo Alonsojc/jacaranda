@@ -59,8 +59,8 @@ class IngredienteCreate(BaseModel):
     nombre: str = Field(..., max_length=150)
     descripcion: str | None = None
     unidad_medida: UnidadMedida
-    stock_minimo: Decimal = Decimal("0")
-    costo_unitario: Decimal = Decimal("0")
+    stock_minimo: Decimal = Field(default=Decimal("0"), ge=0)
+    costo_unitario: Decimal = Field(default=Decimal("0"), ge=0)
     proveedor_id: int | None = None
     es_alergeno: bool = False
     tipo_alergeno: str | None = None
@@ -101,10 +101,10 @@ class ProductoCreate(BaseModel):
     nombre: str = Field(..., max_length=200)
     descripcion: str | None = None
     categoria_id: int | None = None
-    precio_unitario: Decimal
-    costo_produccion: Decimal = Decimal("0")
+    precio_unitario: Decimal = Field(..., gt=0)
+    costo_produccion: Decimal = Field(default=Decimal("0"), ge=0)
     unidad_medida: UnidadMedida = UnidadMedida.PIEZA
-    stock_minimo: Decimal = Decimal("0")
+    stock_minimo: Decimal = Field(default=Decimal("0"), ge=0)
     clave_prod_serv_sat: str = "50181900"
     clave_unidad_sat: str = "H87"
     tasa_iva: TasaIVA = TasaIVA.TASA_0
@@ -161,8 +161,8 @@ class MovimientoCreate(BaseModel):
     tipo: TipoMovimiento
     ingrediente_id: int | None = None
     producto_id: int | None = None
-    cantidad: Decimal
-    costo_unitario: Decimal = Decimal("0")
+    cantidad: Decimal = Field(..., gt=0)
+    costo_unitario: Decimal = Field(default=Decimal("0"), ge=0)
     lote_id: int | None = None
     referencia: str | None = None
     notas: str | None = None
@@ -189,8 +189,8 @@ class LoteCreate(BaseModel):
     proveedor_id: int | None = None
     fecha_recepcion: date
     fecha_caducidad: date | None = None
-    cantidad: Decimal
-    costo_unitario: Decimal
+    cantidad: Decimal = Field(..., gt=0)
+    costo_unitario: Decimal = Field(..., ge=0)
     temperatura_recepcion: Decimal | None = None
     notas: str | None = None
 

@@ -292,7 +292,10 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 
 <div id="inv-ingredientes" style="display:none">
-<p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Stock actual de ingredientes. Se descuenta autom&aacute;ticamente al hornear.</p>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;gap:.4rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">Stock actual de ingredientes. Se descuenta autom&aacute;ticamente al hornear.</p>
+<input type="text" id="inv-ing-buscar" placeholder="Buscar ingrediente..." oninput="filtrarInvIngredientes()" style="padding:.4rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.83rem;width:220px;font-family:inherit">
+</div>
 <div id="tbl-ingredientes" class="card" style="overflow-x:auto">
 <p style="color:var(--mut);padding:.5rem">Cargando ingredientes...</p>
 </div>
@@ -2382,22 +2385,7 @@ function renderInvProductos() {
 function cargarIngredientes() {
   api('GET', '/inventario/ingredientes').then(function(ings) {
     _allIngs = ings;
-    var h = '<table class="tbl"><tr><th>Ingrediente</th><th>Stock</th><th>Unidad</th><th>Costo</th><th>M&iacute;n</th><th>Estado</th><th style="width:40px"></th></tr>';
-    for (var i = 0; i < ings.length; i++) {
-      var g = ings[i];
-      var stock = parseFloat(g.stock_actual) || 0;
-      var min = parseFloat(g.stock_minimo) || 0;
-      var costo = parseFloat(g.costo_unitario) || 0;
-      var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
-      var txt = stock <= 0 ? 'Urgente' : stock <= min ? 'Pedir' : 'OK';
-      h += '<tr><td>' + g.nombre + '</td><td>' + stock.toFixed(1) + '</td><td>' + g.unidad_medida + '</td>';
-      h += '<td>$' + fmt(costo) + '</td><td>' + min + '</td>';
-      h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
-      h += '<td><a href="#" onclick="editarIngrediente(' + g.id + ');return false" style="font-size:.9rem;cursor:pointer" title="Editar">&#9998;</a></td>';
-      h += '</tr>';
-    }
-    h += '</table>';
-    document.getElementById('tbl-ingredientes').innerHTML = h;
+    renderInvIngredientes();
 
     // Update compras dropdown
     var sel = document.getElementById('compra-ing');
@@ -2417,6 +2405,34 @@ function cargarIngredientes() {
   }).catch(function() {
     document.getElementById('tbl-ingredientes').innerHTML = '<p style="color:var(--mut);padding:.5rem">Error al cargar ingredientes</p>';
   });
+}
+
+function filtrarInvIngredientes() { renderInvIngredientes(); }
+
+function renderInvIngredientes() {
+  var q = (document.getElementById('inv-ing-buscar').value || '').toLowerCase().trim();
+  var filtered = _allIngs;
+  if (q) {
+    filtered = _allIngs.filter(function(g) {
+      return g.nombre.toLowerCase().indexOf(q) >= 0;
+    });
+  }
+  var h = '<table class="tbl"><tr><th>Ingrediente</th><th>Stock</th><th>Unidad</th><th>Costo</th><th>M&iacute;n</th><th>Estado</th><th style="width:40px"></th></tr>';
+  for (var i = 0; i < filtered.length; i++) {
+    var g = filtered[i];
+    var stock = parseFloat(g.stock_actual) || 0;
+    var min = parseFloat(g.stock_minimo) || 0;
+    var costo = parseFloat(g.costo_unitario) || 0;
+    var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
+    var txt = stock <= 0 ? 'Urgente' : stock <= min ? 'Pedir' : 'OK';
+    h += '<tr><td>' + g.nombre + '</td><td>' + stock.toFixed(1) + '</td><td>' + g.unidad_medida + '</td>';
+    h += '<td>$' + fmt(costo) + '</td><td>' + min + '</td>';
+    h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
+    h += '<td><a href="#" onclick="editarIngrediente(' + g.id + ');return false" style="font-size:.9rem;cursor:pointer" title="Editar">&#9998;</a></td>';
+    h += '</tr>';
+  }
+  h += '</table>';
+  document.getElementById('tbl-ingredientes').innerHTML = h;
 }
 
 function cargarRecetas() {

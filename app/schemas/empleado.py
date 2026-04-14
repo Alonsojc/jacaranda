@@ -25,7 +25,7 @@ class EmpleadoCreate(BaseModel):
     tipo_jornada: TipoJornada = TipoJornada.DIURNA
     departamento: Departamento = Departamento.PRODUCCION
     puesto: str
-    salario_diario: Decimal
+    salario_diario: Decimal = Field(..., gt=0)
 
     @field_validator("curp")
     @classmethod
