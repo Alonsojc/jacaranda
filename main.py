@@ -92,8 +92,16 @@ def _seed_admin():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Crear tablas al inicio
-    Base.metadata.create_all(bind=engine)
+    # Run Alembic migrations, fallback to create_all
+    try:
+        from alembic.config import Config
+        from alembic import command
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
+        logger.info("Database migrations applied")
+    except Exception as e:
+        logger.warning("Alembic migration failed (%s), using create_all fallback", e)
+        Base.metadata.create_all(bind=engine)
     _seed_admin()
     yield
 

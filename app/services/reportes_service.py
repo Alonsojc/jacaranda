@@ -747,3 +747,104 @@ def dashboard_empleados(db: Session) -> dict:
         "cumpleanios": cumpleanios,
         "documentos_por_vencer": docs_por_vencer,
     }
+
+
+# ─── Ventas por hora ──────────────────────────────────────────────
+
+def reporte_ventas_por_hora(db: Session, dias: int = 7) -> list[dict]:
+    """Ventas agrupadas por hora del día (últimos N días)."""
+    from datetime import timedelta
+    from app.models.inventario import Producto
+
+    hoy = date.today()
+    inicio = datetime.combine(hoy - timedelta(days=dias - 1), datetime.min.time())
+    fin = datetime.combine(hoy, datetime.max.time())
+
+    ventas = db.query(Venta).filter(
+        and_(
+            Venta.fecha >= inicio,
+            Venta.fecha <= fin,
+            Venta.estado == EstadoVenta.COMPLETADA,
+        )
+    ).all()
+
+    por_hora: dict[int, dict] = {}
+    for h in range(24):
+        por_hora[h] = {"hora": h, "total": 0, "tickets": 0}
+
+    for v in ventas:
+        hora = v.fecha.hour if v.fecha else 0
+        por_hora[hora]["total"] += float(v.total)
+        por_hora[hora]["tickets"] += 1
+
+    return [por_hora[h] for h in range(24)]
+
+
+# ─── Análisis ABC de inventario ───────────────────────────────────
+
+def analisis_abc(db: Session, dias: int = 30) -> dict:
+    """Análisis ABC (Pareto 80/20) de productos por ingresos."""
+    from datetime import timedelta
+    from app.models.inventario import Producto
+
+    hoy = date.today()
+    inicio = datetime.combine(hoy - timedelta(days=dias - 1), datetime.min.time())
+    fin = datetime.combine(hoy, datetime.max.time())
+
+    detalles = db.query(DetalleVenta).join(Venta).filter(
+        and_(
+            Venta.fecha >= inicio,
+            Venta.fecha <= fin,
+            Venta.estado == EstadoVenta.COMPLETADA,
+        )
+    ).all()
+
+    # Aggregate by product
+    por_prod: dict[int, dict] = {}
+    ingreso_total = Decimal("0")
+    for d in detalles:
+        pid = d.producto_id
+        if pid not in por_prod:
+            prod = db.query(Producto).filter(Producto.id == pid).first()
+            por_prod[pid] = {
+                "producto_id": pid,
+                "nombre": prod.nombre if prod else f"Producto #{pid}",
+                "ingresos": Decimal("0"),
+                "cantidad": Decimal("0"),
+                "costo": Decimal("0"),
+                "costo_unitario": prod.costo_produccion if prod else Decimal("0"),
+            }
+        por_prod[pid]["ingresos"] += d.subtotal
+        por_prod[pid]["cantidad"] += d.cantidad
+        por_prod[pid]["costo"] += d.cantidad * por_prod[pid]["costo_unitario"]
+        ingreso_total += d.subtotal
+
+    # Sort by revenue descending
+    productos = sorted(por_prod.values(), key=lambda x: x["ingresos"], reverse=True)
+
+    # Classify ABC
+    acumulado = Decimal("0")
+    for p in productos:
+        acumulado += p["ingresos"]
+        pct_acum = float(acumulado / ingreso_total * 100) if ingreso_total > 0 else 0
+        utilidad = p["ingresos"] - p["costo"]
+        p["clase"] = "A" if pct_acum <= 80 else ("B" if pct_acum <= 95 else "C")
+        p["pct_ingresos"] = round(float(p["ingresos"] / ingreso_total * 100), 1) if ingreso_total else 0
+        p["pct_acumulado"] = round(pct_acum, 1)
+        p["ingresos"] = float(p["ingresos"])
+        p["cantidad"] = float(p["cantidad"])
+        p["utilidad"] = float(utilidad)
+        p["costo"] = float(p["costo"])
+        del p["costo_unitario"]
+
+    conteo = {"A": 0, "B": 0, "C": 0}
+    for p in productos:
+        conteo[p["clase"]] += 1
+
+    return {
+        "dias": dias,
+        "total_ingresos": float(ingreso_total),
+        "total_productos": len(productos),
+        "conteo_abc": conteo,
+        "productos": productos,
+    }
