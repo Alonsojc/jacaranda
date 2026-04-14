@@ -34,12 +34,16 @@ def registrar_temperatura(
 def listar_temperaturas(
     area: AreaEstablecimiento | None = None,
     db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
 ):
     return svc.listar_temperaturas(db, area)
 
 
 @router.get("/temperaturas/alertas")
-def alertas_temperatura(db: Session = Depends(get_db)):
+def alertas_temperatura(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     return svc.alertas_temperatura(db)
 
 
@@ -55,7 +59,10 @@ def registrar_limpieza(
 
 
 @router.get("/limpieza", response_model=list[LimpiezaResponse])
-def listar_limpieza(db: Session = Depends(get_db)):
+def listar_limpieza(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     return svc.listar_limpieza(db)
 
 
@@ -65,6 +72,7 @@ def listar_limpieza(db: Session = Depends(get_db)):
 def registrar_control_plagas(
     data: ControlPlagasCreate,
     db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
 ):
     return svc.registrar_control_plagas(db, data)
 
@@ -75,26 +83,37 @@ def registrar_control_plagas(
 def crear_inspeccion(
     data: InspeccionCreate,
     db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
 ):
     return svc.crear_inspeccion(db, data)
 
 
 @router.get("/inspecciones", response_model=list[InspeccionResponse])
-def listar_inspecciones(db: Session = Depends(get_db)):
+def listar_inspecciones(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     return svc.listar_inspecciones(db)
 
 
 # --- Reporte de cumplimiento ---
 
 @router.get("/reporte-cumplimiento")
-def reporte_cumplimiento(db: Session = Depends(get_db)):
+def reporte_cumplimiento(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     return svc.generar_reporte_cumplimiento(db)
 
 
 # --- Licencias por vencer ---
 
 @router.get("/licencias/por-vencer")
-def licencias_por_vencer(dias: int = Query(default=30), db: Session = Depends(get_db)):
+def licencias_por_vencer(
+    dias: int = Query(default=30),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     licencias = svc.licencias_por_vencer(db, dias)
     return [
         {
@@ -110,7 +129,11 @@ def licencias_por_vencer(dias: int = Query(default=30), db: Session = Depends(ge
 # --- Etiquetado NOM-051 ---
 
 @router.get("/etiquetado/{producto_id}", response_model=EtiquetadoNOM051Response)
-def etiquetado_nom051(producto_id: int, db: Session = Depends(get_db)):
+def etiquetado_nom051(
+    producto_id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     try:
         return svc.generar_etiquetado_nom051(db, producto_id)
     except ValueError as e:

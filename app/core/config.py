@@ -6,6 +6,12 @@ Incluye configuración fiscal mexicana (SAT, IVA, ISR, IMSS).
 from pydantic_settings import BaseSettings
 from pydantic import Field
 from decimal import Decimal
+import secrets
+
+
+def _default_secret():
+    """Genera una clave secreta aleatoria si no se configura una."""
+    return secrets.token_urlsafe(64)
 
 
 class Settings(BaseSettings):
@@ -13,7 +19,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Jacaranda - Sistema de Gestión de Panadería"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
-    SECRET_KEY: str = "cambiar-en-produccion-clave-secreta-segura"
+    SECRET_KEY: str = Field(default_factory=_default_secret)
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 horas
 
     # --- Base de datos ---

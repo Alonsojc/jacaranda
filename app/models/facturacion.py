@@ -6,7 +6,7 @@ Cumple con las especificaciones del SAT para emisión de comprobantes fiscales.
 from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy import (
-    String, DateTime, ForeignKey, Text, Numeric, Enum as SAEnum,
+    String, DateTime, ForeignKey, Text, Numeric, Enum as SAEnum, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
@@ -40,6 +40,7 @@ class TipoRelacion(str, enum.Enum):
 class CFDIComprobante(Base):
     """Comprobante Fiscal Digital por Internet versión 4.0."""
     __tablename__ = "cfdi_comprobantes"
+    __table_args__ = (UniqueConstraint("serie", "folio", name="uq_cfdi_serie_folio"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 

@@ -63,7 +63,7 @@ def listar_ventas(
 
 
 @router.get("/ventas/{id}", response_model=VentaResponse)
-def obtener_venta(id: int, db: Session = Depends(get_db)):
+def obtener_venta(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     try:
         return svc.obtener_venta(db, id)
     except ValueError as e:
@@ -71,7 +71,7 @@ def obtener_venta(id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/ventas/{id}/ticket")
-def obtener_ticket(id: int, db: Session = Depends(get_db)):
+def obtener_ticket(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     try:
         return svc.generar_ticket(db, id)
     except ValueError as e:
@@ -114,12 +114,12 @@ def historial_cortes(
 # --- Gastos fijos ---
 
 @router.get("/gastos-fijos", response_model=list[GastoFijoResponse])
-def listar_gastos_fijos(db: Session = Depends(get_db)):
+def listar_gastos_fijos(db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     return db.query(GastoFijo).filter(GastoFijo.activo.is_(True)).all()
 
 
 @router.post("/gastos-fijos", response_model=GastoFijoResponse, status_code=201)
-def crear_gasto_fijo(data: GastoFijoCreate, db: Session = Depends(get_db)):
+def crear_gasto_fijo(data: GastoFijoCreate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     gasto = GastoFijo(**data.model_dump())
     db.add(gasto)
     db.commit()
@@ -128,7 +128,7 @@ def crear_gasto_fijo(data: GastoFijoCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/gastos-fijos/{id}", response_model=GastoFijoResponse)
-def actualizar_gasto_fijo(id: int, data: GastoFijoCreate, db: Session = Depends(get_db)):
+def actualizar_gasto_fijo(id: int, data: GastoFijoCreate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     gasto = db.query(GastoFijo).filter(GastoFijo.id == id).first()
     if not gasto:
         raise HTTPException(status_code=404, detail="Gasto no encontrado")
@@ -140,7 +140,7 @@ def actualizar_gasto_fijo(id: int, data: GastoFijoCreate, db: Session = Depends(
 
 
 @router.delete("/gastos-fijos/{id}")
-def eliminar_gasto_fijo(id: int, db: Session = Depends(get_db)):
+def eliminar_gasto_fijo(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     gasto = db.query(GastoFijo).filter(GastoFijo.id == id).first()
     if not gasto:
         raise HTTPException(status_code=404, detail="Gasto no encontrado")

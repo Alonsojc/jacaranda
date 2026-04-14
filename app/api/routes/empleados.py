@@ -36,7 +36,11 @@ def listar_empleados(
 
 
 @router.get("/{id}", response_model=EmpleadoResponse)
-def obtener_empleado(id: int, db: Session = Depends(get_db)):
+def obtener_empleado(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     try:
         return svc.obtener_empleado(db, id)
     except ValueError as e:

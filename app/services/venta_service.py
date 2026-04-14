@@ -8,6 +8,7 @@ from decimal import Decimal
 from datetime import datetime, timezone, date
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
+from sqlalchemy.exc import IntegrityError
 
 from app.models.venta import Venta, DetalleVenta, PagoVenta, CorteCaja, MetodoPago, EstadoVenta
 from app.models.inventario import Producto, TasaIVA, TipoMovimiento
@@ -57,7 +58,6 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     3. Descuenta inventario
     4. Genera ticket
     """
-    folio = _generar_folio(db)
     subtotal_total = Decimal("0")
     descuento_total = Decimal("0")
     iva_0_total = Decimal("0")
@@ -142,25 +142,34 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
                 )
             cambio = data.monto_recibido - total
 
-    venta = Venta(
-        folio=folio,
-        serie="T",
-        cliente_id=data.cliente_id,
-        usuario_id=usuario_id,
-        subtotal=subtotal_total,
-        descuento=descuento_total,
-        iva_0=iva_0_total,
-        iva_16=iva_16_total,
-        total_impuestos=total_impuestos,
-        total=total,
-        metodo_pago=metodo_principal,
-        forma_pago=data.forma_pago,
-        monto_recibido=monto_recibido,
-        cambio=cambio,
-        notas=data.notas,
-    )
-    db.add(venta)
-    db.flush()
+    # Retry folio generation to handle race conditions
+    for _attempt in range(3):
+        folio = _generar_folio(db, "T")
+        venta = Venta(
+            folio=folio,
+            serie="T",
+            cliente_id=data.cliente_id,
+            usuario_id=usuario_id,
+            subtotal=subtotal_total,
+            descuento=descuento_total,
+            iva_0=iva_0_total,
+            iva_16=iva_16_total,
+            total_impuestos=total_impuestos,
+            total=total,
+            metodo_pago=metodo_principal,
+            forma_pago=data.forma_pago,
+            monto_recibido=monto_recibido,
+            cambio=cambio,
+            notas=data.notas,
+        )
+        db.add(venta)
+        try:
+            db.flush()
+            break
+        except IntegrityError:
+            db.rollback()
+    else:
+        raise ValueError("No se pudo generar un folio único, intente de nuevo")
 
     # Agregar detalles
     for detalle in detalles:

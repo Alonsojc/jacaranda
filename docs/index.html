@@ -3745,7 +3745,7 @@ function selClientePOS() {
   api('GET', '/clientes/' + cid + '/puntos').then(function(r) {
     if (r.puntos > 0) {
       puntosEl.style.display = 'inline';
-      puntosEl.innerHTML = r.puntos + ' pts = $' + r.fmt(descuento_disponible);
+      puntosEl.innerHTML = r.puntos + ' pts = $' + fmt(r.descuento_disponible);
     } else {
       puntosEl.style.display = 'inline';
       puntosEl.innerHTML = '0 pts';

@@ -5,7 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import get_current_user
 from app.models.cliente import Cliente
+from app.models.usuario import Usuario
 from app.schemas.cliente import ClienteCreate, ClienteUpdate, ClienteResponse
 from app.services.venta_service import VALOR_PUNTO
 
@@ -13,7 +15,7 @@ router = APIRouter()
 
 
 @router.post("/", response_model=ClienteResponse, status_code=201)
-def crear_cliente(data: ClienteCreate, db: Session = Depends(get_db)):
+def crear_cliente(data: ClienteCreate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     cliente = Cliente(**data.model_dump())
     db.add(cliente)
     db.commit()
@@ -22,12 +24,12 @@ def crear_cliente(data: ClienteCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/", response_model=list[ClienteResponse])
-def listar_clientes(db: Session = Depends(get_db)):
+def listar_clientes(db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     return db.query(Cliente).filter(Cliente.activo.is_(True)).all()
 
 
 @router.get("/{id}", response_model=ClienteResponse)
-def obtener_cliente(id: int, db: Session = Depends(get_db)):
+def obtener_cliente(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     cliente = db.query(Cliente).filter(Cliente.id == id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
@@ -35,7 +37,7 @@ def obtener_cliente(id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{id}", response_model=ClienteResponse)
-def actualizar_cliente(id: int, data: ClienteUpdate, db: Session = Depends(get_db)):
+def actualizar_cliente(id: int, data: ClienteUpdate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     cliente = db.query(Cliente).filter(Cliente.id == id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
@@ -47,19 +49,19 @@ def actualizar_cliente(id: int, data: ClienteUpdate, db: Session = Depends(get_d
 
 
 @router.get("/{id}/facturas")
-def facturas_cliente(id: int, db: Session = Depends(get_db)):
+def facturas_cliente(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     from app.models.facturacion import CFDIComprobante
     return db.query(CFDIComprobante).filter(CFDIComprobante.cliente_id == id).all()
 
 
 @router.get("/{id}/historial")
-def historial_cliente(id: int, db: Session = Depends(get_db)):
+def historial_cliente(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     from app.services.reportes_service import historial_compras_cliente
     return historial_compras_cliente(db, id)
 
 
 @router.get("/{id}/puntos")
-def consultar_puntos(id: int, db: Session = Depends(get_db)):
+def consultar_puntos(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     """Consulta puntos acumulados y su valor en pesos."""
     cliente = db.query(Cliente).filter(Cliente.id == id).first()
     if not cliente:
@@ -76,6 +78,7 @@ def canjear_puntos(
     id: int,
     puntos: int = Query(..., gt=0),
     db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
 ):
     """Canjea puntos del cliente. Devuelve el descuento en pesos."""
     cliente = db.query(Cliente).filter(Cliente.id == id).first()
