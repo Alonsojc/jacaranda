@@ -4,10 +4,11 @@ import shutil
 from datetime import date
 from pathlib import Path
 from fastapi import APIRouter, Depends, Query, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.services import pdf_service
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_role
 from app.models.usuario import Usuario, RolUsuario
@@ -217,4 +218,58 @@ def descargar_backup(
         path=str(backup_path),
         filename=f"jacaranda_backup_{date.today().isoformat()}.db",
         media_type="application/octet-stream",
+    )
+
+
+# ─── PDF Exports ──────────────────────────────────────────────────
+
+@router.get("/ventas/pdf")
+def reporte_ventas_pdf(
+    fecha_inicio: date = Query(...),
+    fecha_fin: date = Query(...),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Descarga reporte de ventas en PDF."""
+    data = svc.reporte_ventas_periodo(db, fecha_inicio, fecha_fin)
+    buf = pdf_service.generar_reporte_ventas_pdf(data)
+    return StreamingResponse(
+        buf, media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=ventas_{fecha_inicio}_{fecha_fin}.pdf"},
+    )
+
+
+@router.get("/impuestos/iva-mensual/pdf")
+def reporte_iva_pdf(
+    mes: int = Query(..., ge=1, le=12),
+    anio: int = Query(..., ge=2020),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_role(
+        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
+    )),
+):
+    """Descarga reporte de IVA mensual en PDF."""
+    data = svc.reporte_iva_mensual(db, mes, anio)
+    buf = pdf_service.generar_reporte_iva_pdf(data)
+    return StreamingResponse(
+        buf, media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=iva_{anio}_{mes:02d}.pdf"},
+    )
+
+
+@router.get("/impuestos/isr-provisional/pdf")
+def reporte_isr_pdf(
+    mes: int = Query(..., ge=1, le=12),
+    anio: int = Query(..., ge=2020),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_role(
+        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
+    )),
+):
+    """Descarga reporte de ISR provisional en PDF."""
+    data = svc.reporte_isr_provisional(db, mes, anio)
+    buf = pdf_service.generar_reporte_isr_pdf(data)
+    return StreamingResponse(
+        buf, media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=isr_{anio}_{mes:02d}.pdf"},
     )

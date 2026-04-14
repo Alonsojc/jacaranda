@@ -144,6 +144,22 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .notif-media{border-left:3px solid #f59e0b}
 .chart-container{position:relative;width:100%;height:280px}
 @media(max-width:600px){.notif-panel{width:calc(100vw - 20px);right:10px}}
+/* Producción */
+.prod-orden{background:#fff;border-radius:12px;padding:1rem;border:1px solid var(--brd);margin-bottom:.7rem;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.prod-orden:hover{box-shadow:0 4px 12px rgba(196,152,138,.12)}
+.prod-orden .po-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem}
+.prod-orden .po-receta{font-weight:700;font-size:.95rem;color:var(--dk)}
+.prod-orden .po-lotes{font-size:.82rem;color:var(--mut)}
+.prod-orden .po-check{margin-top:.4rem}
+.prod-orden .po-check label{display:flex;align-items:center;gap:.4rem;font-size:.82rem;padding:.2rem 0;cursor:pointer}
+.prod-orden .po-check input[type=checkbox]{accent-color:var(--v);width:18px;height:18px}
+.prod-timer{display:inline-flex;align-items:center;gap:.3rem;font-family:monospace;font-size:1.1rem;font-weight:700;color:var(--v);background:#faf3f0;padding:.3rem .7rem;border-radius:8px}
+.prod-timer .pt-label{font-family:'Inter',sans-serif;font-size:.72rem;font-weight:500;color:var(--mut)}
+.prod-actions{display:flex;gap:.4rem;margin-top:.5rem;flex-wrap:wrap}
+.prod-actions button{padding:.4rem .8rem;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer;transition:all .15s}
+.prod-btn-start{background:var(--grn);color:#fff}.prod-btn-start:hover{opacity:.85}
+.prod-btn-done{background:var(--v);color:#fff}.prod-btn-done:hover{opacity:.85}
+.prod-btn-merma{background:#fee2e2;color:#b91c1c}.prod-btn-merma:hover{background:#fecaca}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
@@ -176,6 +192,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <a data-pg="corte" onclick="go('corte')">Corte</a>
 <a data-pg="rep" onclick="go('rep')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">Reportes</a>
 <a data-pg="listas" onclick="go('listas')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Listas</a>
+<a data-pg="prod" onclick="go('prod')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO">Producci&oacute;n</a>
 <a data-pg="cofepris" onclick="go('cofepris')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">COFEPRIS</a>
 <a data-pg="usuarios" onclick="go('usuarios')" class="nav-role" data-roles="ADMINISTRADOR">Usuarios</a>
 <a onclick="toggleNotifPanel()" id="btn-notif" style="display:none;cursor:pointer;color:var(--mut);font-size:.95rem;padding:.5rem .4rem;position:relative" title="Notificaciones">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:2px;right:0;background:#ef4444;color:#fff;font-size:.55rem;font-weight:700;padding:.05rem .3rem;border-radius:8px;min-width:14px;text-align:center"></span></a>
@@ -671,6 +688,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <button onclick="cargarReporteVentas()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Consultar</button>
 <button onclick="repSetRango(7)" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0">7 d&iacute;as</button>
 <button onclick="repSetRango(30)" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0">30 d&iacute;as</button>
+<button onclick="descargarReporteVentasPDF()" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0;color:#b91c1c">&#128196; PDF</button>
 </div>
 <div class="row r3" style="margin-bottom:.8rem">
 <div class="card kpi g"><div class="n" id="rep-total">$0</div><div class="l">Total ventas</div></div>
@@ -756,8 +774,8 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <button onclick="cargarReporteFiscal()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Consultar</button>
 </div>
 <div class="row r2">
-<div class="card"><h3>IVA mensual</h3><div id="rep-iva"></div></div>
-<div class="card"><h3>ISR provisional</h3><div id="rep-isr"></div></div>
+<div class="card"><h3>IVA mensual</h3><div id="rep-iva"></div><button onclick="descargarReporteFiscalPDF('iva')" class="limpiar" style="padding:.3rem .6rem;font-size:.72rem;margin-top:.5rem">&#128196; PDF IVA</button></div>
+<div class="card"><h3>ISR provisional</h3><div id="rep-isr"></div><button onclick="descargarReporteFiscalPDF('isr')" class="limpiar" style="padding:.3rem .6rem;font-size:.72rem;margin-top:.5rem">&#128196; PDF ISR</button></div>
 </div>
 </div>
 </div>
@@ -867,7 +885,84 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 </div>
 
+<!-- PRODUCCIÓN (Panadero) -->
+<div class="page" id="prod">
+<h2>Producci&oacute;n &mdash; Hoy</h2>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.4rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">Vista para panadero: &oacute;rdenes, checklist, hornadas y temporizadores.</p>
+<div style="display:flex;gap:.4rem">
+<button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="abrirNuevaOrden()">+ Nueva orden</button>
+<button class="limpiar" style="padding:.4rem .8rem;font-size:.78rem;margin:0" onclick="cargarProduccion()">&#8635; Refrescar</button>
+</div>
+</div>
+<div class="section-tabs" style="margin-bottom:1rem">
+<span class="tab active" onclick="prodTab('prod-pendientes')">Pendientes</span>
+<span class="tab" onclick="prodTab('prod-proceso')">En proceso</span>
+<span class="tab" onclick="prodTab('prod-completadas')">Completadas</span>
+<span class="tab" onclick="prodTab('prod-rapido')">Hornear r&aacute;pido</span>
+</div>
+<div id="prod-pendientes">
+<div id="prod-list-pendientes"><p style="color:var(--mut);font-size:.83rem">Cargando &oacute;rdenes...</p></div>
+</div>
+<div id="prod-proceso" style="display:none">
+<div id="prod-list-proceso"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+<div id="prod-completadas" style="display:none">
+<div id="prod-list-completadas"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+<div id="prod-rapido" style="display:none">
+<div class="card" style="margin-bottom:1rem">
+<h3>Hornear r&aacute;pido</h3>
+<p style="font-size:.78rem;color:var(--mut);margin-bottom:.7rem">Selecciona una receta y hornea directamente. Descuenta ingredientes y suma productos terminados.</p>
+<div class="frow" style="margin-bottom:.6rem">
+<div class="fg"><label>Receta</label><select id="prod-receta-sel" style="width:100%"><option value="">Selecciona...</option></select></div>
+<div class="fg"><label>Tandas</label><input type="number" id="prod-tandas" value="1" min="1" max="50" style="width:100%"></div>
+</div>
+<div id="prod-disp-check" style="margin-bottom:.6rem"></div>
+<button class="cobrar" style="width:auto;padding:.5rem 1.2rem;font-size:.85rem" onclick="hornearRapido()">&#127838; Hornear</button>
+</div>
+<div class="card">
+<h3>Recetas disponibles</h3>
+<div id="prod-recetas-list"><p style="color:var(--mut);font-size:.83rem">Cargando recetas...</p></div>
+</div>
+</div>
+</div>
+
 </div><!-- /wrap -->
+
+<!-- MODAL: Nueva Orden Producción -->
+<div class="modal-bg" id="modal-orden-prod">
+<div class="modal" style="max-width:420px">
+<h3>Nueva orden de producci&oacute;n</h3>
+<div class="fg"><label>Receta</label><select id="mop-receta" style="width:100%"><option value="">Selecciona...</option></select></div>
+<div class="frow">
+<div class="fg"><label>Lotes</label><input type="number" id="mop-lotes" value="1" min="1" max="50" step="1"></div>
+<div class="fg"><label>Fecha programada</label><input type="datetime-local" id="mop-fecha"></div>
+</div>
+<div class="fg"><label>Notas (opcional)</label><input id="mop-notas" placeholder="Ej: pedido especial cliente"></div>
+<div style="display:flex;gap:.5rem;margin-top:1rem">
+<button class="cobrar" style="flex:1" onclick="crearOrdenProduccion()">Crear orden</button>
+<button class="limpiar" style="flex:1" onclick="cerrarModal('modal-orden-prod')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Completar Orden -->
+<div class="modal-bg" id="modal-completar-prod">
+<div class="modal" style="max-width:380px;text-align:center">
+<h3>Completar producci&oacute;n</h3>
+<input type="hidden" id="mcp-id">
+<p style="font-size:.85rem;color:var(--mut);margin-bottom:.6rem" id="mcp-info"></p>
+<div class="frow">
+<div class="fg"><label>Producidas (pzas)</label><input type="number" id="mcp-producidas" min="0" step="1" placeholder="0"></div>
+<div class="fg"><label>Merma (pzas)</label><input type="number" id="mcp-merma" value="0" min="0" step="1"></div>
+</div>
+<div style="display:flex;gap:.5rem;margin-top:1rem">
+<button class="cobrar" style="flex:1" onclick="completarOrdenProduccion()">&#10003; Completar</button>
+<button class="limpiar" style="flex:1" onclick="cerrarModal('modal-completar-prod')">Cancelar</button>
+</div>
+</div>
+</div>
 
 <!-- MODAL: Gasto Fijo -->
 <div class="modal-bg" id="modal-gasto">
@@ -1200,6 +1295,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <button class="cobrar" style="flex:1;min-width:120px" onclick="copiarTicket()">Copiar Ticket</button>
 <button class="cobrar" style="flex:1;min-width:120px;background:linear-gradient(135deg,#25d366,#128c7e)" onclick="compartirWhatsApp()">&#128172; WhatsApp</button>
 <button class="cobrar" style="flex:1;min-width:120px;background:linear-gradient(135deg,#6366f1,#4f46e5)" onclick="imprimirTicket()">&#128424; Imprimir</button>
+<button class="cobrar" style="flex:1;min-width:120px;background:linear-gradient(135deg,#b91c1c,#991b1b)" id="mt-pdf-btn" onclick="descargarTicketPDF(_mtVentaId, _mtFolio)">&#128196; PDF</button>
 <button class="limpiar" style="flex:1;min-width:120px;padding:.5rem 1.2rem" onclick="cerrarModal('modal-ticket')">Cerrar</button>
 </div>
 </div>
@@ -1298,6 +1394,7 @@ function go(p) {
   if (p === 'corte') cargarCorte();
   if (p === 'listas') cargarListas();
   if (p === 'rep') initReportes();
+  if (p === 'prod') cargarProduccion();
   if (p === 'cofepris') cargarCofepris();
   if (p === 'usuarios') cargarUsuarios();
   window.scrollTo(0, 0);
@@ -1552,6 +1649,8 @@ function sincronizarVentas() {
   });
 }
 
+var _mtVentaId = null, _mtFolio = '';
+
 function mostrarTicket(venta) {
   document.getElementById('mt-icon').innerHTML = '&#10003;';
   document.getElementById('mt-titulo').textContent = 'Venta Registrada';
@@ -1560,6 +1659,8 @@ function mostrarTicket(venta) {
   document.getElementById('mt-cancel-wrap').style.display = 'none';
   document.getElementById('mt-facturar-wrap').style.display = 'block';
   _ventaActualId = venta.id;
+  _mtVentaId = venta.id;
+  _mtFolio = venta.folio;
   // Show loyalty points earned if client selected
   var clienteId = document.getElementById('pos-cliente').value;
   if (clienteId && venta.total) {
@@ -1619,6 +1720,8 @@ var _ventaActualId = null;
 
 function verTicket(ventaId, cancelada) {
   _ventaActualId = ventaId;
+  _mtVentaId = ventaId;
+  _mtFolio = '';
   document.getElementById('mt-icon').innerHTML = '&#128203;';
   document.getElementById('mt-titulo').textContent = 'Ticket';
   document.getElementById('mt-titulo').style.color = 'var(--v)';
@@ -1630,6 +1733,7 @@ function verTicket(ventaId, cancelada) {
   document.getElementById('modal-ticket').classList.add('on');
   api('GET', '/punto-de-venta/ventas/' + ventaId + '/ticket').then(function(tk) {
     _ultimoTicket = tk;
+    _mtFolio = tk.folio;
     document.getElementById('mt-folio').textContent = tk.folio;
     renderTicket(tk);
   }).catch(function() {
@@ -4857,6 +4961,309 @@ function exportarFiscalCSV() {
   }).catch(function() { toast('Error al exportar', true); });
 }
 
+// ─── Producción (Panadero) ────────────────────────────────────────
+var _prodRecetas = [];
+var _prodTimers = {};
+
+function prodTab(tab) {
+  ['prod-pendientes','prod-proceso','prod-completadas','prod-rapido'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#prod .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+}
+
+function cargarProduccion() {
+  // Load recetas for dropdowns
+  api('GET', '/recetas/').then(function(recetas) {
+    _prodRecetas = recetas;
+    var opts = '<option value="">Selecciona...</option>';
+    for (var i = 0; i < recetas.length; i++) {
+      var r = recetas[i];
+      var info = r.nombre;
+      if (r.rendimiento) info += ' (rinde ' + r.rendimiento + ' pzas)';
+      if (r.tiempo_horneado_min) info += ' \u2022 ' + r.tiempo_horneado_min + 'min';
+      if (r.temperatura_horneado_c) info += ' ' + r.temperatura_horneado_c + '\u00b0C';
+      opts += '<option value="' + r.id + '">' + info + '</option>';
+    }
+    document.getElementById('prod-receta-sel').innerHTML = opts;
+    document.getElementById('mop-receta').innerHTML = opts;
+    // Render recetas list
+    renderRecetasProduccion(recetas);
+  }).catch(function(){});
+  // Load orders by state
+  cargarOrdenesProd('planificada', 'prod-list-pendientes');
+  cargarOrdenesProd('en_proceso', 'prod-list-proceso');
+  cargarOrdenesProd('completada', 'prod-list-completadas');
+}
+
+function cargarOrdenesProd(estado, containerId) {
+  api('GET', '/recetas/produccion?estado=' + estado).then(function(ordenes) {
+    var el = document.getElementById(containerId);
+    if (!ordenes.length) {
+      var msg = estado === 'planificada' ? 'No hay \u00f3rdenes pendientes' : estado === 'en_proceso' ? 'Nada en proceso' : 'Sin completadas recientes';
+      el.innerHTML = '<p style="color:var(--mut);font-size:.83rem;padding:.5rem">' + msg + '</p>';
+      return;
+    }
+    var h = '';
+    for (var i = 0; i < ordenes.length; i++) {
+      h += renderOrdenProd(ordenes[i], estado);
+    }
+    el.innerHTML = h;
+    // Start timers for en_proceso orders
+    if (estado === 'en_proceso') {
+      for (var j = 0; j < ordenes.length; j++) {
+        if (ordenes[j].fecha_inicio) iniciarTimerProd(ordenes[j]);
+      }
+    }
+  }).catch(function() {
+    document.getElementById(containerId).innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar</p>';
+  });
+}
+
+function renderOrdenProd(o, estado) {
+  var receta = null;
+  for (var i = 0; i < _prodRecetas.length; i++) {
+    if (_prodRecetas[i].id === o.receta_id) { receta = _prodRecetas[i]; break; }
+  }
+  var nombre = receta ? receta.nombre : 'Receta #' + o.receta_id;
+  var fecha = o.fecha_programada ? new Date(o.fecha_programada).toLocaleString('es-MX', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+
+  var badgeCls = estado === 'planificada' ? 'bpend' : estado === 'en_proceso' ? 'blow' : 'bok';
+  var badgeText = estado === 'planificada' ? 'Planificada' : estado === 'en_proceso' ? 'En proceso' : 'Completada';
+
+  var h = '<div class="prod-orden">';
+  h += '<div class="po-head"><span class="po-receta">' + nombre + '</span><span class="badge ' + badgeCls + '">' + badgeText + '</span></div>';
+  h += '<div class="po-lotes">' + o.cantidad_lotes + ' lote(s) \u2022 ' + fecha + '</div>';
+
+  // Checklist de ingredientes para planificada y en_proceso
+  if (receta && receta.ingredientes && (estado === 'planificada' || estado === 'en_proceso')) {
+    h += '<div class="po-check">';
+    for (var j = 0; j < receta.ingredientes.length; j++) {
+      var ri = receta.ingredientes[j];
+      var cant = (parseFloat(ri.cantidad) * parseFloat(o.cantidad_lotes)).toFixed(1);
+      h += '<label><input type="checkbox"> ' + cant + ' \u2022 Ingrediente #' + ri.ingrediente_id + (ri.notas ? ' (' + ri.notas + ')' : '') + '</label>';
+    }
+    h += '</div>';
+  }
+
+  // Timer for en_proceso
+  if (estado === 'en_proceso') {
+    h += '<div style="margin-top:.5rem"><span class="prod-timer" id="pt-' + o.id + '"><span class="pt-label">Tiempo:</span> <span id="pt-val-' + o.id + '">00:00</span></span></div>';
+  }
+
+  // Completada stats
+  if (estado === 'completada') {
+    h += '<div style="font-size:.82rem;margin-top:.3rem">';
+    h += '<span class="green">' + o.cantidad_producida + ' producidas</span>';
+    if (parseFloat(o.cantidad_merma) > 0) h += ' &bull; <span style="color:#b91c1c">' + o.cantidad_merma + ' merma</span>';
+    if (o.fecha_fin) {
+      var dur = Math.round((new Date(o.fecha_fin) - new Date(o.fecha_inicio)) / 60000);
+      h += ' &bull; ' + dur + ' min';
+    }
+    h += '</div>';
+  }
+
+  // Actions
+  h += '<div class="prod-actions">';
+  if (estado === 'planificada') {
+    h += '<button class="prod-btn-start" onclick="iniciarOrdenProd(' + o.id + ')">&#9654; Iniciar</button>';
+  }
+  if (estado === 'en_proceso') {
+    h += '<button class="prod-btn-done" onclick="abrirCompletarOrden(' + o.id + ',\'' + nombre.replace(/'/g,'\\\'') + '\',' + o.cantidad_lotes + ')">&#10003; Completar</button>';
+  }
+  h += '</div>';
+  h += '</div>';
+  return h;
+}
+
+function iniciarOrdenProd(id) {
+  api('POST', '/recetas/produccion/' + id + '/iniciar').then(function(o) {
+    toast('Producci\u00f3n iniciada');
+    cargarProduccion();
+  }).catch(function(e) { toast(e.message || 'Error al iniciar', true); });
+}
+
+function abrirCompletarOrden(id, nombre, lotes) {
+  document.getElementById('mcp-id').value = id;
+  document.getElementById('mcp-info').textContent = nombre + ' \u2022 ' + lotes + ' lote(s)';
+  document.getElementById('mcp-producidas').value = '';
+  document.getElementById('mcp-merma').value = '0';
+  document.getElementById('modal-completar-prod').classList.add('on');
+}
+
+function completarOrdenProduccion() {
+  var id = document.getElementById('mcp-id').value;
+  var producidas = document.getElementById('mcp-producidas').value;
+  var merma = document.getElementById('mcp-merma').value || '0';
+  if (!producidas) { toast('Indica piezas producidas', true); return; }
+  api('POST', '/recetas/produccion/' + id + '/completar?cantidad_producida=' + producidas + '&cantidad_merma=' + merma).then(function() {
+    cerrarModal('modal-completar-prod');
+    toast('Orden completada');
+    if (_prodTimers[id]) { clearInterval(_prodTimers[id]); delete _prodTimers[id]; }
+    cargarProduccion();
+  }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+
+function iniciarTimerProd(orden) {
+  var start = new Date(orden.fecha_inicio).getTime();
+  function tick() {
+    var el = document.getElementById('pt-val-' + orden.id);
+    if (!el) { clearInterval(_prodTimers[orden.id]); delete _prodTimers[orden.id]; return; }
+    var diff = Math.floor((Date.now() - start) / 1000);
+    var hrs = Math.floor(diff / 3600);
+    var min = Math.floor((diff % 3600) / 60);
+    var sec = diff % 60;
+    el.textContent = (hrs > 0 ? hrs + ':' : '') + (min < 10 ? '0' : '') + min + ':' + (sec < 10 ? '0' : '') + sec;
+  }
+  tick();
+  _prodTimers[orden.id] = setInterval(tick, 1000);
+}
+
+function abrirNuevaOrden() {
+  var ahora = new Date();
+  ahora.setMinutes(ahora.getMinutes() - ahora.getTimezoneOffset());
+  document.getElementById('mop-fecha').value = ahora.toISOString().slice(0, 16);
+  document.getElementById('mop-lotes').value = '1';
+  document.getElementById('mop-notas').value = '';
+  document.getElementById('modal-orden-prod').classList.add('on');
+}
+
+function crearOrdenProduccion() {
+  var recetaId = document.getElementById('mop-receta').value;
+  var lotes = document.getElementById('mop-lotes').value;
+  var fecha = document.getElementById('mop-fecha').value;
+  var notas = document.getElementById('mop-notas').value.trim();
+  if (!recetaId) { toast('Selecciona una receta', true); return; }
+  if (!fecha) { toast('Selecciona fecha', true); return; }
+  var body = {
+    receta_id: parseInt(recetaId),
+    cantidad_lotes: parseFloat(lotes) || 1,
+    fecha_programada: new Date(fecha).toISOString()
+  };
+  if (notas) body.notas = notas;
+  api('POST', '/recetas/produccion', body).then(function() {
+    cerrarModal('modal-orden-prod');
+    toast('Orden creada');
+    cargarProduccion();
+  }).catch(function(e) { toast(e.message || 'Error al crear orden', true); });
+}
+
+function hornearRapido() {
+  var recetaId = document.getElementById('prod-receta-sel').value;
+  var tandas = parseInt(document.getElementById('prod-tandas').value) || 1;
+  if (!recetaId) { toast('Selecciona una receta', true); return; }
+  api('POST', '/recetas/' + recetaId + '/hornear?cantidad=' + tandas).then(function(r) {
+    toast(r.mensaje + ' \u2022 ' + r.piezas_producidas + ' pzas');
+    cargarProduccion();
+    // Refresh inventory too
+    if (typeof cargarInventarioCompleto === 'function') cargarInventarioCompleto();
+  }).catch(function(e) {
+    var msg = e.message || 'Error al hornear';
+    if (e.detail && e.detail.faltantes) {
+      msg = 'Faltan ingredientes: ';
+      for (var i = 0; i < e.detail.faltantes.length; i++) {
+        var f = e.detail.faltantes[i];
+        msg += f.ingrediente + ' (necesario: ' + f.necesario + ', hay: ' + f.disponible + ') ';
+      }
+    }
+    toast(msg, true);
+  });
+}
+
+function renderRecetasProduccion(recetas) {
+  if (!recetas.length) { document.getElementById('prod-recetas-list').innerHTML = '<p style="color:var(--mut)">Sin recetas</p>'; return; }
+  var h = '<table class="tbl"><tr><th>Receta</th><th>Rendimiento</th><th>Prep.</th><th>Horneado</th><th>Temp.</th><th></th></tr>';
+  for (var i = 0; i < recetas.length; i++) {
+    var r = recetas[i];
+    if (!r.activo) continue;
+    h += '<tr>';
+    h += '<td style="font-weight:600">' + r.nombre + '</td>';
+    h += '<td>' + r.rendimiento + ' pzas</td>';
+    h += '<td>' + (r.tiempo_preparacion_min || '-') + ' min</td>';
+    h += '<td>' + (r.tiempo_horneado_min || '-') + ' min</td>';
+    h += '<td>' + (r.temperatura_horneado_c ? r.temperatura_horneado_c + '\u00b0C' : '-') + '</td>';
+    h += '<td><button class="limpiar" style="padding:.25rem .5rem;font-size:.72rem;margin:0" onclick="document.getElementById(\'prod-receta-sel\').value=\'' + r.id + '\';prodTab(\'prod-rapido\');document.querySelectorAll(\'#prod .tab\')[3].click()">Hornear</button></td>';
+    h += '</tr>';
+  }
+  h += '</table>';
+  document.getElementById('prod-recetas-list').innerHTML = h;
+}
+
+// Check disponibilidad when receta changes
+document.addEventListener('change', function(e) {
+  if (e.target.id === 'prod-receta-sel') {
+    var rid = e.target.value;
+    var tandas = parseInt(document.getElementById('prod-tandas').value) || 1;
+    if (!rid) { document.getElementById('prod-disp-check').innerHTML = ''; return; }
+    api('GET', '/recetas/' + rid + '/disponibilidad?lotes=' + tandas).then(function(r) {
+      if (r.disponible) {
+        document.getElementById('prod-disp-check').innerHTML = '<span class="badge bok">\u2713 Ingredientes disponibles</span>';
+      } else {
+        var h = '<span class="badge bout">Faltan ingredientes:</span><ul style="font-size:.78rem;margin:.3rem 0 0 1rem;color:#b91c1c">';
+        for (var i = 0; i < r.faltantes.length; i++) {
+          var f = r.faltantes[i];
+          h += '<li>' + f.ingrediente + ': necesita ' + f.necesario + ', hay ' + f.disponible + '</li>';
+        }
+        h += '</ul>';
+        document.getElementById('prod-disp-check').innerHTML = h;
+      }
+    }).catch(function() { document.getElementById('prod-disp-check').innerHTML = ''; });
+  }
+});
+
+// ─── PDF Downloads ────────────────────────────────────────────────
+function descargarReporteVentasPDF() {
+  var fi = document.getElementById('rep-fi').value;
+  var ff = document.getElementById('rep-ff').value;
+  if (!fi || !ff) { toast('Selecciona fechas primero', true); return; }
+  var url = _apiURL + '/api/v1/reportes/ventas/pdf?fecha_inicio=' + fi + '&fecha_fin=' + ff;
+  fetch(url, { headers: {'Authorization': 'Bearer ' + TOKEN} }).then(function(r) {
+    if (!r.ok) throw new Error('Error');
+    return r.blob();
+  }).then(function(blob) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'ventas_' + fi + '_' + ff + '.pdf';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('PDF descargado');
+  }).catch(function() { toast('Error al descargar PDF', true); });
+}
+
+function descargarReporteFiscalPDF(tipo) {
+  var mes = document.getElementById('rep-fmes').value;
+  var anio = document.getElementById('rep-fanio').value;
+  var endpoint = tipo === 'iva' ? '/reportes/impuestos/iva-mensual/pdf' : '/reportes/impuestos/isr-provisional/pdf';
+  var url = _apiURL + '/api/v1' + endpoint + '?mes=' + mes + '&anio=' + anio;
+  fetch(url, { headers: {'Authorization': 'Bearer ' + TOKEN} }).then(function(r) {
+    if (!r.ok) throw new Error('Error');
+    return r.blob();
+  }).then(function(blob) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = tipo + '_' + anio + '_' + mes + '.pdf';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('PDF descargado');
+  }).catch(function() { toast('Error al descargar PDF', true); });
+}
+
+function descargarTicketPDF(ventaId, folio) {
+  var url = _apiURL + '/api/v1/punto-de-venta/ventas/' + ventaId + '/ticket/pdf';
+  fetch(url, { headers: {'Authorization': 'Bearer ' + TOKEN} }).then(function(r) {
+    if (!r.ok) throw new Error('Error');
+    return r.blob();
+  }).then(function(blob) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'ticket_' + (folio || ventaId) + '.pdf';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }).catch(function() { toast('Error al descargar ticket PDF', true); });
+}
+
 // ─── Login / Logout / Sesión ──────────────────────────────────────
 var _currentUser = null;
 
@@ -4945,7 +5352,7 @@ function guardarAPIUrl() {
 var _editPermsUserId = null;
 var _moduloNombres = {
   dash:'Inicio', pos:'Venta', ped:'Pedidos', inv:'Inventario',
-  corte:'Corte', rep:'Reportes', listas:'Listas', cofepris:'COFEPRIS', usuarios:'Usuarios'
+  corte:'Corte', rep:'Reportes', listas:'Listas', prod:'Producción', cofepris:'COFEPRIS', usuarios:'Usuarios'
 };
 
 function descargarBackup() {

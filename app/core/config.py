@@ -115,6 +115,11 @@ class Settings(BaseSettings):
     GRASA_SATURADA_EXCESO_G: Decimal = Decimal("4.0")
     GRASA_TRANS_EXCESO_G: Decimal = Decimal("0.5")
 
+    # --- WhatsApp Business API ---
+    WA_API_TOKEN: str = ""
+    WA_PHONE_NUMBER_ID: str = ""
+    WA_VERIFY_TOKEN: str = "jacaranda_wa_verify"
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 
