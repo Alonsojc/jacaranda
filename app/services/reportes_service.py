@@ -175,23 +175,31 @@ def reporte_iva_mensual(db: Session, mes: int, anio: int) -> dict:
 
 
 def reporte_isr_provisional(db: Session, mes: int, anio: int) -> dict:
-    """ISR provisional mensual (simplificado para RESICO o Actividad Empresarial)."""
+    """
+    ISR provisional mensual — Persona Moral, Régimen 601.
+    Art. 14 LISR: Pagos provisionales = Ingresos nominales acumulados
+    × Coeficiente de utilidad × Tasa 30%.
+    """
     fecha_inicio = date(anio, 1, 1)  # Acumulado desde enero
     if mes == 12:
         fecha_fin = date(anio + 1, 1, 1)
     else:
         fecha_fin = date(anio, mes + 1, 1)
 
-    # Ingresos acumulados
-    ingresos = db.query(func.sum(Venta.total)).filter(
+    # Ingresos nominales acumulados (sin IVA)
+    from app.models.inventario import Producto
+    ventas = db.query(Venta).filter(
         and_(
             Venta.fecha >= datetime.combine(fecha_inicio, datetime.min.time()),
             Venta.fecha < datetime.combine(fecha_fin, datetime.min.time()),
             Venta.estado == EstadoVenta.COMPLETADA,
         )
-    ).scalar() or Decimal("0")
+    ).all()
+    ingresos_brutos = sum((v.total or Decimal("0")) for v in ventas)
+    iva_cobrado = sum((v.iva_16 or Decimal("0")) for v in ventas)
+    ingresos_nominales = ingresos_brutos - iva_cobrado
 
-    # Deducciones autorizadas (compras + nómina)
+    # Deducciones autorizadas (compras + nómina + gastos fijos)
     compras = db.query(
         func.sum(MovimientoInventario.cantidad * MovimientoInventario.costo_unitario)
     ).filter(
@@ -209,25 +217,61 @@ def reporte_isr_provisional(db: Session, mes: int, anio: int) -> dict:
         )
     ).scalar() or Decimal("0")
 
-    deducciones = compras + nomina
-    utilidad = max(ingresos - deducciones, Decimal("0"))
+    # Gastos fijos prorrateados al periodo
+    from app.models.gasto_fijo import GastoFijo
+    gastos_fijos = db.query(GastoFijo).filter(GastoFijo.activo.is_(True)).all()
+    total_gastos_fijos = Decimal("0")
+    for g in gastos_fijos:
+        if g.periodicidad == "mensual":
+            total_gastos_fijos += g.monto * mes
+        elif g.periodicidad == "quincenal":
+            total_gastos_fijos += g.monto * mes * 2
+        elif g.periodicidad == "semanal":
+            total_gastos_fijos += g.monto * mes * Decimal("4.33")
 
-    # ISR provisional (tasa simplificada RESICO)
-    # Para RESICO tasas van de 1% a 2.5% según ingreso mensual
-    tasa_provisional = Decimal("0.0125")  # 1.25% promedio estimado
-    isr_provisional = (utilidad * tasa_provisional).quantize(Decimal("0.01"))
+    deducciones = compras + nomina + total_gastos_fijos
+    utilidad_fiscal = max(ingresos_nominales - deducciones, Decimal("0"))
+
+    # Coeficiente de utilidad (Art. 14 LISR)
+    # CU = Utilidad fiscal del ejercicio anterior / Ingresos nominales anterior
+    # Primer ejercicio o sin datos: usar utilidad actual como estimación
+    coeficiente_utilidad = Decimal("0.30")  # Default conservador primer ejercicio
+    if ingresos_nominales > 0:
+        cu_calculado = utilidad_fiscal / ingresos_nominales
+        if cu_calculado > 0:
+            coeficiente_utilidad = min(cu_calculado, Decimal("0.90"))
+
+    # Base para pago provisional
+    base_provisional = ingresos_nominales * coeficiente_utilidad
+
+    # Tasa ISR Personas Morales: 30% (Art. 9 LISR)
+    tasa_isr = Decimal("0.30")
+    isr_provisional = (base_provisional * tasa_isr).quantize(Decimal("0.01"))
+
+    # PTU por pagar (10% de utilidad fiscal, Art. 9 LISR / Art. 120 LFT)
+    ptu_estimado = (utilidad_fiscal * Decimal("0.10")).quantize(Decimal("0.01"))
+
+    meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+             'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
     return {
-        "periodo": f"Enero - {['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][mes]} {anio}",
-        "ingresos_acumulados": float(ingresos),
+        "regimen": "601 - General de Ley Personas Morales",
+        "periodo": f"Enero - {meses[mes]} {anio}",
+        "ingresos_acumulados": float(ingresos_nominales),
+        "ingresos_brutos": float(ingresos_brutos),
+        "iva_cobrado": float(iva_cobrado),
         "deducciones_acumuladas": {
             "compras": float(compras),
             "nomina": float(nomina),
+            "gastos_fijos": float(total_gastos_fijos),
             "total": float(deducciones),
         },
-        "utilidad_fiscal": float(utilidad),
-        "tasa_provisional": float(tasa_provisional),
+        "utilidad_fiscal": float(utilidad_fiscal),
+        "coeficiente_utilidad": float(coeficiente_utilidad),
+        "base_provisional": float(base_provisional),
+        "tasa_provisional": float(tasa_isr),
         "isr_provisional": float(isr_provisional),
+        "ptu_estimado": float(ptu_estimado),
     }
 
 

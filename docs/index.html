@@ -4750,11 +4750,20 @@ function cargarReporteFiscal() {
   }).catch(function() { document.getElementById('rep-iva').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar IVA</p>'; });
   api('GET', '/reportes/impuestos/isr-provisional?mes=' + mes + '&anio=' + anio).then(function(r) {
     var h = '';
-    h += '<div class="srow"><span>Ingresos acumulados</span><span class="green">$' + fmt(r.ingresos_acumulados) + '</span></div>';
+    h += '<div class="srow" style="font-size:.72rem;color:var(--mut);margin-bottom:.3rem"><span>' + (r.regimen || '') + '</span></div>';
+    h += '<div class="srow"><span>Ingresos brutos</span><span>$' + fmt(r.ingresos_brutos || 0) + '</span></div>';
+    h += '<div class="srow"><span>(-) IVA cobrado</span><span style="color:#b91c1c">$' + fmt(r.iva_cobrado || 0) + '</span></div>';
+    h += '<div class="srow"><span>Ingresos nominales</span><span class="green">$' + fmt(r.ingresos_acumulados) + '</span></div>';
+    h += '<div style="margin:.4rem 0 .2rem;font-size:.78rem;font-weight:600;color:var(--txt)">Deducciones autorizadas</div>';
     h += '<div class="srow"><span>Compras</span><span>$' + fmt(r.deducciones_acumuladas.compras) + '</span></div>';
     h += '<div class="srow"><span>N\u00f3mina</span><span>$' + fmt(r.deducciones_acumuladas.nomina) + '</span></div>';
+    h += '<div class="srow"><span>Gastos fijos</span><span>$' + fmt(r.deducciones_acumuladas.gastos_fijos || 0) + '</span></div>';
+    h += '<div class="srow" style="font-weight:600"><span>Total deducciones</span><span>$' + fmt(r.deducciones_acumuladas.total) + '</span></div>';
     h += '<div class="srow"><span>Utilidad fiscal</span><span style="font-weight:700">$' + fmt(r.utilidad_fiscal) + '</span></div>';
-    h += '<div class="srow" style="border-top:2px solid var(--brd);padding-top:.4rem;margin-top:.3rem;font-weight:700"><span>ISR provisional (' + (r.tasa_provisional * 100).toFixed(2) + '%)</span><span>$' + fmt(r.isr_provisional) + '</span></div>';
+    h += '<div class="srow"><span>Coeficiente de utilidad</span><span>' + (r.coeficiente_utilidad || 0).toFixed(4) + '</span></div>';
+    h += '<div class="srow"><span>Base provisional</span><span>$' + fmt(r.base_provisional || 0) + '</span></div>';
+    h += '<div class="srow" style="border-top:2px solid var(--brd);padding-top:.4rem;margin-top:.3rem;font-weight:700"><span>ISR provisional (30%)</span><span>$' + fmt(r.isr_provisional) + '</span></div>';
+    if (r.ptu_estimado > 0) h += '<div class="srow"><span>PTU estimado (10%)</span><span style="color:#b91c1c">$' + fmt(r.ptu_estimado) + '</span></div>';
     document.getElementById('rep-isr').innerHTML = h;
   }).catch(function() { document.getElementById('rep-isr').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar ISR</p>'; });
 }

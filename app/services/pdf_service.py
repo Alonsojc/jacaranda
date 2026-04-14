@@ -305,7 +305,7 @@ def generar_reporte_iva_pdf(iva: dict) -> io.BytesIO:
 
 
 def generar_reporte_isr_pdf(isr: dict) -> io.BytesIO:
-    """Genera PDF de reporte ISR provisional."""
+    """Genera PDF de reporte ISR provisional — Persona Moral Art. 14 LISR."""
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=letter,
                             leftMargin=2*cm, rightMargin=2*cm,
@@ -313,25 +313,66 @@ def generar_reporte_isr_pdf(isr: dict) -> io.BytesIO:
     styles = getSampleStyleSheet()
     story = []
 
-    _header(story, styles, "ISR Provisional",
+    _header(story, styles, "ISR Provisional — Persona Moral",
             f"Periodo: {isr.get('periodo', '')}")
 
-    ded = isr.get("deducciones_acumuladas", {})
-    data = [
+    # Régimen fiscal
+    story.append(Paragraph(
+        f"<b>Régimen:</b> {isr.get('regimen', '')}",
+        styles["Normal"],
+    ))
+    story.append(Spacer(1, 4*mm))
+
+    # Ingresos
+    story.append(Paragraph("<b>Ingresos</b>", styles["Heading3"]))
+    ing_data = [
         ["Concepto", "Monto"],
-        ["Ingresos acumulados", f"${isr.get('ingresos_acumulados', 0):,.2f}"],
-        ["Deducciones — Compras", f"${ded.get('compras', 0):,.2f}"],
-        ["Deducciones — Nómina", f"${ded.get('nomina', 0):,.2f}"],
+        ["Ingresos brutos (con IVA)", f"${isr.get('ingresos_brutos', 0):,.2f}"],
+        ["(-) IVA cobrado", f"${isr.get('iva_cobrado', 0):,.2f}"],
+        ["Ingresos nominales acumulados", f"${isr.get('ingresos_acumulados', 0):,.2f}"],
+    ]
+    story.append(_tabla(ing_data, col_widths=[10*cm, 5*cm]))
+    story.append(Spacer(1, 4*mm))
+
+    # Deducciones
+    ded = isr.get("deducciones_acumuladas", {})
+    story.append(Paragraph("<b>Deducciones autorizadas</b>", styles["Heading3"]))
+    ded_data = [
+        ["Concepto", "Monto"],
+        ["Compras de insumos", f"${ded.get('compras', 0):,.2f}"],
+        ["Nómina", f"${ded.get('nomina', 0):,.2f}"],
+        ["Gastos fijos", f"${ded.get('gastos_fijos', 0):,.2f}"],
         ["Total deducciones", f"${ded.get('total', 0):,.2f}"],
+    ]
+    story.append(_tabla(ded_data, col_widths=[10*cm, 5*cm]))
+    story.append(Spacer(1, 4*mm))
+
+    # Cálculo ISR
+    story.append(Paragraph("<b>Cálculo del pago provisional (Art. 14 LISR)</b>", styles["Heading3"]))
+    calc_data = [
+        ["Concepto", "Monto"],
         ["Utilidad fiscal", f"${isr.get('utilidad_fiscal', 0):,.2f}"],
-        [f"Tasa provisional ({float(isr.get('tasa_provisional', 0))*100:.2f}%)", ""],
+        ["Coeficiente de utilidad", f"{isr.get('coeficiente_utilidad', 0):.4f}"],
+        ["Base provisional", f"${isr.get('base_provisional', 0):,.2f}"],
+        ["Tasa ISR PM (30%)", ""],
         ["ISR Provisional", f"${isr.get('isr_provisional', 0):,.2f}"],
     ]
-    story.append(_tabla(data, col_widths=[10*cm, 5*cm]))
+    story.append(_tabla(calc_data, col_widths=[10*cm, 5*cm]))
+    story.append(Spacer(1, 4*mm))
 
-    story.append(Spacer(1, 10*mm))
+    # PTU
+    ptu = isr.get('ptu_estimado', 0)
+    if ptu > 0:
+        story.append(Paragraph(
+            f"<b>PTU estimado (10% utilidad fiscal):</b> ${ptu:,.2f}",
+            styles["Normal"],
+        ))
+        story.append(Spacer(1, 4*mm))
+
+    story.append(Spacer(1, 6*mm))
     story.append(Paragraph(
-        "<i>Nota: Este es un cálculo estimado. Consulte a su contador para la declaración oficial.</i>",
+        "<i>Nota: Este es un cálculo estimado conforme al Art. 14 LISR. "
+        "Consulte a su contador para la declaración oficial.</i>",
         ParagraphStyle("Nota", parent=styles["Normal"], fontSize=8, textColor=colors.grey),
     ))
 
