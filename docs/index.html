@@ -170,6 +170,22 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .conta-cat-lvl1{font-weight:700;font-size:.88rem;color:var(--dk);padding:.5rem 0 .2rem;border-bottom:2px solid var(--v)}
 .conta-cat-lvl2{font-weight:600;font-size:.83rem;color:var(--v);padding:.3rem 0 .1rem .5rem}
 .conta-cat-lvl3{font-size:.82rem;padding:.2rem 0 .2rem 1.5rem;border-bottom:1px solid #f5eeeb}
+/* IA */
+.ia-sug{background:#fff;border-radius:12px;padding:.8rem 1rem;border:1px solid var(--brd);margin-bottom:.6rem;display:flex;justify-content:space-between;align-items:center;gap:.8rem;flex-wrap:wrap}
+.ia-sug .is-name{font-weight:700;font-size:.88rem;color:var(--dk)}
+.ia-sug .is-detail{font-size:.78rem;color:var(--mut)}
+.ia-sug .is-action{text-align:right;min-width:100px}
+.ia-sug .is-qty{font-size:1.3rem;font-weight:700;color:var(--v)}
+.ia-sug .is-conf{font-size:.7rem;font-weight:600;display:inline-block;padding:.15rem .4rem;border-radius:5px}
+.ia-conf-high{background:#d1fae5;color:#047857}
+.ia-conf-med{background:#fef3c7;color:#92400e}
+.ia-conf-low{background:#fee2e2;color:#b91c1c}
+.ia-pricing-card{background:#fff;border-radius:12px;padding:.8rem 1rem;border:1px solid var(--brd);margin-bottom:.6rem}
+.ia-pricing-card .ip-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem}
+.ia-pricing-card .ip-name{font-weight:700;font-size:.88rem;color:var(--dk)}
+.ia-pricing-card .ip-detail{font-size:.78rem;color:var(--mut);margin-bottom:.3rem}
+.ia-pricing-card .ip-action{display:flex;align-items:center;gap:.5rem;font-size:.82rem;font-weight:600}
+.ia-act-subir{color:#047857}.ia-act-bajar{color:#f59e0b}.ia-act-descuento{color:#b91c1c}.ia-act-mantener{color:var(--mut)}
 /* Mobile bottom nav */
 .mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.97);backdrop-filter:blur(10px);border-top:1px solid var(--brd);z-index:60;padding:.3rem 0 env(safe-area-inset-bottom,.3rem);box-shadow:0 -2px 10px rgba(0,0,0,.06)}
 .mobile-nav{justify-content:space-around;align-items:center}
@@ -226,6 +242,7 @@ body{padding-bottom:60px}
 <a data-pg="listas" onclick="go('listas')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Listas</a>
 <a data-pg="prod" onclick="go('prod')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO">Producci&oacute;n</a>
 <a data-pg="conta" onclick="go('conta')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">Contabilidad</a>
+<a data-pg="iapg" onclick="go('iapg')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">IA</a>
 <a data-pg="cofepris" onclick="go('cofepris')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">COFEPRIS</a>
 <a data-pg="usuarios" onclick="go('usuarios')" class="nav-role" data-roles="ADMINISTRADOR">Usuarios</a>
 <a onclick="toggleNotifPanel()" id="btn-notif" style="display:none;cursor:pointer;color:var(--mut);font-size:.95rem;padding:.5rem .4rem;position:relative" title="Notificaciones">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:2px;right:0;background:#ef4444;color:#fff;font-size:.55rem;font-weight:700;padding:.05rem .3rem;border-radius:8px;min-width:14px;text-align:center"></span></a>
@@ -1048,6 +1065,59 @@ body{padding-bottom:60px}
 </div>
 </div>
 
+<!-- IA / PRONÓSTICOS -->
+<div class="page" id="iapg">
+<h2>IA &mdash; Pron&oacute;sticos</h2>
+<div class="section-tabs" style="margin-bottom:1rem">
+<span class="tab active" onclick="iaTab('ia-dash')">Dashboard</span>
+<span class="tab" onclick="iaTab('ia-produccion')">Producci&oacute;n sugerida</span>
+<span class="tab" onclick="iaTab('ia-demanda')">Demanda 7 d&iacute;as</span>
+<span class="tab" onclick="iaTab('ia-pricing')">Pricing</span>
+<span class="tab" onclick="iaTab('ia-precision')">Precisi&oacute;n</span>
+</div>
+
+<!-- Dashboard IA -->
+<div id="ia-dash">
+<div id="ia-dash-content"><p style="color:var(--mut);font-size:.83rem">Cargando an&aacute;lisis...</p></div>
+</div>
+
+<!-- Producción sugerida -->
+<div id="ia-produccion" style="display:none">
+<p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Sugerencia de producci&oacute;n para ma&ntilde;ana basada en ventas hist&oacute;ricas, tendencia y stock actual.</p>
+<div id="ia-prod-content"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+
+<!-- Demanda 7 días -->
+<div id="ia-demanda" style="display:none">
+<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
+<span style="font-size:.83rem;color:var(--mut)">Horizonte:</span>
+<select id="ia-dem-dias" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem">
+<option value="3">3 d&iacute;as</option><option value="7" selected>7 d&iacute;as</option><option value="14">14 d&iacute;as</option>
+</select>
+<button onclick="cargarDemandaIA()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Analizar</button>
+</div>
+<div id="ia-dem-content"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+
+<!-- Pricing -->
+<div id="ia-pricing" style="display:none">
+<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
+<span style="font-size:.83rem;color:var(--mut)">Periodo an&aacute;lisis:</span>
+<select id="ia-pr-dias" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem">
+<option value="30">30 d&iacute;as</option><option value="60" selected>60 d&iacute;as</option><option value="90">90 d&iacute;as</option>
+</select>
+<button onclick="cargarPricingIA()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Analizar</button>
+</div>
+<div id="ia-pr-content"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+
+<!-- Precisión -->
+<div id="ia-precision" style="display:none">
+<p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Evaluaci&oacute;n de precisi&oacute;n: compara predicciones pasadas con ventas reales.</p>
+<div id="ia-prec-content"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+</div>
+
 </div><!-- /wrap -->
 
 <!-- MOBILE BOTTOM NAV -->
@@ -1070,6 +1140,7 @@ body{padding-bottom:60px}
 <a onclick="go('prod');toggleMobileMenu()" class="mm-link">&#127838; Producci&oacute;n</a>
 <a onclick="go('rep');toggleMobileMenu()" class="mm-link">&#128202; Reportes</a>
 <a onclick="go('conta');toggleMobileMenu()" class="mm-link">&#128209; Contabilidad</a>
+<a onclick="go('iapg');toggleMobileMenu()" class="mm-link">&#129302; IA Pron&oacute;sticos</a>
 <a onclick="go('listas');toggleMobileMenu()" class="mm-link">&#128221; Listas</a>
 <a onclick="go('cofepris');toggleMobileMenu()" class="mm-link">&#9879; COFEPRIS</a>
 <a onclick="go('usuarios');toggleMobileMenu()" class="mm-link">&#128101; Usuarios</a>
@@ -1594,6 +1665,7 @@ function go(p) {
   if (p === 'rep') initReportes();
   if (p === 'prod') cargarProduccion();
   if (p === 'conta') initContabilidad();
+  if (p === 'iapg') initIA();
   if (p === 'cofepris') cargarCofepris();
   if (p === 'usuarios') cargarUsuarios();
   window.scrollTo(0, 0);
@@ -5412,6 +5484,218 @@ document.addEventListener('change', function(e) {
   }
 });
 
+// ─── IA / Pronósticos ─────────────────────────────────────────────
+function iaTab(tab) {
+  ['ia-dash','ia-produccion','ia-demanda','ia-pricing','ia-precision'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#iapg .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  if (tab === 'ia-produccion') cargarProduccionIA();
+  if (tab === 'ia-demanda') cargarDemandaIA();
+  if (tab === 'ia-pricing') cargarPricingIA();
+  if (tab === 'ia-precision') cargarPrecisionIA();
+}
+
+function initIA() {
+  cargarDashIA();
+}
+
+function _confBadge(conf) {
+  var cls = conf >= 70 ? 'ia-conf-high' : conf >= 45 ? 'ia-conf-med' : 'ia-conf-low';
+  return '<span class="is-conf ' + cls + '">' + conf + '% conf.</span>';
+}
+
+function _confBar(conf) {
+  var color = conf >= 70 ? 'var(--grn)' : conf >= 45 ? 'var(--amb)' : '#ef4444';
+  return '<div style="width:80px;height:6px;background:#ede3df;border-radius:3px;display:inline-block;vertical-align:middle;margin-left:.3rem"><div style="width:' + conf + '%;height:100%;background:' + color + ';border-radius:3px"></div></div>';
+}
+
+function _trendIcon(pct) {
+  if (pct > 5) return '<span style="color:var(--grn)">&#9650; +' + pct + '%</span>';
+  if (pct < -5) return '<span style="color:#b91c1c">&#9660; ' + pct + '%</span>';
+  return '<span style="color:var(--mut)">&#9644; ' + pct + '%</span>';
+}
+
+function cargarDashIA() {
+  api('GET', '/ia/dashboard').then(function(r) {
+    var h = '<div class="row r4" style="margin-bottom:1rem">';
+    h += '<div class="card kpi"><div class="n">' + r.precision_modelo.valor + '%</div><div class="l">Precisi\u00f3n ' + r.precision_modelo.calificacion + '</div></div>';
+    h += '<div class="card kpi g"><div class="n">' + r.sugerencias_produccion.length + '</div><div class="l">Productos a hornear</div></div>';
+    h += '<div class="card kpi a"><div class="n">' + r.alertas_pricing.length + '</div><div class="l">Alertas de precio</div></div>';
+    h += '<div class="card kpi p"><div class="n">' + (r.impacto_potencial_mensual > 0 ? '+$' + fmt(r.impacto_potencial_mensual) : '$0') + '</div><div class="l">Impacto potencial/mes</div></div>';
+    h += '</div>';
+
+    h += '<div class="row r2">';
+    // Production suggestions
+    h += '<div class="card"><h3>&#127838; Hornear ma\u00f1ana</h3>';
+    if (!r.sugerencias_produccion.length) {
+      h += '<p style="color:var(--mut);font-size:.83rem">Sin sugerencias (a\u00fan no hay suficientes datos)</p>';
+    } else {
+      for (var i = 0; i < r.sugerencias_produccion.length; i++) {
+        var s = r.sugerencias_produccion[i];
+        var pCls = s.prioridad === 'alta' ? 'bout' : s.prioridad === 'media' ? 'blow' : 'bok';
+        h += '<div class="ia-sug"><div><div class="is-name">' + s.nombre + '</div>';
+        h += '<div class="is-detail">Stock: ' + s.stock_actual + ' | Demanda: ' + s.demanda_estimada + ' | ' + _trendIcon(s.tendencia_pct) + '</div></div>';
+        h += '<div class="is-action"><div class="is-qty">' + s.sugerido_hornear + '</div>';
+        h += '<span class="badge ' + pCls + '">' + s.prioridad + '</span> ' + _confBadge(s.confianza) + '</div></div>';
+      }
+    }
+    h += '</div>';
+
+    // Pricing alerts
+    h += '<div class="card"><h3>&#128176; Alertas de precio</h3>';
+    if (!r.alertas_pricing.length) {
+      h += '<p style="color:var(--mut);font-size:.83rem">Sin alertas. Precios \u00f3ptimos.</p>';
+    } else {
+      for (var j = 0; j < r.alertas_pricing.length; j++) {
+        var p = r.alertas_pricing[j];
+        var sg = p.sugerencia;
+        var aCls = 'ia-act-' + sg.accion;
+        var icon = sg.accion === 'subir' ? '&#9650;' : sg.accion === 'descuento' ? '&#128178;' : '&#9660;';
+        h += '<div class="ia-pricing-card"><div class="ip-head"><span class="ip-name">' + p.nombre + '</span>';
+        h += '<span class="ip-action ' + aCls + '">' + icon + ' $' + p.precio_actual + ' &rarr; $' + sg.precio_sugerido + '</span></div>';
+        h += '<div class="ip-detail">' + sg.razon + '</div></div>';
+      }
+    }
+    h += '</div></div>';
+
+    if (r.productos_sin_rotacion > 0) {
+      h += '<div class="card" style="margin-top:.5rem;border-left:3px solid #f59e0b;padding:.6rem .8rem"><span style="font-size:.85rem"><strong>' + r.productos_sin_rotacion + ' productos</strong> sin venta en 7+ d\u00edas con stock disponible. Revisa la pesta\u00f1a Pricing.</span></div>';
+    }
+
+    document.getElementById('ia-dash-content').innerHTML = h;
+  }).catch(function() { document.getElementById('ia-dash-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Error al cargar dashboard IA. Necesita datos de ventas para funcionar.</p></div>'; });
+}
+
+function cargarProduccionIA() {
+  document.getElementById('ia-prod-content').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Analizando...</p>';
+  api('GET', '/ia/produccion-sugerida').then(function(items) {
+    if (!items.length) { document.getElementById('ia-prod-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Sin datos suficientes para generar sugerencias.</p></div>'; return; }
+    var h = '<div class="card" style="margin-bottom:.8rem"><table class="tbl"><tr><th>Producto</th><th>Stock</th><th>Demanda est.</th><th>Hornear</th><th>Confianza</th><th>Tendencia</th><th>Prioridad</th></tr>';
+    for (var i = 0; i < items.length; i++) {
+      var s = items[i];
+      var pCls = s.prioridad === 'alta' ? 'bout' : s.prioridad === 'media' ? 'blow' : 'bok';
+      h += '<tr><td style="font-weight:600">' + s.nombre + '</td>';
+      h += '<td>' + s.stock_actual + '</td>';
+      h += '<td>' + s.demanda_estimada + '</td>';
+      h += '<td style="font-weight:700;color:var(--v)">' + s.sugerido_hornear + '</td>';
+      h += '<td>' + s.confianza + '% ' + _confBar(s.confianza) + '</td>';
+      h += '<td>' + _trendIcon(s.tendencia_pct) + '</td>';
+      h += '<td><span class="badge ' + pCls + '">' + s.prioridad + '</span></td></tr>';
+    }
+    h += '</table></div>';
+    document.getElementById('ia-prod-content').innerHTML = h;
+  }).catch(function() { document.getElementById('ia-prod-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Error al cargar sugerencias</p></div>'; });
+}
+
+function cargarDemandaIA() {
+  var dias = document.getElementById('ia-dem-dias').value || 7;
+  document.getElementById('ia-dem-content').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Calculando pron\u00f3stico...</p>';
+  api('GET', '/ia/pronostico-demanda?dias=' + dias).then(function(items) {
+    if (!items.length) { document.getElementById('ia-dem-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Sin datos suficientes.</p></div>'; return; }
+    var h = '';
+    for (var i = 0; i < Math.min(items.length, 15); i++) {
+      var item = items[i];
+      h += '<div class="card" style="margin-bottom:.7rem"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">';
+      h += '<span style="font-weight:700;font-size:.9rem;color:var(--dk)">' + item.nombre + '</span>';
+      h += '<span style="font-size:.78rem;color:var(--mut)">Prom: ' + item.promedio_diario + '/d\u00eda | ' + _trendIcon(item.tendencia_pct) + '</span></div>';
+      // Bar chart for predictions
+      var maxQty = 0;
+      for (var j = 0; j < item.predicciones.length; j++) {
+        if (item.predicciones[j].cantidad > maxQty) maxQty = item.predicciones[j].cantidad;
+      }
+      for (var k = 0; k < item.predicciones.length; k++) {
+        var p = item.predicciones[k];
+        var pct = maxQty > 0 ? (p.cantidad / maxQty * 100) : 0;
+        var confColor = p.confianza >= 70 ? 'var(--grn)' : p.confianza >= 45 ? 'var(--amb)' : '#ef4444';
+        h += '<div class="bar-row" style="margin-bottom:.2rem">';
+        h += '<span class="bar-label" style="min-width:70px;font-size:.75rem">' + p.dia_semana.substring(0,3) + ' ' + p.fecha.substring(5) + '</span>';
+        h += '<div class="bar-fill" style="width:' + pct + '%;background:linear-gradient(90deg,' + confColor + ',' + confColor + '88)"></div>';
+        h += '<span class="bar-val" style="font-size:.78rem">' + p.cantidad + ' pzas <span style="font-size:.65rem;color:var(--mut)">' + p.confianza + '%</span></span>';
+        h += '</div>';
+      }
+      h += '</div>';
+    }
+    document.getElementById('ia-dem-content').innerHTML = h;
+  }).catch(function() { document.getElementById('ia-dem-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Error al calcular pron\u00f3stico</p></div>'; });
+}
+
+function cargarPricingIA() {
+  var dias = document.getElementById('ia-pr-dias').value || 60;
+  document.getElementById('ia-pr-content').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Analizando precios...</p>';
+  api('GET', '/ia/pricing?dias=' + dias).then(function(items) {
+    if (!items.length) { document.getElementById('ia-pr-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Sin productos para analizar.</p></div>'; return; }
+    // Count by action
+    var counts = {subir:0, bajar:0, descuento:0, mantener:0};
+    for (var c = 0; c < items.length; c++) counts[items[c].sugerencia.accion] = (counts[items[c].sugerencia.accion]||0) + 1;
+
+    var h = '<div class="row r4" style="margin-bottom:1rem">';
+    h += '<div class="card kpi g"><div class="n">' + (counts.subir||0) + '</div><div class="l">Subir precio</div></div>';
+    h += '<div class="card kpi a"><div class="n">' + (counts.bajar||0) + '</div><div class="l">Bajar precio</div></div>';
+    h += '<div class="card kpi" style="border-left:3px solid #ef4444"><div class="n">' + (counts.descuento||0) + '</div><div class="l">Aplicar descuento</div></div>';
+    h += '<div class="card kpi"><div class="n">' + (counts.mantener||0) + '</div><div class="l">Precio \u00f3ptimo</div></div>';
+    h += '</div>';
+
+    for (var i = 0; i < items.length; i++) {
+      var p = items[i];
+      var sg = p.sugerencia;
+      var aCls = 'ia-act-' + sg.accion;
+      var icon = sg.accion === 'subir' ? '&#9650;' : sg.accion === 'descuento' ? '&#128178;' : sg.accion === 'bajar' ? '&#9660;' : '&#10003;';
+      h += '<div class="ia-pricing-card">';
+      h += '<div class="ip-head"><span class="ip-name">' + p.nombre + '</span>';
+      h += '<span class="ip-action ' + aCls + '">' + icon + ' ' + sg.accion.toUpperCase() + '</span></div>';
+      h += '<div class="ip-detail">';
+      h += 'Precio: <strong>$' + fmt(p.precio_actual) + '</strong> | Costo: $' + fmt(p.costo) + ' | Margen: ' + p.margen_pct + '% | ';
+      h += 'Vendidos: ' + p.qty_vendida + ' (' + p.rotacion_diaria + '/d\u00eda)';
+      if (p.dias_sin_venta < 999) h += ' | \u00daltima venta: hace ' + p.dias_sin_venta + 'd';
+      if (p.elasticidad) h += ' | Elasticidad: ' + p.elasticidad.valor + ' (' + p.elasticidad.interpretacion + ')';
+      h += '</div>';
+      if (sg.accion !== 'mantener') {
+        h += '<div style="margin-top:.3rem;font-size:.82rem;font-weight:600">';
+        h += '<span class="' + aCls + '">$' + fmt(p.precio_actual) + ' &rarr; $' + fmt(sg.precio_sugerido) + '</span>';
+        if (sg.impacto_mensual) h += ' &bull; Impacto: <span style="color:' + (sg.impacto_mensual > 0 ? 'var(--grn)' : '#b91c1c') + '">$' + fmt(sg.impacto_mensual) + '/mes</span>';
+        h += ' &bull; <span style="color:var(--mut)">' + sg.razon + '</span>';
+        h += '</div>';
+      }
+      h += '</div>';
+    }
+    document.getElementById('ia-pr-content').innerHTML = h;
+  }).catch(function() { document.getElementById('ia-pr-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Error al analizar precios</p></div>'; });
+}
+
+function cargarPrecisionIA() {
+  document.getElementById('ia-prec-content').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Evaluando modelo...</p>';
+  api('GET', '/ia/precision?dias=14').then(function(r) {
+    var h = '<div class="row r4" style="margin-bottom:1rem">';
+    var pCls = r.precision_promedio >= 70 ? 'g' : r.precision_promedio >= 50 ? 'a' : '';
+    h += '<div class="card kpi ' + pCls + '"><div class="n">' + r.precision_promedio + '%</div><div class="l">Precisi\u00f3n promedio</div></div>';
+    h += '<div class="card kpi"><div class="n">' + r.mape + '%</div><div class="l">Error (MAPE)</div></div>';
+    h += '<div class="card kpi"><div class="n">' + r.muestras + '</div><div class="l">Muestras evaluadas</div></div>';
+    var calCls = r.calificacion === 'excelente' ? 'bok' : r.calificacion === 'buena' ? 'bok' : r.calificacion === 'aceptable' ? 'blow' : 'bout';
+    h += '<div class="card kpi"><div class="n"><span class="badge ' + calCls + '" style="font-size:.9rem;padding:.3rem .7rem">' + r.calificacion + '</span></div><div class="l">Calificaci\u00f3n</div></div>';
+    h += '</div>';
+
+    if (r.comparaciones.length) {
+      h += '<div class="card"><h3>Predicho vs Real (top 20)</h3>';
+      h += '<table class="tbl"><tr><th>Fecha</th><th>Producto</th><th>Predicho</th><th>Real</th><th>Error</th></tr>';
+      for (var i = 0; i < r.comparaciones.length; i++) {
+        var c = r.comparaciones[i];
+        var eColor = c.error_pct <= 20 ? 'var(--grn)' : c.error_pct <= 40 ? 'var(--amb)' : '#b91c1c';
+        h += '<tr><td>' + c.fecha + '</td><td>#' + c.producto_id + '</td>';
+        h += '<td>' + c.predicho + '</td><td style="font-weight:600">' + c.real + '</td>';
+        h += '<td style="color:' + eColor + ';font-weight:600">' + c.error_pct + '%</td></tr>';
+      }
+      h += '</table></div>';
+    } else {
+      h += '<div class="card"><p style="color:var(--mut);font-size:.83rem">Sin suficientes datos hist\u00f3ricos para evaluar. El modelo necesita al menos 2 semanas de ventas.</p></div>';
+    }
+
+    document.getElementById('ia-prec-content').innerHTML = h;
+  }).catch(function() { document.getElementById('ia-prec-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Error al evaluar precisi\u00f3n</p></div>'; });
+}
+
 // ─── Contabilidad ─────────────────────────────────────────────────
 var _contaCuentas = [];
 
@@ -5875,7 +6159,7 @@ function guardarAPIUrl() {
 var _editPermsUserId = null;
 var _moduloNombres = {
   dash:'Inicio', pos:'Venta', ped:'Pedidos', inv:'Inventario',
-  corte:'Corte', rep:'Reportes', listas:'Listas', prod:'Producción', conta:'Contabilidad', cofepris:'COFEPRIS', usuarios:'Usuarios'
+  corte:'Corte', rep:'Reportes', listas:'Listas', prod:'Producción', conta:'Contabilidad', iapg:'IA', cofepris:'COFEPRIS', usuarios:'Usuarios'
 };
 
 function descargarBackup() {
