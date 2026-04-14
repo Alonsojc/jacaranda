@@ -152,7 +152,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <a class="on" data-pg="dash" onclick="go('dash')">Inicio</a>
 <a data-pg="pos" onclick="go('pos')">Venta</a>
 <a data-pg="ped" onclick="go('ped')">Pedidos <span id="ped-badge" style="display:none;background:#ef4444;color:#fff;font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;vertical-align:top;min-width:14px;text-align:center"></span></a>
-<a data-pg="inv" onclick="go('inv')">Inventario</a>
+<a data-pg="inv" onclick="go('inv')">Inventario <span id="inv-badge" style="display:none;background:#ef4444;color:#fff;font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;vertical-align:top;min-width:14px;text-align:center"></span></a>
 <a data-pg="corte" onclick="go('corte')">Corte</a>
 <a data-pg="rep" onclick="go('rep')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">Reportes</a>
 <a data-pg="listas" onclick="go('listas')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Listas</a>
@@ -382,10 +382,15 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <button onclick="corteFechaHoy()" style="padding:.4rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.78rem;background:#fff;cursor:pointer;font-weight:600;color:var(--v)">Hoy</button>
 </div>
 </div>
-<div class="row r3" style="margin-bottom:.5rem">
+<div class="row r3" style="margin-bottom:.3rem">
 <div class="card kpi g"><div class="n" id="c-total-ef">$0</div><div class="l">Efectivo</div></div>
 <div class="card kpi"><div class="n" id="c-total-tar">$0</div><div class="l">Tarjeta</div></div>
 <div class="card kpi a"><div class="n" id="c-total-trans">$0</div><div class="l">Transferencia</div></div>
+</div>
+<div class="row r3" style="margin-bottom:.5rem">
+<div class="card kpi" style="background:#f0fdf4"><div class="n" id="c-total-general" style="color:var(--grn)">$0</div><div class="l">Total ventas</div></div>
+<div class="card kpi"><div class="n" id="c-total-clip">$0</div><div class="l">CLIP</div></div>
+<div class="card kpi"><div class="n" id="c-total-bbva">$0</div><div class="l">BBVA</div></div>
 </div>
 <div class="row r2">
 <div class="card" style="min-width:0;overflow:hidden">
@@ -403,7 +408,11 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 <div style="display:flex;flex-direction:column;gap:.4rem;margin-top:.6rem">
 <button class="cobrar" style="margin:0" onclick="realizarCorte()">Registrar Corte</button>
-<button class="limpiar" style="margin:0" onclick="exportarCorte()">Copiar resumen</button>
+<div style="display:flex;gap:.4rem">
+<button class="limpiar" style="margin:0;flex:1" onclick="exportarCorte()">&#128203; Copiar</button>
+<button class="limpiar" style="margin:0;flex:1" onclick="exportarCorteCSV()">&#128229; CSV</button>
+<button style="margin:0;flex:1;padding:.4rem;border:1px solid #25d366;border-radius:8px;background:#25d366;color:#fff;cursor:pointer;font-size:.78rem;font-weight:600;font-family:inherit" onclick="compartirCorteWhatsApp()">&#128172; WhatsApp</button>
+</div>
 </div>
 </div>
 <div class="card">
@@ -426,6 +435,34 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <div class="srow"><span>Gastos (compras)</span><span style="color:#b91c1c" id="c-util-gastos">$0.00</span></div>
 <div class="srow" style="border-top:2px solid var(--brd);padding-top:.5rem;margin-top:.3rem"><span style="font-weight:700;font-size:1rem">Utilidad bruta</span><span style="font-weight:700;font-size:1.1rem" id="c-util-neta">$0.00</span></div>
 <p style="font-size:.72rem;color:var(--mut);margin-top:.5rem">* Utilidad bruta = ventas - compras de ingredientes. No incluye renta, n&oacute;mina ni otros gastos fijos.</p>
+</div>
+</div>
+
+<!-- Historial de ventas -->
+<div class="card" style="margin-bottom:1rem">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;flex-wrap:wrap;gap:.4rem">
+<h3 style="margin:0">Historial de ventas</h3>
+<button class="limpiar" style="padding:.3rem .7rem;font-size:.78rem;margin:0" onclick="exportarHistVentasCSV()">&#128229; Exportar CSV</button>
+</div>
+<div style="display:flex;gap:.3rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap">
+<input type="date" id="hv-fi" style="padding:.3rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.78rem;font-family:inherit">
+<input type="date" id="hv-ff" style="padding:.3rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.78rem;font-family:inherit">
+<input type="text" id="hv-buscar" placeholder="Buscar folio..." oninput="filtrarHistVentas()" style="padding:.3rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.78rem;width:120px;font-family:inherit">
+<select id="hv-metodo" onchange="cargarHistVentas()" style="padding:.3rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.78rem;font-family:inherit">
+<option value="">Todos</option>
+<option value="01">Efectivo</option>
+<option value="04">Tarjeta cr&eacute;dito</option>
+<option value="28">Tarjeta d&eacute;bito</option>
+<option value="03">Transferencia</option>
+</select>
+<button class="cobrar" style="width:auto;padding:.3rem .7rem;font-size:.78rem;margin:0" onclick="cargarHistVentas()">Buscar</button>
+</div>
+<div id="hv-list" style="max-height:400px;overflow-y:auto">
+<p style="color:var(--mut);font-size:.83rem;text-align:center">Selecciona fechas y busca</p>
+</div>
+<div id="hv-resumen" style="display:none;border-top:2px solid var(--brd);padding-top:.5rem;margin-top:.5rem">
+<div class="srow" style="font-weight:700"><span>Total</span><span class="green" id="hv-total">$0</span></div>
+<div class="srow"><span>Ventas</span><span id="hv-count">0</span></div>
 </div>
 </div>
 
@@ -2955,8 +2992,9 @@ function setConnecting() {
 
 // ─── Corte de caja ────────────────────────────────────────────────
 var _efTotal = 0;
-
+var _corteVentas = [];
 var _totalVentasDia = 0;
+var _histVentas = [];
 
 function corteFechaHoy() {
   document.getElementById('c-fecha').value = new Date().toISOString().split('T')[0];
@@ -2969,9 +3007,11 @@ function cargarCorte() {
   if (!fechaInput.value) fechaInput.value = new Date().toISOString().split('T')[0];
   var hoy = fechaInput.value;
   api('GET', '/punto-de-venta/ventas?fecha_inicio=' + hoy + '&fecha_fin=' + hoy).then(function(ventas) {
-    var efTotal = 0, tarTotal = 0, transTotal = 0, totalGeneral = 0, tickets = 0;
+    var efTotal = 0, tarTotal = 0, transTotal = 0, clipTotal = 0, bbvaTotal = 0, totalGeneral = 0, tickets = 0;
+    _corteVentas = ventas;
     var h = '';
     var metodos = {'01':'Efectivo','04':'Tarjeta','28':'Tarjeta','03':'Transferencia'};
+    var terminales = {efectivo:'',clip:'CLIP',bbva:'BBVA'};
     for (var i = 0; i < ventas.length; i++) {
       var v = ventas[i];
       var tot = parseFloat(v.total) || 0;
@@ -2979,7 +3019,6 @@ function cargarCorte() {
       var estado = v.estado === 'cancelada' ? ' <span class="badge bout">Cancelada</span>' : '';
       if (v.estado !== 'cancelada') {
         totalGeneral += tot; tickets++;
-        // Use pagos array for accurate split payment tracking
         if (v.pagos && v.pagos.length > 1) {
           for (var j = 0; j < v.pagos.length; j++) {
             var pm2 = v.pagos[j].metodo_pago;
@@ -3005,6 +3044,9 @@ function cargarCorte() {
     document.getElementById('c-total-ef').textContent = '$' + fmt(efTotal);
     document.getElementById('c-total-tar').textContent = '$' + fmt(tarTotal);
     document.getElementById('c-total-trans').textContent = '$' + fmt(transTotal);
+    document.getElementById('c-total-general').textContent = '$' + fmt(totalGeneral);
+    document.getElementById('c-total-clip').textContent = '$' + fmt(clipTotal);
+    document.getElementById('c-total-bbva').textContent = '$' + fmt(bbvaTotal);
     document.getElementById('c-total').textContent = '$' + fmt(totalGeneral);
     document.getElementById('c-tickets').textContent = tickets;
     _efTotal = efTotal;
@@ -3020,6 +3062,14 @@ function cargarCorte() {
   cargarGastos(hoy);
   cargarGastosFijos();
   cargarHistorialCortes();
+  // Pre-fill historial dates (last 7 days)
+  var hvff = document.getElementById('hv-ff');
+  var hvfi = document.getElementById('hv-fi');
+  if (!hvff.value) {
+    hvff.value = hoy;
+    var d7 = new Date(); d7.setDate(d7.getDate() - 7);
+    hvfi.value = d7.toISOString().split('T')[0];
+  }
 }
 
 function cargarGastos(fecha) {
@@ -3169,7 +3219,7 @@ function cargarGastosFijos() {
       h += '<div class="srow">';
       h += '<span>' + g.concepto + ' <span style="font-size:.72rem;color:var(--mut)">(' + g.periodicidad + ')</span></span>';
       h += '<span style="display:flex;align-items:center;gap:.3rem">';
-      h += '<span style="color:#b91c1c;font-weight:600">$' + g.fmt(monto) + '</span>';
+      h += '<span style="color:#b91c1c;font-weight:600">$' + fmt(g.monto) + '</span>';
       h += '<a href="#" onclick="editarGasto(' + g.id + ',\'' + g.concepto.replace(/'/g,"\\'") + '\',' + g.monto + ',\'' + g.periodicidad + '\',\'' + (g.notas||'').replace(/'/g,"\\'") + '\');return false" style="font-size:.8rem">&#9998;</a>';
       h += '<a href="#" onclick="eliminarGasto(' + g.id + ');return false" style="font-size:.8rem;color:#b91c1c">&times;</a>';
       h += '</span></div>';
@@ -3255,6 +3305,107 @@ function cargarHistorialCortes() {
   }).catch(function() {
     document.getElementById('c-historial').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar</p>';
   });
+}
+
+// ─── Historial de ventas (filtrable) ─────────────────────────────
+function cargarHistVentas() {
+  var fi = document.getElementById('hv-fi').value;
+  var ff = document.getElementById('hv-ff').value;
+  if (!fi || !ff) { toast('Selecciona fecha inicio y fin', true); return; }
+  var metodo = document.getElementById('hv-metodo').value;
+  api('GET', '/punto-de-venta/ventas?fecha_inicio=' + fi + '&fecha_fin=' + ff + '&limit=500').then(function(ventas) {
+    if (metodo) ventas = ventas.filter(function(v) { return v.metodo_pago === metodo; });
+    _histVentas = ventas;
+    renderHistVentas();
+  }).catch(function() { toast('Error al cargar ventas', true); });
+}
+
+function filtrarHistVentas() { renderHistVentas(); }
+
+function renderHistVentas() {
+  var q = (document.getElementById('hv-buscar').value || '').toLowerCase().trim();
+  var ventas = _histVentas;
+  if (q) ventas = ventas.filter(function(v) { return (v.folio||'').toLowerCase().indexOf(q) >= 0; });
+  var metodos = {'01':'Efectivo','04':'T.Crédito','28':'T.Débito','03':'Transf.','99':'Otro'};
+  var total = 0, count = 0;
+  var h = '<table class="tbl"><tr><th>Folio</th><th>Fecha</th><th>M\u00e9todo</th><th>Total</th><th>Estado</th></tr>';
+  for (var i = 0; i < ventas.length; i++) {
+    var v = ventas[i];
+    var tot = parseFloat(v.total) || 0;
+    var f = v.fecha ? new Date(v.fecha).toLocaleDateString('es-MX', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+    var met = metodos[v.metodo_pago] || v.metodo_pago;
+    var cls = v.estado === 'cancelada' ? 'bout' : 'bok';
+    var est = v.estado === 'cancelada' ? 'Cancelada' : 'OK';
+    if (v.estado !== 'cancelada') { total += tot; count++; }
+    h += '<tr style="cursor:pointer" onclick="verTicket(' + v.id + ',' + (v.estado==='cancelada') + ')">';
+    h += '<td>' + v.folio + '</td><td style="font-size:.78rem">' + f + '</td>';
+    h += '<td>' + met + '</td>';
+    h += '<td style="font-weight:600' + (v.estado==='cancelada'?';text-decoration:line-through;color:var(--mut)':'') + '">$' + fmt(tot) + '</td>';
+    h += '<td><span class="badge ' + cls + '">' + est + '</span></td></tr>';
+  }
+  h += '</table>';
+  if (!ventas.length) h = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin ventas encontradas</p>';
+  document.getElementById('hv-list').innerHTML = h;
+  document.getElementById('hv-resumen').style.display = ventas.length ? '' : 'none';
+  document.getElementById('hv-total').textContent = '$' + fmt(total);
+  document.getElementById('hv-count').textContent = count;
+}
+
+function exportarHistVentasCSV() {
+  if (!_histVentas.length) { toast('Busca ventas primero', true); return; }
+  var metodos = {'01':'Efectivo','04':'Tarjeta Credito','28':'Tarjeta Debito','03':'Transferencia','99':'Otro'};
+  var csv = 'Folio,Fecha,Hora,Metodo Pago,Subtotal,IVA,Total,Estado\n';
+  for (var i = 0; i < _histVentas.length; i++) {
+    var v = _histVentas[i];
+    var f = v.fecha ? new Date(v.fecha) : null;
+    var fecha = f ? f.toLocaleDateString('es-MX') : '';
+    var hora = f ? f.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
+    csv += v.folio + ',' + fecha + ',' + hora + ',' + (metodos[v.metodo_pago]||v.metodo_pago) + ',';
+    csv += (parseFloat(v.subtotal)||0).toFixed(2) + ',' + (parseFloat(v.total_impuestos)||0).toFixed(2) + ',';
+    csv += (parseFloat(v.total)||0).toFixed(2) + ',' + v.estado + '\n';
+  }
+  var fi = document.getElementById('hv-fi').value;
+  var ff = document.getElementById('hv-ff').value;
+  _descargarCSV('ventas_detalle_' + fi + '_' + ff + '.csv', csv);
+}
+
+function exportarCorteCSV() {
+  var fecha = document.getElementById('c-fecha').value || new Date().toISOString().split('T')[0];
+  var csv = 'Corte de Caja - ' + fecha + '\n\n';
+  csv += 'Concepto,Monto\n';
+  csv += 'Efectivo,' + (document.getElementById('c-total-ef').textContent.replace('$','').replace(/,/g,'')) + '\n';
+  csv += 'Tarjeta,' + (document.getElementById('c-total-tar').textContent.replace('$','').replace(/,/g,'')) + '\n';
+  csv += 'Transferencia,' + (document.getElementById('c-total-trans').textContent.replace('$','').replace(/,/g,'')) + '\n';
+  csv += 'Total Ventas,' + (document.getElementById('c-total').textContent.replace('$','').replace(/,/g,'')) + '\n';
+  csv += 'Tickets,' + document.getElementById('c-tickets').textContent + '\n';
+  csv += 'Gastos,' + (document.getElementById('c-gastos-total').textContent.replace('$','').replace(/,/g,'')) + '\n';
+  csv += 'Utilidad,' + (document.getElementById('c-util-neta').textContent.replace('$','').replace(/,/g,'')) + '\n';
+  csv += '\nDetalle de ventas\n';
+  csv += 'Folio,Hora,Metodo,Total,Estado\n';
+  var metodos = {'01':'Efectivo','04':'Tarjeta','28':'Tarjeta','03':'Transferencia'};
+  for (var i = 0; i < _corteVentas.length; i++) {
+    var v = _corteVentas[i];
+    var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
+    csv += v.folio + ',' + hora + ',' + (metodos[v.metodo_pago]||v.metodo_pago) + ',' + (parseFloat(v.total)||0).toFixed(2) + ',' + v.estado + '\n';
+  }
+  _descargarCSV('corte_' + fecha + '.csv', csv);
+}
+
+function compartirCorteWhatsApp() {
+  var fecha = document.getElementById('c-fecha').value || new Date().toISOString().split('T')[0];
+  var diasNombre = ['Domingo','Lunes','Martes','Mi\u00e9rcoles','Jueves','Viernes','S\u00e1bado'];
+  var d = new Date(fecha + 'T12:00:00');
+  var dia = diasNombre[d.getDay()];
+  var txt = '\ud83c\udf5e *CORTE DE CAJA*\n*Jacaranda* \u2014 ' + dia + ' ' + fecha + '\n\n';
+  txt += '\ud83d\udcb0 *Ventas:*\n';
+  txt += '\ud83d\udcb5 Efectivo: ' + document.getElementById('c-total-ef').textContent + '\n';
+  txt += '\ud83d\udcb3 Tarjeta: ' + document.getElementById('c-total-tar').textContent + '\n';
+  txt += '\ud83c\udfe6 Transferencia: ' + document.getElementById('c-total-trans').textContent + '\n';
+  txt += '*Total: ' + document.getElementById('c-total').textContent + '* (' + document.getElementById('c-tickets').textContent + ' tickets)\n\n';
+  txt += '\ud83d\udcca *Resultado:*\n';
+  txt += 'Gastos: ' + document.getElementById('c-gastos-total').textContent + '\n';
+  txt += '*Utilidad: ' + document.getElementById('c-util-neta').textContent + '*';
+  window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
 }
 
 // ─── Pronóstico producción ───────────────────────────────────────
@@ -3351,6 +3502,16 @@ function cargarDashboard() {
     }
     if (h) document.getElementById('d-inv').innerHTML = h;
     renderDashAlertas(alertas);
+    // Update inventory badge
+    var lowCount = 0;
+    for (var j = 0; j < prods.length; j++) {
+      var sp = parseFloat(prods[j].stock_actual) || 0;
+      var mp = parseFloat(prods[j].stock_minimo) || 0;
+      if (sp <= 0 || (mp > 0 && sp <= mp)) lowCount++;
+    }
+    var invBadge = document.getElementById('inv-badge');
+    if (lowCount > 0) { invBadge.textContent = lowCount; invBadge.style.display = ''; }
+    else { invBadge.style.display = 'none'; }
   }).catch(function(){});
   // Also check ingredients
   api('GET', '/inventario/ingredientes').then(function(ings) {
@@ -3472,7 +3633,7 @@ function cargarReporteVentas() {
     var res = r.resumen;
     document.getElementById('rep-total').textContent = '$' + fmt(res.total);
     document.getElementById('rep-tickets').textContent = res.numero_ventas;
-    document.getElementById('rep-promedio').textContent = '$' + res.fmt(ticket_promedio);
+    document.getElementById('rep-promedio').textContent = '$' + fmt(res.ticket_promedio);
     // Por método
     var metodos = {'01':'Efectivo','04':'Tarjeta','28':'Tarjeta D.','03':'Transferencia'};
     var hm = '';
@@ -3488,7 +3649,7 @@ function cargarReporteVentas() {
       var dd = r.por_dia[d2];
       var pct = maxDia > 0 ? (dd.total / maxDia * 100) : 0;
       var dia = new Date(d2 + 'T12:00:00').toLocaleDateString('es-MX',{weekday:'short',day:'numeric',month:'short'});
-      hd += '<div class="bar-row"><span class="bar-label">' + dia + '</span><div class="bar-fill" style="width:' + pct + '%"></div><span class="bar-val">$' + dd.fmt(total) + '</span></div>';
+      hd += '<div class="bar-row"><span class="bar-label">' + dia + '</span><div class="bar-fill" style="width:' + pct + '%"></div><span class="bar-val">$' + fmt(dd.total) + '</span></div>';
     }
     document.getElementById('rep-dia').innerHTML = hd || '<p style="color:var(--mut);font-size:.83rem">Sin ventas</p>';
   }).catch(function() { toast('Error al cargar reporte', true); });
@@ -3501,7 +3662,7 @@ function cargarReporteVentas() {
       var d = dias[j];
       var pct = maxT > 0 ? (d.total / maxT * 100) : 0;
       var dia = new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'short'});
-      hc += '<div class="bar-row"><span class="bar-label" style="min-width:60px;font-size:.72rem">' + dia + '</span><div class="bar-fill" style="width:' + pct + '%;height:14px"></div><span class="bar-val" style="font-size:.72rem">$' + d.fmt(total) + '</span></div>';
+      hc += '<div class="bar-row"><span class="bar-label" style="min-width:60px;font-size:.72rem">' + dia + '</span><div class="bar-fill" style="width:' + pct + '%;height:14px"></div><span class="bar-val" style="font-size:.72rem">$' + fmt(d.total) + '</span></div>';
     }
     document.getElementById('rep-chart').innerHTML = hc || '<p style="color:var(--mut);font-size:.83rem">Sin datos</p>';
   }).catch(function(){});
@@ -3518,7 +3679,7 @@ function cargarReporteProductos() {
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
       var pct = (p.cantidad_vendida / maxQ * 100);
-      h += '<div class="bar-row"><span class="bar-label">' + p.nombre + '</span><div class="bar-fill" style="width:' + pct + '%"></div><span class="bar-val">' + p.cantidad_vendida + ' pzas &bull; $' + p.fmt(ingresos) + '</span></div>';
+      h += '<div class="bar-row"><span class="bar-label">' + p.nombre + '</span><div class="bar-fill" style="width:' + pct + '%"></div><span class="bar-val">' + p.cantidad_vendida + ' pzas &bull; $' + fmt(p.ingresos) + '</span></div>';
     }
     document.getElementById('rep-top-prods').innerHTML = h;
   }).catch(function() { toast('Error al cargar productos', true); });
