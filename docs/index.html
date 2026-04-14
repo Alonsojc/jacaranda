@@ -1909,10 +1909,10 @@ function mostrarResultadoOCR(data) {
       h += '</select></div>';
     } else {
       h += '<div style="margin-top:.3rem;margin-left:1.6rem;display:flex;gap:.3rem;align-items:center" id="ocr-row-' + i + '">';
-      h += '<button class="limpiar" style="padding:.2rem .6rem;font-size:.75rem;white-space:nowrap" onclick="crearIngDesdeOCR(' + i + ',\'' + nombreEsc + '\',\'' + unidad + '\')">+ Crear ingrediente</button>';
-      h += '<span style="font-size:.75rem;color:var(--mut)">o</span>';
-      h += '<select id="ocr-ing-' + i + '" style="flex:1;padding:.3rem;border:1px solid var(--brd);border-radius:6px;font-size:.8rem">';
-      h += '<option value="nuevo" selected>Seleccionar existente...</option>';
+      h += '<span onclick="crearIngDesdeOCR(' + i + ',\'' + nombreEsc + '\',\'' + unidad + '\')" style="display:inline-flex;align-items:center;gap:.25rem;background:#dcfce7;color:#166534;font-size:.75rem;font-weight:600;padding:.25rem .6rem;border-radius:20px;cursor:pointer;white-space:nowrap">+ Crear</span>';
+      h += '<span style="font-size:.7rem;color:var(--mut)">o</span>';
+      h += '<select id="ocr-ing-' + i + '" style="flex:1;padding:.25rem;border:1px solid var(--brd);border-radius:6px;font-size:.78rem">';
+      h += '<option value="nuevo" selected>Asignar existente...</option>';
       for (var j = 0; j < _allIngs.length; j++) {
         h += '<option value="' + _allIngs[j].id + '">' + _allIngs[j].nombre + '</option>';
       }
@@ -1968,12 +1968,10 @@ function crearIngDesdeOCR(idx, nombre, unidad) {
   api('POST', '/inventario/ingredientes/', {nombre: limpio, unidad_medida: um, stock_actual: 0, stock_minimo: 0})
   .then(function(ing) {
     _allIngs.push(ing);
-    // Replace button row with select showing new ingredient
     var row = document.getElementById('ocr-row-' + idx);
     if (row) {
-      row.innerHTML = '<select id="ocr-ing-' + idx + '" style="flex:1;padding:.3rem;border:1px solid var(--brd);border-radius:6px;font-size:.8rem">'
-        + '<option value="' + ing.id + '" selected>' + ing.nombre + ' (nuevo)</option>'
-        + '</select>';
+      row.innerHTML = '<span style="display:inline-flex;align-items:center;gap:.25rem;background:#dcfce7;color:#166534;font-size:.75rem;font-weight:600;padding:.25rem .6rem;border-radius:20px">&#10003; ' + ing.nombre + '</span>'
+        + '<input type="hidden" id="ocr-ing-' + idx + '" value="' + ing.id + '">';
     }
     toast('Ingrediente "' + ing.nombre + '" creado');
   }).catch(function(e) { toast(e.message || 'Error al crear ingrediente', true); });
