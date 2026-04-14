@@ -132,7 +132,20 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 @media(max-width:900px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.pos-prods{max-height:none}.prods{grid-template-columns:repeat(3,1fr)}.nav-links{flex-wrap:wrap;gap:.15rem}.nav-links a{padding:.4rem .55rem;font-size:.73rem}.pmt{grid-template-columns:1fr!important}#pos-btn-prods{display:block!important}.tkt{position:sticky;bottom:0;z-index:10}}
 @media(max-width:600px){.prods{grid-template-columns:repeat(2,1fr)}.qty-btn{width:36px;height:36px;font-size:1.1rem}.cobrar{padding:1rem;font-size:1rem}.pi-body{padding:.5rem}.pi-img,.pi-noimg{height:70px}.frow{grid-template-columns:1fr}.wrap{padding:.8rem}nav{padding:.5rem .8rem}.pbtn{padding:.9rem .5rem;font-size:.85rem}.ti{padding:.45rem 0;font-size:.85rem}.tkt h3{font-size:1rem}}
 @media(max-width:420px){.prods{grid-template-columns:1fr 1fr}.pi .pn{font-size:.78rem}.pi .pp{font-size:1rem}.nav-links a{padding:.35rem .4rem;font-size:.68rem}}
+.notif-panel{position:fixed;top:50px;right:10px;width:360px;max-height:500px;background:#fff;border:1px solid var(--brd);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:100;overflow-y:auto;display:none}
+.notif-panel.on{display:block}
+.notif-item{padding:.6rem .8rem;border-bottom:1px solid var(--bg2);font-size:.82rem;display:flex;gap:.5rem;align-items:flex-start}
+.notif-item:last-child{border-bottom:none}
+.notif-item .ni-icon{font-size:1.1rem;flex-shrink:0;margin-top:.1rem}
+.notif-item .ni-body{flex:1}
+.notif-item .ni-title{font-weight:600;font-size:.8rem}
+.notif-item .ni-msg{color:var(--mut);font-size:.75rem;margin-top:.1rem}
+.notif-alta{border-left:3px solid #ef4444}
+.notif-media{border-left:3px solid #f59e0b}
+.chart-container{position:relative;width:100%;height:280px}
+@media(max-width:600px){.notif-panel{width:calc(100vw - 20px);right:10px}}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <!-- LOGIN SCREEN -->
@@ -165,10 +178,18 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 <a data-pg="listas" onclick="go('listas')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Listas</a>
 <a data-pg="cofepris" onclick="go('cofepris')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">COFEPRIS</a>
 <a data-pg="usuarios" onclick="go('usuarios')" class="nav-role" data-roles="ADMINISTRADOR">Usuarios</a>
+<a onclick="toggleNotifPanel()" id="btn-notif" style="display:none;cursor:pointer;color:var(--mut);font-size:.95rem;padding:.5rem .4rem;position:relative" title="Notificaciones">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:2px;right:0;background:#ef4444;color:#fff;font-size:.55rem;font-weight:700;padding:.05rem .3rem;border-radius:8px;min-width:14px;text-align:center"></span></a>
 <a onclick="cerrarSesion()" id="btn-logout" style="display:none;cursor:pointer;color:var(--mut);font-size:.78rem;padding:.5rem .6rem" title="Cerrar sesi&oacute;n">&#9211;</a>
 <a onclick="conectarAPI()" id="btn-conn" style="cursor:pointer;background:var(--v);color:#fff;border-radius:20px;font-size:.78rem;padding:.5rem .8rem;display:inline-flex;align-items:center"><span class="conn-dot" id="conn-dot"></span>Conectar</a>
 </div>
 </nav>
+<div class="notif-panel" id="notif-panel">
+<div style="padding:.7rem .8rem;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;align-items:center">
+<strong style="font-size:.85rem">Notificaciones</strong>
+<a onclick="toggleNotifPanel()" style="cursor:pointer;font-size:1rem;color:var(--mut)">&times;</a>
+</div>
+<div id="notif-list"><div class="notif-item"><div class="ni-body" style="text-align:center;color:var(--mut)">Sin alertas</div></div></div>
+</div>
 <div class="wrap">
 
 <!-- DASHBOARD -->
@@ -214,6 +235,33 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 <div class="card"><h3>Documentos empleados</h3>
 <div id="d-emp-docs" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Cargando...</span></div></div>
+</div>
+</div>
+<div class="card" style="margin-bottom:1rem">
+<h3>Comparativo mensual</h3>
+<div class="row r4" style="margin-bottom:.8rem">
+<div class="card kpi g" style="margin-bottom:0"><div class="n" id="da-mes-actual">$0</div><div class="l">Este mes</div></div>
+<div class="card kpi" style="margin-bottom:0"><div class="n" id="da-mes-ant">$0</div><div class="l">Mes anterior</div></div>
+<div class="card kpi" style="margin-bottom:0"><div class="n" id="da-cambio">0%</div><div class="l">Cambio</div></div>
+<div class="card kpi a" style="margin-bottom:0"><div class="n" id="da-proyeccion">$0</div><div class="l">Proyecci&oacute;n mes</div></div>
+</div>
+</div>
+<div class="card" style="margin-bottom:1rem">
+<h3>Ventas - &Uacute;ltimos 12 meses</h3>
+<div class="chart-container"><canvas id="chart-meses"></canvas></div>
+</div>
+<div class="row r2">
+<div class="card"><h3>Utilidad estimada del mes</h3>
+<div id="da-utilidad">
+<div class="srow"><span>Ingresos</span><span class="green" id="da-u-ingresos">$0</span></div>
+<div class="srow"><span>Costo de ventas</span><span style="color:#b91c1c" id="da-u-costos">$0</span></div>
+<div class="srow"><span style="font-weight:600">Utilidad bruta</span><span class="green" id="da-u-bruta" style="font-weight:600">$0</span></div>
+<div class="srow"><span>Gastos fijos</span><span style="color:#b91c1c" id="da-u-gastos">$0</span></div>
+<div class="srow" style="border-top:2px solid var(--brd);padding-top:.5rem;margin-top:.3rem"><span style="font-weight:700;font-size:1rem">Utilidad neta</span><span id="da-u-neta" style="font-weight:700;font-size:1rem">$0</span></div>
+</div>
+</div>
+<div class="card"><h3>Clientes VIP &#11088;</h3>
+<div id="da-vip" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Cargando...</span></div></div>
 </div>
 </div>
 </div>
@@ -576,10 +624,23 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 <div id="l-cliente-detalle" class="card" style="display:none;margin-top:1rem">
 <h3 id="lcd-nombre">Cliente</h3>
-<div class="row r3" style="margin-bottom:.5rem">
+<div class="row r4" style="margin-bottom:.5rem">
 <div class="card kpi g"><div class="n" id="lcd-total">$0</div><div class="l">Total compras</div></div>
 <div class="card kpi"><div class="n" id="lcd-visitas">0</div><div class="l">Visitas</div></div>
 <div class="card kpi a"><div class="n" id="lcd-promedio">$0</div><div class="l">Ticket promedio</div></div>
+<div class="card kpi" style="border-left:3px solid #8b5cf6"><div class="n" id="lcd-puntos">0</div><div class="l">Puntos &#11088;</div></div>
+</div>
+<div id="lcd-loyalty" style="display:none;background:linear-gradient(135deg,#faf5ff,#f3e8ff);border:1px solid #ddd6fe;border-radius:10px;padding:.7rem .8rem;margin-bottom:.7rem">
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem">
+<div>
+<div style="font-weight:600;font-size:.85rem;color:#7c3aed">Programa de Lealtad</div>
+<div style="font-size:.78rem;color:var(--mut)">Descuento disponible: <strong id="lcd-desc-disp">$0</strong> &bull; 1 pto = $0.50</div>
+</div>
+<div style="display:flex;gap:.3rem;align-items:center">
+<input type="number" id="lcd-canjear-pts" placeholder="Puntos" min="1" style="width:80px;padding:.3rem .5rem;border:1px solid #c4b5fd;border-radius:6px;font-size:.8rem">
+<button onclick="canjearPuntosCliente()" class="cobrar" style="width:auto;padding:.35rem .7rem;font-size:.78rem;margin:0;background:#7c3aed">Canjear</button>
+</div>
+</div>
 </div>
 <div id="lcd-compras" style="max-height:250px;overflow-y:auto"></div>
 </div>
@@ -618,7 +679,8 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 </div>
 <div class="card" style="margin-bottom:1rem">
 <h3>Tendencia de ventas diarias</h3>
-<div id="rep-chart" style="max-height:250px;overflow-y:auto"></div>
+<div class="chart-container" style="height:220px"><canvas id="rep-chart-canvas"></canvas></div>
+<div id="rep-chart" style="display:none"></div>
 </div>
 <div class="row r2">
 <div class="card"><h3>Por m&eacute;todo de pago</h3><div id="rep-metodo"></div></div>
@@ -2038,6 +2100,241 @@ function renderCalPed() {
   document.getElementById('ped-cal-content').innerHTML = h;
 }
 
+// ─── Notificaciones ──────────────────────────────────────────────
+var _notifCache = [];
+function toggleNotifPanel() {
+  var panel = document.getElementById('notif-panel');
+  panel.classList.toggle('on');
+  if (panel.classList.contains('on')) cargarNotificaciones();
+}
+
+function cargarNotificaciones() {
+  api('GET', '/reportes/alertas').then(function(alertas) {
+    _notifCache = alertas;
+    var badge = document.getElementById('notif-badge');
+    var altas = alertas.filter(function(a) { return a.prioridad === 'alta'; }).length;
+    if (altas > 0) { badge.textContent = altas; badge.style.display = 'inline-block'; }
+    else { badge.style.display = 'none'; }
+    renderNotificaciones(alertas);
+  }).catch(function() {});
+}
+
+function renderNotificaciones(alertas) {
+  var h = '';
+  if (!alertas.length) {
+    h = '<div class="notif-item"><div class="ni-body" style="text-align:center;color:var(--mut)">Sin alertas activas</div></div>';
+  } else {
+    for (var i = 0; i < alertas.length; i++) {
+      var a = alertas[i];
+      h += '<div class="notif-item notif-' + a.prioridad + '">';
+      h += '<div class="ni-icon">' + (a.icono || '📌') + '</div>';
+      h += '<div class="ni-body"><div class="ni-title">' + a.titulo + '</div>';
+      h += '<div class="ni-msg">' + a.mensaje + '</div></div></div>';
+    }
+  }
+  document.getElementById('notif-list').innerHTML = h;
+}
+
+// PWA Push Notification permission
+function solicitarPermisoNotif() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') return;
+  Notification.requestPermission().then(function(perm) {
+    if (perm === 'granted') toast('Notificaciones activadas');
+  });
+}
+
+function enviarNotifLocal(titulo, cuerpo) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    new Notification(titulo, { body: cuerpo, icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🌸</text></svg>' });
+  } catch(e) {}
+}
+
+// Periodic check for urgent alerts (every 5 min)
+var _notifInterval = null;
+function iniciarNotifPeriodicas() {
+  if (_notifInterval) clearInterval(_notifInterval);
+  _notifInterval = setInterval(function() {
+    api('GET', '/reportes/alertas').then(function(alertas) {
+      var altas = alertas.filter(function(a) { return a.prioridad === 'alta'; });
+      var badge = document.getElementById('notif-badge');
+      if (altas.length > 0) {
+        badge.textContent = altas.length;
+        badge.style.display = 'inline-block';
+        // Send push for new urgent alerts
+        if (altas.length > _notifCache.filter(function(a){ return a.prioridad === 'alta'; }).length) {
+          enviarNotifLocal('Jacaranda - Alerta', altas[0].titulo + ': ' + altas[0].mensaje);
+        }
+      } else {
+        badge.style.display = 'none';
+      }
+      _notifCache = alertas;
+    }).catch(function(){});
+  }, 300000); // 5 min
+}
+
+// ─── Lealtad: canjear puntos ─────────────────────────────────────
+var _lcdClienteId = null;
+function canjearPuntosCliente() {
+  if (!_lcdClienteId) return;
+  var pts = parseInt(document.getElementById('lcd-canjear-pts').value);
+  if (!pts || pts <= 0) { toast('Ingresa puntos válidos', true); return; }
+  api('POST', '/clientes/' + _lcdClienteId + '/canjear-puntos?puntos=' + pts).then(function(r) {
+    toast('Canjeados ' + r.puntos_canjeados + ' pts = $' + fmt(r.descuento) + ' descuento');
+    document.getElementById('lcd-puntos').textContent = r.puntos_restantes;
+    document.getElementById('lcd-desc-disp').textContent = '$' + fmt(r.puntos_restantes * 0.5);
+    document.getElementById('lcd-canjear-pts').value = '';
+    cargarListaClientes();
+    cargarClientesPOS();
+  }).catch(function(e) { toast(e.message || 'Error al canjear', true); });
+}
+
+// ─── Dashboard avanzado ──────────────────────────────────────────
+var _chartMeses = null;
+function cargarDashAvanzado() {
+  api('GET', '/reportes/dashboard-avanzado').then(function(d) {
+    // Comparativo
+    var c = d.comparativo;
+    document.getElementById('da-mes-actual').textContent = '$' + fmt(c.este_mes);
+    document.getElementById('da-mes-ant').textContent = '$' + fmt(c.mes_anterior);
+    var cambioEl = document.getElementById('da-cambio');
+    cambioEl.textContent = (c.cambio_pct >= 0 ? '+' : '') + c.cambio_pct + '%';
+    cambioEl.style.color = c.cambio_pct >= 0 ? 'var(--grn)' : '#b91c1c';
+    document.getElementById('da-proyeccion').textContent = '$' + fmt(d.proyeccion.proyeccion_mes);
+
+    // Utilidad
+    document.getElementById('da-u-ingresos').textContent = '$' + fmt(d.utilidad.ingresos);
+    document.getElementById('da-u-costos').textContent = '-$' + fmt(d.utilidad.costo_ventas);
+    document.getElementById('da-u-bruta').textContent = '$' + fmt(d.utilidad.utilidad_bruta);
+    document.getElementById('da-u-gastos').textContent = '-$' + fmt(d.utilidad.gastos_fijos);
+    var netaEl = document.getElementById('da-u-neta');
+    netaEl.textContent = (d.utilidad.utilidad_neta >= 0 ? '$' : '-$') + fmt(Math.abs(d.utilidad.utilidad_neta));
+    netaEl.style.color = d.utilidad.utilidad_neta >= 0 ? 'var(--grn)' : '#b91c1c';
+
+    // VIP
+    var vh = '';
+    for (var i = 0; i < d.clientes_vip.length; i++) {
+      var v = d.clientes_vip[i];
+      vh += '<div class="srow"><span>' + (i+1) + '. ' + v.nombre + (v.puntos ? ' <span style="color:#7c3aed;font-size:.72rem">(' + v.puntos + ' pts)</span>' : '') + '</span>';
+      vh += '<span class="green">$' + fmt(v.total_compras) + ' <span style="font-size:.7rem;color:var(--mut)">' + v.visitas + ' vis</span></span></div>';
+    }
+    if (vh) document.getElementById('da-vip').innerHTML = vh;
+    else document.getElementById('da-vip').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Asocia clientes a ventas para ver VIP</span></div>';
+
+    // Chart.js — 12 meses
+    renderChartMeses(d.meses);
+  }).catch(function(){});
+}
+
+function renderChartMeses(meses) {
+  var ctx = document.getElementById('chart-meses');
+  if (!ctx) return;
+  if (typeof Chart === 'undefined') return; // Chart.js not loaded
+
+  if (_chartMeses) _chartMeses.destroy();
+
+  var labels = meses.map(function(m) { return m.mes; });
+  var datos = meses.map(function(m) { return m.total; });
+  var colores = datos.map(function(v, i) { return i === datos.length - 1 ? '#c4988a' : 'rgba(196,152,138,0.5)'; });
+
+  _chartMeses = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Ventas',
+        data: datos,
+        backgroundColor: colores,
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) { return '$' + ctx.parsed.y.toLocaleString('es-MX', {minimumFractionDigits:2}); }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function(v) { return '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v); },
+            font: { size: 11 }
+          },
+          grid: { color: 'rgba(0,0,0,.05)' }
+        },
+        x: {
+          ticks: { font: { size: 10 } },
+          grid: { display: false }
+        }
+      }
+    }
+  });
+}
+
+var _chartVentas = null;
+function renderChartVentas(dias) {
+  var ctx = document.getElementById('rep-chart-canvas');
+  if (!ctx || typeof Chart === 'undefined') return;
+  if (_chartVentas) _chartVentas.destroy();
+
+  var labels = dias.map(function(d) {
+    return new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'short'});
+  });
+  var datos = dias.map(function(d) { return d.total; });
+
+  _chartVentas = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Ventas',
+        data: datos,
+        borderColor: '#c4988a',
+        backgroundColor: 'rgba(196,152,138,0.15)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) { return '$' + ctx.parsed.y.toLocaleString('es-MX', {minimumFractionDigits:2}); }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function(v) { return '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v); },
+            font: { size: 10 }
+          },
+          grid: { color: 'rgba(0,0,0,.05)' }
+        },
+        x: {
+          ticks: { font: { size: 9 }, maxRotation: 45 },
+          grid: { display: false }
+        }
+      }
+    }
+  });
+}
+
 // ─── Config modal ─────────────────────────────────────────────────
 function conectarAPI() {
   var url = prompt('URL del servidor Jacaranda (ej: https://web-production-b51486.up.railway.app)', API_URL);
@@ -3389,12 +3686,25 @@ function cargarListaClientes() {
 }
 
 function verHistorialCliente(id) {
+  _lcdClienteId = id;
   api('GET', '/clientes/' + id + '/historial').then(function(d) {
-    var ptsInfo = d.puntos ? ' — ' + d.puntos + ' pts' : '';
-    document.getElementById('lcd-nombre').textContent = d.cliente.nombre + (d.cliente.telefono ? ' — ' + d.cliente.telefono : '') + ptsInfo;
+    document.getElementById('lcd-nombre').textContent = d.cliente.nombre + (d.cliente.telefono ? ' — ' + d.cliente.telefono : '');
     document.getElementById('lcd-total').textContent = '$' + fmt(d.total_compras);
     document.getElementById('lcd-visitas').textContent = d.numero_visitas;
     document.getElementById('lcd-promedio').textContent = '$' + fmt(d.ticket_promedio);
+    // Loyalty points
+    var pts = d.cliente.puntos || 0;
+    document.getElementById('lcd-puntos').textContent = pts;
+    var loyaltyEl = document.getElementById('lcd-loyalty');
+    if (pts > 0) {
+      loyaltyEl.style.display = 'block';
+      document.getElementById('lcd-desc-disp').textContent = '$' + fmt(pts * 0.5);
+      document.getElementById('lcd-canjear-pts').value = '';
+      document.getElementById('lcd-canjear-pts').max = pts;
+    } else {
+      loyaltyEl.style.display = 'block';
+      document.getElementById('lcd-desc-disp').textContent = '$0';
+    }
     var h = '';
     for (var i = 0; i < d.compras.length; i++) {
       var c = d.compras[i];
@@ -3742,6 +4052,9 @@ function cargarDashboard() {
   // Employee dashboard
   cargarDashEmpleados();
 
+  // Advanced dashboard (charts, projections, VIP)
+  cargarDashAvanzado();
+
   // Load top products
   var hoy = new Date();
   var inicio = hoy.getFullYear() + '-' + String(hoy.getMonth()+1).padStart(2,'0') + '-01';
@@ -4005,18 +4318,9 @@ function cargarReporteVentas() {
     }
     document.getElementById('rep-dia').innerHTML = hd || '<p style="color:var(--mut);font-size:.83rem">Sin ventas</p>';
   }).catch(function() { toast('Error al cargar reporte', true); });
-  // Trend chart
+  // Trend chart with Chart.js
   api('GET', '/reportes/ventas-por-dia?dias=30').then(function(dias) {
-    var maxT = 0;
-    for (var i = 0; i < dias.length; i++) { if (dias[i].total > maxT) maxT = dias[i].total; }
-    var hc = '';
-    for (var j = 0; j < dias.length; j++) {
-      var d = dias[j];
-      var pct = maxT > 0 ? (d.total / maxT * 100) : 0;
-      var dia = new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'short'});
-      hc += '<div class="bar-row"><span class="bar-label" style="min-width:60px;font-size:.72rem">' + dia + '</span><div class="bar-fill" style="width:' + pct + '%;height:14px"></div><span class="bar-val" style="font-size:.72rem">$' + fmt(d.total) + '</span></div>';
-    }
-    document.getElementById('rep-chart').innerHTML = hc || '<p style="color:var(--mut);font-size:.83rem">Sin datos</p>';
+    renderChartVentas(dias);
   }).catch(function(){});
 }
 
@@ -4588,6 +4892,11 @@ function postLogin() {
     iniciarPollPedidos();
     cargarClientesPOS();
     if (_ventasPendientes.length) sincronizarVentas();
+    // Notifications
+    document.getElementById('btn-notif').style.display = '';
+    cargarNotificaciones();
+    iniciarNotifPeriodicas();
+    solicitarPermisoNotif();
   }).catch(function(){});
 }
 
@@ -4609,6 +4918,9 @@ function cerrarSesion() {
   _currentUser = null;
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('btn-logout').style.display = 'none';
+  document.getElementById('btn-notif').style.display = 'none';
+  document.getElementById('notif-panel').classList.remove('on');
+  if (_notifInterval) { clearInterval(_notifInterval); _notifInterval = null; }
   document.getElementById('login-pass').value = '';
   document.getElementById('login-error').style.display = 'none';
   setConnected(false);
