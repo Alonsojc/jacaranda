@@ -3,6 +3,9 @@ Jacaranda - Sistema de Gestión de Panadería
 Cumple con normativa mexicana: SAT/CFDI 4.0, LFT, IMSS, COFEPRIS, NOM-051.
 """
 
+import logging
+import os
+import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -17,6 +20,8 @@ from app.api.routes import router as api_router
 import app.models  # noqa: F401
 from app.models.usuario import Usuario, RolUsuario
 
+logger = logging.getLogger("jacaranda")
+
 
 def _seed_admin():
     """Crea usuario administrador por defecto si no existe ninguno."""
@@ -24,14 +29,25 @@ def _seed_admin():
     try:
         admin = db.query(Usuario).filter(Usuario.rol == RolUsuario.ADMINISTRADOR).first()
         if not admin:
+            # Usar contraseña de variable de entorno o generar una aleatoria
+            password = os.environ.get("ADMIN_PASSWORD") or secrets.token_urlsafe(12)
             admin = Usuario(
                 nombre="Administrador",
                 email="admin@jacaranda.mx",
-                hashed_password=get_password_hash("admin1234"),
+                hashed_password=get_password_hash(password),
                 rol=RolUsuario.ADMINISTRADOR,
             )
             db.add(admin)
             db.commit()
+            if not os.environ.get("ADMIN_PASSWORD"):
+                logger.warning(
+                    "========================================\n"
+                    "  ADMIN CREADO - Cambie la contraseña!\n"
+                    "  Email: admin@jacaranda.mx\n"
+                    "  Password: %s\n"
+                    "========================================",
+                    password,
+                )
     finally:
         db.close()
 
@@ -47,6 +63,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
     description=(
         "Sistema integral de gestión para panadería y pastelería.\n\n"
         "## Módulos\n"
@@ -69,13 +87,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
+# CORS — restringido a dominios configurados
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # Rutas API

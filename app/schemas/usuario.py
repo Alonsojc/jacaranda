@@ -8,7 +8,7 @@ from app.models.usuario import RolUsuario
 
 class UsuarioCreate(BaseModel):
     nombre: str = Field(..., min_length=2, max_length=100)
-    email: str = Field(..., max_length=150)
+    email: EmailStr
     password: str = Field(..., min_length=8)
     rol: RolUsuario = RolUsuario.CAJERO
 

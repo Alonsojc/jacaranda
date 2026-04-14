@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # --- Base de datos ---
     DATABASE_URL: str = "sqlite:///./jacaranda.db"
 
+    # --- CORS (comma-separated origins) ---
+    CORS_ORIGINS: str = "https://alonsojc.github.io"
+
     # --- Datos del negocio ---
     RAZON_SOCIAL: str = "Jacaranda Flavors"
     RFC: str = "XAXX010101000"  # RFC del negocio
