@@ -5,6 +5,7 @@ python-multipart==0.0.18
 
 # Database
 sqlalchemy==2.0.36
+alembic==1.18.4
 
 # Validation & Settings
 pydantic==2.10.4

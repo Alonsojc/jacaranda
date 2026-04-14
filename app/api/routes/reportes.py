@@ -161,6 +161,26 @@ def dashboard_empleados(
     return svc.dashboard_empleados(db)
 
 
+@router.get("/ventas-por-hora")
+def ventas_por_hora(
+    dias: int = Query(default=7, le=30),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Ventas agrupadas por hora del día para heatmap."""
+    return svc.reporte_ventas_por_hora(db, dias)
+
+
+@router.get("/analisis-abc")
+def analisis_abc(
+    dias: int = Query(default=30, le=90),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Análisis ABC (Pareto 80/20) de productos por ingresos."""
+    return svc.analisis_abc(db, dias)
+
+
 @router.get("/backup")
 def descargar_backup(
     _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),

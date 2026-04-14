@@ -1,0 +1,19 @@
+{
+  "name": "Jacaranda - Sistema de Panadería",
+  "short_name": "Jacaranda",
+  "description": "Sistema de gestión para panadería y pastelería",
+  "start_url": "/jacaranda/",
+  "display": "standalone",
+  "background_color": "#faf5f2",
+  "theme_color": "#c4988a",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌸</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["business", "productivity"]
+}
