@@ -1852,74 +1852,63 @@ function escanearTickets() {
   for (var i = 0; i < files.length; i++) {
     promesas.push(_enviarOCR(files[i]));
   }
+  var nombres = [];
+  for (var n = 0; n < files.length; n++) nombres.push(files[n].name);
   Promise.all(promesas.map(function(p) { return p.catch(function() { return {error:'fallo'}; }); }))
   .then(function(resultados) {
+    var tickets = [];
     for (var r = 0; r < resultados.length; r++) {
       var data = resultados[r];
       if (data.error) { errores++; continue; }
       done++;
-      if (data.proveedor && proveedores.indexOf(data.proveedor) < 0) proveedores.push(data.proveedor);
-      if (data.items) todosItems = todosItems.concat(data.items);
-      totalGeneral += data.total || 0;
-      subtotalGen += data.subtotal || 0;
-      ivaGen += data.iva || 0;
-      iepsGen += data.ieps || 0;
+      data._archivo = nombres[r] || ('Ticket ' + (r+1));
+      tickets.push(data);
     }
     if (done === 0) { status.textContent = 'No se pudo leer ningún archivo'; status.style.color = '#b91c1c'; return; }
     status.textContent = done + '/' + total + ' tickets leídos' + (errores ? ' (' + errores + ' con error)' : '');
     status.style.color = 'var(--grn)';
-    mostrarResultadoOCR({
-      proveedor: proveedores.join(', '),
-      items: todosItems,
-      subtotal: subtotalGen,
-      iva: ivaGen,
-      ieps: iepsGen,
-      total: totalGeneral
-    });
+    mostrarResultadoOCRMulti(tickets);
   });
   fileInput.value = '';
 }
 
-function mostrarResultadoOCR(data) {
-  document.getElementById('ocr-result').style.display = 'block';
-  document.getElementById('ocr-prov').textContent = data.proveedor ? 'Proveedor: ' + data.proveedor : '';
-  _ocrItems = data.items || [];
-
-  var h = '';
-  for (var i = 0; i < _ocrItems.length; i++) {
-    var item = _ocrItems[i];
-    var matchId = matchIngrediente(item.nombre);
-    var nombreTicket = (item.nombre || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-    var nombreEsc = (item.nombre || '').replace(/'/g, "\\'");
-    var unidad = item.unidad || 'pz';
-    h += '<div style="padding:.5rem 0;border-bottom:1px solid #f0e8e5;font-size:.83rem">';
-    h += '<div style="display:flex;align-items:center;gap:.4rem">';
-    h += '<input type="checkbox" checked id="ocr-chk-' + i + '" style="accent-color:var(--v)">';
-    h += '<span style="flex:1;font-weight:600;font-size:.82rem">' + nombreTicket + '</span>';
-    h += '<span style="min-width:50px;text-align:right">' + (item.cantidad || 1) + ' ' + unidad + '</span>';
-    h += '<span style="min-width:70px;text-align:right;font-weight:600">$' + fmt(item.total || 0) + '</span>';
-    h += '</div>';
-    if (matchId) {
-      h += '<div style="margin-top:.3rem;margin-left:1.6rem;display:flex;gap:.3rem;align-items:center">';
-      h += '<select id="ocr-ing-' + i + '" style="flex:1;padding:.3rem;border:1px solid var(--brd);border-radius:6px;font-size:.8rem">';
-      for (var j = 0; j < _allIngs.length; j++) {
-        var sel = _allIngs[j].id === matchId ? ' selected' : '';
-        h += '<option value="' + _allIngs[j].id + '"' + sel + '>' + _allIngs[j].nombre + '</option>';
-      }
-      h += '</select></div>';
-    } else {
-      h += '<div style="margin-top:.3rem;margin-left:1.6rem;display:flex;gap:.3rem;align-items:center" id="ocr-row-' + i + '">';
-      h += '<span onclick="crearIngDesdeOCR(' + i + ',\'' + nombreEsc + '\',\'' + unidad + '\')" style="display:inline-flex;align-items:center;gap:.25rem;background:#dcfce7;color:#166534;font-size:.75rem;font-weight:600;padding:.25rem .6rem;border-radius:20px;cursor:pointer;white-space:nowrap">+ Crear</span>';
-      h += '<span style="font-size:.7rem;color:var(--mut)">o</span>';
-      h += '<select id="ocr-ing-' + i + '" style="flex:1;padding:.25rem;border:1px solid var(--brd);border-radius:6px;font-size:.78rem">';
-      h += '<option value="nuevo" selected>Asignar existente...</option>';
-      for (var j = 0; j < _allIngs.length; j++) {
-        h += '<option value="' + _allIngs[j].id + '">' + _allIngs[j].nombre + '</option>';
-      }
-      h += '</select></div>';
+function _renderOCRItem(item, idx) {
+  var matchId = matchIngrediente(item.nombre);
+  var nombreTicket = (item.nombre || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  var nombreEsc = (item.nombre || '').replace(/'/g, "\\'");
+  var unidad = item.unidad || 'pz';
+  var h = '<div style="padding:.5rem 0;border-bottom:1px solid #f0e8e5;font-size:.83rem">';
+  h += '<div style="display:flex;align-items:center;gap:.4rem">';
+  h += '<input type="checkbox" checked id="ocr-chk-' + idx + '" style="accent-color:var(--v)">';
+  h += '<span style="flex:1;font-weight:600;font-size:.82rem">' + nombreTicket + '</span>';
+  h += '<span style="min-width:50px;text-align:right">' + (item.cantidad || 1) + ' ' + unidad + '</span>';
+  h += '<span style="min-width:70px;text-align:right;font-weight:600">$' + fmt(item.total || 0) + '</span>';
+  h += '</div>';
+  if (matchId) {
+    h += '<div style="margin-top:.3rem;margin-left:1.6rem;display:flex;gap:.3rem;align-items:center">';
+    h += '<select id="ocr-ing-' + idx + '" style="flex:1;padding:.3rem;border:1px solid var(--brd);border-radius:6px;font-size:.8rem">';
+    for (var j = 0; j < _allIngs.length; j++) {
+      var sel = _allIngs[j].id === matchId ? ' selected' : '';
+      h += '<option value="' + _allIngs[j].id + '"' + sel + '>' + _allIngs[j].nombre + '</option>';
     }
-    h += '</div>';
+    h += '</select></div>';
+  } else {
+    h += '<div style="margin-top:.3rem;margin-left:1.6rem;display:flex;gap:.3rem;align-items:center" id="ocr-row-' + idx + '">';
+    h += '<span onclick="crearIngDesdeOCR(' + idx + ',\'' + nombreEsc + '\',\'' + unidad + '\')" style="display:inline-flex;align-items:center;gap:.25rem;background:#dcfce7;color:#166534;font-size:.75rem;font-weight:600;padding:.25rem .6rem;border-radius:20px;cursor:pointer;white-space:nowrap">+ Crear</span>';
+    h += '<span style="font-size:.7rem;color:var(--mut)">o</span>';
+    h += '<select id="ocr-ing-' + idx + '" style="flex:1;padding:.25rem;border:1px solid var(--brd);border-radius:6px;font-size:.78rem">';
+    h += '<option value="nuevo" selected>Asignar existente...</option>';
+    for (var j = 0; j < _allIngs.length; j++) {
+      h += '<option value="' + _allIngs[j].id + '">' + _allIngs[j].nombre + '</option>';
+    }
+    h += '</select></div>';
   }
+  h += '</div>';
+  return h;
+}
+
+function _renderOCRTotales(data) {
+  var h = '';
   var hayImpuestos = data.subtotal || data.iva || data.ieps;
   if (hayImpuestos) {
     h += '<div style="border-top:2px solid #e8ddd9;margin-top:.3rem;padding-top:.4rem;font-size:.83rem">';
@@ -1930,7 +1919,48 @@ function mostrarResultadoOCR(data) {
   }
   if (data.total) {
     h += '<div style="display:flex;justify-content:space-between;padding:.5rem 0;font-weight:700;font-size:.9rem">';
-    h += '<span>Total del ticket</span><span>$' + fmt(data.total) + '</span></div>';
+    h += '<span>Total</span><span>$' + fmt(data.total) + '</span></div>';
+  }
+  return h;
+}
+
+function mostrarResultadoOCR(data) {
+  document.getElementById('ocr-result').style.display = 'block';
+  document.getElementById('ocr-prov').textContent = data.proveedor ? 'Proveedor: ' + data.proveedor : '';
+  _ocrItems = data.items || [];
+  var h = '';
+  for (var i = 0; i < _ocrItems.length; i++) {
+    h += _renderOCRItem(_ocrItems[i], i);
+  }
+  h += _renderOCRTotales(data);
+  document.getElementById('ocr-items').innerHTML = h;
+}
+
+function mostrarResultadoOCRMulti(tickets) {
+  document.getElementById('ocr-result').style.display = 'block';
+  document.getElementById('ocr-prov').textContent = '';
+  _ocrItems = [];
+  var h = '', globalIdx = 0, totalGen = 0;
+  for (var t = 0; t < tickets.length; t++) {
+    var tk = tickets[t];
+    var prov = tk.proveedor || tk._archivo || ('Ticket ' + (t+1));
+    var archivo = (tk._archivo || '').replace(/\.[^.]+$/, '');
+    h += '<div style="background:var(--cream);margin:.6rem -.6rem;padding:.4rem .6rem;border-radius:8px;display:flex;justify-content:space-between;align-items:center">';
+    h += '<span style="font-weight:700;font-size:.85rem">&#128196; ' + (archivo || ('Ticket ' + (t+1))) + '</span>';
+    if (prov !== archivo) h += '<span style="font-size:.75rem;color:var(--mut)">' + prov + '</span>';
+    h += '</div>';
+    var items = tk.items || [];
+    for (var i = 0; i < items.length; i++) {
+      _ocrItems.push(items[i]);
+      h += _renderOCRItem(items[i], globalIdx);
+      globalIdx++;
+    }
+    h += _renderOCRTotales(tk);
+    totalGen += tk.total || 0;
+  }
+  if (tickets.length > 1) {
+    h += '<div style="display:flex;justify-content:space-between;padding:.6rem 0;font-weight:700;font-size:1rem;border-top:3px solid var(--v);margin-top:.4rem">';
+    h += '<span>Total general (' + tickets.length + ' tickets)</span><span>$' + fmt(totalGen) + '</span></div>';
   }
   document.getElementById('ocr-items').innerHTML = h;
 }
