@@ -181,6 +181,24 @@ def analisis_abc(
     return svc.analisis_abc(db, dias)
 
 
+@router.get("/dashboard-avanzado")
+def dashboard_avanzado(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Dashboard avanzado: comparativos mensuales, proyección, clientes VIP, utilidad."""
+    return svc.dashboard_avanzado(db)
+
+
+@router.get("/alertas")
+def alertas_consolidadas(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Alertas consolidadas del sistema para notificaciones push."""
+    return svc.alertas_consolidadas(db)
+
+
 @router.get("/backup")
 def descargar_backup(
     _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),

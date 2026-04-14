@@ -1,10 +1,11 @@
 // Jacaranda Service Worker — Offline support + caching
-const CACHE_NAME = 'jacaranda-v1';
+const CACHE_NAME = 'jacaranda-v2';
 const STATIC_ASSETS = [
   './',
   './index.html',
   './manifest.json',
   'https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap',
+  'https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js',
 ];
 
 // Install: pre-cache static assets

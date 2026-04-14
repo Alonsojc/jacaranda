@@ -848,3 +848,249 @@ def analisis_abc(db: Session, dias: int = 30) -> dict:
         "conteo_abc": conteo,
         "productos": productos,
     }
+
+
+# ─── Dashboard avanzado ──────────────────────────────────────────
+
+def dashboard_avanzado(db: Session) -> dict:
+    """Dashboard con comparativos mensuales, proyección y clientes top."""
+    from datetime import timedelta
+    from app.models.inventario import Producto
+    from app.models.cliente import Cliente
+    from app.models.gasto_fijo import GastoFijo
+
+    hoy = date.today()
+
+    # --- Comparativo: este mes vs mes anterior ---
+    inicio_mes = date(hoy.year, hoy.month, 1)
+    if hoy.month == 1:
+        inicio_mes_ant = date(hoy.year - 1, 12, 1)
+        fin_mes_ant = date(hoy.year - 1, 12, 31)
+    else:
+        inicio_mes_ant = date(hoy.year, hoy.month - 1, 1)
+        fin_mes_ant = inicio_mes - timedelta(days=1)
+
+    ventas_este_mes = db.query(
+        func.sum(Venta.total), func.count(Venta.id)
+    ).filter(
+        and_(
+            Venta.fecha >= datetime.combine(inicio_mes, datetime.min.time()),
+            Venta.fecha <= datetime.combine(hoy, datetime.max.time()),
+            Venta.estado == EstadoVenta.COMPLETADA,
+        )
+    ).first()
+
+    ventas_mes_ant = db.query(
+        func.sum(Venta.total), func.count(Venta.id)
+    ).filter(
+        and_(
+            Venta.fecha >= datetime.combine(inicio_mes_ant, datetime.min.time()),
+            Venta.fecha <= datetime.combine(fin_mes_ant, datetime.max.time()),
+            Venta.estado == EstadoVenta.COMPLETADA,
+        )
+    ).first()
+
+    total_este_mes = float(ventas_este_mes[0] or 0)
+    tickets_este_mes = ventas_este_mes[1] or 0
+    total_mes_ant = float(ventas_mes_ant[0] or 0)
+    tickets_mes_ant = ventas_mes_ant[1] or 0
+
+    cambio_pct = 0.0
+    if total_mes_ant > 0:
+        cambio_pct = round((total_este_mes - total_mes_ant) / total_mes_ant * 100, 1)
+
+    # --- Proyección mensual ---
+    dias_transcurridos = (hoy - inicio_mes).days + 1
+    import calendar
+    dias_del_mes = calendar.monthrange(hoy.year, hoy.month)[1]
+    proyeccion_mes = round(total_este_mes / dias_transcurridos * dias_del_mes, 2) if dias_transcurridos > 0 else 0
+
+    # --- Ventas últimos 12 meses para gráfica ---
+    meses = []
+    for i in range(11, -1, -1):
+        m = hoy.month - i
+        y = hoy.year
+        while m <= 0:
+            m += 12
+            y -= 1
+        mes_inicio = date(y, m, 1)
+        if m == 12:
+            mes_fin = date(y + 1, 1, 1) - timedelta(days=1)
+        else:
+            mes_fin = date(y, m + 1, 1) - timedelta(days=1)
+
+        total_mes = db.query(func.sum(Venta.total)).filter(
+            and_(
+                Venta.fecha >= datetime.combine(mes_inicio, datetime.min.time()),
+                Venta.fecha <= datetime.combine(mes_fin, datetime.max.time()),
+                Venta.estado == EstadoVenta.COMPLETADA,
+            )
+        ).scalar() or Decimal("0")
+
+        nombres_mes = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+                        'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+        meses.append({
+            "mes": f"{nombres_mes[m]} {y}",
+            "total": float(total_mes),
+        })
+
+    # --- Top 10 clientes VIP ---
+    top_clientes = db.query(
+        Venta.cliente_id,
+        func.sum(Venta.total).label("total"),
+        func.count(Venta.id).label("visitas"),
+    ).filter(
+        and_(
+            Venta.cliente_id.isnot(None),
+            Venta.estado == EstadoVenta.COMPLETADA,
+        )
+    ).group_by(Venta.cliente_id).order_by(
+        func.sum(Venta.total).desc()
+    ).limit(10).all()
+
+    clientes_vip = []
+    for tc in top_clientes:
+        cliente = db.query(Cliente).filter(Cliente.id == tc.cliente_id).first()
+        if cliente:
+            clientes_vip.append({
+                "id": cliente.id,
+                "nombre": cliente.nombre,
+                "telefono": cliente.telefono,
+                "puntos": cliente.puntos_acumulados,
+                "total_compras": float(tc.total),
+                "visitas": tc.visitas,
+                "ticket_promedio": round(float(tc.total) / tc.visitas, 2),
+            })
+
+    # --- Utilidad estimada (ventas - costos - gastos fijos) ---
+    costo_ventas = Decimal("0")
+    detalles_mes = db.query(DetalleVenta).join(Venta).filter(
+        and_(
+            Venta.fecha >= datetime.combine(inicio_mes, datetime.min.time()),
+            Venta.fecha <= datetime.combine(hoy, datetime.max.time()),
+            Venta.estado == EstadoVenta.COMPLETADA,
+        )
+    ).all()
+    for d in detalles_mes:
+        prod = db.query(Producto).filter(Producto.id == d.producto_id).first()
+        if prod:
+            costo_ventas += d.cantidad * prod.costo_produccion
+
+    gastos_fijos = db.query(GastoFijo).filter(GastoFijo.activo.is_(True)).all()
+    total_gastos_fijos = Decimal("0")
+    for g in gastos_fijos:
+        if g.periodicidad == "quincenal":
+            total_gastos_fijos += g.monto * 2
+        elif g.periodicidad == "semanal":
+            total_gastos_fijos += g.monto * Decimal("4.33")
+        else:
+            total_gastos_fijos += g.monto
+
+    utilidad_bruta = Decimal(str(total_este_mes)) - costo_ventas
+    utilidad_neta = utilidad_bruta - total_gastos_fijos
+
+    return {
+        "comparativo": {
+            "este_mes": total_este_mes,
+            "mes_anterior": total_mes_ant,
+            "cambio_pct": cambio_pct,
+            "tickets_este_mes": tickets_este_mes,
+            "tickets_mes_ant": tickets_mes_ant,
+        },
+        "proyeccion": {
+            "proyeccion_mes": proyeccion_mes,
+            "dias_transcurridos": dias_transcurridos,
+            "dias_del_mes": dias_del_mes,
+        },
+        "utilidad": {
+            "ingresos": total_este_mes,
+            "costo_ventas": float(costo_ventas),
+            "utilidad_bruta": float(utilidad_bruta),
+            "gastos_fijos": float(total_gastos_fijos),
+            "utilidad_neta": float(utilidad_neta),
+        },
+        "meses": meses,
+        "clientes_vip": clientes_vip,
+    }
+
+
+# ─── Alertas consolidadas (notificaciones) ───────────────────────
+
+def alertas_consolidadas(db: Session) -> list[dict]:
+    """Todas las alertas activas del sistema para notificaciones."""
+    from datetime import timedelta
+    from app.models.inventario import Producto, LoteIngrediente
+    from app.models.pedido import Pedido
+
+    hoy = date.today()
+    alertas = []
+
+    # 1. Stock bajo / agotado
+    productos = db.query(Producto).filter(
+        Producto.activo.is_(True),
+        Producto.stock_minimo > 0,
+    ).all()
+    for p in productos:
+        if p.stock_actual <= 0:
+            alertas.append({
+                "tipo": "stock_agotado",
+                "prioridad": "alta",
+                "titulo": f"Agotado: {p.nombre}",
+                "mensaje": f"{p.nombre} tiene stock 0. Reponer urgente.",
+                "icono": "🚨",
+            })
+        elif p.stock_actual <= p.stock_minimo:
+            alertas.append({
+                "tipo": "stock_bajo",
+                "prioridad": "media",
+                "titulo": f"Stock bajo: {p.nombre}",
+                "mensaje": f"{p.nombre}: {float(p.stock_actual)} pzas (mín: {float(p.stock_minimo)})",
+                "icono": "⚠️",
+            })
+
+    # 2. Lotes por caducar (7 días)
+    limite = hoy + timedelta(days=7)
+    from app.models.inventario import Ingrediente
+    lotes = db.query(LoteIngrediente).filter(
+        and_(
+            LoteIngrediente.fecha_caducidad.isnot(None),
+            LoteIngrediente.fecha_caducidad <= limite,
+            LoteIngrediente.cantidad_disponible > 0,
+        )
+    ).all()
+    for lote in lotes:
+        ing = db.query(Ingrediente).filter(Ingrediente.id == lote.ingrediente_id).first()
+        dias_rest = (lote.fecha_caducidad - hoy).days
+        vencido = dias_rest < 0
+        alertas.append({
+            "tipo": "caducidad",
+            "prioridad": "alta" if vencido else "media",
+            "titulo": f"{'Vencido' if vencido else 'Por caducar'}: {ing.nombre if ing else 'Ingrediente'}",
+            "mensaje": f"Lote {lote.numero_lote}: {'venció hace ' + str(abs(dias_rest)) if vencido else str(dias_rest) + ' días restantes'}. Cant: {float(lote.cantidad_disponible)}",
+            "icono": "🔴" if vencido else "🟡",
+        })
+
+    # 3. Pedidos pendientes para hoy/mañana
+    manana = hoy + timedelta(days=1)
+    pedidos = db.query(Pedido).filter(
+        and_(
+            Pedido.estado.notin_(["entregado", "cancelado"]),
+            Pedido.fecha_entrega.isnot(None),
+            Pedido.fecha_entrega <= manana,
+        )
+    ).all()
+    for p in pedidos:
+        es_hoy = p.fecha_entrega == hoy if p.fecha_entrega else False
+        alertas.append({
+            "tipo": "pedido",
+            "prioridad": "alta" if es_hoy else "media",
+            "titulo": f"Pedido {p.folio}: {p.cliente_nombre}",
+            "mensaje": f"Entrega {'HOY' if es_hoy else 'mañana'}" + (f" a las {p.hora_entrega}" if p.hora_entrega else "") + f". Estado: {p.estado.value}",
+            "icono": "📦",
+        })
+
+    # Sort by priority
+    prioridad_orden = {"alta": 0, "media": 1, "baja": 2}
+    alertas.sort(key=lambda x: prioridad_orden.get(x["prioridad"], 9))
+
+    return alertas
