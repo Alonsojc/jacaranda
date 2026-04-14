@@ -13,17 +13,18 @@ CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
 CLAUDE_MODEL = "claude-haiku-4-5-20251001"
 
 PROMPT_OCR = """Eres un asistente que extrae datos de tickets de compra para una panadería en México.
-Analiza esta imagen de un ticket o factura y extrae los productos comprados.
+Analiza esta imagen de un ticket o factura y extrae TODOS los productos comprados con su desglose fiscal.
 
 Responde SOLO con JSON válido (sin markdown, sin ```json```, solo el JSON puro) en este formato:
 {
   "proveedor": "nombre de la tienda/proveedor",
   "fecha": "2026-01-15",
   "items": [
-    {"nombre": "Harina de trigo", "cantidad": 5.0, "unidad": "kg", "precio_unitario": 25.50, "total": 127.50}
+    {"nombre": "Harina de trigo", "cantidad": 5.0, "unidad": "kg", "precio_unitario": 25.50, "total": 127.50, "iva": 0.0, "ieps": 0.0, "tasa_iva": 0, "tasa_ieps": 0}
   ],
   "subtotal": 300.00,
   "iva": 48.00,
+  "ieps": 0.00,
   "total": 348.00
 }
 
@@ -32,7 +33,13 @@ Reglas:
 - Si no puedes leer un campo, pon null
 - Si el ticket no muestra cantidad/unidad, asume pz (pieza) y cantidad 1
 - Si no puedes calcular precio_unitario, divide total entre cantidad
-- Extrae TODOS los productos que veas en el ticket
+- Extrae TODOS los productos que veas en el ticket, no omitas ninguno
+- "tasa_iva": porcentaje de IVA (0 o 16). En México alimentos básicos son IVA 0%, preparados 16%
+- "tasa_ieps": porcentaje de IEPS si aplica (ej: bebidas azucaradas, alimentos con alto contenido calórico)
+- "iva" por item: monto de IVA de ese producto
+- "ieps" por item: monto de IEPS de ese producto (0 si no aplica)
+- El subtotal + iva + ieps debe cuadrar con el total
+- Si el ticket muestra letras como E, F, A, 0%, 16% junto a los productos, úsalas para determinar la tasa de impuesto
 - Si no es un ticket de compra, responde: {"error": "No es un ticket de compra"}"""
 
 
