@@ -30,12 +30,17 @@ def generar_cfdi(
 def listar_cfdis(
     cliente_id: int | None = None,
     db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
 ):
     return svc.listar_cfdis(db, cliente_id)
 
 
 @router.get("/{id}", response_model=CFDIResponse)
-def obtener_cfdi(id: int, db: Session = Depends(get_db)):
+def obtener_cfdi(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     try:
         return svc.obtener_cfdi(db, id)
     except ValueError as e:
@@ -43,7 +48,11 @@ def obtener_cfdi(id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{id}/xml")
-def descargar_xml(id: int, db: Session = Depends(get_db)):
+def descargar_xml(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     try:
         cfdi = svc.obtener_cfdi(db, id)
     except ValueError as e:

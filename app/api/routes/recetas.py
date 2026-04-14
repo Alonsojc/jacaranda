@@ -19,17 +19,28 @@ router = APIRouter()
 # --- Recetas ---
 
 @router.post("/", response_model=RecetaResponse, status_code=201)
-def crear_receta(data: RecetaCreate, db: Session = Depends(get_db)):
+def crear_receta(
+    data: RecetaCreate,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     return svc.crear_receta(db, data)
 
 
 @router.get("/", response_model=list[RecetaResponse])
-def listar_recetas(db: Session = Depends(get_db)):
+def listar_recetas(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     return svc.listar_recetas(db)
 
 
 @router.get("/{id}", response_model=RecetaResponse)
-def obtener_receta(id: int, db: Session = Depends(get_db)):
+def obtener_receta(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     try:
         return svc.obtener_receta(db, id)
     except ValueError as e:
@@ -37,7 +48,12 @@ def obtener_receta(id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{id}", response_model=RecetaResponse)
-def actualizar_receta(id: int, data: RecetaUpdate, db: Session = Depends(get_db)):
+def actualizar_receta(
+    id: int,
+    data: RecetaUpdate,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     from app.models.receta import Receta, RecetaIngrediente
     receta = db.query(Receta).filter(Receta.id == id).first()
     if not receta:
@@ -65,7 +81,11 @@ def actualizar_receta(id: int, data: RecetaUpdate, db: Session = Depends(get_db)
 
 
 @router.get("/{id}/costo")
-def costo_receta(id: int, db: Session = Depends(get_db)):
+def costo_receta(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     try:
         return svc.calcular_costo_receta(db, id)
     except ValueError as e:
@@ -77,6 +97,7 @@ def verificar_disponibilidad(
     id: int,
     lotes: Decimal = Query(default=Decimal("1")),
     db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
 ):
     faltantes = svc.verificar_disponibilidad_ingredientes(db, id, lotes)
     return {
@@ -88,7 +109,11 @@ def verificar_disponibilidad(
 # --- Órdenes de producción ---
 
 @router.post("/produccion", response_model=OrdenProduccionResponse, status_code=201)
-def crear_orden(data: OrdenProduccionCreate, db: Session = Depends(get_db)):
+def crear_orden(
+    data: OrdenProduccionCreate,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     try:
         return svc.crear_orden_produccion(db, data)
     except ValueError as e:
@@ -96,7 +121,11 @@ def crear_orden(data: OrdenProduccionCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/produccion", response_model=list[OrdenProduccionResponse])
-def listar_ordenes(estado: str | None = None, db: Session = Depends(get_db)):
+def listar_ordenes(
+    estado: str | None = None,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     from app.models.receta import EstadoProduccion
     est = None
     if estado:
@@ -108,7 +137,11 @@ def listar_ordenes(estado: str | None = None, db: Session = Depends(get_db)):
 
 
 @router.post("/produccion/{id}/iniciar", response_model=OrdenProduccionResponse)
-def iniciar_produccion(id: int, db: Session = Depends(get_db)):
+def iniciar_produccion(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
     try:
         return svc.iniciar_produccion(db, id)
     except ValueError as e:
@@ -121,6 +154,7 @@ def completar_produccion(
     cantidad_producida: Decimal = Query(...),
     cantidad_merma: Decimal = Query(default=Decimal("0")),
     db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
 ):
     try:
         return svc.completar_produccion(db, id, cantidad_producida, cantidad_merma)

@@ -45,6 +45,7 @@ def productos_mas_vendidos(
     fecha_fin: date = Query(...),
     limit: int = Query(default=20, le=100),
     db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
 ):
     return svc.reporte_productos_mas_vendidos(db, fecha_inicio, fecha_fin, limit)
 

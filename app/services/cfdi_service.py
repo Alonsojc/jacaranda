@@ -7,6 +7,7 @@ Nota: El timbrado requiere integración con un PAC (Proveedor Autorizado de Cert
 from decimal import Decimal
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.models.facturacion import (
     CFDIComprobante, CFDIConcepto, EstadoCFDI, TipoComprobante,
@@ -52,40 +53,47 @@ def generar_cfdi(db: Session, data: CFDIGenerarRequest) -> CFDIComprobante:
     if not cliente.domicilio_fiscal_cp:
         raise ValueError("El cliente no tiene código postal fiscal registrado")
 
-    folio = _generar_folio_cfdi(db, settings.CFDI_SERIE_FACTURAS)
     ahora = datetime.now(timezone.utc)
 
-    # Crear comprobante
-    comprobante = CFDIComprobante(
-        version=settings.CFDI_VERSION,
-        serie=settings.CFDI_SERIE_FACTURAS,
-        folio=folio,
-        fecha=ahora,
-        tipo_comprobante=TipoComprobante.INGRESO,
-        forma_pago=data.forma_pago,
-        metodo_pago=data.metodo_pago,
-        lugar_expedicion=settings.LUGAR_EXPEDICION,
-        # Emisor
-        emisor_rfc=settings.RFC,
-        emisor_nombre=settings.RAZON_SOCIAL,
-        emisor_regimen_fiscal=settings.REGIMEN_FISCAL,
-        # Receptor
-        receptor_rfc=cliente.rfc,
-        receptor_nombre=cliente.razon_social or cliente.nombre,
-        receptor_regimen_fiscal=cliente.regimen_fiscal,
-        receptor_domicilio_fiscal=cliente.domicilio_fiscal_cp,
-        receptor_uso_cfdi=data.uso_cfdi,
-        # Totales
-        subtotal=venta.subtotal,
-        descuento=venta.descuento,
-        total_impuestos_trasladados=venta.total_impuestos,
-        total=venta.total,
-        # Relación con venta
-        venta_id=venta.id,
-        cliente_id=cliente.id,
-    )
-    db.add(comprobante)
-    db.flush()
+    # Retry folio generation to handle race conditions
+    for _attempt in range(3):
+        folio = _generar_folio_cfdi(db, settings.CFDI_SERIE_FACTURAS)
+        comprobante = CFDIComprobante(
+            version=settings.CFDI_VERSION,
+            serie=settings.CFDI_SERIE_FACTURAS,
+            folio=folio,
+            fecha=ahora,
+            tipo_comprobante=TipoComprobante.INGRESO,
+            forma_pago=data.forma_pago,
+            metodo_pago=data.metodo_pago,
+            lugar_expedicion=settings.LUGAR_EXPEDICION,
+            # Emisor
+            emisor_rfc=settings.RFC,
+            emisor_nombre=settings.RAZON_SOCIAL,
+            emisor_regimen_fiscal=settings.REGIMEN_FISCAL,
+            # Receptor
+            receptor_rfc=cliente.rfc,
+            receptor_nombre=cliente.razon_social or cliente.nombre,
+            receptor_regimen_fiscal=cliente.regimen_fiscal,
+            receptor_domicilio_fiscal=cliente.domicilio_fiscal_cp,
+            receptor_uso_cfdi=data.uso_cfdi,
+            # Totales
+            subtotal=venta.subtotal,
+            descuento=venta.descuento,
+            total_impuestos_trasladados=venta.total_impuestos,
+            total=venta.total,
+            # Relación con venta
+            venta_id=venta.id,
+            cliente_id=cliente.id,
+        )
+        db.add(comprobante)
+        try:
+            db.flush()
+            break
+        except IntegrityError:
+            db.rollback()
+    else:
+        raise ValueError("No se pudo generar un folio único para el CFDI")
 
     # Crear conceptos desde detalles de venta
     for detalle in venta.detalles:

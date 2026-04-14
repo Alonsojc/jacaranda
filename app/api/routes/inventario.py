@@ -22,24 +22,24 @@ router = APIRouter()
 # --- Categorías ---
 
 @router.post("/categorias", response_model=CategoriaResponse, status_code=201)
-def crear_categoria(data: CategoriaCreate, db: Session = Depends(get_db)):
+def crear_categoria(data: CategoriaCreate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     return svc.crear_categoria(db, data)
 
 
 @router.get("/categorias", response_model=list[CategoriaResponse])
-def listar_categorias(db: Session = Depends(get_db)):
+def listar_categorias(db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     return svc.listar_categorias(db)
 
 
 # --- Proveedores ---
 
 @router.post("/proveedores", response_model=ProveedorResponse, status_code=201)
-def crear_proveedor(data: ProveedorCreate, db: Session = Depends(get_db)):
+def crear_proveedor(data: ProveedorCreate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     return svc.crear_proveedor(db, data)
 
 
 @router.get("/proveedores", response_model=list[ProveedorResponse])
-def listar_proveedores(db: Session = Depends(get_db)):
+def listar_proveedores(db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     return svc.listar_proveedores(db)
 
 
@@ -55,12 +55,12 @@ def crear_ingrediente(
 
 
 @router.get("/ingredientes", response_model=list[IngredienteResponse])
-def listar_ingredientes(db: Session = Depends(get_db)):
+def listar_ingredientes(db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     return svc.listar_ingredientes(db)
 
 
 @router.get("/ingredientes/{id}", response_model=IngredienteResponse)
-def obtener_ingrediente(id: int, db: Session = Depends(get_db)):
+def obtener_ingrediente(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     try:
         return svc.obtener_ingrediente(db, id)
     except ValueError as e:
@@ -68,7 +68,7 @@ def obtener_ingrediente(id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/ingredientes/{id}", response_model=IngredienteResponse)
-def actualizar_ingrediente(id: int, data: IngredienteUpdate, db: Session = Depends(get_db)):
+def actualizar_ingrediente(id: int, data: IngredienteUpdate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     try:
         return svc.actualizar_ingrediente(db, id, data)
     except ValueError as e:
@@ -90,12 +90,12 @@ def crear_producto(
 
 
 @router.get("/productos", response_model=list[ProductoResponse])
-def listar_productos(db: Session = Depends(get_db)):
+def listar_productos(db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     return svc.listar_productos(db)
 
 
 @router.get("/productos/{id}", response_model=ProductoResponse)
-def obtener_producto(id: int, db: Session = Depends(get_db)):
+def obtener_producto(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     try:
         return svc.obtener_producto(db, id)
     except ValueError as e:
@@ -170,7 +170,7 @@ def listar_movimientos(
 # --- Lotes ---
 
 @router.post("/lotes", response_model=LoteResponse, status_code=201)
-def registrar_lote(data: LoteCreate, db: Session = Depends(get_db)):
+def registrar_lote(data: LoteCreate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     try:
         return svc.registrar_lote(db, data)
     except ValueError as e:
@@ -180,12 +180,12 @@ def registrar_lote(data: LoteCreate, db: Session = Depends(get_db)):
 # --- Alertas ---
 
 @router.get("/alertas/stock-bajo")
-def alertas_stock_bajo(db: Session = Depends(get_db)):
+def alertas_stock_bajo(db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     return svc.alertas_stock_bajo(db)
 
 
 @router.get("/alertas/por-caducar")
-def alertas_caducidad(dias: int = Query(default=7), db: Session = Depends(get_db)):
+def alertas_caducidad(dias: int = Query(default=7), db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
     lotes = svc.ingredientes_por_caducar(db, dias)
     return [
         {
