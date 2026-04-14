@@ -3,12 +3,14 @@ Jacaranda - Sistema de Gestión de Panadería
 Cumple con normativa mexicana: SAT/CFDI 4.0, LFT, IMSS, COFEPRIS, NOM-051.
 """
 
+import json
 import logging
 import os
 import secrets
+import sys
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
@@ -20,6 +22,42 @@ from app.api.routes import router as api_router
 import app.models  # noqa: F401
 from app.models.usuario import Usuario, RolUsuario
 
+
+# ─── Logging estructurado ──────────────────────────────────────────
+class JSONFormatter(logging.Formatter):
+    """Formato JSON para logs en Railway/producción."""
+    def format(self, record):
+        log = {
+            "ts": self.formatTime(record),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info and record.exc_info[0]:
+            log["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log, ensure_ascii=False)
+
+
+def _setup_logging():
+    level = logging.DEBUG if settings.DEBUG else logging.INFO
+    root = logging.getLogger()
+    root.setLevel(level)
+    # Clear existing handlers
+    root.handlers.clear()
+    handler = logging.StreamHandler(sys.stdout)
+    if settings.DEBUG:
+        handler.setFormatter(logging.Formatter(
+            "%(asctime)s %(levelname)-8s [%(name)s] %(message)s"
+        ))
+    else:
+        handler.setFormatter(JSONFormatter())
+    root.addHandler(handler)
+    # Quiet noisy libraries
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+
+
+_setup_logging()
 logger = logging.getLogger("jacaranda")
 
 
@@ -98,6 +136,22 @@ app.add_middleware(
 
 # Rutas API
 app.include_router(api_router, prefix="/api/v1")
+
+
+# ─── Request logging middleware ─────────────────────────────────────
+import time as _time
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = _time.time()
+    response = await call_next(request)
+    ms = round((_time.time() - start) * 1000)
+    if not request.url.path.startswith("/health"):
+        logger.info(
+            "%s %s %s %dms",
+            request.method, request.url.path, response.status_code, ms,
+        )
+    return response
 
 
 @app.get("/", tags=["Root"])

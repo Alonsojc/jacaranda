@@ -1,9 +1,13 @@
 """Rutas de reportes financieros e impuestos."""
 
+import shutil
 from datetime import date
-from fastapi import APIRouter, Depends, Query
+from pathlib import Path
+from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_role
 from app.models.usuario import Usuario, RolUsuario
@@ -122,3 +126,57 @@ def gastos_fijos_resumen(
 ):
     """Resumen de gastos fijos mensuales."""
     return svc.resumen_gastos_fijos(db)
+
+
+@router.get("/mermas")
+def reporte_mermas(
+    dias: int = Query(default=30, le=90),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Reporte de mermas y desperdicio por producto/ingrediente."""
+    return svc.reporte_mermas(db, dias)
+
+
+@router.get("/kardex/{ingrediente_id}")
+def kardex_ingrediente(
+    ingrediente_id: int,
+    limit: int = Query(default=100, le=500),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Kardex de un ingrediente: historial de movimientos con saldo."""
+    try:
+        return svc.kardex_ingrediente(db, ingrediente_id, limit)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/empleados-dashboard")
+def dashboard_empleados(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Dashboard de empleados: cumpleaños, documentos por vencer."""
+    return svc.dashboard_empleados(db)
+
+
+@router.get("/backup")
+def descargar_backup(
+    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
+):
+    """Descarga backup de la base de datos SQLite (solo admin)."""
+    db_url = settings.DATABASE_URL
+    if not db_url.startswith("sqlite"):
+        raise HTTPException(status_code=400, detail="Backup solo disponible para SQLite")
+    db_path = db_url.replace("sqlite:///", "")
+    src = Path(db_path)
+    if not src.exists():
+        raise HTTPException(status_code=404, detail="Base de datos no encontrada")
+    backup_path = Path(f"/tmp/jacaranda_backup_{date.today().isoformat()}.db")
+    shutil.copy2(str(src), str(backup_path))
+    return FileResponse(
+        path=str(backup_path),
+        filename=f"jacaranda_backup_{date.today().isoformat()}.db",
+        media_type="application/octet-stream",
+    )

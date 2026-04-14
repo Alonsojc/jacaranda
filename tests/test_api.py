@@ -2,18 +2,6 @@
 
 
 class TestAuth:
-    def test_registro_usuario(self, client):
-        response = client.post("/api/v1/auth/registro", json={
-            "nombre": "Test User",
-            "email": "test@test.com",
-            "password": "password123",
-            "rol": "cajero",
-        })
-        assert response.status_code == 201
-        data = response.json()
-        assert data["email"] == "test@test.com"
-        assert data["rol"] == "cajero"
-
     def test_login(self, client, admin_user):
         response = client.post("/api/v1/auth/login", json={
             "email": "admin@test.com",
@@ -34,21 +22,41 @@ class TestAuth:
         assert response.status_code == 200
         assert response.json()["email"] == "admin@test.com"
 
+    def test_crear_usuario_admin(self, client, auth_headers):
+        response = client.post("/api/v1/auth/usuarios", json={
+            "nombre": "Nuevo Cajero",
+            "email": "cajero@test.com",
+            "password": "password123",
+            "rol": "cajero",
+        }, headers=auth_headers)
+        assert response.status_code == 201
+        data = response.json()
+        assert data["email"] == "cajero@test.com"
+        assert data["rol"] == "cajero"
+
+    def test_registro_cerrado(self, client):
+        """El endpoint /registro fue removido por seguridad."""
+        response = client.post("/api/v1/auth/registro", json={
+            "nombre": "Test",
+            "email": "test@test.com",
+            "password": "password123",
+        })
+        assert response.status_code in (404, 405)
+
 
 class TestInventario:
     def test_crear_categoria(self, client, auth_headers):
         response = client.post("/api/v1/inventario/categorias", json={
             "nombre": "Pan de Prueba",
             "tipo": "pan_dulce",
-        })
+        }, headers=auth_headers)
         assert response.status_code == 201
 
     def test_crear_producto(self, client, auth_headers):
-        # Crear categoría primero
         client.post("/api/v1/inventario/categorias", json={
             "nombre": "Test Cat",
             "tipo": "pan_blanco",
-        })
+        }, headers=auth_headers)
 
         response = client.post("/api/v1/inventario/productos", json={
             "codigo": "TEST-001",
@@ -60,8 +68,12 @@ class TestInventario:
         data = response.json()
         assert data["codigo"] == "TEST-001"
 
-    def test_listar_productos(self, client):
+    def test_listar_productos_requiere_auth(self, client):
         response = client.get("/api/v1/inventario/productos")
+        assert response.status_code == 401
+
+    def test_listar_productos(self, client, auth_headers):
+        response = client.get("/api/v1/inventario/productos", headers=auth_headers)
         assert response.status_code == 200
         assert isinstance(response.json(), list)
 
