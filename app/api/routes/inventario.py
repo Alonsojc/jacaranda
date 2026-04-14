@@ -451,12 +451,15 @@ async def ocr_ticket(
     """Extrae datos de una foto de ticket/factura de compra usando IA."""
     from app.services.ocr_service import extraer_datos_ticket
 
-    if not archivo.content_type or not archivo.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="El archivo debe ser una imagen (JPG, PNG)")
+    allowed = archivo.content_type and (
+        archivo.content_type.startswith("image/") or archivo.content_type == "application/pdf"
+    )
+    if not allowed:
+        raise HTTPException(status_code=400, detail="El archivo debe ser una imagen (JPG, PNG) o PDF")
 
     image_bytes = await archivo.read()
     if len(image_bytes) > 20_000_000:  # 20MB limit
-        raise HTTPException(status_code=400, detail="La imagen es muy grande (máximo 20MB)")
+        raise HTTPException(status_code=400, detail="El archivo es muy grande (máximo 20MB)")
 
     resultado = extraer_datos_ticket(image_bytes, archivo.content_type)
     return resultado
