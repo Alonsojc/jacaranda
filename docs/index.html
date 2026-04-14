@@ -1889,17 +1889,22 @@ function mostrarResultadoOCR(data) {
   for (var i = 0; i < _ocrItems.length; i++) {
     var item = _ocrItems[i];
     var matchId = matchIngrediente(item.nombre);
-    h += '<div style="display:flex;align-items:center;gap:.4rem;padding:.4rem 0;border-bottom:1px solid #f0e8e5;font-size:.83rem">';
+    var nombreTicket = (item.nombre || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    h += '<div style="padding:.5rem 0;border-bottom:1px solid #f0e8e5;font-size:.83rem">';
+    h += '<div style="display:flex;align-items:center;gap:.4rem">';
     h += '<input type="checkbox" checked id="ocr-chk-' + i + '" style="accent-color:var(--v)">';
-    h += '<select id="ocr-ing-' + i + '" style="flex:1;padding:.3rem;border:1px solid var(--brd);border-radius:6px;font-size:.82rem">';
+    h += '<span style="flex:1;font-weight:600;font-size:.82rem">' + nombreTicket + '</span>';
+    h += '<span style="min-width:50px;text-align:right">' + (item.cantidad || 1) + ' ' + (item.unidad || 'pz') + '</span>';
+    h += '<span style="min-width:70px;text-align:right;font-weight:600">$' + fmt(item.total || 0) + '</span>';
+    h += '</div>';
+    h += '<div style="margin-top:.3rem;margin-left:1.6rem"><select id="ocr-ing-' + i + '" style="width:100%;padding:.3rem;border:1px solid var(--brd);border-radius:6px;font-size:.8rem;color:var(--txt)">';
+    if (!matchId) h += '<option value="nuevo" selected>+ Crear: ' + nombreTicket + '</option>';
     for (var j = 0; j < _allIngs.length; j++) {
       var sel = _allIngs[j].id === matchId ? ' selected' : '';
       h += '<option value="' + _allIngs[j].id + '"' + sel + '>' + _allIngs[j].nombre + '</option>';
     }
-    h += '<option value="nuevo">+ Nuevo ingrediente</option>';
-    h += '</select>';
-    h += '<span style="min-width:50px;text-align:right">' + (item.cantidad || 1) + ' ' + (item.unidad || 'pz') + '</span>';
-    h += '<span style="min-width:60px;text-align:right;font-weight:600">$' + fmt(item.total || 0) + '</span>';
+    if (matchId) h += '<option value="nuevo">+ Crear nuevo ingrediente</option>';
+    h += '</select></div>';
     h += '</div>';
   }
   var hayImpuestos = data.subtotal || data.iva || data.ieps;
@@ -1918,23 +1923,26 @@ function mostrarResultadoOCR(data) {
 }
 
 function matchIngrediente(nombre) {
-  if (!nombre || !_allIngs.length) return _allIngs.length ? _allIngs[0].id : 0;
+  if (!nombre || !_allIngs.length) return null;
   var lower = nombre.toLowerCase();
-  // Try exact substring match first
+  // Try: ingredient name is contained in ticket name (e.g. "mantequilla" in "MANTEQUILLA GLORIA VERDE")
+  var best = null, bestLen = 0;
   for (var i = 0; i < _allIngs.length; i++) {
-    if (lower.indexOf(_allIngs[i].nombre.toLowerCase()) >= 0 || _allIngs[i].nombre.toLowerCase().indexOf(lower) >= 0) {
-      return _allIngs[i].id;
+    var ingLower = _allIngs[i].nombre.toLowerCase();
+    if (lower.indexOf(ingLower) >= 0 && ingLower.length > bestLen) {
+      best = _allIngs[i].id; bestLen = ingLower.length;
     }
   }
-  // Try word match
-  var words = lower.split(/\s+/);
+  if (best) return best;
+  // Try: first significant word of ticket name matches ingredient
+  var words = lower.replace(/[^a-záéíóúñü\s]/g, '').split(/\s+/);
   for (var j = 0; j < _allIngs.length; j++) {
-    var ingLower = _allIngs[j].nombre.toLowerCase();
-    for (var k = 0; k < words.length; k++) {
-      if (words[k].length > 3 && ingLower.indexOf(words[k]) >= 0) return _allIngs[j].id;
+    var ingL = _allIngs[j].nombre.toLowerCase();
+    for (var k = 0; k < words.length && k < 2; k++) {
+      if (words[k].length >= 4 && ingL.indexOf(words[k]) >= 0) return _allIngs[j].id;
     }
   }
-  return _allIngs.length ? _allIngs[0].id : 0;
+  return null;
 }
 
 function registrarTodoOCR() {
