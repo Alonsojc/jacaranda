@@ -212,6 +212,26 @@ def conciliar_movimiento(
 
 # ─── Exportaciones Excel ─────────────────────────────────────────
 
+@router.get("/reporte-mensual/excel")
+def reporte_mensual_excel(
+    mes: int = Query(..., ge=1, le=12),
+    anio: int = Query(..., ge=2020),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_role(
+        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
+    )),
+):
+    """Descarga reporte mensual consolidado (Estado de Resultados + Balance General + Polizas)."""
+    buf = excel_service.exportar_reporte_mensual(db, mes, anio)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename=reporte_mensual_{anio}_{mes:02d}.xlsx"
+        },
+    )
+
+
 @router.get("/balance-general/excel")
 def balance_general_excel(
     fecha_corte: date | None = None,

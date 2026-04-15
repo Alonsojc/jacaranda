@@ -183,6 +183,25 @@ def analisis_abc(
     return svc.analisis_abc(db, dias)
 
 
+@router.get("/comparativo-anual")
+def comparativo_anual(
+    anio: int = Query(..., ge=2020),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Comparativo de ventas año actual vs anterior, mes a mes."""
+    return svc.comparativo_anual(db, anio)
+
+
+@router.get("/estacionalidad")
+def analisis_estacionalidad(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Análisis de estacionalidad: meses pico, fechas festivas, días de semana."""
+    return svc.analisis_estacionalidad(db)
+
+
 @router.get("/dashboard-avanzado")
 def dashboard_avanzado(
     db: Session = Depends(get_db),

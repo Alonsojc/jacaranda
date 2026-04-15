@@ -1219,6 +1219,198 @@ def flujo_efectivo_proyectado(db: Session, meses: int = 3) -> dict:
     }
 
 
+# ─── Comparativo anual (Year-over-Year) ──────────────────────────
+
+def comparativo_anual(db: Session, anio: int) -> list[dict]:
+    """
+    Compara ventas mes a mes del año indicado vs. el año anterior.
+    Retorna lista de {mes, ventas_actual, ventas_anterior, cambio_pct}.
+    """
+    resultados = []
+    for mes in range(1, 13):
+        # Ventas del año actual
+        ventas_actual = db.query(
+            func.coalesce(func.sum(Venta.total), 0)
+        ).filter(
+            Venta.estado == EstadoVenta.COMPLETADA,
+            extract("year", Venta.fecha) == anio,
+            extract("month", Venta.fecha) == mes,
+        ).scalar()
+
+        # Ventas del año anterior
+        ventas_anterior = db.query(
+            func.coalesce(func.sum(Venta.total), 0)
+        ).filter(
+            Venta.estado == EstadoVenta.COMPLETADA,
+            extract("year", Venta.fecha) == anio - 1,
+            extract("month", Venta.fecha) == mes,
+        ).scalar()
+
+        ventas_actual = float(ventas_actual or 0)
+        ventas_anterior = float(ventas_anterior or 0)
+
+        if ventas_anterior > 0:
+            cambio_pct = round(
+                ((ventas_actual - ventas_anterior) / ventas_anterior) * 100, 2
+            )
+        elif ventas_actual > 0:
+            cambio_pct = 100.0
+        else:
+            cambio_pct = 0.0
+
+        resultados.append({
+            "mes": mes,
+            "ventas_actual": round(ventas_actual, 2),
+            "ventas_anterior": round(ventas_anterior, 2),
+            "cambio_pct": cambio_pct,
+        })
+
+    return resultados
+
+
+# ─── Análisis de estacionalidad ──────────────────────────────────
+
+def analisis_estacionalidad(db: Session) -> dict:
+    """
+    Analiza patrones estacionales de ventas históricas.
+    Identifica meses y fechas pico (Día de Muertos, Navidad,
+    Día de las Madres, San Valentín, etc.)
+    """
+    # --- Ventas promedio por mes (todos los años) ---
+    ventas_por_mes = []
+    for mes in range(1, 13):
+        total = db.query(
+            func.coalesce(func.sum(Venta.total), 0)
+        ).filter(
+            Venta.estado == EstadoVenta.COMPLETADA,
+            extract("month", Venta.fecha) == mes,
+        ).scalar()
+
+        conteo = db.query(
+            func.count(Venta.id)
+        ).filter(
+            Venta.estado == EstadoVenta.COMPLETADA,
+            extract("month", Venta.fecha) == mes,
+        ).scalar()
+
+        # Número de años distintos con ventas en este mes
+        anios_distintos = db.query(
+            func.count(func.distinct(extract("year", Venta.fecha)))
+        ).filter(
+            Venta.estado == EstadoVenta.COMPLETADA,
+            extract("month", Venta.fecha) == mes,
+        ).scalar() or 1
+
+        promedio_mensual = float(total or 0) / max(anios_distintos, 1)
+        ventas_por_mes.append({
+            "mes": mes,
+            "total_historico": round(float(total or 0), 2),
+            "promedio_anual": round(promedio_mensual, 2),
+            "transacciones_totales": conteo or 0,
+        })
+
+    # Promedio global para calcular índice estacional
+    promedio_global = sum(m["promedio_anual"] for m in ventas_por_mes) / 12 if ventas_por_mes else 1
+    for m in ventas_por_mes:
+        m["indice_estacional"] = round(
+            m["promedio_anual"] / promedio_global, 2
+        ) if promedio_global > 0 else 0.0
+
+    # --- Fechas especiales mexicanas ---
+    fechas_especiales = [
+        {"nombre": "San Valentín", "mes": 2, "dia_inicio": 10, "dia_fin": 14},
+        {"nombre": "Día de las Madres", "mes": 5, "dia_inicio": 7, "dia_fin": 10},
+        {"nombre": "Día del Padre", "mes": 6, "dia_inicio": 15, "dia_fin": 20},
+        {"nombre": "Independencia", "mes": 9, "dia_inicio": 13, "dia_fin": 16},
+        {"nombre": "Día de Muertos", "mes": 10, "dia_inicio": 28, "dia_fin": 31},
+        {"nombre": "Día de Muertos", "mes": 11, "dia_inicio": 1, "dia_fin": 2},
+        {"nombre": "Navidad", "mes": 12, "dia_inicio": 20, "dia_fin": 25},
+        {"nombre": "Año Nuevo", "mes": 12, "dia_inicio": 28, "dia_fin": 31},
+    ]
+
+    picos_festivos = []
+    for evento in fechas_especiales:
+        total_evento = db.query(
+            func.coalesce(func.sum(Venta.total), 0)
+        ).filter(
+            Venta.estado == EstadoVenta.COMPLETADA,
+            extract("month", Venta.fecha) == evento["mes"],
+            extract("day", Venta.fecha) >= evento["dia_inicio"],
+            extract("day", Venta.fecha) <= evento["dia_fin"],
+        ).scalar()
+
+        conteo_evento = db.query(
+            func.count(Venta.id)
+        ).filter(
+            Venta.estado == EstadoVenta.COMPLETADA,
+            extract("month", Venta.fecha) == evento["mes"],
+            extract("day", Venta.fecha) >= evento["dia_inicio"],
+            extract("day", Venta.fecha) <= evento["dia_fin"],
+        ).scalar()
+
+        if float(total_evento or 0) > 0:
+            picos_festivos.append({
+                "evento": evento["nombre"],
+                "periodo": f"{evento['dia_inicio']}-{evento['dia_fin']}/{evento['mes']:02d}",
+                "ventas_totales": round(float(total_evento), 2),
+                "transacciones": conteo_evento or 0,
+            })
+
+    # Ordenar picos por ventas descendente
+    picos_festivos.sort(key=lambda x: x["ventas_totales"], reverse=True)
+
+    # --- Día de la semana más fuerte ---
+    ventas_por_dia_semana = []
+    # SQLite: strftime('%w', fecha) -> 0=domingo, ..., 6=sábado
+    nombres_dia = {0: "Domingo", 1: "Lunes", 2: "Martes", 3: "Miércoles",
+                   4: "Jueves", 5: "Viernes", 6: "Sábado"}
+    for dow in range(7):
+        total_dow = db.query(
+            func.coalesce(func.sum(Venta.total), 0)
+        ).filter(
+            Venta.estado == EstadoVenta.COMPLETADA,
+            func.strftime("%w", Venta.fecha) == str(dow),
+        ).scalar()
+
+        conteo_dow = db.query(
+            func.count(Venta.id)
+        ).filter(
+            Venta.estado == EstadoVenta.COMPLETADA,
+            func.strftime("%w", Venta.fecha) == str(dow),
+        ).scalar()
+
+        ventas_por_dia_semana.append({
+            "dia": nombres_dia[dow],
+            "dia_numero": dow,
+            "ventas_totales": round(float(total_dow or 0), 2),
+            "transacciones": conteo_dow or 0,
+        })
+
+    # Mejor y peor mes
+    mejor_mes = max(ventas_por_mes, key=lambda x: x["promedio_anual"]) if ventas_por_mes else None
+    peor_mes = min(ventas_por_mes, key=lambda x: x["promedio_anual"]) if ventas_por_mes else None
+
+    nombres_mes = {
+        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre",
+    }
+
+    return {
+        "ventas_por_mes": ventas_por_mes,
+        "picos_festivos": picos_festivos,
+        "ventas_por_dia_semana": ventas_por_dia_semana,
+        "mejor_mes": {
+            "mes": nombres_mes.get(mejor_mes["mes"], ""),
+            "promedio_anual": mejor_mes["promedio_anual"],
+        } if mejor_mes else None,
+        "peor_mes": {
+            "mes": nombres_mes.get(peor_mes["mes"], ""),
+            "promedio_anual": peor_mes["promedio_anual"],
+        } if peor_mes else None,
+    }
+
+
 # ─── Alertas consolidadas (notificaciones) ───────────────────────
 
 def alertas_consolidadas(db: Session) -> list[dict]:
