@@ -48,3 +48,13 @@ from app.models.sucursal import (  # noqa: F401
     Sucursal, InventarioSucursal, Traspaso, DetalleTraspaso,
     EstadoTraspaso,
 )
+from app.models.merma import RegistroMerma, TipoMerma  # noqa: F401
+from app.models.crm import (  # noqa: F401
+    Campana, EncuestaSatisfaccion, InteraccionCliente, SegmentoCliente,
+)
+from app.models.calidad import (  # noqa: F401
+    ChecklistCalidad, TrazabilidadLote, AlertaRecall, EstadoInspeccion,
+)
+from app.models.auditoria import (  # noqa: F401
+    LogAuditoria, ConfiguracionSeguridad,
+)

@@ -258,6 +258,12 @@ h2{font-size:1.1rem}
 <a data-pg="cofepris" onclick="go('cofepris')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">COFEPRIS</a>
 <a data-pg="compras" onclick="go('compras')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">Compras</a>
 <a data-pg="sucursales" onclick="go('sucursales')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Sucursales</a>
+<a data-pg="merma" onclick="go('merma')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO">Merma</a>
+<a data-pg="calidad" onclick="go('calidad')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Calidad</a>
+<a data-pg="crm" onclick="go('crm')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">CRM</a>
+<a data-pg="kpis" onclick="go('kpis')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">KPIs</a>
+<a data-pg="fiscal" onclick="go('fiscal')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">Fiscal</a>
+<a data-pg="auditoria" onclick="go('auditoria')" class="nav-role" data-roles="ADMINISTRADOR">Auditor&iacute;a</a>
 <a data-pg="usuarios" onclick="go('usuarios')" class="nav-role" data-roles="ADMINISTRADOR">Usuarios</a>
 <a onclick="toggleNotifPanel()" id="btn-notif" style="display:none;cursor:pointer;color:var(--mut);font-size:.95rem;padding:.5rem .4rem;position:relative" title="Notificaciones">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:2px;right:0;background:#ef4444;color:#fff;font-size:.55rem;font-weight:700;padding:.05rem .3rem;border-radius:8px;min-width:14px;text-align:center"></span></a>
 <a onclick="cerrarSesion()" id="btn-logout" style="display:none;cursor:pointer;color:var(--mut);font-size:.78rem;padding:.5rem .6rem" title="Cerrar sesi&oacute;n">&#9211;</a>
@@ -1239,6 +1245,96 @@ h2{font-size:1.1rem}
 </div>
 </div>
 
+<!-- MERMA / DESPERDICIO -->
+<div class="page" id="merma">
+<h2>Merma / Desperdicio</h2>
+<div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
+<button class="tab active" onclick="mermaTab('m-registros')">Registros</button>
+<button class="tab" onclick="mermaTab('m-resumen')">Resumen</button>
+<button class="tab" onclick="mermaTab('m-alertas')">Alertas caducidad</button>
+<button class="tab" onclick="mermaTab('m-dashboard')">Dashboard</button>
+</div>
+<div id="m-registros"><div id="merma-registros-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="m-resumen" style="display:none"><div id="merma-resumen-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="m-alertas" style="display:none"><div id="merma-alertas-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="m-dashboard" style="display:none"><div id="merma-dashboard-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+</div>
+
+<!-- CALIDAD -->
+<div class="page" id="calidad">
+<h2>Control de Calidad</h2>
+<div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
+<button class="tab active" onclick="calidadTab('q-checklists')">Checklists</button>
+<button class="tab" onclick="calidadTab('q-trazabilidad')">Trazabilidad</button>
+<button class="tab" onclick="calidadTab('q-recalls')">Recalls</button>
+<button class="tab" onclick="calidadTab('q-indicadores')">Indicadores</button>
+</div>
+<div id="q-checklists"><div id="calidad-checklists-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="q-trazabilidad" style="display:none"><div id="calidad-trazabilidad-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="q-recalls" style="display:none"><div id="calidad-recalls-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="q-indicadores" style="display:none"><div id="calidad-indicadores-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+</div>
+
+<!-- CRM -->
+<div class="page" id="crm">
+<h2>CRM y Marketing</h2>
+<div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
+<button class="tab active" onclick="crmTab('c-segmentacion')">Segmentaci&oacute;n</button>
+<button class="tab" onclick="crmTab('c-campanas')">Campa&ntilde;as</button>
+<button class="tab" onclick="crmTab('c-encuestas')">Encuestas</button>
+<button class="tab" onclick="crmTab('c-churn')">Churn</button>
+<button class="tab" onclick="crmTab('c-dashboard')">Dashboard</button>
+</div>
+<div id="c-segmentacion"><div id="crm-seg-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="c-campanas" style="display:none"><div id="crm-camp-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="c-encuestas" style="display:none"><div id="crm-enc-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="c-churn" style="display:none"><div id="crm-churn-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="c-dashboard" style="display:none"><div id="crm-dash-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+</div>
+
+<!-- KPIs -->
+<div class="page" id="kpis">
+<h2>KPIs y Gr&aacute;ficas</h2>
+<div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
+<button class="tab active" onclick="kpiTab('k-resumen')">Resumen</button>
+<button class="tab" onclick="kpiTab('k-ventas')">Ventas</button>
+<button class="tab" onclick="kpiTab('k-productos')">Productos</button>
+<button class="tab" onclick="kpiTab('k-pagos')">Pagos</button>
+</div>
+<div id="k-resumen"><div id="kpi-resumen-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="k-ventas" style="display:none">
+<div class="card" style="margin-bottom:1rem"><canvas id="chart-tendencia" height="200"></canvas></div>
+<div class="row r2">
+<div class="card"><canvas id="chart-por-hora" height="180"></canvas></div>
+<div class="card"><canvas id="chart-por-dia" height="180"></canvas></div>
+</div>
+</div>
+<div id="k-productos" style="display:none"><div class="card"><canvas id="chart-top-productos" height="220"></canvas></div></div>
+<div id="k-pagos" style="display:none"><div class="card"><canvas id="chart-metodos-pago" height="220"></canvas></div></div>
+</div>
+
+<!-- FISCAL -->
+<div class="page" id="fiscal">
+<h2>Reportes Fiscales SAT</h2>
+<div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
+<button class="tab active" onclick="fiscalTab('f-activo')">Per&iacute;odo activo</button>
+</div>
+<div id="f-activo"><div id="fiscal-activo-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+</div>
+
+<!-- AUDITORIA -->
+<div class="page" id="auditoria">
+<h2>Auditor&iacute;a y Seguridad</h2>
+<div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
+<button class="tab active" onclick="auditTab('a-eventos')">Eventos</button>
+<button class="tab" onclick="auditTab('a-anomalias')">Anomal&iacute;as</button>
+<button class="tab" onclick="auditTab('a-dashboard')">Dashboard</button>
+</div>
+<div id="a-eventos"><div id="audit-eventos-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="a-anomalias" style="display:none"><div id="audit-anomalias-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="a-dashboard" style="display:none"><div id="audit-dash-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+</div>
+
 </div><!-- /wrap -->
 
 <!-- MOBILE BOTTOM NAV -->
@@ -1264,6 +1360,12 @@ h2{font-size:1.1rem}
 <a onclick="go('iapg');toggleMobileMenu()" class="mm-link">&#129302; IA Pron&oacute;sticos</a>
 <a onclick="go('listas');toggleMobileMenu()" class="mm-link">&#128221; Listas</a>
 <a onclick="go('cofepris');toggleMobileMenu()" class="mm-link">&#9879; COFEPRIS</a>
+<a onclick="go('merma');toggleMobileMenu()" class="mm-link">&#128465; Merma</a>
+<a onclick="go('calidad');toggleMobileMenu()" class="mm-link">&#9989; Calidad</a>
+<a onclick="go('crm');toggleMobileMenu()" class="mm-link">&#128200; CRM</a>
+<a onclick="go('kpis');toggleMobileMenu()" class="mm-link">&#128202; KPIs</a>
+<a onclick="go('fiscal');toggleMobileMenu()" class="mm-link">&#128176; Fiscal</a>
+<a onclick="go('auditoria');toggleMobileMenu()" class="mm-link">&#128274; Auditor&iacute;a</a>
 <a onclick="go('usuarios');toggleMobileMenu()" class="mm-link">&#128101; Usuarios</a>
 <a onclick="cerrarSesion();toggleMobileMenu()" class="mm-link" style="color:#b91c1c">&#9211; Cerrar sesi&oacute;n</a>
 </div>
@@ -1814,6 +1916,12 @@ function go(p) {
   if (p === 'cofepris') cargarCofepris();
   if (p === 'compras') initCompras();
   if (p === 'sucursales') initSucursales();
+  if (p === 'merma') initMerma();
+  if (p === 'calidad') initCalidad();
+  if (p === 'crm') initCRM();
+  if (p === 'kpis') initKPIs();
+  if (p === 'fiscal') initFiscal();
+  if (p === 'auditoria') initAuditoria();
   if (p === 'usuarios') cargarUsuarios();
   window.scrollTo(0, 0);
 }
@@ -7000,6 +7108,331 @@ function recibirTraspaso(id) {
     var items = t.detalles.map(function(d) { return { producto_id: d.producto_id, cantidad_recibida: String(d.cantidad_enviada) }; });
     api('POST', '/sucursales/traspasos/' + id + '/recibir', { items_recibidos: items }).then(function() { toast('Traspaso recibido'); cargarTraspasos(); }).catch(function(e) { toast(e.message||'Error', true); });
   });
+}
+
+// ─── Merma / Desperdicio ──────────────────────────────────────────
+function mermaTab(tab) {
+  ['m-registros','m-resumen','m-alertas','m-dashboard'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#merma .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  if (tab === 'm-registros') cargarMermaRegistros();
+  if (tab === 'm-resumen') cargarMermaResumen();
+  if (tab === 'm-alertas') cargarMermaAlertas();
+  if (tab === 'm-dashboard') cargarMermaDashboard();
+}
+function initMerma() { cargarMermaRegistros(); }
+function cargarMermaRegistros() {
+  api('GET', '/merma/').then(function(data) {
+    if (!data.length) { document.getElementById('merma-registros-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin registros de merma.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Fecha</th><th>Tipo</th><th>Cantidad</th><th>Costo</th><th>Motivo</th></tr>';
+    data.forEach(function(m) { h += '<tr><td style="padding:.35rem">' + (m.fecha_merma||'').slice(0,10) + '</td><td><span class="badge">' + m.tipo + '</span></td><td>' + m.cantidad + ' ' + (m.unidad_medida||'') + '</td><td>$' + num(m.costo_unitario * m.cantidad) + '</td><td>' + (m.motivo||'-') + '</td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('merma-registros-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('merma-registros-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarMermaResumen() {
+  var hoy = new Date(), y = hoy.getFullYear(), m = String(hoy.getMonth()+1).padStart(2,'0');
+  var inicio = y + '-' + m + '-01', fin = hoy.toISOString().slice(0,10);
+  api('GET', '/merma/resumen?fecha_inicio=' + inicio + '&fecha_fin=' + fin).then(function(data) {
+    var h = '<div class="row r3">';
+    h += '<div class="card kpi"><div class="n">' + (data.total_registros||0) + '</div><div class="l">Registros</div></div>';
+    h += '<div class="card kpi a"><div class="n">$' + num(data.costo_total||0) + '</div><div class="l">Costo total</div></div>';
+    h += '<div class="card kpi p"><div class="n">' + num(data.cantidad_total||0) + '</div><div class="l">Cantidad total</div></div>';
+    h += '</div>';
+    if (data.por_tipo) {
+      h += '<div class="card"><h3>Por tipo</h3>';
+      Object.keys(data.por_tipo).forEach(function(k) { h += '<div class="srow"><span>' + k + '</span><span class="green">' + data.por_tipo[k] + '</span></div>'; });
+      h += '</div>';
+    }
+    document.getElementById('merma-resumen-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('merma-resumen-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarMermaAlertas() {
+  api('GET', '/merma/alertas-caducidad?dias=15').then(function(data) {
+    var items = Array.isArray(data) ? data : (data.alertas||[]);
+    if (!items.length) { document.getElementById('merma-alertas-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin alertas de caducidad.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Producto</th><th>Lote</th><th>Caducidad</th><th>D&iacute;as restantes</th></tr>';
+    items.forEach(function(a) { h += '<tr><td style="padding:.35rem">' + (a.ingrediente||a.producto||'-') + '</td><td>' + (a.numero_lote||'-') + '</td><td>' + (a.fecha_caducidad||'').slice(0,10) + '</td><td><span class="badge ' + (a.dias_restantes <= 3 ? 'bout' : 'blow') + '">' + a.dias_restantes + 'd</span></td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('merma-alertas-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('merma-alertas-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarMermaDashboard() {
+  api('GET', '/merma/dashboard').then(function(data) {
+    var h = '<div class="row r2">';
+    h += '<div class="card kpi a"><div class="n">$' + num(data.costo_total_mes||0) + '</div><div class="l">Costo merma mes</div></div>';
+    h += '<div class="card kpi"><div class="n">' + (data.registros_mes||0) + '</div><div class="l">Registros mes</div></div>';
+    h += '</div>';
+    if (data.top_productos && data.top_productos.length) {
+      h += '<div class="card"><h3>Top productos con merma</h3>';
+      data.top_productos.forEach(function(p) { h += '<div class="srow"><span>' + (p.nombre||p.producto||'-') + '</span><span class="green">' + p.cantidad + '</span></div>'; });
+      h += '</div>';
+    }
+    document.getElementById('merma-dashboard-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('merma-dashboard-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+
+// ─── Calidad ─────────────────────────────────────────────────────
+function calidadTab(tab) {
+  ['q-checklists','q-trazabilidad','q-recalls','q-indicadores'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#calidad .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  if (tab === 'q-checklists') cargarChecklists();
+  if (tab === 'q-trazabilidad') cargarTrazabilidad();
+  if (tab === 'q-recalls') cargarRecalls();
+  if (tab === 'q-indicadores') cargarIndicadoresCalidad();
+}
+function initCalidad() { cargarChecklists(); }
+function cargarChecklists() {
+  api('GET', '/calidad/checklists').then(function(data) {
+    if (!data.length) { document.getElementById('calidad-checklists-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin checklists.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Fecha</th><th>Tipo</th><th>&Aacute;rea</th><th>Estado</th><th>Puntaje</th></tr>';
+    data.forEach(function(c) { h += '<tr><td style="padding:.35rem">' + (c.fecha_inspeccion||c.creado_en||'').slice(0,10) + '</td><td>' + (c.tipo_inspeccion||'-') + '</td><td>' + (c.area||'-') + '</td><td><span class="badge ' + (c.resultado === 'aprobado' ? 'bok' : 'bout') + '">' + (c.resultado||'-') + '</span></td><td>' + (c.puntaje||'-') + '</td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('calidad-checklists-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('calidad-checklists-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarTrazabilidad() {
+  api('GET', '/calidad/trazabilidad').then(function(data) {
+    if (!data.length) { document.getElementById('calidad-trazabilidad-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin trazabilidad.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Lote</th><th>Producto</th><th>Origen</th><th>Fecha</th></tr>';
+    data.forEach(function(t) { h += '<tr><td style="padding:.35rem;font-family:monospace">' + (t.numero_lote||'-') + '</td><td>' + (t.producto_nombre||'-') + '</td><td>' + (t.origen||'-') + '</td><td>' + (t.fecha_produccion||t.creado_en||'').slice(0,10) + '</td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('calidad-trazabilidad-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('calidad-trazabilidad-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarRecalls() {
+  api('GET', '/calidad/recalls').then(function(data) {
+    if (!data.length) { document.getElementById('calidad-recalls-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin recalls.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Fecha</th><th>Motivo</th><th>Estado</th><th>Lotes afectados</th></tr>';
+    data.forEach(function(r) { h += '<tr><td style="padding:.35rem">' + (r.fecha_alerta||r.creado_en||'').slice(0,10) + '</td><td>' + (r.motivo||'-') + '</td><td><span class="badge ' + (r.estado === 'resuelto' ? 'bok' : 'bout') + '">' + (r.estado||'-') + '</span></td><td>' + (r.lotes_afectados||'-') + '</td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('calidad-recalls-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('calidad-recalls-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarIndicadoresCalidad() {
+  api('GET', '/calidad/indicadores').then(function(data) {
+    var h = '<div class="row r3">';
+    h += '<div class="card kpi g"><div class="n">' + (data.tasa_aprobacion||0) + '%</div><div class="l">Tasa aprobaci&oacute;n</div></div>';
+    h += '<div class="card kpi"><div class="n">' + (data.total_inspecciones||0) + '</div><div class="l">Inspecciones</div></div>';
+    h += '<div class="card kpi a"><div class="n">' + (data.recalls_activos||0) + '</div><div class="l">Recalls activos</div></div>';
+    h += '</div>';
+    document.getElementById('calidad-indicadores-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('calidad-indicadores-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+
+// ─── CRM y Marketing ─────────────────────────────────────────────
+function crmTab(tab) {
+  ['c-segmentacion','c-campanas','c-encuestas','c-churn','c-dashboard'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#crm .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  if (tab === 'c-segmentacion') cargarSegmentacion();
+  if (tab === 'c-campanas') cargarCampanas();
+  if (tab === 'c-encuestas') cargarEncuestas();
+  if (tab === 'c-churn') cargarChurn();
+  if (tab === 'c-dashboard') cargarCRMDashboard();
+}
+function initCRM() { cargarSegmentacion(); }
+function cargarSegmentacion() {
+  api('GET', '/crm/segmentacion').then(function(data) {
+    var h = '<div class="row r3">';
+    h += '<div class="card kpi g"><div class="n">' + (data.total_clientes||0) + '</div><div class="l">Total clientes</div></div>';
+    h += '<div class="card kpi"><div class="n">' + (data.activos||0) + '</div><div class="l">Activos</div></div>';
+    h += '<div class="card kpi a"><div class="n">' + (data.en_riesgo||0) + '</div><div class="l">En riesgo</div></div>';
+    h += '</div>';
+    if (data.segmentos) {
+      h += '<div class="card"><h3>Segmentos</h3>';
+      Object.keys(data.segmentos).forEach(function(k) { h += '<div class="srow"><span>' + k + '</span><span class="green">' + data.segmentos[k] + '</span></div>'; });
+      h += '</div>';
+    }
+    document.getElementById('crm-seg-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('crm-seg-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarCampanas() {
+  api('GET', '/crm/campanas').then(function(data) {
+    if (!data.length) { document.getElementById('crm-camp-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin campa&ntilde;as.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Nombre</th><th>Tipo</th><th>Inicio</th><th>Estado</th><th></th></tr>';
+    data.forEach(function(c) { h += '<tr><td style="padding:.35rem">' + c.nombre + '</td><td>' + c.tipo + '</td><td>' + (c.fecha_inicio||'').slice(0,10) + '</td><td><span class="badge">' + (c.estado||'activa') + '</span></td><td><button onclick="ejecutarCampana(' + c.id + ')" style="font-size:.72rem;padding:.2rem .4rem;cursor:pointer">Ejecutar</button></td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('crm-camp-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('crm-camp-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function ejecutarCampana(id) { api('POST', '/crm/campanas/' + id + '/ejecutar').then(function() { toast('Campa\u00f1a ejecutada'); cargarCampanas(); }).catch(function(e) { toast(e.message||'Error', true); }); }
+function cargarEncuestas() {
+  api('GET', '/crm/encuestas/resumen').then(function(data) {
+    var h = '<div class="row r3">';
+    h += '<div class="card kpi g"><div class="n">' + (data.total||0) + '</div><div class="l">Total encuestas</div></div>';
+    h += '<div class="card kpi"><div class="n">' + (data.promedio||0).toFixed(1) + '</div><div class="l">Calificaci&oacute;n promedio</div></div>';
+    h += '<div class="card kpi a"><div class="n">' + (data.nps||0) + '</div><div class="l">NPS</div></div>';
+    h += '</div>';
+    document.getElementById('crm-enc-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('crm-enc-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarChurn() {
+  api('GET', '/crm/prediccion-churn').then(function(data) {
+    var items = Array.isArray(data) ? data : (data.clientes||[]);
+    if (!items.length) { document.getElementById('crm-churn-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin predicciones de churn.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Cliente</th><th>Riesgo</th><th>&Uacute;ltima compra</th></tr>';
+    items.forEach(function(c) { h += '<tr><td style="padding:.35rem">' + (c.nombre||'-') + '</td><td><span class="badge ' + (c.riesgo === 'alto' ? 'bout' : 'blow') + '">' + (c.riesgo||'-') + '</span></td><td>' + (c.ultima_compra||'-') + '</td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('crm-churn-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('crm-churn-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarCRMDashboard() {
+  api('GET', '/crm/dashboard').then(function(data) {
+    var h = '<div class="row r3">';
+    h += '<div class="card kpi g"><div class="n">' + (data.total_clientes||0) + '</div><div class="l">Total clientes</div></div>';
+    h += '<div class="card kpi"><div class="n">' + (data.campanas_activas||0) + '</div><div class="l">Campa&ntilde;as activas</div></div>';
+    h += '<div class="card kpi a"><div class="n">' + (data.satisfaccion_promedio||0).toFixed(1) + '</div><div class="l">Satisfacci&oacute;n</div></div>';
+    h += '</div>';
+    document.getElementById('crm-dash-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('crm-dash-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+
+// ─── KPIs y Gráficas ─────────────────────────────────────────────
+var _charts = {};
+function kpiTab(tab) {
+  ['k-resumen','k-ventas','k-productos','k-pagos'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#kpis .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  if (tab === 'k-resumen') cargarKPIResumen();
+  if (tab === 'k-ventas') cargarKPIVentas();
+  if (tab === 'k-productos') cargarKPIProductos();
+  if (tab === 'k-pagos') cargarKPIPagos();
+}
+function initKPIs() { cargarKPIResumen(); }
+function cargarKPIResumen() {
+  api('GET', '/kpis/dashboard').then(function(data) {
+    var h = '<div class="row r4">';
+    h += '<div class="card kpi g"><div class="n">$' + num(data.ventas_hoy||0) + '</div><div class="l">Ventas hoy</div></div>';
+    h += '<div class="card kpi"><div class="n">' + (data.tickets_hoy||0) + '</div><div class="l">Tickets hoy</div></div>';
+    h += '<div class="card kpi a"><div class="n">$' + num(data.ticket_promedio||0) + '</div><div class="l">Ticket promedio</div></div>';
+    h += '<div class="card kpi p"><div class="n">$' + num(data.ventas_mes||0) + '</div><div class="l">Ventas mes</div></div>';
+    h += '</div>';
+    document.getElementById('kpi-resumen-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('kpi-resumen-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function _makeChart(id, cfg) {
+  if (_charts[id]) _charts[id].destroy();
+  var ctx = document.getElementById(id);
+  if (!ctx) return;
+  _charts[id] = new Chart(ctx.getContext('2d'), cfg);
+}
+function cargarKPIVentas() {
+  api('GET', '/kpis/tendencia-ventas?dias=30').then(function(data) {
+    var items = Array.isArray(data) ? data : (data.datos||[]);
+    _makeChart('chart-tendencia', { type:'line', data:{ labels:items.map(function(d){return d.fecha||d.dia||''}), datasets:[{label:'Ventas $',data:items.map(function(d){return d.total||0}),borderColor:'#c4988a',backgroundColor:'rgba(196,152,138,.15)',fill:true,tension:.3}] }, options:{responsive:true,plugins:{title:{display:true,text:'Tendencia de ventas (30 d\u00edas)'}}} });
+  }).catch(function(){});
+  api('GET', '/kpis/ventas-por-hora').then(function(data) {
+    var items = Array.isArray(data) ? data : (data.datos||[]);
+    _makeChart('chart-por-hora', { type:'bar', data:{ labels:items.map(function(d){return d.hora!=null?d.hora+':00':''}), datasets:[{label:'Ventas $',data:items.map(function(d){return d.total||0}),backgroundColor:'rgba(196,152,138,.6)'}] }, options:{responsive:true,plugins:{title:{display:true,text:'Ventas por hora'}}} });
+  }).catch(function(){});
+  api('GET', '/kpis/ventas-por-dia-semana').then(function(data) {
+    var items = Array.isArray(data) ? data : (data.datos||[]);
+    var dias = ['Dom','Lun','Mar','Mi\u00e9','Jue','Vie','S\u00e1b'];
+    _makeChart('chart-por-dia', { type:'bar', data:{ labels:items.map(function(d){return dias[d.dia_semana]||d.dia_semana}), datasets:[{label:'Ventas $',data:items.map(function(d){return d.total||0}),backgroundColor:'rgba(16,185,129,.5)'}] }, options:{responsive:true,plugins:{title:{display:true,text:'Ventas por d\u00eda de semana'}}} });
+  }).catch(function(){});
+}
+function cargarKPIProductos() {
+  api('GET', '/kpis/top-productos?limite=10').then(function(data) {
+    var items = Array.isArray(data) ? data : (data.datos||[]);
+    _makeChart('chart-top-productos', { type:'bar', data:{ labels:items.map(function(d){return d.nombre||''}), datasets:[{label:'Unidades vendidas',data:items.map(function(d){return d.cantidad||0}),backgroundColor:'rgba(196,152,138,.6)'}] }, options:{responsive:true,indexAxis:'y',plugins:{title:{display:true,text:'Top 10 productos'}}} });
+  }).catch(function(){});
+}
+function cargarKPIPagos() {
+  api('GET', '/kpis/metodos-pago').then(function(data) {
+    var items = Array.isArray(data) ? data : (data.datos||[]);
+    var colores = ['#c4988a','#10b981','#f59e0b','#3b82f6','#ec4899','#8b5cf6','#ef4444'];
+    _makeChart('chart-metodos-pago', { type:'doughnut', data:{ labels:items.map(function(d){return d.metodo||''}), datasets:[{data:items.map(function(d){return d.total||0}),backgroundColor:colores.slice(0,items.length)}] }, options:{responsive:true,plugins:{title:{display:true,text:'M\u00e9todos de pago'}}} });
+  }).catch(function(){});
+}
+
+// ─── Fiscal ──────────────────────────────────────────────────────
+function fiscalTab(tab) {
+  ['f-activo'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#fiscal .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  if (tab === 'f-activo') cargarFiscalActivo();
+}
+function initFiscal() { cargarFiscalActivo(); }
+function cargarFiscalActivo() {
+  var hoy = new Date(), y = hoy.getFullYear(), m = hoy.getMonth() + 1;
+  Promise.all([
+    api('GET', '/fiscal/iva?mes=' + m + '&anio=' + y).catch(function() { return {}; }),
+    api('GET', '/fiscal/isr?mes=' + m + '&anio=' + y).catch(function() { return {}; }),
+    api('GET', '/fiscal/diot?mes=' + m + '&anio=' + y).catch(function() { return {}; })
+  ]).then(function(results) {
+    var iva = results[0], isr = results[1], diot = results[2];
+    var h = '<div class="row r3">';
+    h += '<div class="card kpi g"><div class="n">$' + num(iva.iva_trasladado||0) + '</div><div class="l">IVA trasladado</div></div>';
+    h += '<div class="card kpi"><div class="n">$' + num(iva.iva_acreditable||0) + '</div><div class="l">IVA acreditable</div></div>';
+    h += '<div class="card kpi a"><div class="n">$' + num(iva.iva_por_pagar||0) + '</div><div class="l">IVA por pagar</div></div>';
+    h += '</div>';
+    h += '<div class="row r2" style="margin-top:1rem">';
+    h += '<div class="card"><h3>ISR estimado</h3><div class="srow"><span>Ingresos</span><span>$' + num(isr.ingresos||0) + '</span></div><div class="srow"><span>Deducciones</span><span>$' + num(isr.deducciones||0) + '</span></div><div class="srow"><span>Base gravable</span><span class="green">$' + num(isr.base_gravable||0) + '</span></div></div>';
+    h += '<div class="card"><h3>DIOT</h3><div class="srow"><span>Proveedores</span><span>' + (diot.total_proveedores||0) + '</span></div><div class="srow"><span>Total operaciones</span><span>$' + num(diot.total_operaciones||0) + '</span></div></div>';
+    h += '</div>';
+    document.getElementById('fiscal-activo-tbl').innerHTML = h;
+  });
+}
+
+// ─── Auditoría ───────────────────────────────────────────────────
+function auditTab(tab) {
+  ['a-eventos','a-anomalias','a-dashboard'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#auditoria .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  if (tab === 'a-eventos') cargarAudEventos();
+  if (tab === 'a-anomalias') cargarAudAnomalias();
+  if (tab === 'a-dashboard') cargarAudDashboard();
+}
+function initAuditoria() { cargarAudEventos(); }
+function cargarAudEventos() {
+  api('GET', '/auditoria/eventos').then(function(data) {
+    var items = Array.isArray(data) ? data : (data.eventos||[]);
+    if (!items.length) { document.getElementById('audit-eventos-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin eventos.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Fecha</th><th>Acci&oacute;n</th><th>Usuario</th><th>Entidad</th><th>IP</th></tr>';
+    items.forEach(function(e) { h += '<tr><td style="padding:.35rem">' + (e.creado_en||'').slice(0,19).replace('T',' ') + '</td><td>' + (e.accion||'-') + '</td><td>' + (e.usuario_nombre||e.usuario_id||'-') + '</td><td>' + (e.entidad||'-') + '</td><td style="font-family:monospace;font-size:.75rem">' + (e.ip||'-') + '</td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('audit-eventos-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('audit-eventos-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarAudAnomalias() {
+  api('GET', '/auditoria/anomalias').then(function(data) {
+    var items = Array.isArray(data) ? data : (data.anomalias||[]);
+    if (!items.length) { document.getElementById('audit-anomalias-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin anomal&iacute;as detectadas.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Tipo</th><th>Descripci&oacute;n</th><th>Severidad</th><th>Fecha</th></tr>';
+    items.forEach(function(a) { h += '<tr><td style="padding:.35rem">' + (a.tipo||'-') + '</td><td>' + (a.descripcion||'-') + '</td><td><span class="badge ' + (a.severidad === 'alta' ? 'bout' : 'blow') + '">' + (a.severidad||'-') + '</span></td><td>' + (a.fecha||a.creado_en||'').slice(0,19).replace('T',' ') + '</td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('audit-anomalias-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('audit-anomalias-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarAudDashboard() {
+  api('GET', '/auditoria/dashboard').then(function(data) {
+    var h = '<div class="row r3">';
+    h += '<div class="card kpi"><div class="n">' + (data.total_eventos||0) + '</div><div class="l">Total eventos</div></div>';
+    h += '<div class="card kpi a"><div class="n">' + (data.anomalias||0) + '</div><div class="l">Anomal&iacute;as</div></div>';
+    h += '<div class="card kpi g"><div class="n">' + (data.usuarios_activos||0) + '</div><div class="l">Usuarios activos</div></div>';
+    h += '</div>';
+    document.getElementById('audit-dash-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('audit-dash-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
 }
 
 // ─── WebSocket para notificaciones en tiempo real ─────────────────
