@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: jacaranda
+      POSTGRES_PASSWORD: jacaranda_dev
+      POSTGRES_DB: jacaranda
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://jacaranda:jacaranda_dev@db:5432/jacaranda
+      DEBUG: "true"
+      ADMIN_PASSWORD: admin1234
+
+volumes:
+  postgres_data:

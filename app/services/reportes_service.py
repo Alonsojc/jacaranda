@@ -8,6 +8,7 @@ from datetime import date, datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, extract
 
+from app.core.db_compat import db_extract_dow
 from app.models.venta import Venta, DetalleVenta, EstadoVenta
 from app.models.empleado import RegistroNomina
 from app.models.inventario import MovimientoInventario, TipoMovimiento, Ingrediente
@@ -1369,14 +1370,14 @@ def analisis_estacionalidad(db: Session) -> dict:
             func.coalesce(func.sum(Venta.total), 0)
         ).filter(
             Venta.estado == EstadoVenta.COMPLETADA,
-            func.strftime("%w", Venta.fecha) == str(dow),
+            db_extract_dow(Venta.fecha) == str(dow),
         ).scalar()
 
         conteo_dow = db.query(
             func.count(Venta.id)
         ).filter(
             Venta.estado == EstadoVenta.COMPLETADA,
-            func.strftime("%w", Venta.fecha) == str(dow),
+            db_extract_dow(Venta.fecha) == str(dow),
         ).scalar()
 
         ventas_por_dia_semana.append({
