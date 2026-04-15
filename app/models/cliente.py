@@ -3,8 +3,8 @@ Modelo de clientes.
 Cumple con requisitos de facturación CFDI 4.0 del SAT.
 """
 
-from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, DateTime, Text
+from datetime import date, datetime, timezone
+from sqlalchemy import String, Boolean, DateTime, Date, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -38,6 +38,10 @@ class Cliente(Base):
 
     # Programa de lealtad
     puntos_acumulados: Mapped[int] = mapped_column(default=0)
+    nivel_lealtad: Mapped[str] = mapped_column(String(20), default="bronce")  # bronce, plata, oro
+    puntos_totales_historicos: Mapped[int] = mapped_column(default=0)  # Para calcular nivel
+    fecha_cumpleanos: Mapped[date | None] = mapped_column(Date)
+    tarjeta_qr: Mapped[str | None] = mapped_column(String(100))  # UUID para tarjeta digital
     notas: Mapped[str | None] = mapped_column(Text)
 
     activo: Mapped[bool] = mapped_column(Boolean, default=True)

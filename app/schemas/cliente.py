@@ -1,7 +1,7 @@
 """Schemas de clientes con validación de RFC."""
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from datetime import datetime
+from datetime import date, datetime
 import re
 
 
@@ -21,6 +21,8 @@ class ClienteCreate(BaseModel):
     municipio: str | None = None
     estado: str | None = None
     codigo_postal: str | None = None
+    fecha_cumpleanos: date | None = None
+    notas: str | None = None
 
     @field_validator("rfc")
     @classmethod
@@ -85,6 +87,11 @@ class ClienteResponse(BaseModel):
     domicilio_fiscal_cp: str | None
     uso_cfdi: str
     puntos_acumulados: int
+    nivel_lealtad: str = "bronce"
+    puntos_totales_historicos: int = 0
+    fecha_cumpleanos: date | None = None
+    tarjeta_qr: str | None = None
+    notas: str | None = None
     activo: bool
     creado_en: datetime
 
