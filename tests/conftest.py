@@ -1,5 +1,7 @@
 """Fixtures de pytest para testing."""
 
+import asyncio
+import inspect
 import pytest
 from unittest.mock import patch, MagicMock
 from sqlalchemy import create_engine
@@ -21,6 +23,32 @@ _engine = create_engine(
     poolclass=StaticPool,
 )
 _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
+
+
+def pytest_configure(config):
+    """Register the asyncio marker to avoid unknown-mark warnings."""
+    config.addinivalue_line(
+        "markers",
+        "asyncio: mark test as async and run it with the built-in asyncio runner",
+    )
+
+
+def pytest_pyfunc_call(pyfuncitem):
+    """
+    Run async test functions without requiring external pytest asyncio plugins.
+
+    This keeps the test suite runnable in minimal environments where
+    ``pytest-asyncio`` is not installed.
+    """
+    testfunction = pyfuncitem.obj
+    if inspect.iscoroutinefunction(testfunction):
+        funcargs = {
+            arg: pyfuncitem.funcargs[arg]
+            for arg in pyfuncitem._fixtureinfo.argnames
+        }
+        asyncio.run(testfunction(**funcargs))
+        return True
+    return None
 
 
 @pytest.fixture(scope="function")
