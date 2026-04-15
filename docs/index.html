@@ -256,6 +256,8 @@ h2{font-size:1.1rem}
 <a data-pg="conta" onclick="go('conta')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">Contabilidad</a>
 <a data-pg="iapg" onclick="go('iapg')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">IA</a>
 <a data-pg="cofepris" onclick="go('cofepris')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">COFEPRIS</a>
+<a data-pg="compras" onclick="go('compras')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">Compras</a>
+<a data-pg="sucursales" onclick="go('sucursales')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Sucursales</a>
 <a data-pg="usuarios" onclick="go('usuarios')" class="nav-role" data-roles="ADMINISTRADOR">Usuarios</a>
 <a onclick="toggleNotifPanel()" id="btn-notif" style="display:none;cursor:pointer;color:var(--mut);font-size:.95rem;padding:.5rem .4rem;position:relative" title="Notificaciones">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:2px;right:0;background:#ef4444;color:#fff;font-size:.55rem;font-weight:700;padding:.05rem .3rem;border-radius:8px;min-width:14px;text-align:center"></span></a>
 <a onclick="cerrarSesion()" id="btn-logout" style="display:none;cursor:pointer;color:var(--mut);font-size:.78rem;padding:.5rem .6rem" title="Cerrar sesi&oacute;n">&#9211;</a>
@@ -653,6 +655,7 @@ h2{font-size:1.1rem}
 <span class="tab" onclick="listTab('l-recs')">Recetas</span>
 <span class="tab" onclick="listTab('l-clientes')">Clientes</span>
 <span class="tab" onclick="listTab('l-nomina')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">N&oacute;mina</span>
+<span class="tab" onclick="listTab('l-lealtad')">Lealtad</span>
 </div>
 
 <div id="l-prods">
@@ -742,6 +745,19 @@ h2{font-size:1.1rem}
 <div id="nom-hist-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
 </div>
 </div>
+
+<div id="l-lealtad" style="display:none">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">Programa de lealtad: niveles, cupones, cumplea&ntilde;os.</p>
+<button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="enviarOfertasCumple()">Enviar ofertas cumplea&ntilde;os</button>
+</div>
+<div id="lealtad-dash" class="card" style="margin-bottom:1rem"><p style="color:var(--mut);font-size:.83rem">Cargando dashboard lealtad...</p></div>
+<h3 style="font-size:.95rem;margin-bottom:.5rem">Cupones activos</h3>
+<div id="lealtad-cupones"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+<h3 style="font-size:.95rem;margin:.8rem 0 .5rem">Cumplea&ntilde;os del mes</h3>
+<div id="lealtad-cumple"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+
 </div>
 
 <!-- REPORTES -->
@@ -1172,6 +1188,54 @@ h2{font-size:1.1rem}
 <div id="ia-precision" style="display:none">
 <p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Evaluaci&oacute;n de precisi&oacute;n: compara predicciones pasadas con ventas reales.</p>
 <div id="ia-prec-content"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+</div>
+
+<!-- COMPRAS Y PROVEEDORES -->
+<div class="page" id="compras">
+<h2>Compras y Proveedores</h2>
+<div class="section-tabs" style="margin-bottom:1rem">
+<span class="tab active" onclick="comprasTab('c-ordenes')">Ordenes de Compra</span>
+<span class="tab" onclick="comprasTab('c-proveedores')">Proveedores</span>
+<span class="tab" onclick="comprasTab('c-cuentas')">Cuentas por Pagar</span>
+<span class="tab" onclick="comprasTab('c-calendario')">Calendario</span>
+</div>
+<div id="c-ordenes">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">&Oacute;rdenes de compra a proveedores.</p>
+</div>
+<div id="c-ordenes-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+<div id="c-proveedores" style="display:none">
+<div id="c-proveedores-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+<div id="c-cuentas" style="display:none">
+<div id="c-cuentas-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+<div id="c-calendario" style="display:none">
+<div id="c-calendario-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+</div>
+
+<!-- MULTI-SUCURSAL -->
+<div class="page" id="sucursales">
+<h2>Sucursales</h2>
+<div class="section-tabs" style="margin-bottom:1rem">
+<span class="tab active" onclick="sucTab('s-lista')">Sucursales</span>
+<span class="tab" onclick="sucTab('s-traspasos')">Traspasos</span>
+<span class="tab" onclick="sucTab('s-comparativo')">Comparativo</span>
+</div>
+<div id="s-lista">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">Puntos de venta y su inventario.</p>
+</div>
+<div id="s-lista-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+<div id="s-traspasos" style="display:none">
+<div id="s-traspasos-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+<div id="s-comparativo" style="display:none">
+<div id="s-comparativo-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
 </div>
 </div>
 
@@ -1748,6 +1812,8 @@ function go(p) {
   if (p === 'conta') initContabilidad();
   if (p === 'iapg') initIA();
   if (p === 'cofepris') cargarCofepris();
+  if (p === 'compras') initCompras();
+  if (p === 'sucursales') initSucursales();
   if (p === 'usuarios') cargarUsuarios();
   window.scrollTo(0, 0);
 }
@@ -3795,7 +3861,7 @@ function guardarReceta() {
 
 // ─── Listas page ─────────────────────────────────────────────────
 function listTab(tab) {
-  ['l-prods','l-ings','l-recs','l-clientes','l-nomina'].forEach(function(t) {
+  ['l-prods','l-ings','l-recs','l-clientes','l-nomina','l-lealtad'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
@@ -3803,6 +3869,7 @@ function listTab(tab) {
   event.target.classList.add('active');
   if (tab === 'l-clientes') cargarListaClientes();
   if (tab === 'l-nomina') initNomina();
+  if (tab === 'l-lealtad') cargarLealtad();
 }
 
 function filtrarTabla(id, q) {
@@ -6473,6 +6540,8 @@ function postLogin() {
     cargarNotificaciones();
     iniciarNotifPeriodicas();
     solicitarPermisoNotif();
+    // WebSocket real-time
+    initWebSocket();
   }).catch(function(e){ console.warn('Error cargando datos:', e); });
 }
 
@@ -6499,6 +6568,7 @@ function cerrarSesion() {
   document.getElementById('btn-notif').style.display = 'none';
   document.getElementById('notif-panel').classList.remove('on');
   if (_notifInterval) { clearInterval(_notifInterval); _notifInterval = null; }
+  closeWebSocket();
   document.getElementById('login-pass').value = '';
   document.getElementById('login-error').style.display = 'none';
   setConnected(false);
@@ -6774,6 +6844,188 @@ function autoConectar() {
 
 actualizarBannerOffline();
 autoConectar();
+
+// ─── Compras y Proveedores ─────────────────────────────────────────
+function comprasTab(tab) {
+  ['c-ordenes','c-proveedores','c-cuentas','c-calendario'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#compras .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  if (tab === 'c-ordenes') cargarOrdenesCompra();
+  if (tab === 'c-proveedores') cargarProveedores();
+  if (tab === 'c-cuentas') cargarCuentasPagar();
+  if (tab === 'c-calendario') cargarCalendarioPagos();
+}
+function initCompras() { cargarOrdenesCompra(); }
+function cargarOrdenesCompra() {
+  api('GET', '/compras/ordenes').then(function(data) {
+    if (!data.length) { document.getElementById('c-ordenes-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin ordenes de compra.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Folio</th><th>Proveedor</th><th>Estado</th><th>Total</th><th>Fecha</th></tr>';
+    data.forEach(function(o) { h += '<tr><td style="padding:.35rem">' + o.folio + '</td><td>' + (o.proveedor_nombre||'-') + '</td><td><span class="badge">' + o.estado + '</span></td><td>$' + num(o.total) + '</td><td>' + (o.fecha_emision||'') + '</td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('c-ordenes-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('c-ordenes-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarProveedores() {
+  api('GET', '/compras/proveedores').then(function(data) {
+    if (!data.length) { document.getElementById('c-proveedores-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin proveedores.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Nombre</th><th>RFC</th><th>Contacto</th><th>Tel&eacute;fono</th></tr>';
+    data.forEach(function(p) { h += '<tr><td style="padding:.35rem">' + p.nombre + '</td><td>' + (p.rfc||'-') + '</td><td>' + (p.contacto||'-') + '</td><td>' + (p.telefono||'-') + '</td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('c-proveedores-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('c-proveedores-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarCuentasPagar() {
+  api('GET', '/compras/cuentas-pagar').then(function(data) {
+    if (!data.length) { document.getElementById('c-cuentas-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin cuentas por pagar.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Proveedor</th><th>Concepto</th><th>Total</th><th>Saldo</th><th>Vencimiento</th><th>Estado</th><th></th></tr>';
+    data.forEach(function(c) { h += '<tr><td style="padding:.35rem">' + (c.proveedor_nombre||'-') + '</td><td>' + c.concepto + '</td><td>$' + num(c.monto_total) + '</td><td>$' + num(c.saldo_pendiente) + '</td><td>' + c.fecha_vencimiento + '</td><td><span class="badge">' + c.estado + '</span></td><td>' + (c.estado !== 'pagada' && c.estado !== 'cancelada' ? '<button onclick="pagarCuenta(' + c.id + ')" style="font-size:.72rem;padding:.2rem .5rem;cursor:pointer">Pagar</button>' : '') + '</td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('c-cuentas-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('c-cuentas-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarCalendarioPagos() {
+  api('GET', '/compras/calendario-pagos?dias=60').then(function(data) {
+    if (!data.length) { document.getElementById('c-calendario-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin pagos pr&oacute;ximos.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Proveedor</th><th>Concepto</th><th>Saldo</th><th>Vencimiento</th><th>D&iacute;as</th></tr>';
+    data.forEach(function(c) { h += '<tr style="' + (c.vencida ? 'background:#fef2f2' : '') + '"><td style="padding:.35rem">' + (c.proveedor_nombre||'-') + '</td><td>' + c.concepto + '</td><td>$' + num(c.saldo_pendiente) + '</td><td>' + c.fecha_vencimiento + '</td><td>' + (c.vencida ? '<span style="color:#ef4444;font-weight:600">Vencida</span>' : c.dias_restantes + 'd') + '</td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('c-calendario-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('c-calendario-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function pagarCuenta(id) {
+  var monto = prompt('Monto a pagar:');
+  if (!monto) return;
+  api('POST', '/compras/cuentas-pagar/' + id + '/pago', { monto: monto, metodo_pago: 'transferencia', fecha_pago: new Date().toISOString().slice(0,10) }).then(function() { toast('Pago registrado'); cargarCuentasPagar(); }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+function recibirOrden(id) {
+  api('GET', '/compras/ordenes/' + id).then(function(o) {
+    var items = o.detalles.map(function(d) { return { detalle_id: d.id, cantidad_recibida: String(d.cantidad_solicitada) }; });
+    api('POST', '/compras/ordenes/' + id + '/recibir', { items: items }).then(function() { toast('Orden recibida'); cargarOrdenesCompra(); }).catch(function(e) { toast(e.message || 'Error', true); });
+  });
+}
+
+// ─── Lealtad ──────────────────────────────────────────────────────
+function cargarLealtad() {
+  api('GET', '/lealtad/dashboard').then(function(d) {
+    var h = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.6rem">';
+    h += '<div class="card" style="text-align:center"><div style="font-size:1.5rem;font-weight:700">' + (d.total_puntos_circulacion||0) + '</div><div style="font-size:.75rem;color:var(--mut)">Puntos en circulaci&oacute;n</div></div>';
+    h += '<div class="card" style="text-align:center"><div style="font-size:1.5rem;font-weight:700">' + (d.cupones_activos||0) + '</div><div style="font-size:.75rem;color:var(--mut)">Cupones activos</div></div>';
+    var niveles = d.clientes_por_nivel || {};
+    Object.keys(niveles).forEach(function(n) { h += '<div class="card" style="text-align:center"><div style="font-size:1.2rem;font-weight:700">' + niveles[n] + '</div><div style="font-size:.75rem;color:var(--mut)">' + n + '</div></div>'; });
+    h += '</div>';
+    if (d.top_clientes && d.top_clientes.length) {
+      h += '<h4 style="margin:.8rem 0 .4rem;font-size:.85rem">Top clientes</h4><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.3rem">Nombre</th><th>Nivel</th><th>Puntos</th></tr>';
+      d.top_clientes.forEach(function(c) { h += '<tr><td style="padding:.3rem">' + c.nombre + '</td><td>' + c.nivel + '</td><td>' + c.puntos_acumulados + '</td></tr>'; });
+      h += '</table>';
+    }
+    document.getElementById('lealtad-dash').innerHTML = h;
+  }).catch(function() { document.getElementById('lealtad-dash').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+  api('GET', '/lealtad/cupones?activos_only=false').then(function(data) {
+    if (!data.length) { document.getElementById('lealtad-cupones').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Sin cupones.</p>'; return; }
+    var h = '<table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.3rem">C&oacute;digo</th><th>Nombre</th><th>Tipo</th><th>Valor</th><th>Usos</th><th>Vigencia</th></tr>';
+    data.forEach(function(c) { h += '<tr><td style="padding:.3rem;font-family:monospace">' + c.codigo + '</td><td>' + c.nombre + '</td><td>' + c.tipo + '</td><td>' + c.valor + '</td><td>' + c.usos_actuales + '/' + c.max_usos + '</td><td>' + c.fecha_inicio + ' a ' + c.fecha_fin + '</td></tr>'; });
+    h += '</table>';
+    document.getElementById('lealtad-cupones').innerHTML = h;
+  }).catch(function() {});
+  api('GET', '/lealtad/cumpleanos').then(function(data) {
+    if (!data.length) { document.getElementById('lealtad-cumple').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Ning&uacute;n cliente cumple a&ntilde;os este mes.</p>'; return; }
+    var h = '<table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.3rem">Nombre</th><th>Fecha</th><th>Nivel</th></tr>';
+    data.forEach(function(c) { h += '<tr><td style="padding:.3rem">' + c.nombre + '</td><td>' + c.fecha_cumpleanos + '</td><td>' + c.nivel + '</td></tr>'; });
+    h += '</table>';
+    document.getElementById('lealtad-cumple').innerHTML = h;
+  }).catch(function() {});
+}
+function enviarOfertasCumple() {
+  api('POST', '/lealtad/cumpleanos/enviar-ofertas').then(function(d) { toast(d.mensaje); cargarLealtad(); }).catch(function(e) { toast(e.message || 'Error', true); });
+}
+
+// ─── Sucursales ───────────────────────────────────────────────────
+function sucTab(tab) {
+  ['s-lista','s-traspasos','s-comparativo'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#sucursales .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  if (tab === 's-lista') cargarSucursales();
+  if (tab === 's-traspasos') cargarTraspasos();
+  if (tab === 's-comparativo') cargarComparativoSuc();
+}
+function initSucursales() { cargarSucursales(); }
+function cargarSucursales() {
+  api('GET', '/sucursales/').then(function(data) {
+    if (!data.length) { document.getElementById('s-lista-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin sucursales.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">C&oacute;digo</th><th>Nombre</th><th>Direcci&oacute;n</th><th>Matriz</th><th>Activo</th></tr>';
+    data.forEach(function(s) { h += '<tr><td style="padding:.35rem;font-family:monospace">' + s.codigo + '</td><td>' + s.nombre + '</td><td>' + (s.direccion||'-') + '</td><td>' + (s.es_matriz ? '&#9733;' : '') + '</td><td>' + (s.activo ? '&#9989;' : '&#10060;') + '</td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('s-lista-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('s-lista-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarTraspasos() {
+  api('GET', '/sucursales/traspasos').then(function(data) {
+    if (!data.length) { document.getElementById('s-traspasos-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin traspasos.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Folio</th><th>Origen</th><th>Destino</th><th>Estado</th><th>Fecha</th><th></th></tr>';
+    data.forEach(function(t) {
+      var acciones = '';
+      if (t.estado === 'solicitado') acciones = '<button onclick="enviarTraspaso(' + t.id + ')" style="font-size:.72rem;padding:.2rem .4rem;cursor:pointer">Enviar</button>';
+      if (t.estado === 'en_transito') acciones = '<button onclick="recibirTraspaso(' + t.id + ')" style="font-size:.72rem;padding:.2rem .4rem;cursor:pointer">Recibir</button>';
+      h += '<tr><td style="padding:.35rem">' + t.folio + '</td><td>' + (t.sucursal_origen_nombre||'-') + '</td><td>' + (t.sucursal_destino_nombre||'-') + '</td><td><span class="badge">' + t.estado + '</span></td><td>' + (t.creado_en ? t.creado_en.slice(0,10) : '') + '</td><td>' + acciones + '</td></tr>';
+    });
+    h += '</table></div>';
+    document.getElementById('s-traspasos-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('s-traspasos-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function cargarComparativoSuc() {
+  api('GET', '/sucursales/comparativo').then(function(data) {
+    if (!data.length) { document.getElementById('s-comparativo-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin datos.</p></div>'; return; }
+    var h = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:.8rem">';
+    data.forEach(function(s) {
+      h += '<div class="card"><h4 style="margin:0 0 .3rem">' + s.sucursal_nombre + ' (' + s.sucursal_codigo + ')' + (s.es_matriz ? ' &#9733;' : '') + '</h4>';
+      h += '<div style="font-size:.82rem;color:var(--mut)">Productos: ' + s.total_productos + ' &bull; Valor: $' + num(s.valor_total_stock) + '</div>';
+      if (s.cantidad_bajo_minimo > 0) h += '<div style="font-size:.8rem;color:#ef4444;margin-top:.3rem">&#9888; ' + s.cantidad_bajo_minimo + ' producto(s) bajo m&iacute;nimo</div>';
+      h += '</div>';
+    });
+    h += '</div>';
+    document.getElementById('s-comparativo-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('s-comparativo-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function enviarTraspaso(id) { api('POST', '/sucursales/traspasos/' + id + '/enviar').then(function() { toast('Traspaso enviado'); cargarTraspasos(); }).catch(function(e) { toast(e.message||'Error', true); }); }
+function recibirTraspaso(id) {
+  api('GET', '/sucursales/traspasos').then(function(ts) {
+    var t = ts.find(function(x) { return x.id === id; });
+    if (!t) return;
+    var items = t.detalles.map(function(d) { return { producto_id: d.producto_id, cantidad_recibida: String(d.cantidad_enviada) }; });
+    api('POST', '/sucursales/traspasos/' + id + '/recibir', { items_recibidos: items }).then(function() { toast('Traspaso recibido'); cargarTraspasos(); }).catch(function(e) { toast(e.message||'Error', true); });
+  });
+}
+
+// ─── WebSocket para notificaciones en tiempo real ─────────────────
+var _ws = null;
+function initWebSocket() {
+  if (_ws) return;
+  var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  var host = API_BASE.replace(/^https?:/, proto).replace(/\/api\/v1$/, '');
+  try {
+    _ws = new WebSocket(host + '/api/v1/notificaciones/ws?token=' + TOKEN);
+    _ws.onmessage = function(e) {
+      try {
+        var msg = JSON.parse(e.data);
+        if (msg.tipo === 'nueva_venta') toast('Nueva venta: ' + (msg.datos.folio||''));
+        if (msg.tipo === 'stock_bajo') toast('Stock bajo: ' + (msg.datos.producto||''), true);
+        if (msg.tipo === 'nuevo_pedido') toast('Nuevo pedido #' + (msg.datos.pedido_id||''));
+        if (msg.tipo === 'alerta') toast(msg.datos.mensaje || 'Alerta');
+      } catch(ex) {}
+    };
+    _ws.onclose = function() { _ws = null; setTimeout(function() { if (TOKEN) initWebSocket(); }, 5000); };
+    _ws.onerror = function() { _ws = null; };
+    // Keep-alive ping every 30s
+    setInterval(function() { if (_ws && _ws.readyState === 1) _ws.send('ping'); }, 30000);
+  } catch(ex) { _ws = null; }
+}
+function closeWebSocket() { if (_ws) { _ws.close(); _ws = null; } }
 
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
