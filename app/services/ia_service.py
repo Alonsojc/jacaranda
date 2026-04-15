@@ -9,6 +9,7 @@ from collections import defaultdict
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
+from app.core.db_compat import db_cast_date
 from app.models.venta import Venta, DetalleVenta, EstadoVenta
 from app.models.inventario import Producto, HistorialPrecio
 
@@ -33,12 +34,12 @@ def pronostico_demanda(
     # Get all completed sale details with date info
     rows = db.query(
         DetalleVenta.producto_id,
-        func.date(Venta.fecha).label("dia"),
+        db_cast_date(Venta.fecha).label("dia"),
         func.sum(DetalleVenta.cantidad).label("qty"),
     ).join(Venta, Venta.id == DetalleVenta.venta_id).filter(
         and_(Venta.estado == EstadoVenta.COMPLETADA, Venta.fecha >= inicio_dt)
     ).group_by(
-        DetalleVenta.producto_id, func.date(Venta.fecha)
+        DetalleVenta.producto_id, db_cast_date(Venta.fecha)
     ).all()
 
     # Organize: {producto_id: {date_str: qty}}
@@ -539,7 +540,7 @@ def _predecir_dia_historico(
 
     rows = db.query(
         DetalleVenta.producto_id,
-        func.date(Venta.fecha).label("d"),
+        db_cast_date(Venta.fecha).label("d"),
         func.sum(DetalleVenta.cantidad).label("qty"),
     ).join(Venta, Venta.id == DetalleVenta.venta_id).filter(
         and_(
@@ -547,7 +548,7 @@ def _predecir_dia_historico(
             Venta.fecha >= inicio_dt,
             Venta.fecha <= fin_dt,
         )
-    ).group_by(DetalleVenta.producto_id, func.date(Venta.fecha)).all()
+    ).group_by(DetalleVenta.producto_id, db_cast_date(Venta.fecha)).all()
 
     # Group by product and day-of-week matching target
     target_dow = dia.weekday()

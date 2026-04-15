@@ -1,13 +1,17 @@
-"""Configuración de base de datos SQLAlchemy."""
+"""Configuración de base de datos SQLAlchemy (SQLite / PostgreSQL)."""
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 from app.core.config import settings
 
+_connect_args = {}
+if settings.DATABASE_URL.startswith("sqlite"):
+    _connect_args["check_same_thread"] = False
+
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False},  # Solo para SQLite
+    connect_args=_connect_args,
     echo=settings.DEBUG,
 )
 

@@ -9,6 +9,10 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session
 
 from app.services import contabilidad_service as contab_svc
+from app.services import fiscal_service as fiscal_svc
+from app.services import kpi_service as kpi_svc
+from app.services import merma_service as merma_svc
+from app.services import crm_service
 
 
 # ─── Estilos comunes ─────────────────────────────────────────────
@@ -525,6 +529,420 @@ def exportar_reporte_mensual(db: Session, mes: int, anio: int) -> BytesIO:
         ws_pol.cell(row=row, column=1, value="No hay polizas registradas en este periodo.")
 
     _auto_width(ws_pol)
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+# ─── IVA Mensual (Fiscal) ──────────────────────────────────────
+
+def exportar_iva_mensual(db: Session, mes: int, anio: int) -> BytesIO:
+    """Genera Excel de la declaración mensual de IVA."""
+    data = fiscal_svc.declaracion_iva_mensual(db, mes, anio)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "IVA Mensual"
+
+    ws.merge_cells("A1:C1")
+    ws["A1"] = "JACARANDA REPOSTERIA MEXICANA"
+    ws["A1"].font = _TITLE_FONT
+    ws.merge_cells("A2:C2")
+    ws["A2"] = f"Declaración IVA Mensual — {mes:02d}/{anio}"
+    ws["A2"].font = _SUBTITLE_FONT
+
+    row = 4
+    headers = ["Concepto", "Monto"]
+    for col_idx, h in enumerate(headers, 1):
+        ws.cell(row=row, column=col_idx, value=h)
+    _style_header_row(ws, row, len(headers))
+    row += 1
+
+    items = [
+        ("Ventas gravadas 16%", data["ventas_gravadas_16"]),
+        ("Ventas tasa 0%", data["ventas_tasa_0"]),
+        ("IVA causado", data["iva_causado"]),
+        ("IVA acreditable", data["iva_acreditable"]),
+        ("IVA a pagar", data["iva_a_pagar"]),
+        ("Saldo a favor", data["saldo_a_favor"]),
+    ]
+    for label, val in items:
+        ws.cell(row=row, column=1, value=label).border = _THIN_BORDER
+        c = ws.cell(row=row, column=2, value=val)
+        c.number_format = _CURRENCY_FMT
+        c.border = _THIN_BORDER
+        row += 1
+
+    _auto_width(ws)
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+# ─── KPIs Dashboard ────────────────────────────────────────────
+
+def exportar_kpis(db: Session, dias: int = 30) -> BytesIO:
+    """Genera Excel con KPIs consolidados del dashboard."""
+    dashboard = kpi_svc.dashboard_kpis(db)
+    top_prods = kpi_svc.top_productos(db, dias)
+    tendencia = kpi_svc.tendencia_ventas(db, dias)
+
+    wb = Workbook()
+
+    # ── Hoja 1: Resumen ──
+    ws = wb.active
+    ws.title = "Resumen KPIs"
+
+    ws.merge_cells("A1:C1")
+    ws["A1"] = "JACARANDA REPOSTERIA MEXICANA"
+    ws["A1"].font = _TITLE_FONT
+    ws.merge_cells("A2:C2")
+    ws["A2"] = f"KPIs Dashboard — {dashboard['fecha']}"
+    ws["A2"].font = _SUBTITLE_FONT
+
+    row = 4
+    ws.cell(row=row, column=1, value="Indicador")
+    ws.cell(row=row, column=2, value="Valor")
+    _style_header_row(ws, row, 2)
+    row += 1
+
+    ventas_hoy = dashboard["ventas_hoy"]
+    ventas_mes = dashboard["ventas_mes"]
+    inv = dashboard["inventario"]
+    cli = dashboard["clientes"]
+
+    resumen_items = [
+        ("Ventas hoy — total", ventas_hoy["total"]),
+        ("Ventas hoy — cantidad", ventas_hoy["cantidad"]),
+        ("Ventas hoy — ticket promedio", ventas_hoy["ticket_promedio"]),
+        ("Cambio vs ayer (%)", ventas_hoy["cambio_vs_ayer_pct"]),
+        ("Ventas mes — total", ventas_mes["total"]),
+        ("Ventas mes — cantidad", ventas_mes["cantidad"]),
+        ("Productos stock bajo", inv["productos_stock_bajo"]),
+        ("Ingredientes stock bajo", inv["ingredientes_stock_bajo"]),
+        ("Valor inventario productos", inv["valor_inventario_productos"]),
+        ("Lotes por vencer (7d)", inv["lotes_por_vencer_7d"]),
+        ("Total clientes", cli["total_clientes"]),
+        ("Nuevos clientes (mes)", cli["nuevos_mes"]),
+    ]
+    for label, val in resumen_items:
+        ws.cell(row=row, column=1, value=label).border = _THIN_BORDER
+        c = ws.cell(row=row, column=2, value=val)
+        if isinstance(val, float):
+            c.number_format = _CURRENCY_FMT
+        c.border = _THIN_BORDER
+        row += 1
+
+    _auto_width(ws)
+
+    # ── Hoja 2: Top Productos ──
+    ws_tp = wb.create_sheet("Top Productos")
+    ws_tp.merge_cells("A1:D1")
+    ws_tp["A1"] = "JACARANDA REPOSTERIA MEXICANA"
+    ws_tp["A1"].font = _TITLE_FONT
+    ws_tp.merge_cells("A2:D2")
+    ws_tp["A2"] = f"Top Productos — Últimos {dias} días"
+    ws_tp["A2"].font = _SUBTITLE_FONT
+
+    row = 4
+    tp_headers = ["#", "Producto", "Cantidad", "Total"]
+    for col_idx, h in enumerate(tp_headers, 1):
+        ws_tp.cell(row=row, column=col_idx, value=h)
+    _style_header_row(ws_tp, row, len(tp_headers))
+    row += 1
+
+    for i, p in enumerate(top_prods, 1):
+        ws_tp.cell(row=row, column=1, value=i).border = _THIN_BORDER
+        ws_tp.cell(row=row, column=2, value=p["nombre"]).border = _THIN_BORDER
+        ws_tp.cell(row=row, column=3, value=p["cantidad"]).border = _THIN_BORDER
+        c = ws_tp.cell(row=row, column=4, value=p["total"])
+        c.number_format = _CURRENCY_FMT
+        c.border = _THIN_BORDER
+        row += 1
+
+    if not top_prods:
+        ws_tp.cell(row=row, column=1, value="Sin datos en el periodo.")
+
+    _auto_width(ws_tp)
+
+    # ── Hoja 3: Tendencia Ventas ──
+    ws_tv = wb.create_sheet("Tendencia Ventas")
+    ws_tv.merge_cells("A1:C1")
+    ws_tv["A1"] = "JACARANDA REPOSTERIA MEXICANA"
+    ws_tv["A1"].font = _TITLE_FONT
+    ws_tv.merge_cells("A2:C2")
+    ws_tv["A2"] = f"Tendencia de Ventas — Últimos {dias} días"
+    ws_tv["A2"].font = _SUBTITLE_FONT
+
+    row = 4
+    tv_headers = ["Fecha", "Total", "Cantidad"]
+    for col_idx, h in enumerate(tv_headers, 1):
+        ws_tv.cell(row=row, column=col_idx, value=h)
+    _style_header_row(ws_tv, row, len(tv_headers))
+    row += 1
+
+    for d in tendencia:
+        ws_tv.cell(row=row, column=1, value=d["fecha"]).border = _THIN_BORDER
+        c = ws_tv.cell(row=row, column=2, value=d["total"])
+        c.number_format = _CURRENCY_FMT
+        c.border = _THIN_BORDER
+        ws_tv.cell(row=row, column=3, value=d["cantidad"]).border = _THIN_BORDER
+        row += 1
+
+    _auto_width(ws_tv)
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+# ─── Merma ──────────────────────────────────────────────────────
+
+def exportar_merma(
+    db: Session,
+    fecha_inicio: date,
+    fecha_fin: date,
+) -> BytesIO:
+    """Genera Excel con listado y resumen de merma."""
+    registros = merma_svc.listar_mermas(db, fecha_inicio, fecha_fin)
+    resumen = merma_svc.resumen_merma(db, fecha_inicio, fecha_fin)
+
+    wb = Workbook()
+
+    # ── Hoja 1: Detalle ──
+    ws = wb.active
+    ws.title = "Detalle Merma"
+
+    ws.merge_cells("A1:G1")
+    ws["A1"] = "JACARANDA REPOSTERIA MEXICANA"
+    ws["A1"].font = _TITLE_FONT
+    ws.merge_cells("A2:G2")
+    ws["A2"] = f"Registro de Merma — {fecha_inicio.isoformat()} a {fecha_fin.isoformat()}"
+    ws["A2"].font = _SUBTITLE_FONT
+
+    row = 4
+    headers = ["Fecha", "Producto/Ingrediente", "Tipo", "Cantidad", "Unidad", "Costo Unit.", "Costo Total"]
+    for col_idx, h in enumerate(headers, 1):
+        ws.cell(row=row, column=col_idx, value=h)
+    _style_header_row(ws, row, len(headers))
+    row += 1
+
+    for r in registros:
+        ws.cell(row=row, column=1, value=r["fecha_merma"]).border = _THIN_BORDER
+        ws.cell(row=row, column=2, value=r["nombre_item"]).border = _THIN_BORDER
+        ws.cell(row=row, column=3, value=r["tipo"]).border = _THIN_BORDER
+        ws.cell(row=row, column=4, value=r["cantidad"]).border = _THIN_BORDER
+        ws.cell(row=row, column=5, value=r["unidad_medida"]).border = _THIN_BORDER
+        c_cu = ws.cell(row=row, column=6, value=r["costo_unitario"])
+        c_cu.number_format = _CURRENCY_FMT
+        c_cu.border = _THIN_BORDER
+        c_ct = ws.cell(row=row, column=7, value=r["costo_total"])
+        c_ct.number_format = _CURRENCY_FMT
+        c_ct.border = _THIN_BORDER
+        row += 1
+
+    if not registros:
+        ws.cell(row=row, column=1, value="No hay registros de merma en el periodo.")
+
+    _auto_width(ws)
+
+    # ── Hoja 2: Resumen ──
+    ws_res = wb.create_sheet("Resumen")
+    ws_res.merge_cells("A1:C1")
+    ws_res["A1"] = "JACARANDA REPOSTERIA MEXICANA"
+    ws_res["A1"].font = _TITLE_FONT
+    ws_res.merge_cells("A2:C2")
+    ws_res["A2"] = f"Resumen de Merma — {fecha_inicio.isoformat()} a {fecha_fin.isoformat()}"
+    ws_res["A2"].font = _SUBTITLE_FONT
+
+    row = 4
+    ws_res.cell(row=row, column=1, value="Indicador")
+    ws_res.cell(row=row, column=2, value="Valor")
+    _style_header_row(ws_res, row, 2)
+    row += 1
+
+    ws_res.cell(row=row, column=1, value="Total registros").border = _THIN_BORDER
+    ws_res.cell(row=row, column=2, value=resumen["total_registros"]).border = _THIN_BORDER
+    row += 1
+    ws_res.cell(row=row, column=1, value="Total kg/pz").border = _THIN_BORDER
+    ws_res.cell(row=row, column=2, value=resumen["total_kg"]).border = _THIN_BORDER
+    row += 1
+    ws_res.cell(row=row, column=1, value="Total ($)").border = _THIN_BORDER
+    c = ws_res.cell(row=row, column=2, value=resumen["total_pesos"])
+    c.number_format = _CURRENCY_FMT
+    c.border = _THIN_BORDER
+    row += 2
+
+    # Por tipo
+    ws_res.cell(row=row, column=1, value="MERMA POR TIPO").font = _SUBTITLE_FONT
+    row += 1
+    ws_res.cell(row=row, column=1, value="Tipo")
+    ws_res.cell(row=row, column=2, value="Registros")
+    ws_res.cell(row=row, column=3, value="Costo Total")
+    _style_header_row(ws_res, row, 3)
+    row += 1
+
+    for tipo, vals in resumen["por_tipo"].items():
+        ws_res.cell(row=row, column=1, value=tipo).border = _THIN_BORDER
+        ws_res.cell(row=row, column=2, value=vals["registros"]).border = _THIN_BORDER
+        c = ws_res.cell(row=row, column=3, value=vals["costo_total"])
+        c.number_format = _CURRENCY_FMT
+        c.border = _THIN_BORDER
+        row += 1
+
+    row += 1
+
+    # Top productos
+    ws_res.cell(row=row, column=1, value="TOP PRODUCTOS CON MAYOR MERMA").font = _SUBTITLE_FONT
+    row += 1
+    ws_res.cell(row=row, column=1, value="Producto")
+    ws_res.cell(row=row, column=2, value="Cantidad")
+    ws_res.cell(row=row, column=3, value="Costo Total")
+    _style_header_row(ws_res, row, 3)
+    row += 1
+
+    for p in resumen["top_productos"]:
+        ws_res.cell(row=row, column=1, value=p["nombre"]).border = _THIN_BORDER
+        ws_res.cell(row=row, column=2, value=p["cantidad"]).border = _THIN_BORDER
+        c = ws_res.cell(row=row, column=3, value=p["costo_total"])
+        c.number_format = _CURRENCY_FMT
+        c.border = _THIN_BORDER
+        row += 1
+
+    _auto_width(ws_res)
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+# ─── CRM ────────────────────────────────────────────────────────
+
+def exportar_crm(db: Session) -> BytesIO:
+    """Genera Excel con segmentación CRM, campañas y satisfacción."""
+    segmentacion = crm_service.segmentar_clientes(db)
+    campanas = crm_service.listar_campanas(db)
+    satisfaccion = crm_service.resumen_satisfaccion(db, dias=30)
+
+    wb = Workbook()
+
+    # ── Hoja 1: Segmentación RFM ──
+    ws = wb.active
+    ws.title = "Segmentacion RFM"
+
+    ws.merge_cells("A1:F1")
+    ws["A1"] = "JACARANDA REPOSTERIA MEXICANA"
+    ws["A1"].font = _TITLE_FONT
+    ws.merge_cells("A2:F2")
+    ws["A2"] = "Segmentación de Clientes (RFM)"
+    ws["A2"].font = _SUBTITLE_FONT
+
+    row = 4
+    headers = ["Cliente ID", "Nombre", "Segmento", "Recencia (días)", "Frecuencia", "Monto Total"]
+    for col_idx, h in enumerate(headers, 1):
+        ws.cell(row=row, column=col_idx, value=h)
+    _style_header_row(ws, row, len(headers))
+    row += 1
+
+    for c in segmentacion:
+        ws.cell(row=row, column=1, value=c["cliente_id"]).border = _THIN_BORDER
+        ws.cell(row=row, column=2, value=c["nombre"]).border = _THIN_BORDER
+        ws.cell(row=row, column=3, value=c["segmento"]).border = _THIN_BORDER
+        ws.cell(row=row, column=4, value=c["recencia_dias"]).border = _THIN_BORDER
+        ws.cell(row=row, column=5, value=c["frecuencia"]).border = _THIN_BORDER
+        cm = ws.cell(row=row, column=6, value=c["monto_total"])
+        cm.number_format = _CURRENCY_FMT
+        cm.border = _THIN_BORDER
+        row += 1
+
+    if not segmentacion:
+        ws.cell(row=row, column=1, value="Sin clientes registrados.")
+
+    _auto_width(ws)
+
+    # ── Hoja 2: Campañas ──
+    ws_camp = wb.create_sheet("Campanas")
+    ws_camp.merge_cells("A1:G1")
+    ws_camp["A1"] = "JACARANDA REPOSTERIA MEXICANA"
+    ws_camp["A1"].font = _TITLE_FONT
+    ws_camp.merge_cells("A2:G2")
+    ws_camp["A2"] = "Campañas de Marketing"
+    ws_camp["A2"].font = _SUBTITLE_FONT
+
+    row = 4
+    camp_headers = ["ID", "Nombre", "Tipo", "Segmento", "Estado", "Enviados", "Conversiones"]
+    for col_idx, h in enumerate(camp_headers, 1):
+        ws_camp.cell(row=row, column=col_idx, value=h)
+    _style_header_row(ws_camp, row, len(camp_headers))
+    row += 1
+
+    for c in campanas:
+        ws_camp.cell(row=row, column=1, value=c["id"]).border = _THIN_BORDER
+        ws_camp.cell(row=row, column=2, value=c["nombre"]).border = _THIN_BORDER
+        ws_camp.cell(row=row, column=3, value=c["tipo"]).border = _THIN_BORDER
+        ws_camp.cell(row=row, column=4, value=c.get("segmento_objetivo") or "Todos").border = _THIN_BORDER
+        ws_camp.cell(row=row, column=5, value=c["estado"]).border = _THIN_BORDER
+        ws_camp.cell(row=row, column=6, value=c.get("enviados", 0)).border = _THIN_BORDER
+        ws_camp.cell(row=row, column=7, value=c.get("conversiones", 0)).border = _THIN_BORDER
+        row += 1
+
+    if not campanas:
+        ws_camp.cell(row=row, column=1, value="Sin campañas registradas.")
+
+    _auto_width(ws_camp)
+
+    # ── Hoja 3: Satisfacción ──
+    ws_sat = wb.create_sheet("Satisfaccion")
+    ws_sat.merge_cells("A1:C1")
+    ws_sat["A1"] = "JACARANDA REPOSTERIA MEXICANA"
+    ws_sat["A1"].font = _TITLE_FONT
+    ws_sat.merge_cells("A2:C2")
+    ws_sat["A2"] = "Resumen de Satisfacción (últimos 30 días)"
+    ws_sat["A2"].font = _SUBTITLE_FONT
+
+    row = 4
+    ws_sat.cell(row=row, column=1, value="Indicador")
+    ws_sat.cell(row=row, column=2, value="Valor")
+    _style_header_row(ws_sat, row, 2)
+    row += 1
+
+    ws_sat.cell(row=row, column=1, value="Promedio general").border = _THIN_BORDER
+    ws_sat.cell(row=row, column=2, value=satisfaccion["promedio"]).border = _THIN_BORDER
+    row += 1
+    ws_sat.cell(row=row, column=1, value="Total encuestas").border = _THIN_BORDER
+    ws_sat.cell(row=row, column=2, value=satisfaccion["total_encuestas"]).border = _THIN_BORDER
+    row += 2
+
+    ws_sat.cell(row=row, column=1, value="DISTRIBUCIÓN POR ESTRELLAS").font = _SUBTITLE_FONT
+    row += 1
+    ws_sat.cell(row=row, column=1, value="Estrellas")
+    ws_sat.cell(row=row, column=2, value="Cantidad")
+    _style_header_row(ws_sat, row, 2)
+    row += 1
+
+    for estrellas, cantidad in satisfaccion["distribucion_estrellas"].items():
+        ws_sat.cell(row=row, column=1, value=f"{estrellas} estrellas").border = _THIN_BORDER
+        ws_sat.cell(row=row, column=2, value=cantidad).border = _THIN_BORDER
+        row += 1
+
+    row += 1
+    ws_sat.cell(row=row, column=1, value="POR CATEGORÍA").font = _SUBTITLE_FONT
+    row += 1
+    ws_sat.cell(row=row, column=1, value="Categoría")
+    ws_sat.cell(row=row, column=2, value="Promedio")
+    _style_header_row(ws_sat, row, 2)
+    row += 1
+
+    for cat, prom in satisfaccion["por_categoria"].items():
+        ws_sat.cell(row=row, column=1, value=cat).border = _THIN_BORDER
+        ws_sat.cell(row=row, column=2, value=prom).border = _THIN_BORDER
+        row += 1
+
+    _auto_width(ws_sat)
 
     buf = BytesIO()
     wb.save(buf)

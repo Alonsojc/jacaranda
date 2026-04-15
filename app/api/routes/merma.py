@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
@@ -10,6 +11,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_role
 from app.models.usuario import Usuario, RolUsuario
 from app.services import merma_service as svc
+from app.services import excel_service
 
 router = APIRouter()
 
@@ -114,3 +116,25 @@ def dashboard_merma(
 ):
     """Dashboard consolidado de merma: hoy, semana, mes y tendencias."""
     return svc.dashboard_merma(db)
+
+
+# ─── Exportaciones ──────────────────────────────────────────────
+
+@router.get("/exportar-excel")
+def exportar_excel(
+    fecha_inicio: date = Query(...),
+    fecha_fin: date = Query(...),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_role(
+        RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE,
+    )),
+):
+    """Descarga reporte de merma en Excel."""
+    buf = excel_service.exportar_merma(db, fecha_inicio, fecha_fin)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename=merma_{fecha_inicio}_{fecha_fin}.xlsx"
+        },
+    )

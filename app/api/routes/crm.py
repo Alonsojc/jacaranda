@@ -4,6 +4,7 @@ from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -12,6 +13,7 @@ from app.core.dependencies import get_current_user, require_role
 from app.models.usuario import Usuario, RolUsuario
 from app.models.crm import SegmentoCliente
 from app.services import crm_service
+from app.services import excel_service
 
 router = APIRouter()
 
@@ -191,3 +193,20 @@ def dashboard_crm(
 ):
     """Dashboard resumen del módulo CRM (ADMIN/GERENTE)."""
     return crm_service.dashboard_crm(db)
+
+
+# ─── Exportaciones ──────────────────────────────────────────────
+
+
+@router.get("/exportar-excel")
+def exportar_excel(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+):
+    """Descarga reporte CRM (segmentación, campañas, satisfacción) en Excel."""
+    buf = excel_service.exportar_crm(db)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=crm_reporte.xlsx"},
+    )

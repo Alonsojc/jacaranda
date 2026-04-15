@@ -8,6 +8,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
+from app.core.db_compat import db_extract_hour, db_extract_dow
 from app.models.venta import Venta, DetalleVenta, EstadoVenta
 from app.models.inventario import Producto, Ingrediente
 from app.models.cliente import Cliente
@@ -33,8 +34,9 @@ def ventas_por_hora(db: Session, fecha: date | None = None) -> list[dict]:
     dia = fecha or date.today()
     inicio, fin = _rango_dia(dia)
 
+    _hour = db_extract_hour(Venta.fecha)
     rows = db.query(
-        func.strftime("%H", Venta.fecha).label("hora"),
+        _hour.label("hora"),
         func.sum(Venta.total).label("total"),
         func.count(Venta.id).label("cantidad"),
     ).filter(
@@ -43,7 +45,7 @@ def ventas_por_hora(db: Session, fecha: date | None = None) -> list[dict]:
             Venta.fecha <= fin,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
-    ).group_by(func.strftime("%H", Venta.fecha)).order_by("hora").all()
+    ).group_by(_hour).order_by("hora").all()
 
     return [
         {"hora": f"{r.hora}:00", "total": _float(r.total), "cantidad": r.cantidad}
@@ -60,8 +62,9 @@ def ventas_por_dia_semana(db: Session, semanas: int = 4) -> list[dict]:
     )
     fin = datetime.combine(date.today(), datetime.max.time())
 
+    _dow = db_extract_dow(Venta.fecha)
     rows = db.query(
-        func.strftime("%w", Venta.fecha).label("dow"),
+        _dow.label("dow"),
         func.sum(Venta.total).label("total"),
         func.count(Venta.id).label("cantidad"),
     ).filter(
@@ -70,7 +73,7 @@ def ventas_por_dia_semana(db: Session, semanas: int = 4) -> list[dict]:
             Venta.fecha <= fin,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
-    ).group_by(func.strftime("%w", Venta.fecha)).all()
+    ).group_by(_dow).all()
 
     nombres = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
     result = []

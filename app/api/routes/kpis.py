@@ -2,12 +2,14 @@
 
 from datetime import date
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.usuario import Usuario
 from app.services import kpi_service as svc
+from app.services import excel_service
 
 router = APIRouter()
 
@@ -98,3 +100,20 @@ def metodos_pago(
 ):
     """Distribución de métodos de pago (gráfica de dona)."""
     return svc.distribucion_metodos_pago(db, dias)
+
+
+# ─── Exportaciones ──────────────────────────────────────────────
+
+@router.get("/exportar-excel")
+def exportar_excel(
+    dias: int = Query(30, ge=1, le=365),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Descarga KPIs consolidados en Excel."""
+    buf = excel_service.exportar_kpis(db, dias)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=kpis_dashboard.xlsx"},
+    )
