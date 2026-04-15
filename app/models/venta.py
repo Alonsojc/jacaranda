@@ -50,7 +50,7 @@ class Venta(Base):
     serie: Mapped[str] = mapped_column(String(5), default="T")  # T=Ticket, A=Factura
 
     # Relaciones
-    cliente_id: Mapped[int | None] = mapped_column(ForeignKey("clientes.id"))
+    cliente_id: Mapped[int | None] = mapped_column(ForeignKey("clientes.id"), index=True)
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
 
     # Totales
@@ -77,13 +77,13 @@ class Venta(Base):
 
     # Estado y facturación
     estado: Mapped[EstadoVenta] = mapped_column(
-        SAEnum(EstadoVenta), default=EstadoVenta.COMPLETADA
+        SAEnum(EstadoVenta), default=EstadoVenta.COMPLETADA, index=True
     )
     facturada: Mapped[bool] = mapped_column(Boolean, default=False)
 
     notas: Mapped[str | None] = mapped_column(Text)
     fecha: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
     )
 
     # Relaciones

@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_role
 from app.models.usuario import Usuario, RolUsuario
 from app.services import reportes_service as svc
+from app.services import alertas_service
 
 router = APIRouter()
 
@@ -191,13 +192,57 @@ def dashboard_avanzado(
     return svc.dashboard_avanzado(db)
 
 
-@router.get("/alertas")
-def alertas_consolidadas(
+@router.get("/punto-equilibrio")
+def punto_equilibrio(
+    dias: int = Query(default=30, le=90),
     db: Session = Depends(get_db),
     _user: Usuario = Depends(get_current_user),
 ):
-    """Alertas consolidadas del sistema para notificaciones push."""
-    return svc.alertas_consolidadas(db)
+    """Punto de equilibrio (break-even analysis) de la panadería."""
+    return svc.punto_de_equilibrio(db, dias)
+
+
+@router.get("/flujo-efectivo")
+def flujo_efectivo(
+    meses: int = Query(default=3, le=12),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Proyección de flujo de efectivo a N meses."""
+    return svc.flujo_efectivo_proyectado(db, meses)
+
+
+@router.get("/alertas")
+def alertas_consolidadas_endpoint(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Alertas consolidadas: stock bajo, caducidades, pedidos pendientes, merma."""
+    data = alertas_service.alertas_consolidadas(db)
+    total_criticas = sum(
+        1 for a in data["stock_bajo"] if a["severidad"] == "critica"
+    ) + sum(
+        1 for a in data["caducidades"] if a["severidad"] == "critica"
+    ) + sum(
+        1 for a in data["pedidos_pendientes"] if a["severidad"] == "critica"
+    )
+    total_altas = sum(
+        1 for a in data["stock_bajo"] if a["severidad"] == "alta"
+    ) + sum(
+        1 for a in data["caducidades"] if a["severidad"] == "alta"
+    ) + sum(
+        1 for a in data["pedidos_pendientes"] if a["severidad"] == "alta"
+    )
+    data["resumen"] = {
+        "total_alertas": (
+            len(data["stock_bajo"]) + len(data["caducidades"])
+            + len(data["pedidos_pendientes"])
+        ),
+        "criticas": total_criticas,
+        "altas": total_altas,
+        "merma_porcentaje": data["merma_hoy"]["porcentaje_merma"],
+    }
+    return data
 
 
 @router.get("/backup")

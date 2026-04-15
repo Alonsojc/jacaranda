@@ -29,11 +29,11 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "https://alonsojc.github.io"
 
     # --- Datos del negocio ---
-    RAZON_SOCIAL: str = "Jacaranda Flavors"
-    RFC: str = "XAXX010101000"  # RFC del negocio
-    REGIMEN_FISCAL: str = "612"  # Personas Físicas con Actividades Empresariales
+    RAZON_SOCIAL: str = "JACARANDA REPOSTERIA MEXICANA"
+    RFC: str = "JRM250227BZ2"  # Persona Moral - 12 caracteres
+    REGIMEN_FISCAL: str = "601"  # General de Ley Personas Morales
     DOMICILIO_FISCAL_CP: str = "76146"  # Querétaro, QRO
-    LUGAR_EXPEDICION: str = "76146"  # Plaza Distrito Marqués, Querétaro, QRO
+    LUGAR_EXPEDICION: str = "76146"  # Querétaro, QRO
 
     # --- Configuración fiscal mexicana ---
     # IVA

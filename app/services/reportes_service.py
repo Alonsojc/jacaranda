@@ -175,23 +175,31 @@ def reporte_iva_mensual(db: Session, mes: int, anio: int) -> dict:
 
 
 def reporte_isr_provisional(db: Session, mes: int, anio: int) -> dict:
-    """ISR provisional mensual (simplificado para RESICO o Actividad Empresarial)."""
+    """
+    ISR provisional mensual — Persona Moral, Régimen 601.
+    Art. 14 LISR: Pagos provisionales = Ingresos nominales acumulados
+    × Coeficiente de utilidad × Tasa 30%.
+    """
     fecha_inicio = date(anio, 1, 1)  # Acumulado desde enero
     if mes == 12:
         fecha_fin = date(anio + 1, 1, 1)
     else:
         fecha_fin = date(anio, mes + 1, 1)
 
-    # Ingresos acumulados
-    ingresos = db.query(func.sum(Venta.total)).filter(
+    # Ingresos nominales acumulados (sin IVA)
+    from app.models.inventario import Producto
+    ventas = db.query(Venta).filter(
         and_(
             Venta.fecha >= datetime.combine(fecha_inicio, datetime.min.time()),
             Venta.fecha < datetime.combine(fecha_fin, datetime.min.time()),
             Venta.estado == EstadoVenta.COMPLETADA,
         )
-    ).scalar() or Decimal("0")
+    ).all()
+    ingresos_brutos = sum((v.total or Decimal("0")) for v in ventas)
+    iva_cobrado = sum((v.iva_16 or Decimal("0")) for v in ventas)
+    ingresos_nominales = ingresos_brutos - iva_cobrado
 
-    # Deducciones autorizadas (compras + nómina)
+    # Deducciones autorizadas (compras + nómina + gastos fijos)
     compras = db.query(
         func.sum(MovimientoInventario.cantidad * MovimientoInventario.costo_unitario)
     ).filter(
@@ -209,25 +217,61 @@ def reporte_isr_provisional(db: Session, mes: int, anio: int) -> dict:
         )
     ).scalar() or Decimal("0")
 
-    deducciones = compras + nomina
-    utilidad = max(ingresos - deducciones, Decimal("0"))
+    # Gastos fijos prorrateados al periodo
+    from app.models.gasto_fijo import GastoFijo
+    gastos_fijos = db.query(GastoFijo).filter(GastoFijo.activo.is_(True)).all()
+    total_gastos_fijos = Decimal("0")
+    for g in gastos_fijos:
+        if g.periodicidad == "mensual":
+            total_gastos_fijos += g.monto * mes
+        elif g.periodicidad == "quincenal":
+            total_gastos_fijos += g.monto * mes * 2
+        elif g.periodicidad == "semanal":
+            total_gastos_fijos += g.monto * mes * Decimal("4.33")
 
-    # ISR provisional (tasa simplificada RESICO)
-    # Para RESICO tasas van de 1% a 2.5% según ingreso mensual
-    tasa_provisional = Decimal("0.0125")  # 1.25% promedio estimado
-    isr_provisional = (utilidad * tasa_provisional).quantize(Decimal("0.01"))
+    deducciones = compras + nomina + total_gastos_fijos
+    utilidad_fiscal = max(ingresos_nominales - deducciones, Decimal("0"))
+
+    # Coeficiente de utilidad (Art. 14 LISR)
+    # CU = Utilidad fiscal del ejercicio anterior / Ingresos nominales anterior
+    # Primer ejercicio o sin datos: usar utilidad actual como estimación
+    coeficiente_utilidad = Decimal("0.30")  # Default conservador primer ejercicio
+    if ingresos_nominales > 0:
+        cu_calculado = utilidad_fiscal / ingresos_nominales
+        if cu_calculado > 0:
+            coeficiente_utilidad = min(cu_calculado, Decimal("0.90"))
+
+    # Base para pago provisional
+    base_provisional = ingresos_nominales * coeficiente_utilidad
+
+    # Tasa ISR Personas Morales: 30% (Art. 9 LISR)
+    tasa_isr = Decimal("0.30")
+    isr_provisional = (base_provisional * tasa_isr).quantize(Decimal("0.01"))
+
+    # PTU por pagar (10% de utilidad fiscal, Art. 9 LISR / Art. 120 LFT)
+    ptu_estimado = (utilidad_fiscal * Decimal("0.10")).quantize(Decimal("0.01"))
+
+    meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+             'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
     return {
-        "periodo": f"Enero - {['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][mes]} {anio}",
-        "ingresos_acumulados": float(ingresos),
+        "regimen": "601 - General de Ley Personas Morales",
+        "periodo": f"Enero - {meses[mes]} {anio}",
+        "ingresos_acumulados": float(ingresos_nominales),
+        "ingresos_brutos": float(ingresos_brutos),
+        "iva_cobrado": float(iva_cobrado),
         "deducciones_acumuladas": {
             "compras": float(compras),
             "nomina": float(nomina),
+            "gastos_fijos": float(total_gastos_fijos),
             "total": float(deducciones),
         },
-        "utilidad_fiscal": float(utilidad),
-        "tasa_provisional": float(tasa_provisional),
+        "utilidad_fiscal": float(utilidad_fiscal),
+        "coeficiente_utilidad": float(coeficiente_utilidad),
+        "base_provisional": float(base_provisional),
+        "tasa_provisional": float(tasa_isr),
         "isr_provisional": float(isr_provisional),
+        "ptu_estimado": float(ptu_estimado),
     }
 
 
@@ -1011,6 +1055,167 @@ def dashboard_avanzado(db: Session) -> dict:
         },
         "meses": meses,
         "clientes_vip": clientes_vip,
+    }
+
+
+# ─── Punto de equilibrio ─────────────────────────────────────────
+
+def punto_de_equilibrio(db: Session, dias: int = 30) -> dict:
+    """
+    Calcula punto de equilibrio (break-even) de la panadería.
+    Costos fijos / (1 - costos variables / ingresos) = PE en pesos.
+    """
+    from datetime import timedelta
+    from app.models.inventario import Producto
+    from app.models.gasto_fijo import GastoFijo
+
+    hoy = date.today()
+    inicio = datetime.combine(hoy - timedelta(days=dias - 1), datetime.min.time())
+    fin = datetime.combine(hoy, datetime.max.time())
+
+    # Ingresos del periodo
+    ventas = db.query(Venta).filter(
+        and_(Venta.estado == EstadoVenta.COMPLETADA,
+             Venta.fecha >= inicio, Venta.fecha <= fin)
+    ).all()
+    ingresos = sum(float(v.total or 0) for v in ventas)
+
+    # Costos variables (materia prima consumida en ventas)
+    costo_variable = 0.0
+    for v in ventas:
+        for d in v.detalles:
+            prod = db.query(Producto).filter(Producto.id == d.producto_id).first()
+            if prod and prod.costo_produccion:
+                costo_variable += float(d.cantidad * prod.costo_produccion)
+
+    # Costos fijos mensuales
+    gastos = db.query(GastoFijo).filter(GastoFijo.activo.is_(True)).all()
+    costos_fijos_mensual = 0.0
+    for g in gastos:
+        if g.periodicidad == "quincenal":
+            costos_fijos_mensual += float(g.monto) * 2
+        elif g.periodicidad == "semanal":
+            costos_fijos_mensual += float(g.monto) * 4.33
+        else:
+            costos_fijos_mensual += float(g.monto)
+
+    # Nómina mensual
+    from app.models.empleado import Empleado
+    empleados = db.query(Empleado).filter(Empleado.activo.is_(True)).all()
+    nomina_mensual = sum(float(e.salario_base or 0) for e in empleados)
+    costos_fijos_mensual += nomina_mensual
+
+    # Prorrateo al periodo
+    costos_fijos_periodo = costos_fijos_mensual * (dias / 30)
+
+    # Margen de contribución
+    margen_contribucion_pct = ((ingresos - costo_variable) / ingresos * 100) if ingresos > 0 else 0
+
+    # Punto de equilibrio en pesos
+    pe_pesos = costos_fijos_periodo / (1 - costo_variable / ingresos) if ingresos > costo_variable else 0
+    pe_diario = pe_pesos / dias if dias > 0 else 0
+
+    # Ticket promedio
+    num_ventas = len(ventas)
+    ticket_promedio = ingresos / num_ventas if num_ventas > 0 else 0
+
+    # PE en unidades (tickets)
+    pe_unidades = pe_pesos / ticket_promedio if ticket_promedio > 0 else 0
+
+    # Situación actual
+    excedente = ingresos - pe_pesos
+    pct_sobre_pe = (excedente / pe_pesos * 100) if pe_pesos > 0 else 0
+
+    return {
+        "dias_analizados": dias,
+        "ingresos": round(ingresos, 2),
+        "costo_variable": round(costo_variable, 2),
+        "costos_fijos_periodo": round(costos_fijos_periodo, 2),
+        "costos_fijos_mensuales": round(costos_fijos_mensual, 2),
+        "nomina_mensual": round(nomina_mensual, 2),
+        "margen_contribucion_pct": round(margen_contribucion_pct, 1),
+        "punto_equilibrio_pesos": round(pe_pesos, 2),
+        "punto_equilibrio_diario": round(pe_diario, 2),
+        "punto_equilibrio_unidades": round(pe_unidades, 0),
+        "ticket_promedio": round(ticket_promedio, 2),
+        "excedente_sobre_pe": round(excedente, 2),
+        "pct_sobre_pe": round(pct_sobre_pe, 1),
+        "es_rentable": excedente > 0,
+        "numero_ventas": num_ventas,
+    }
+
+
+def flujo_efectivo_proyectado(db: Session, meses: int = 3) -> dict:
+    """
+    Proyección de flujo de efectivo a N meses basado en tendencias históricas.
+    """
+    from datetime import timedelta
+    from app.models.gasto_fijo import GastoFijo
+    from app.models.empleado import Empleado
+
+    hoy = date.today()
+
+    # Calcular ingresos promedio mensuales de últimos 3 meses
+    ingresos_mensuales = []
+    for i in range(3):
+        mes_fin = hoy.replace(day=1) - timedelta(days=1) if i == 0 else (hoy.replace(day=1) - timedelta(days=30 * i))
+        mes_inicio = mes_fin.replace(day=1)
+        inicio_dt = datetime.combine(mes_inicio, datetime.min.time())
+        fin_dt = datetime.combine(mes_fin, datetime.max.time())
+        total = db.query(func.coalesce(func.sum(Venta.total), 0)).filter(
+            and_(Venta.estado == EstadoVenta.COMPLETADA,
+                 Venta.fecha >= inicio_dt, Venta.fecha <= fin_dt)
+        ).scalar()
+        ingresos_mensuales.append(float(total))
+
+    ingreso_promedio = sum(ingresos_mensuales) / len(ingresos_mensuales) if ingresos_mensuales else 0
+
+    # Gastos fijos mensuales
+    gastos = db.query(GastoFijo).filter(GastoFijo.activo.is_(True)).all()
+    gastos_fijos_mes = 0.0
+    desglose_gastos = {}
+    for g in gastos:
+        if g.periodicidad == "quincenal":
+            monto = float(g.monto) * 2
+        elif g.periodicidad == "semanal":
+            monto = float(g.monto) * 4.33
+        else:
+            monto = float(g.monto)
+        gastos_fijos_mes += monto
+        desglose_gastos[g.concepto] = round(monto, 2)
+
+    # Nómina
+    empleados = db.query(Empleado).filter(Empleado.activo.is_(True)).all()
+    nomina = sum(float(e.salario_base or 0) for e in empleados)
+
+    total_egresos = gastos_fijos_mes + nomina
+
+    # Proyección
+    proyeccion = []
+    saldo_acumulado = 0.0
+    for i in range(1, meses + 1):
+        mes_futuro = hoy.month + i
+        anio = hoy.year + (mes_futuro - 1) // 12
+        mes = ((mes_futuro - 1) % 12) + 1
+        flujo_neto = ingreso_promedio - total_egresos
+        saldo_acumulado += flujo_neto
+        proyeccion.append({
+            "mes": f"{anio}-{mes:02d}",
+            "ingresos_estimados": round(ingreso_promedio, 2),
+            "egresos_estimados": round(total_egresos, 2),
+            "flujo_neto": round(flujo_neto, 2),
+            "saldo_acumulado": round(saldo_acumulado, 2),
+        })
+
+    return {
+        "meses_proyectados": meses,
+        "ingreso_promedio_mensual": round(ingreso_promedio, 2),
+        "ingresos_ultimos_3_meses": [round(x, 2) for x in ingresos_mensuales],
+        "gastos_fijos_mensuales": round(gastos_fijos_mes, 2),
+        "nomina_mensual": round(nomina, 2),
+        "total_egresos_mensuales": round(total_egresos, 2),
+        "desglose_gastos": desglose_gastos,
+        "proyeccion": proyeccion,
     }
 
 

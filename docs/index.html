@@ -208,6 +208,18 @@ nav .nav-links #btn-notif,nav .nav-links #btn-logout{display:none!important}
 nav .nav-links #btn-conn{display:none!important}
 body{padding-bottom:60px}
 }
+@media(max-width:400px){
+.r4{grid-template-columns:1fr!important}
+.row.r2,.row.r3{grid-template-columns:1fr!important}
+.card.kpi .n{font-size:1.1rem}
+.card.kpi .l{font-size:.7rem}
+.tab{padding:.3rem .45rem;font-size:.7rem}
+.cobrar{padding:.75rem;font-size:.9rem}
+.limpiar{padding:.3rem .5rem;font-size:.72rem}
+table.tbl th,table.tbl td{padding:.3rem .35rem;font-size:.72rem}
+h2{font-size:1.1rem}
+.conta-row{font-size:.78rem}
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
@@ -230,7 +242,7 @@ body{padding-bottom:60px}
 </div>
 </div>
 </div>
-<nav>
+<nav role="navigation" aria-label="Navegaci&oacute;n principal">
 <div class="logo">Jacaranda<span>sharing flavors</span></div>
 <div class="nav-links">
 <a class="on" data-pg="dash" onclick="go('dash')">Inicio</a>
@@ -725,6 +737,7 @@ body{padding-bottom:60px}
 <span class="tab" onclick="repTab('rep-mermas')">Mermas</span>
 <span class="tab" onclick="repTab('rep-abc')">ABC</span>
 <span class="tab" onclick="repTab('rep-horas')">Por hora</span>
+<span class="tab" onclick="repTab('rep-pe')">Punto equilibrio</span>
 <span class="tab" onclick="repTab('rep-fiscal')">Fiscal</span>
 </div>
 <button onclick="exportarReporteCSV()" class="limpiar" style="padding:.35rem .7rem;font-size:.78rem;margin:0;white-space:nowrap">&#128190; Exportar CSV</button>
@@ -811,6 +824,15 @@ body{padding-bottom:60px}
 <button onclick="cargarVentasPorHora()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Consultar</button>
 </div>
 <div class="card"><h3>Ventas por hora del d&iacute;a</h3><p style="font-size:.78rem;color:var(--mut);margin-bottom:.5rem">Horario de mayor venta. &Uacute;til para planificar turnos y horneadas.</p><div id="rep-horas-chart"></div></div>
+</div>
+<div id="rep-pe" style="display:none">
+<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
+<span style="font-size:.83rem;color:var(--mut)">Periodo:</span>
+<select id="rep-pe-dias" onchange="cargarPuntoEquilibrio()" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem">
+<option value="30" selected>30 d&iacute;as</option><option value="60">60 d&iacute;as</option><option value="90">90 d&iacute;as</option>
+</select>
+</div>
+<div id="rep-pe-content"><div class="card"><p style="color:var(--mut);font-size:.83rem;padding:.5rem">Cargando...</p></div></div>
 </div>
 <div id="rep-fiscal" style="display:none">
 <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
@@ -999,6 +1021,7 @@ body{padding-bottom:60px}
 <button onclick="cargarEdoResultados()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Consultar</button>
 <button onclick="contaSetRango(30)" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0">30 d&iacute;as</button>
 <button onclick="contaSetRango(90)" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0">90 d&iacute;as</button>
+<button onclick="descargarExcelER()" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0" aria-label="Descargar Excel">Excel</button>
 </div>
 <div id="conta-er-content">
 <div class="card"><p style="color:var(--mut);font-size:.83rem;padding:.5rem">Selecciona un periodo y consulta.</p></div>
@@ -1011,6 +1034,7 @@ body{padding-bottom:60px}
 <span style="font-size:.83rem;color:var(--mut)">Fecha de corte:</span>
 <input type="date" id="conta-bg-fecha" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit">
 <button onclick="cargarBalanceGeneral()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Consultar</button>
+<button onclick="descargarExcelBG()" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0" aria-label="Descargar Excel">Excel</button>
 </div>
 <div id="conta-bg-content">
 <div class="card"><p style="color:var(--mut);font-size:.83rem;padding:.5rem">Selecciona fecha de corte.</p></div>
@@ -1044,6 +1068,7 @@ body{padding-bottom:60px}
 <input type="date" id="conta-ld-ff" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit">
 <button onclick="cargarLibroDiario()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Consultar</button>
 <button onclick="abrirNuevoAsiento()" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0">+ P&oacute;liza</button>
+<button onclick="descargarExcelPol()" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0" aria-label="Descargar Excel">Excel</button>
 </div>
 <div id="conta-ld-content">
 <div class="card"><p style="color:var(--mut);font-size:.83rem;padding:.5rem">Selecciona periodo.</p></div>
@@ -1121,7 +1146,7 @@ body{padding-bottom:60px}
 </div><!-- /wrap -->
 
 <!-- MOBILE BOTTOM NAV -->
-<div class="mobile-nav" id="mobile-nav">
+<div class="mobile-nav" id="mobile-nav" role="navigation" aria-label="Navegaci&oacute;n m&oacute;vil">
 <a onclick="go('dash')" data-pg="dash" class="mn-item on"><span class="mn-icon">&#127968;</span><span class="mn-label">Inicio</span></a>
 <a onclick="go('pos')" data-pg="pos" class="mn-item"><span class="mn-icon">&#128179;</span><span class="mn-label">Venta</span></a>
 <a onclick="go('ped')" data-pg="ped" class="mn-item"><span class="mn-icon">&#128203;</span><span class="mn-label">Pedidos</span></a>
@@ -1614,19 +1639,39 @@ function toast(msg, isErr) {
 }
 
 // ─── API helpers ──────────────────────────────────────────────────
+var REFRESH_TOKEN = localStorage.getItem('jacaranda_refresh_token') || '';
+
 function api(method, path, body, _retry) {
   if (!API_URL) return Promise.reject('offline');
   var opts = {method: method, headers: {'Content-Type':'application/json'}};
   if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
   if (body) opts.body = JSON.stringify(body);
   return fetch(API_URL + '/api/v1' + path, opts).then(function(r) {
-    if (r.status === 401 && !_retry) {
-      // Token expirado, mostrar login
+    if (r.status === 401 && !_retry && REFRESH_TOKEN) {
+      return refreshAccessToken().then(function() {
+        return api(method, path, body, true);
+      });
+    }
+    if (r.status === 401) {
       cerrarSesion();
       return Promise.reject(new Error('Sesión expirada'));
     }
     if (!r.ok) return r.json().catch(function(){return {};}).then(function(body){var e=new Error(typeof body.detail==='string'?body.detail:r.status);e.status=r.status;throw e;});
     return r.json();
+  });
+}
+
+function refreshAccessToken() {
+  return fetch(API_URL + '/api/v1/auth/refresh', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({refresh_token: REFRESH_TOKEN})
+  }).then(function(r) {
+    if (!r.ok) { cerrarSesion(); return Promise.reject(new Error('Refresh falló')); }
+    return r.json();
+  }).then(function(d) {
+    TOKEN = d.access_token;
+    localStorage.setItem('jacaranda_token', TOKEN);
   });
 }
 
@@ -1641,6 +1686,10 @@ function login(email, pass) {
   }).then(function(d) {
     TOKEN = d.access_token;
     localStorage.setItem('jacaranda_token', TOKEN);
+    if (d.refresh_token) {
+      REFRESH_TOKEN = d.refresh_token;
+      localStorage.setItem('jacaranda_refresh_token', REFRESH_TOKEN);
+    }
     return d;
   });
 }
@@ -2545,7 +2594,7 @@ function iniciarNotifPeriodicas() {
         badge.style.display = 'none';
       }
       _notifCache = alertas;
-    }).catch(function(){});
+    }).catch(function(e){ console.warn('Error cargando datos:', e); });
   }, 300000); // 5 min
 }
 
@@ -2599,15 +2648,20 @@ function cargarDashAvanzado() {
 
     // Chart.js — 12 meses
     renderChartMeses(d.meses);
-  }).catch(function(){});
+  }).catch(function(e){ console.warn('Error cargando datos:', e); });
 }
 
 function renderChartMeses(meses) {
   var ctx = document.getElementById('chart-meses');
   if (!ctx) return;
-  if (typeof Chart === 'undefined') return; // Chart.js not loaded
+  if (typeof Chart === 'undefined') return;
 
   if (_chartMeses) _chartMeses.destroy();
+
+  if (!meses || !meses.length) {
+    ctx.parentElement.innerHTML = '<p style="text-align:center;color:var(--mut);padding:2rem;font-size:.85rem">Sin datos de ventas mensuales</p>';
+    return;
+  }
 
   var labels = meses.map(function(m) { return m.mes; });
   var datos = meses.map(function(m) { return m.total; });
@@ -2659,6 +2713,11 @@ function renderChartVentas(dias) {
   var ctx = document.getElementById('rep-chart-canvas');
   if (!ctx || typeof Chart === 'undefined') return;
   if (_chartVentas) _chartVentas.destroy();
+
+  if (!dias || !dias.length) {
+    ctx.parentElement.innerHTML = '<p style="text-align:center;color:var(--mut);padding:2rem;font-size:.85rem">Sin datos para el periodo seleccionado</p>';
+    return;
+  }
 
   var labels = dias.map(function(d) {
     return new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'short'});
@@ -3386,7 +3445,7 @@ function cargarRecetas() {
             var pzaEl = document.getElementById('rc-pza-' + id);
             if (costEl) costEl.textContent = '$' + fmt(c.costo_total_ingredientes);
             if (pzaEl) { pzaEl.textContent = '$' + fmt(c.costo_por_pieza); pzaEl.style.color = 'var(--v)'; pzaEl.style.fontWeight = '600'; }
-          }).catch(function(){});
+          }).catch(function(e){ console.warn('Error cargando datos:', e); });
         })(recs[k].id);
       }
     }
@@ -3410,7 +3469,7 @@ function cargarRecetas() {
         h += '</div>';
       }
       document.getElementById('sin-receta-list').innerHTML = h;
-    }).catch(function(){});
+    }).catch(function(e){ console.warn('Error cargando datos:', e); });
   }).catch(function() {
     document.getElementById('horn-receta').innerHTML = '<option value="">Error al cargar</option>';
   });
@@ -3813,7 +3872,7 @@ function cargarListaRecetas() {
           if (el) {
             el.innerHTML = '<span class="badge" style="background:#fef3c7;color:#92400e">$' + fmt(costo_total_ingredientes) + ' total</span> <span class="badge" style="background:#dbeafe;color:#1d4ed8">$' + fmt(c.costo_por_pieza) + '/pza</span>';
           }
-        }).catch(function(){});
+        }).catch(function(e){ console.warn('Error cargando datos:', e); });
       })(recs[m].id);
     }
   }).catch(function() {
@@ -4419,7 +4478,7 @@ function cargarDashboard() {
     document.getElementById('d-ventas').textContent = '$' + fmt(vh.total);
     document.getElementById('d-tickets').textContent = vh.numero_ventas || 0;
     document.getElementById('d-mes').textContent = '$' + fmt(vm.total);
-  }).catch(function(){});
+  }).catch(function(e){ console.warn('Error cargando datos:', e); });
 
   // Week-over-week comparison
   cargarComparativoSemanal();
@@ -4457,7 +4516,7 @@ function cargarDashboard() {
       h += '<span class="badge ' + (estadoClase[p.estado]||'bpend') + '">' + (estadoNombre[p.estado]||p.estado) + '</span></div>';
     }
     if (h) document.getElementById('d-ped-hoy').innerHTML = h;
-  }).catch(function(){});
+  }).catch(function(e){ console.warn('Error cargando datos:', e); });
 
   // Load inventory for dashboard
   var alertas = '';
@@ -4496,7 +4555,7 @@ function cargarDashboard() {
     var invBadge = document.getElementById('inv-badge');
     if (lowCount > 0) { invBadge.textContent = lowCount; invBadge.style.display = ''; }
     else { invBadge.style.display = 'none'; }
-  }).catch(function(){});
+  }).catch(function(e){ console.warn('Error cargando datos:', e); });
   // Also check ingredients
   api('GET', '/inventario/ingredientes').then(function(ings) {
     var a = '';
@@ -4511,7 +4570,7 @@ function cargarDashboard() {
       }
     }
     renderDashAlertas(a);
-  }).catch(function(){});
+  }).catch(function(e){ console.warn('Error cargando datos:', e); });
 
   // Alertas de caducidad
   api('GET', '/reportes/alertas-caducidad?dias=7').then(function(items) {
@@ -4524,7 +4583,36 @@ function cargarDashboard() {
       h += '<div class="srow"><span>' + it.ingrediente + ' (Lote: ' + it.numero_lote + ')</span><span class="badge ' + cls + '">' + txt + '</span></div>';
     }
     document.getElementById('d-caducidad').innerHTML = h;
-  }).catch(function(){});
+  }).catch(function(e){ console.warn('Error cargando datos:', e); });
+
+  // Alertas consolidadas (pedidos pendientes + merma)
+  api('GET', '/reportes/alertas').then(function(data) {
+    var a = '';
+    // Pedidos urgentes
+    if (data.pedidos_pendientes) {
+      for (var i = 0; i < data.pedidos_pendientes.length; i++) {
+        var p = data.pedidos_pendientes[i];
+        if (p.severidad === 'critica' || p.severidad === 'alta') {
+          var cls = p.severidad === 'critica' ? 'bout' : 'blow';
+          a += '<div class="srow"><span>Pedido #' + p.pedido_id + ' ' + p.cliente + '</span><span class="badge ' + cls + '">' + p.razon + '</span></div>';
+        }
+      }
+    }
+    // Merma excesiva
+    if (data.merma_hoy && data.merma_hoy.porcentaje_merma > 5) {
+      a += '<div class="srow"><span>Merma del d\u00eda</span><span class="badge blow">' + data.merma_hoy.porcentaje_merma + '% (' + data.merma_hoy.total_unidades + ' uds)</span></div>';
+    }
+    if (a) renderDashAlertas(a);
+    // Badge en nav
+    var res = data.resumen || {};
+    var total = (res.criticas || 0) + (res.altas || 0);
+    var navItems = document.querySelectorAll('.nav a');
+    for (var n = 0; n < navItems.length; n++) {
+      if (navItems[n].textContent.indexOf('Inicio') >= 0 && total > 0) {
+        navItems[n].setAttribute('data-badge', total);
+      }
+    }
+  }).catch(function(e){ console.warn('Error cargando datos:', e); });
 
   // Pronóstico rápido
   api('GET', '/reportes/pronostico-produccion').then(function(items) {
@@ -4626,13 +4714,13 @@ function iniciarPollPedidos() {
         playNotif();
       }
       _pedidoCount = activos;
-    }).catch(function(){});
+    }).catch(function(e){ console.warn('Error cargando datos:', e); });
   }, 30000);
 }
 
 // ─── Reportes ────────────────────────────────────────────────────
 function repTab(tab) {
-  ['rep-ventas','rep-prod','rep-marg','rep-mermas','rep-abc','rep-horas','rep-fiscal'].forEach(function(t) {
+  ['rep-ventas','rep-prod','rep-marg','rep-mermas','rep-abc','rep-horas','rep-pe','rep-fiscal'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
@@ -4642,6 +4730,7 @@ function repTab(tab) {
   if (tab === 'rep-mermas') cargarReporteMermas();
   if (tab === 'rep-abc') cargarABC();
   if (tab === 'rep-horas') cargarVentasPorHora();
+  if (tab === 'rep-pe') cargarPuntoEquilibrio();
 }
 
 function initReportes() {
@@ -4665,10 +4754,18 @@ function repSetRango(dias) {
   cargarReporteVentas();
 }
 
+function validarFechas(fi, ff) {
+  if (!fi || !ff) { toast('Selecciona ambas fechas', true); return false; }
+  if (fi > ff) { toast('La fecha inicial no puede ser mayor a la final', true); return false; }
+  var diff = (new Date(ff) - new Date(fi)) / 86400000;
+  if (diff > 365) { toast('Rango máximo: 1 año', true); return false; }
+  return true;
+}
+
 function cargarReporteVentas() {
   var fi = document.getElementById('rep-fi').value;
   var ff = document.getElementById('rep-ff').value;
-  if (!fi || !ff) { toast('Selecciona fechas', true); return; }
+  if (!validarFechas(fi, ff)) return;
   api('GET', '/reportes/ventas?fecha_inicio=' + fi + '&fecha_fin=' + ff).then(function(r) {
     var res = r.resumen;
     document.getElementById('rep-total').textContent = '$' + fmt(res.total);
@@ -4696,7 +4793,7 @@ function cargarReporteVentas() {
   // Trend chart with Chart.js
   api('GET', '/reportes/ventas-por-dia?dias=30').then(function(dias) {
     renderChartVentas(dias);
-  }).catch(function(){});
+  }).catch(function(e){ console.warn('Error cargando datos:', e); });
 }
 
 function cargarReporteProductos() {
@@ -4750,11 +4847,20 @@ function cargarReporteFiscal() {
   }).catch(function() { document.getElementById('rep-iva').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar IVA</p>'; });
   api('GET', '/reportes/impuestos/isr-provisional?mes=' + mes + '&anio=' + anio).then(function(r) {
     var h = '';
-    h += '<div class="srow"><span>Ingresos acumulados</span><span class="green">$' + fmt(r.ingresos_acumulados) + '</span></div>';
+    h += '<div class="srow" style="font-size:.72rem;color:var(--mut);margin-bottom:.3rem"><span>' + (r.regimen || '') + '</span></div>';
+    h += '<div class="srow"><span>Ingresos brutos</span><span>$' + fmt(r.ingresos_brutos || 0) + '</span></div>';
+    h += '<div class="srow"><span>(-) IVA cobrado</span><span style="color:#b91c1c">$' + fmt(r.iva_cobrado || 0) + '</span></div>';
+    h += '<div class="srow"><span>Ingresos nominales</span><span class="green">$' + fmt(r.ingresos_acumulados) + '</span></div>';
+    h += '<div style="margin:.4rem 0 .2rem;font-size:.78rem;font-weight:600;color:var(--txt)">Deducciones autorizadas</div>';
     h += '<div class="srow"><span>Compras</span><span>$' + fmt(r.deducciones_acumuladas.compras) + '</span></div>';
     h += '<div class="srow"><span>N\u00f3mina</span><span>$' + fmt(r.deducciones_acumuladas.nomina) + '</span></div>';
+    h += '<div class="srow"><span>Gastos fijos</span><span>$' + fmt(r.deducciones_acumuladas.gastos_fijos || 0) + '</span></div>';
+    h += '<div class="srow" style="font-weight:600"><span>Total deducciones</span><span>$' + fmt(r.deducciones_acumuladas.total) + '</span></div>';
     h += '<div class="srow"><span>Utilidad fiscal</span><span style="font-weight:700">$' + fmt(r.utilidad_fiscal) + '</span></div>';
-    h += '<div class="srow" style="border-top:2px solid var(--brd);padding-top:.4rem;margin-top:.3rem;font-weight:700"><span>ISR provisional (' + (r.tasa_provisional * 100).toFixed(2) + '%)</span><span>$' + fmt(r.isr_provisional) + '</span></div>';
+    h += '<div class="srow"><span>Coeficiente de utilidad</span><span>' + (r.coeficiente_utilidad || 0).toFixed(4) + '</span></div>';
+    h += '<div class="srow"><span>Base provisional</span><span>$' + fmt(r.base_provisional || 0) + '</span></div>';
+    h += '<div class="srow" style="border-top:2px solid var(--brd);padding-top:.4rem;margin-top:.3rem;font-weight:700"><span>ISR provisional (30%)</span><span>$' + fmt(r.isr_provisional) + '</span></div>';
+    if (r.ptu_estimado > 0) h += '<div class="srow"><span>PTU estimado (10%)</span><span style="color:#b91c1c">$' + fmt(r.ptu_estimado) + '</span></div>';
     document.getElementById('rep-isr').innerHTML = h;
   }).catch(function() { document.getElementById('rep-isr').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar ISR</p>'; });
 }
@@ -4836,6 +4942,41 @@ function cargarABC() {
     h += '</table>';
     document.getElementById('rep-abc-list').innerHTML = h;
   }).catch(function() { toast('Error al cargar ABC', true); });
+}
+
+// ─── Punto de equilibrio ────────────────────────────────────────
+function cargarPuntoEquilibrio() {
+  var dias = document.getElementById('rep-pe-dias').value || 30;
+  api('GET', '/reportes/punto-equilibrio?dias=' + dias).then(function(r) {
+    var h = '<div class="row r4" style="margin-bottom:1rem">';
+    h += '<div class="card kpi ' + (r.es_rentable ? 'g' : '') + '"><div class="n">$' + fmt(r.punto_equilibrio_pesos) + '</div><div class="l">Punto de equilibrio</div></div>';
+    h += '<div class="card kpi"><div class="n">$' + fmt(r.punto_equilibrio_diario) + '</div><div class="l">PE diario</div></div>';
+    h += '<div class="card kpi"><div class="n">' + r.margen_contribucion_pct + '%</div><div class="l">Margen contribuci\u00f3n</div></div>';
+    var exCls = r.excedente_sobre_pe >= 0 ? 'g' : '';
+    h += '<div class="card kpi ' + exCls + '"><div class="n">$' + fmt(r.excedente_sobre_pe) + '</div><div class="l">Excedente (' + r.pct_sobre_pe + '%)</div></div>';
+    h += '</div>';
+    h += '<div class="row r2">';
+    h += '<div class="card"><h3>An\u00e1lisis break-even (' + r.dias_analizados + ' d\u00edas)</h3>';
+    h += '<div class="conta-row"><span class="cr-label">Ingresos</span><span class="cr-val pos">$' + fmt(r.ingresos) + '</span></div>';
+    h += '<div class="conta-row"><span class="cr-label">Costos variables</span><span class="cr-val neg">$' + fmt(r.costo_variable) + '</span></div>';
+    h += '<div class="conta-row"><span class="cr-label">Costos fijos (periodo)</span><span class="cr-val neg">$' + fmt(r.costos_fijos_periodo) + '</span></div>';
+    h += '<div class="conta-row total"><span class="cr-label">Punto de equilibrio</span><span class="cr-val">$' + fmt(r.punto_equilibrio_pesos) + '</span></div>';
+    h += '<div class="conta-row"><span class="cr-label">Ticket promedio</span><span class="cr-val">$' + fmt(r.ticket_promedio) + '</span></div>';
+    h += '<div class="conta-row"><span class="cr-label">PE en tickets</span><span class="cr-val">' + Math.round(r.punto_equilibrio_unidades) + '</span></div>';
+    h += '<div class="conta-row"><span class="cr-label">Ventas realizadas</span><span class="cr-val">' + r.numero_ventas + '</span></div>';
+    h += '</div>';
+    h += '<div class="card"><h3>Costos fijos mensuales</h3>';
+    h += '<div class="conta-row"><span class="cr-label">Gastos fijos</span><span class="cr-val">$' + fmt(r.costos_fijos_mensuales - r.nomina_mensual) + '</span></div>';
+    h += '<div class="conta-row"><span class="cr-label">N\u00f3mina</span><span class="cr-val">$' + fmt(r.nomina_mensual) + '</span></div>';
+    h += '<div class="conta-row total"><span class="cr-label">Total mensual</span><span class="cr-val">$' + fmt(r.costos_fijos_mensuales) + '</span></div>';
+    h += '</div></div>';
+    if (r.es_rentable) {
+      h += '<div class="card" style="text-align:center;background:#f0fdf4;border-color:#86efac"><p style="margin:0;font-weight:600;color:#166534">Rentable: ingresos superan el punto de equilibrio por ' + r.pct_sobre_pe + '%</p></div>';
+    } else {
+      h += '<div class="card" style="text-align:center;background:#fef2f2;border-color:#fca5a5"><p style="margin:0;font-weight:600;color:#991b1b">Por debajo del punto de equilibrio. Faltan $' + fmt(Math.abs(r.excedente_sobre_pe)) + '</p></div>';
+    }
+    document.getElementById('rep-pe-content').innerHTML = h;
+  }).catch(function(e) { toast(e.message || 'Error al cargar punto de equilibrio', true); });
 }
 
 // ─── Ventas por hora ─────────────────────────────────────────────
@@ -5112,7 +5253,7 @@ function cargarClientesPOS() {
       opts += '<option value="' + c.id + '">' + c.nombre + (c.puntos_acumulados ? ' (' + c.puntos_acumulados + ' pts)' : '') + '</option>';
     }
     sel.innerHTML = opts;
-  }).catch(function(){});
+  }).catch(function(e){ console.warn('Error cargando datos:', e); });
 }
 
 function selClientePOS() {
@@ -5262,7 +5403,7 @@ function cargarProduccion() {
     document.getElementById('mop-receta').innerHTML = opts;
     // Render recetas list
     renderRecetasProduccion(recetas);
-  }).catch(function(){});
+  }).catch(function(e){ console.warn('Error cargando datos:', e); });
   // Load orders by state
   cargarOrdenesProd('planificada', 'prod-list-pendientes');
   cargarOrdenesProd('en_proceso', 'prod-list-proceso');
@@ -5727,7 +5868,7 @@ function initContabilidad() {
         if (cat[tipo][i].nivel === 3) _contaCuentas.push(cat[tipo][i]);
       }
     }
-  }).catch(function(){});
+  }).catch(function(e){ console.warn('Error cargando datos:', e); });
 }
 
 function contaSetRango(dias) {
@@ -5738,10 +5879,28 @@ function contaSetRango(dias) {
   cargarEdoResultados();
 }
 
+function descargarExcelER() {
+  var fi = document.getElementById('conta-er-fi').value;
+  var ff = document.getElementById('conta-er-ff').value;
+  if (!validarFechas(fi, ff)) return;
+  window.open(API_URL + '/api/v1/contabilidad/estado-resultados/excel?fecha_inicio=' + fi + '&fecha_fin=' + ff, '_blank');
+}
+function descargarExcelBG() {
+  var fecha = document.getElementById('conta-bg-fecha').value;
+  var qs = fecha ? '?fecha_corte=' + fecha : '';
+  window.open(API_URL + '/api/v1/contabilidad/balance-general/excel' + qs, '_blank');
+}
+function descargarExcelPol() {
+  var fi = document.getElementById('conta-ld-fi').value;
+  var ff = document.getElementById('conta-ld-ff').value;
+  if (!validarFechas(fi, ff)) return;
+  window.open(API_URL + '/api/v1/contabilidad/libro-diario/excel?fecha_inicio=' + fi + '&fecha_fin=' + ff, '_blank');
+}
+
 function cargarEdoResultados() {
   var fi = document.getElementById('conta-er-fi').value;
   var ff = document.getElementById('conta-er-ff').value;
-  if (!fi || !ff) { toast('Selecciona fechas', true); return; }
+  if (!validarFechas(fi, ff)) return;
   api('GET', '/contabilidad/estado-resultados?fecha_inicio=' + fi + '&fecha_fin=' + ff).then(function(r) {
     var h = '<div class="row r4" style="margin-bottom:1rem">';
     h += '<div class="card kpi g"><div class="n">$' + fmt(r.ingresos_netos) + '</div><div class="l">Ingresos netos</div></div>';
@@ -5865,7 +6024,7 @@ function conciliarMov(id) {
 function cargarLibroDiario() {
   var fi = document.getElementById('conta-ld-fi').value;
   var ff = document.getElementById('conta-ld-ff').value;
-  if (!fi || !ff) { toast('Selecciona fechas', true); return; }
+  if (!validarFechas(fi, ff)) return;
   api('GET', '/contabilidad/libro-diario?fecha_inicio=' + fi + '&fecha_fin=' + ff).then(function(asientos) {
     if (!asientos.length) { document.getElementById('conta-ld-content').innerHTML = '<div class="card"><p style="color:var(--mut);font-size:.83rem">Sin p\u00f3lizas en este periodo</p></div>'; return; }
     var h = '';
@@ -6111,7 +6270,7 @@ function postLogin() {
     cargarNotificaciones();
     iniciarNotifPeriodicas();
     solicitarPermisoNotif();
-  }).catch(function(){});
+  }).catch(function(e){ console.warn('Error cargando datos:', e); });
 }
 
 function aplicarPermisosModulos(permisos) {
@@ -6128,7 +6287,9 @@ function aplicarPermisosModulos(permisos) {
 
 function cerrarSesion() {
   TOKEN = '';
+  REFRESH_TOKEN = '';
   localStorage.removeItem('jacaranda_token');
+  localStorage.removeItem('jacaranda_refresh_token');
   _currentUser = null;
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('btn-logout').style.display = 'none';

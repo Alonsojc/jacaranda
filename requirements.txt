@@ -21,3 +21,9 @@ httpx==0.28.1
 
 # PDF generation
 reportlab==4.4.10
+
+# Security
+bcrypt==4.2.1
+
+# Excel export
+openpyxl==3.1.5

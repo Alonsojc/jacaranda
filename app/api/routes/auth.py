@@ -3,18 +3,18 @@
 import json
 import time
 from collections import defaultdict
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_role
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, decode_access_token, JWTError, create_access_token
 from app.models.usuario import Usuario, RolUsuario
 from app.schemas.usuario import (
     UsuarioCreate, UsuarioUpdate, UsuarioResponse, Token, LoginRequest,
 )
-from app.services.auth_service import crear_usuario, autenticar_usuario, generar_token
+from app.services.auth_service import crear_usuario, autenticar_usuario, generar_tokens
 
 router = APIRouter()
 
@@ -46,8 +46,38 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",
         )
-    token = generar_token(usuario)
-    return Token(access_token=token)
+    tokens = generar_tokens(usuario)
+    return Token(access_token=tokens["access_token"], refresh_token=tokens["refresh_token"])
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@router.post("/refresh", response_model=Token)
+def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
+    """Renueva access_token usando un refresh_token válido."""
+    try:
+        payload = decode_access_token(data.refresh_token)
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token inválido o expirado",
+        )
+    if payload.get("type") != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token no es de tipo refresh",
+        )
+    user_id = payload.get("sub")
+    usuario = db.query(Usuario).filter(Usuario.id == user_id, Usuario.activo.is_(True)).first()
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario no encontrado o inactivo",
+        )
+    new_access = create_access_token(data={"sub": usuario.id, "rol": usuario.rol.value})
+    return Token(access_token=new_access)
 
 
 @router.get("/me", response_model=UsuarioResponse)
@@ -59,10 +89,12 @@ def perfil(current_user: Usuario = Depends(get_current_user)):
 
 @router.get("/usuarios", response_model=list[UsuarioResponse])
 def listar_usuarios(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, le=500),
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
 ):
-    return db.query(Usuario).order_by(Usuario.nombre).all()
+    return db.query(Usuario).order_by(Usuario.nombre).offset(skip).limit(limit).all()
 
 
 @router.post("/usuarios", response_model=UsuarioResponse, status_code=201)
@@ -93,7 +125,10 @@ def actualizar_usuario(
         ).first()
         if existente:
             raise HTTPException(status_code=400, detail="Ese email ya está en uso")
+    _ALLOWED_FIELDS = {"nombre", "email", "rol", "activo"}
     for key, value in data.model_dump(exclude_unset=True).items():
+        if key not in _ALLOWED_FIELDS:
+            continue
         setattr(usuario, key, value)
     db.commit()
     db.refresh(usuario)
