@@ -130,8 +130,13 @@ def historial_cortes(
 # --- Gastos fijos ---
 
 @router.get("/gastos-fijos", response_model=list[GastoFijoResponse])
-def listar_gastos_fijos(db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
-    return db.query(GastoFijo).filter(GastoFijo.activo.is_(True)).all()
+def listar_gastos_fijos(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, le=500),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    return db.query(GastoFijo).filter(GastoFijo.activo.is_(True)).offset(skip).limit(limit).all()
 
 
 @router.post("/gastos-fijos", response_model=GastoFijoResponse, status_code=201)
@@ -148,7 +153,10 @@ def actualizar_gasto_fijo(id: int, data: GastoFijoCreate, db: Session = Depends(
     gasto = db.query(GastoFijo).filter(GastoFijo.id == id).first()
     if not gasto:
         raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    _ALLOWED_FIELDS = {"concepto", "monto", "periodicidad", "dia_pago", "notas"}
     for key, value in data.model_dump().items():
+        if key not in _ALLOWED_FIELDS:
+            continue
         setattr(gasto, key, value)
     db.commit()
     db.refresh(gasto)

@@ -24,8 +24,19 @@ def crear_cliente(data: ClienteCreate, db: Session = Depends(get_db), _user: Usu
 
 
 @router.get("/", response_model=list[ClienteResponse])
-def listar_clientes(db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
-    return db.query(Cliente).filter(Cliente.activo.is_(True)).all()
+def listar_clientes(
+    q: str | None = Query(None, description="Buscar por nombre o teléfono"),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, le=500),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    query = db.query(Cliente).filter(Cliente.activo.is_(True))
+    if q:
+        query = query.filter(
+            Cliente.nombre.ilike(f"%{q}%") | Cliente.telefono.ilike(f"%{q}%")
+        )
+    return query.order_by(Cliente.nombre).offset(skip).limit(limit).all()
 
 
 @router.get("/{id}", response_model=ClienteResponse)
@@ -41,7 +52,11 @@ def actualizar_cliente(id: int, data: ClienteUpdate, db: Session = Depends(get_d
     cliente = db.query(Cliente).filter(Cliente.id == id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    _ALLOWED_FIELDS = {"nombre", "telefono", "email", "rfc", "razon_social",
+                        "regimen_fiscal", "domicilio_fiscal_cp", "uso_cfdi", "activo"}
     for key, value in data.model_dump(exclude_unset=True).items():
+        if key not in _ALLOWED_FIELDS:
+            continue
         setattr(cliente, key, value)
     db.commit()
     db.refresh(cliente)

@@ -29,10 +29,11 @@ def crear_pedido(
 def listar_pedidos(
     fecha: date | None = Query(None),
     estado: str | None = Query(None),
+    limit: int = Query(default=50, le=200),
     db: Session = Depends(get_db),
     user: Usuario = Depends(get_current_user),
 ):
-    return pedido_service.listar_pedidos(db, fecha=fecha, estado=estado)
+    return pedido_service.listar_pedidos(db, fecha=fecha, estado=estado, limit=limit)
 
 
 @router.get("/hoy", response_model=list[PedidoResponse])

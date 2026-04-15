@@ -3,7 +3,7 @@
 import json
 import time
 from collections import defaultdict
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -59,10 +59,12 @@ def perfil(current_user: Usuario = Depends(get_current_user)):
 
 @router.get("/usuarios", response_model=list[UsuarioResponse])
 def listar_usuarios(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, le=500),
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
 ):
-    return db.query(Usuario).order_by(Usuario.nombre).all()
+    return db.query(Usuario).order_by(Usuario.nombre).offset(skip).limit(limit).all()
 
 
 @router.post("/usuarios", response_model=UsuarioResponse, status_code=201)
@@ -93,7 +95,10 @@ def actualizar_usuario(
         ).first()
         if existente:
             raise HTTPException(status_code=400, detail="Ese email ya está en uso")
+    _ALLOWED_FIELDS = {"nombre", "email", "rol", "activo"}
     for key, value in data.model_dump(exclude_unset=True).items():
+        if key not in _ALLOWED_FIELDS:
+            continue
         setattr(usuario, key, value)
     db.commit()
     db.refresh(usuario)

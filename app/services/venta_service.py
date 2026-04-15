@@ -66,7 +66,9 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     detalles = []
 
     for item in data.detalles:
-        producto = db.query(Producto).filter(Producto.id == item.producto_id).first()
+        producto = db.query(Producto).filter(
+            Producto.id == item.producto_id
+        ).with_for_update().first()
         if not producto:
             raise ValueError(f"Producto ID {item.producto_id} no encontrado")
         if not producto.activo:

@@ -4526,6 +4526,35 @@ function cargarDashboard() {
     document.getElementById('d-caducidad').innerHTML = h;
   }).catch(function(){});
 
+  // Alertas consolidadas (pedidos pendientes + merma)
+  api('GET', '/reportes/alertas').then(function(data) {
+    var a = '';
+    // Pedidos urgentes
+    if (data.pedidos_pendientes) {
+      for (var i = 0; i < data.pedidos_pendientes.length; i++) {
+        var p = data.pedidos_pendientes[i];
+        if (p.severidad === 'critica' || p.severidad === 'alta') {
+          var cls = p.severidad === 'critica' ? 'bout' : 'blow';
+          a += '<div class="srow"><span>Pedido #' + p.pedido_id + ' ' + p.cliente + '</span><span class="badge ' + cls + '">' + p.razon + '</span></div>';
+        }
+      }
+    }
+    // Merma excesiva
+    if (data.merma_hoy && data.merma_hoy.porcentaje_merma > 5) {
+      a += '<div class="srow"><span>Merma del d\u00eda</span><span class="badge blow">' + data.merma_hoy.porcentaje_merma + '% (' + data.merma_hoy.total_unidades + ' uds)</span></div>';
+    }
+    if (a) renderDashAlertas(a);
+    // Badge en nav
+    var res = data.resumen || {};
+    var total = (res.criticas || 0) + (res.altas || 0);
+    var navItems = document.querySelectorAll('.nav a');
+    for (var n = 0; n < navItems.length; n++) {
+      if (navItems[n].textContent.indexOf('Inicio') >= 0 && total > 0) {
+        navItems[n].setAttribute('data-badge', total);
+      }
+    }
+  }).catch(function(){});
+
   // Pronóstico rápido
   api('GET', '/reportes/pronostico-produccion').then(function(items) {
     if (!items.length) { document.getElementById('d-pronostico').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Sin datos de ventas a\u00fan</span></div>'; return; }

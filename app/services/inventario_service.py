@@ -167,11 +167,18 @@ def actualizar_producto(db: Session, id: int, data: ProductoUpdate, usuario_id: 
     return producto
 
 
-def listar_productos(db: Session, solo_activos: bool = True):
+def listar_productos(
+    db: Session, solo_activos: bool = True,
+    q: str | None = None, skip: int = 0, limit: int = 200,
+):
     query = db.query(Producto)
     if solo_activos:
         query = query.filter(Producto.activo.is_(True))
-    return query.all()
+    if q:
+        query = query.filter(
+            Producto.nombre.ilike(f"%{q}%") | Producto.codigo.ilike(f"%{q}%")
+        )
+    return query.order_by(Producto.nombre).offset(skip).limit(limit).all()
 
 
 def obtener_producto(db: Session, id: int) -> Producto:

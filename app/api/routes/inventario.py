@@ -90,8 +90,14 @@ def crear_producto(
 
 
 @router.get("/productos", response_model=list[ProductoResponse])
-def listar_productos(db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
-    return svc.listar_productos(db)
+def listar_productos(
+    q: str | None = Query(None, description="Buscar por nombre o código"),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=200, le=500),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    return svc.listar_productos(db, q=q, skip=skip, limit=limit)
 
 
 @router.get("/productos/{id}", response_model=ProductoResponse)

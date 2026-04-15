@@ -82,10 +82,18 @@ def _seed_admin():
                     "========================================\n"
                     "  ADMIN CREADO - Cambie la contraseña!\n"
                     "  Email: admin@jacaranda.mx\n"
-                    "  Password: %s\n"
-                    "========================================",
-                    password,
+                    "  Password: (ver variable ADMIN_PASSWORD)\n"
+                    "  Establezca ADMIN_PASSWORD en .env\n"
+                    "========================================"
                 )
+                # Escribir password temporal a archivo seguro, no a logs
+                try:
+                    with open(".admin_password", "w") as f:
+                        f.write(password)
+                    os.chmod(".admin_password", 0o600)
+                    logger.info("Password temporal guardado en .admin_password")
+                except OSError:
+                    pass  # En entornos read-only simplemente skip
     finally:
         db.close()
 
