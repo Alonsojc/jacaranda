@@ -652,6 +652,7 @@ h2{font-size:1.1rem}
 <span class="tab" onclick="listTab('l-ings')">Ingredientes</span>
 <span class="tab" onclick="listTab('l-recs')">Recetas</span>
 <span class="tab" onclick="listTab('l-clientes')">Clientes</span>
+<span class="tab" onclick="listTab('l-nomina')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">N&oacute;mina</span>
 </div>
 
 <div id="l-prods">
@@ -726,6 +727,23 @@ h2{font-size:1.1rem}
 </div>
 </div>
 
+<div id="l-nomina" style="display:none">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">C&aacute;lculo de n&oacute;mina quincenal. Selecciona periodo y calcula para todos los empleados.</p>
+<div style="display:flex;gap:.4rem;flex-wrap:wrap">
+<input type="date" id="nom-fi" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem">
+<input type="date" id="nom-ff" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem">
+<button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="calcularNominaBatch()">Calcular n&oacute;mina</button>
+</div>
+</div>
+<div id="nom-content"><div class="card"><p style="color:var(--mut);font-size:.83rem;padding:.5rem">Selecciona periodo (quincena) y haz click en Calcular.</p></div></div>
+<div id="nom-historial" style="margin-top:1rem">
+<h3 style="font-size:.95rem;margin-bottom:.5rem">Historial de n&oacute;minas</h3>
+<div id="nom-hist-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+</div>
+</div>
+
 <!-- REPORTES -->
 <div class="page" id="rep">
 <h2>Reportes</h2>
@@ -738,6 +756,7 @@ h2{font-size:1.1rem}
 <span class="tab" onclick="repTab('rep-abc')">ABC</span>
 <span class="tab" onclick="repTab('rep-horas')">Por hora</span>
 <span class="tab" onclick="repTab('rep-pe')">Punto equilibrio</span>
+<span class="tab" onclick="repTab('rep-yoy')">Comparativo</span>
 <span class="tab" onclick="repTab('rep-fiscal')">Fiscal</span>
 </div>
 <button onclick="exportarReporteCSV()" class="limpiar" style="padding:.35rem .7rem;font-size:.78rem;margin:0;white-space:nowrap">&#128190; Exportar CSV</button>
@@ -833,6 +852,19 @@ h2{font-size:1.1rem}
 </select>
 </div>
 <div id="rep-pe-content"><div class="card"><p style="color:var(--mut);font-size:.83rem;padding:.5rem">Cargando...</p></div></div>
+</div>
+<div id="rep-yoy" style="display:none">
+<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
+<span style="font-size:.83rem;color:var(--mut)">A&ntilde;o:</span>
+<select id="rep-yoy-anio" onchange="cargarComparativoAnual()" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem">
+<option value="2026">2026</option><option value="2025">2025</option>
+</select>
+</div>
+<div id="rep-yoy-content"><div class="card"><p style="color:var(--mut);font-size:.83rem;padding:.5rem">Cargando...</p></div></div>
+<div style="margin-top:1rem">
+<h3 style="font-size:.95rem;margin-bottom:.5rem">Estacionalidad</h3>
+<div id="rep-season-content"><div class="card"><p style="color:var(--mut);font-size:.83rem;padding:.5rem">Cargando...</p></div></div>
+</div>
 </div>
 <div id="rep-fiscal" style="display:none">
 <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
@@ -1923,6 +1955,8 @@ function procesarVenta() {
       body._timestamp = new Date().toISOString();
       _ventasPendientes.push(body);
       localStorage.setItem('jacaranda_ventas_pendientes', JSON.stringify(_ventasPendientes));
+      // Also save to IndexedDB for Background Sync
+      guardarVentaIndexedDB(body);
       cerrarModal('modal-cobrar');
       limpiar();
       actualizarBannerOffline();
@@ -1968,6 +2002,47 @@ function sincronizarVentas() {
     cargarCorte();
   });
 }
+
+function guardarVentaIndexedDB(body) {
+  var req = indexedDB.open('jacaranda-offline', 1);
+  req.onupgradeneeded = function(e) {
+    var db = e.target.result;
+    if (!db.objectStoreNames.contains('pending-sales')) {
+      db.createObjectStore('pending-sales', { keyPath: 'id', autoIncrement: true });
+    }
+  };
+  req.onsuccess = function(e) {
+    var db = e.target.result;
+    var tx = db.transaction('pending-sales', 'readwrite');
+    tx.objectStore('pending-sales').add({
+      url: API_URL + '/api/v1/punto-de-venta/ventas',
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN},
+      body: JSON.stringify({detalles: body.detalles, forma_pago: body.forma_pago, metodo_pago: body.metodo_pago, monto_recibido: body.monto_recibido}),
+      timestamp: new Date().toISOString(),
+    });
+    // Request background sync
+    if ('serviceWorker' in navigator && 'SyncManager' in window) {
+      navigator.serviceWorker.ready.then(function(reg) {
+        reg.sync.register('sync-ventas');
+      });
+    }
+  };
+}
+
+// Auto-sync when coming back online
+window.addEventListener('online', function() {
+  _offline = false;
+  actualizarBannerOffline();
+  if (_ventasPendientes.length > 0) {
+    toast('Conexi\u00f3n restaurada. Sincronizando...');
+    setTimeout(sincronizarVentas, 1000);
+  }
+});
+window.addEventListener('offline', function() {
+  _offline = true;
+  actualizarBannerOffline();
+  toast('Sin conexi\u00f3n. Las ventas se guardar\u00e1n offline.');
+});
 
 var _mtVentaId = null, _mtFolio = '';
 
@@ -3720,13 +3795,14 @@ function guardarReceta() {
 
 // ─── Listas page ─────────────────────────────────────────────────
 function listTab(tab) {
-  ['l-prods','l-ings','l-recs','l-clientes'].forEach(function(t) {
+  ['l-prods','l-ings','l-recs','l-clientes','l-nomina'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('#listas .tab').forEach(function(t) { t.classList.remove('active'); });
   event.target.classList.add('active');
   if (tab === 'l-clientes') cargarListaClientes();
+  if (tab === 'l-nomina') initNomina();
 }
 
 function filtrarTabla(id, q) {
@@ -4720,7 +4796,7 @@ function iniciarPollPedidos() {
 
 // ─── Reportes ────────────────────────────────────────────────────
 function repTab(tab) {
-  ['rep-ventas','rep-prod','rep-marg','rep-mermas','rep-abc','rep-horas','rep-pe','rep-fiscal'].forEach(function(t) {
+  ['rep-ventas','rep-prod','rep-marg','rep-mermas','rep-abc','rep-horas','rep-pe','rep-yoy','rep-fiscal'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
@@ -4731,6 +4807,7 @@ function repTab(tab) {
   if (tab === 'rep-abc') cargarABC();
   if (tab === 'rep-horas') cargarVentasPorHora();
   if (tab === 'rep-pe') cargarPuntoEquilibrio();
+  if (tab === 'rep-yoy') { cargarComparativoAnual(); cargarEstacionalidad(); }
 }
 
 function initReportes() {
@@ -4977,6 +5054,132 @@ function cargarPuntoEquilibrio() {
     }
     document.getElementById('rep-pe-content').innerHTML = h;
   }).catch(function(e) { toast(e.message || 'Error al cargar punto de equilibrio', true); });
+}
+
+// ─── Comparativo anual + Estacionalidad ─────────────────────────
+function cargarComparativoAnual() {
+  var anio = document.getElementById('rep-yoy-anio').value || new Date().getFullYear();
+  api('GET', '/reportes/comparativo-anual?anio=' + anio).then(function(r) {
+    var meses = r.meses || [];
+    var h = '<div class="card" style="overflow-x:auto"><h3>Ventas ' + anio + ' vs ' + (anio - 1) + '</h3>';
+    h += '<table class="tbl"><tr><th>Mes</th><th>' + anio + '</th><th>' + (anio - 1) + '</th><th>Cambio</th></tr>';
+    for (var i = 0; i < meses.length; i++) {
+      var m = meses[i];
+      var cls = m.cambio_pct >= 0 ? 'green' : 'color:#b91c1c';
+      var signo = m.cambio_pct >= 0 ? '+' : '';
+      h += '<tr><td>' + m.mes + '</td><td>$' + fmt(m.ventas_actual) + '</td><td>$' + fmt(m.ventas_anterior) + '</td>';
+      h += '<td style="' + cls + ';font-weight:600">' + signo + m.cambio_pct + '%</td></tr>';
+    }
+    h += '</table></div>';
+    if (r.resumen) {
+      h += '<div class="row r3" style="margin-top:1rem">';
+      h += '<div class="card kpi g"><div class="n">$' + fmt(r.resumen.total_actual) + '</div><div class="l">Total ' + anio + '</div></div>';
+      h += '<div class="card kpi"><div class="n">$' + fmt(r.resumen.total_anterior) + '</div><div class="l">Total ' + (anio - 1) + '</div></div>';
+      var cCls = r.resumen.cambio_pct >= 0 ? 'g' : '';
+      h += '<div class="card kpi ' + cCls + '"><div class="n">' + (r.resumen.cambio_pct >= 0 ? '+' : '') + r.resumen.cambio_pct + '%</div><div class="l">Crecimiento</div></div>';
+      h += '</div>';
+    }
+    document.getElementById('rep-yoy-content').innerHTML = h;
+  }).catch(function(e) { document.getElementById('rep-yoy-content').innerHTML = '<div class="card"><p style="color:var(--mut);font-size:.83rem">Error al cargar comparativo</p></div>'; });
+}
+
+function cargarEstacionalidad() {
+  api('GET', '/reportes/estacionalidad').then(function(r) {
+    var h = '<div class="row r2">';
+    // Meses ranking
+    h += '<div class="card"><h3>Mejores meses</h3>';
+    var meses = r.meses_ranking || [];
+    for (var i = 0; i < Math.min(meses.length, 6); i++) {
+      var m = meses[i];
+      h += '<div class="conta-row"><span class="cr-label">' + (i + 1) + '. ' + m.mes + '</span><span class="cr-val pos">$' + fmt(m.promedio) + '</span></div>';
+    }
+    h += '</div>';
+    // Días de semana
+    h += '<div class="card"><h3>Ventas por d\u00eda de semana</h3>';
+    var dias = r.dias_semana || [];
+    for (var j = 0; j < dias.length; j++) {
+      var d = dias[j];
+      h += '<div class="conta-row"><span class="cr-label">' + d.dia + '</span><span class="cr-val">$' + fmt(d.promedio) + '</span></div>';
+    }
+    h += '</div></div>';
+    if (r.fechas_pico && r.fechas_pico.length) {
+      h += '<div class="card" style="margin-top:1rem"><h3>Fechas pico detectadas</h3>';
+      for (var k = 0; k < r.fechas_pico.length; k++) {
+        var fp = r.fechas_pico[k];
+        h += '<div class="conta-row"><span class="cr-label">' + fp.fecha + '</span><span class="cr-val pos">$' + fmt(fp.total) + '</span></div>';
+      }
+      h += '</div>';
+    }
+    document.getElementById('rep-season-content').innerHTML = h;
+  }).catch(function(e) { document.getElementById('rep-season-content').innerHTML = '<div class="card"><p style="color:var(--mut);font-size:.83rem">Error al cargar estacionalidad</p></div>'; });
+}
+
+// ─── N\u00f3mina ────────────────────────────────────────────────────
+function initNomina() {
+  // Set default dates to current fortnight
+  var hoy = new Date();
+  var dia = hoy.getDate();
+  var fi, ff;
+  if (dia <= 15) {
+    fi = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    ff = new Date(hoy.getFullYear(), hoy.getMonth(), 15);
+  } else {
+    fi = new Date(hoy.getFullYear(), hoy.getMonth(), 16);
+    ff = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+  }
+  document.getElementById('nom-fi').value = fi.toISOString().split('T')[0];
+  document.getElementById('nom-ff').value = ff.toISOString().split('T')[0];
+  cargarHistorialNominas();
+}
+
+function calcularNominaBatch() {
+  var fi = document.getElementById('nom-fi').value;
+  var ff = document.getElementById('nom-ff').value;
+  if (!validarFechas(fi, ff)) return;
+  document.getElementById('nom-content').innerHTML = '<div class="card"><p style="color:var(--mut);font-size:.83rem">Calculando n\u00f3mina...</p></div>';
+  api('POST', '/empleados/nomina/batch', {periodo_inicio: fi, periodo_fin: ff}).then(function(nominas) {
+    if (!nominas.length) { document.getElementById('nom-content').innerHTML = '<div class="card"><p style="color:var(--mut)">No hay empleados activos.</p></div>'; return; }
+    var totalNeto = 0, totalPerc = 0, totalDed = 0;
+    var h = '<div class="row r3" style="margin-bottom:1rem">';
+    for (var i = 0; i < nominas.length; i++) { totalNeto += nominas[i].neto_a_pagar; totalPerc += nominas[i].total_percepciones; totalDed += nominas[i].total_deducciones; }
+    h += '<div class="card kpi"><div class="n">$' + fmt(totalPerc) + '</div><div class="l">Total percepciones</div></div>';
+    h += '<div class="card kpi"><div class="n">$' + fmt(totalDed) + '</div><div class="l">Total deducciones</div></div>';
+    h += '<div class="card kpi g"><div class="n">$' + fmt(totalNeto) + '</div><div class="l">Total neto (' + nominas.length + ' empleados)</div></div>';
+    h += '</div>';
+    h += '<div class="card" style="overflow-x:auto"><table class="tbl"><tr><th>Empleado</th><th>Salario base</th><th>Percepciones</th><th>ISR</th><th>IMSS</th><th>Neto</th><th></th></tr>';
+    for (var j = 0; j < nominas.length; j++) {
+      var n = nominas[j];
+      h += '<tr><td>' + (n.empleado_nombre || 'Emp #' + n.empleado_id) + '</td>';
+      h += '<td>$' + fmt(n.salario_base) + '</td>';
+      h += '<td>$' + fmt(n.total_percepciones) + '</td>';
+      h += '<td style="color:#b91c1c">$' + fmt(n.isr_retenido) + '</td>';
+      h += '<td>$' + fmt(n.imss_trabajador) + '</td>';
+      h += '<td class="green" style="font-weight:600">$' + fmt(n.neto_a_pagar) + '</td>';
+      h += '<td><a href="' + API_URL + '/api/v1/empleados/nomina/' + n.id + '/recibo-pdf" target="_blank" style="font-size:.75rem">PDF</a></td>';
+      h += '</tr>';
+    }
+    h += '</table></div>';
+    document.getElementById('nom-content').innerHTML = h;
+    cargarHistorialNominas();
+  }).catch(function(e) { toast(e.message || 'Error al calcular n\u00f3mina', true); });
+}
+
+function cargarHistorialNominas() {
+  api('GET', '/empleados/nomina').then(function(nominas) {
+    if (!nominas.length) { document.getElementById('nom-hist-tbl').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Sin registros de n\u00f3mina</p>'; return; }
+    var h = '<div class="card" style="overflow-x:auto"><table class="tbl"><tr><th>Empleado</th><th>Periodo</th><th>Neto</th><th>Pagado</th><th></th></tr>';
+    for (var i = 0; i < Math.min(nominas.length, 20); i++) {
+      var n = nominas[i];
+      h += '<tr><td>Emp #' + n.empleado_id + '</td>';
+      h += '<td>' + n.periodo_inicio + ' a ' + n.periodo_fin + '</td>';
+      h += '<td class="green">$' + fmt(n.neto_a_pagar) + '</td>';
+      h += '<td>' + (n.pagado ? '<span class="badge bok">Pagado</span>' : '<span class="badge bpend">Pendiente</span>') + '</td>';
+      h += '<td><a href="' + API_URL + '/api/v1/empleados/nomina/' + n.id + '/recibo-pdf" target="_blank" style="font-size:.75rem">PDF</a></td>';
+      h += '</tr>';
+    }
+    h += '</table></div>';
+    document.getElementById('nom-hist-tbl').innerHTML = h;
+  }).catch(function(e){ console.warn('Error cargando n\u00f3minas:', e); });
 }
 
 // ─── Ventas por hora ─────────────────────────────────────────────

@@ -115,6 +115,11 @@ class NominaCalculoRequest(BaseModel):
     dias_ptu: int | None = None
 
 
+class NominaBatchRequest(BaseModel):
+    periodo_inicio: date
+    periodo_fin: date
+
+
 class NominaResponse(BaseModel):
     id: int
     empleado_id: int

@@ -219,3 +219,198 @@ def listar_nominas(db: Session, empleado_id: int | None = None):
     if empleado_id:
         query = query.filter(RegistroNomina.empleado_id == empleado_id)
     return query.order_by(RegistroNomina.periodo_inicio.desc()).all()
+
+
+def calcular_nomina_batch(
+    db: Session, periodo_inicio: date, periodo_fin: date
+) -> list[RegistroNomina]:
+    """Calcula nómina para TODOS los empleados activos en un periodo."""
+    empleados_activos = listar_empleados(db, solo_activos=True)
+    if not empleados_activos:
+        raise ValueError("No hay empleados activos para calcular nómina")
+
+    resultados: list[RegistroNomina] = []
+    errores: list[dict] = []
+
+    for empleado in empleados_activos:
+        try:
+            req = NominaCalculoRequest(
+                empleado_id=empleado.id,
+                periodo_inicio=periodo_inicio,
+                periodo_fin=periodo_fin,
+                incluir_aguinaldo=False,
+                incluir_prima_vacacional=False,
+                incluir_ptu=False,
+            )
+            registro = calcular_nomina(db, req)
+            resultados.append(registro)
+        except Exception as e:
+            errores.append({
+                "empleado_id": empleado.id,
+                "nombre": f"{empleado.nombre} {empleado.apellido_paterno}",
+                "error": str(e),
+            })
+
+    if not resultados and errores:
+        raise ValueError(
+            f"No se pudo calcular nómina para ningún empleado. "
+            f"Errores: {errores}"
+        )
+
+    return resultados
+
+
+def generar_recibo_nomina_pdf(db: Session, nomina_id: int):
+    """Genera un PDF de recibo de nómina para un registro específico."""
+    import io
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm, cm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable,
+    )
+    from app.services.pdf_service import _header, _tabla
+
+    registro = db.query(RegistroNomina).filter(RegistroNomina.id == nomina_id).first()
+    if not registro:
+        raise ValueError("Registro de nómina no encontrado")
+
+    empleado = db.query(Empleado).filter(Empleado.id == registro.empleado_id).first()
+    if not empleado:
+        raise ValueError("Empleado no encontrado")
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=letter,
+        leftMargin=2 * cm, rightMargin=2 * cm,
+        topMargin=2 * cm, bottomMargin=2 * cm,
+    )
+    styles = getSampleStyleSheet()
+    story = []
+
+    # Header
+    _header(
+        story, styles,
+        "Recibo de Nómina",
+        f"Periodo: {registro.periodo_inicio.isoformat()} al {registro.periodo_fin.isoformat()}",
+    )
+
+    # Datos del empleado
+    nombre_completo = (
+        f"{empleado.nombre} {empleado.apellido_paterno}"
+        f"{' ' + empleado.apellido_materno if empleado.apellido_materno else ''}"
+    )
+    emp_data = [
+        ["Empleado", nombre_completo],
+        ["No. Empleado", empleado.numero_empleado],
+        ["RFC", empleado.rfc],
+        ["CURP", empleado.curp],
+        ["NSS", empleado.nss],
+        ["Departamento", empleado.departamento.value.capitalize()],
+        ["Puesto", empleado.puesto],
+    ]
+    emp_table = Table(emp_data, colWidths=[5 * cm, 11 * cm])
+    emp_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(emp_table)
+    story.append(Spacer(1, 6 * mm))
+
+    # Percepciones
+    story.append(Paragraph("<b>PERCEPCIONES</b>", styles["Heading3"]))
+    perc_data = [["Concepto", "Monto"]]
+    perc_data.append(["Salario base", f"${float(registro.salario_base):,.2f}"])
+    if registro.monto_horas_extra > 0:
+        perc_data.append([
+            f"Horas extra (dobles: {float(registro.horas_extra_dobles)}, "
+            f"triples: {float(registro.horas_extra_triples)})",
+            f"${float(registro.monto_horas_extra):,.2f}",
+        ])
+    if registro.premio_puntualidad > 0:
+        perc_data.append(["Premio puntualidad", f"${float(registro.premio_puntualidad):,.2f}"])
+    if registro.premio_asistencia > 0:
+        perc_data.append(["Premio asistencia", f"${float(registro.premio_asistencia):,.2f}"])
+    if registro.bono_productividad > 0:
+        perc_data.append(["Bono productividad", f"${float(registro.bono_productividad):,.2f}"])
+    if registro.aguinaldo > 0:
+        perc_data.append(["Aguinaldo", f"${float(registro.aguinaldo):,.2f}"])
+    if registro.prima_vacacional > 0:
+        perc_data.append(["Prima vacacional", f"${float(registro.prima_vacacional):,.2f}"])
+    if registro.ptu > 0:
+        perc_data.append(["PTU", f"${float(registro.ptu):,.2f}"])
+    perc_data.append(["TOTAL PERCEPCIONES", f"${float(registro.total_percepciones):,.2f}"])
+    story.append(_tabla(perc_data, col_widths=[10 * cm, 5 * cm]))
+    story.append(Spacer(1, 6 * mm))
+
+    # Deducciones
+    story.append(Paragraph("<b>DEDUCCIONES</b>", styles["Heading3"]))
+    ded_data = [["Concepto", "Monto"]]
+    ded_data.append(["ISR retenido", f"${float(registro.isr_retenido):,.2f}"])
+    ded_data.append(["IMSS trabajador", f"${float(registro.imss_trabajador):,.2f}"])
+    if registro.infonavit > 0:
+        ded_data.append(["INFONAVIT", f"${float(registro.infonavit):,.2f}"])
+    if registro.fonacot > 0:
+        ded_data.append(["FONACOT", f"${float(registro.fonacot):,.2f}"])
+    if registro.otras_deducciones > 0:
+        ded_data.append(["Otras deducciones", f"${float(registro.otras_deducciones):,.2f}"])
+    ded_data.append(["TOTAL DEDUCCIONES", f"${float(registro.total_deducciones):,.2f}"])
+    story.append(_tabla(ded_data, col_widths=[10 * cm, 5 * cm]))
+    story.append(Spacer(1, 6 * mm))
+
+    # Neto a pagar
+    neto_style = ParagraphStyle(
+        "Neto", parent=styles["Normal"],
+        fontSize=14, fontName="Helvetica-Bold",
+    )
+    story.append(Paragraph(
+        f"NETO A PAGAR: ${float(registro.neto_a_pagar):,.2f}", neto_style
+    ))
+    story.append(Spacer(1, 4 * mm))
+
+    # Cuotas patronales (informativo)
+    story.append(Paragraph("<b>Cuotas patronales (informativo)</b>", styles["Heading3"]))
+    patron_data = [
+        ["Concepto", "Monto"],
+        ["IMSS patronal", f"${float(registro.imss_patron):,.2f}"],
+        ["INFONAVIT patronal", f"${float(registro.infonavit_patron):,.2f}"],
+        ["Impuesto nómina estatal", f"${float(registro.impuesto_nomina_estatal):,.2f}"],
+    ]
+    story.append(_tabla(patron_data, col_widths=[10 * cm, 5 * cm]))
+
+    # Footer
+    story.append(Spacer(1, 10 * mm))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
+    story.append(Spacer(1, 4 * mm))
+
+    footer_style = ParagraphStyle(
+        "Footer", parent=styles["Normal"], fontSize=7, textColor=colors.grey,
+    )
+    story.append(Paragraph(
+        f"<i>Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')} — {settings.RAZON_SOCIAL}</i>",
+        footer_style,
+    ))
+
+    # Líneas de firma
+    story.append(Spacer(1, 20 * mm))
+    firma_data = [
+        ["_________________________", "_________________________"],
+        ["Firma del trabajador", "Firma del patrón"],
+    ]
+    firma_table = Table(firma_data, colWidths=[8 * cm, 8 * cm])
+    firma_table.setStyle(TableStyle([
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
+    ]))
+    story.append(firma_table)
+
+    doc.build(story)
+    buf.seek(0)
+    return buf

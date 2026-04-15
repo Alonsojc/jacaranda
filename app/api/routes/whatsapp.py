@@ -1,11 +1,12 @@
 """Rutas de integración WhatsApp Business."""
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.models.pedido import Pedido
 from app.models.usuario import Usuario
 from app.services import whatsapp_service as svc
 
@@ -50,3 +51,23 @@ def catalogo_texto(
 ):
     """Catálogo en texto formateado para copiar a WhatsApp."""
     return {"texto": svc.generar_catalogo(db)}
+
+
+@router.post("/recordatorio/{pedido_id}")
+def enviar_recordatorio(
+    pedido_id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Envía recordatorio de entrega por WhatsApp (requiere autenticación)."""
+    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+
+    enviado = svc.enviar_recordatorio_entrega(db, pedido)
+    if not enviado:
+        raise HTTPException(
+            status_code=422,
+            detail="No se pudo enviar el recordatorio. Verifica que el pedido tenga teléfono y no esté entregado/cancelado.",
+        )
+    return {"ok": True, "message": f"Recordatorio enviado para pedido {pedido.folio}"}
