@@ -192,6 +192,26 @@ def dashboard_avanzado(
     return svc.dashboard_avanzado(db)
 
 
+@router.get("/punto-equilibrio")
+def punto_equilibrio(
+    dias: int = Query(default=30, le=90),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Punto de equilibrio (break-even analysis) de la panadería."""
+    return svc.punto_de_equilibrio(db, dias)
+
+
+@router.get("/flujo-efectivo")
+def flujo_efectivo(
+    meses: int = Query(default=3, le=12),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    """Proyección de flujo de efectivo a N meses."""
+    return svc.flujo_efectivo_proyectado(db, meses)
+
+
 @router.get("/alertas")
 def alertas_consolidadas_endpoint(
     db: Session = Depends(get_db),

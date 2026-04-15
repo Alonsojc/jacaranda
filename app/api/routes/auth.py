@@ -9,12 +9,12 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_role
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, decode_access_token, JWTError, create_access_token
 from app.models.usuario import Usuario, RolUsuario
 from app.schemas.usuario import (
     UsuarioCreate, UsuarioUpdate, UsuarioResponse, Token, LoginRequest,
 )
-from app.services.auth_service import crear_usuario, autenticar_usuario, generar_token
+from app.services.auth_service import crear_usuario, autenticar_usuario, generar_tokens
 
 router = APIRouter()
 
@@ -46,8 +46,38 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",
         )
-    token = generar_token(usuario)
-    return Token(access_token=token)
+    tokens = generar_tokens(usuario)
+    return Token(access_token=tokens["access_token"], refresh_token=tokens["refresh_token"])
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@router.post("/refresh", response_model=Token)
+def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
+    """Renueva access_token usando un refresh_token válido."""
+    try:
+        payload = decode_access_token(data.refresh_token)
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token inválido o expirado",
+        )
+    if payload.get("type") != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token no es de tipo refresh",
+        )
+    user_id = payload.get("sub")
+    usuario = db.query(Usuario).filter(Usuario.id == user_id, Usuario.activo.is_(True)).first()
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario no encontrado o inactivo",
+        )
+    new_access = create_access_token(data={"sub": usuario.id, "rol": usuario.rol.value})
+    return Token(access_token=new_access)
 
 
 @router.get("/me", response_model=UsuarioResponse)

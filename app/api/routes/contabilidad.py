@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -10,6 +11,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_role
 from app.models.usuario import Usuario, RolUsuario
 from app.services import contabilidad_service as svc
+from app.services import excel_service
 
 router = APIRouter()
 
@@ -206,3 +208,59 @@ def conciliar_movimiento(
         return {"ok": True, "id": mov.id, "conciliado": mov.conciliado}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# ─── Exportaciones Excel ─────────────────────────────────────────
+
+@router.get("/balance-general/excel")
+def balance_general_excel(
+    fecha_corte: date | None = None,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_role(
+        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
+    )),
+):
+    """Descarga balance general en Excel."""
+    buf = excel_service.exportar_balance_general(db, fecha_corte)
+    corte = (fecha_corte or date.today()).isoformat()
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=balance_general_{corte}.xlsx"},
+    )
+
+
+@router.get("/estado-resultados/excel")
+def estado_resultados_excel(
+    fecha_inicio: date = Query(...),
+    fecha_fin: date = Query(...),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_role(
+        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
+    )),
+):
+    """Descarga estado de resultados en Excel."""
+    buf = excel_service.exportar_estado_resultados(db, fecha_inicio, fecha_fin)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=estado_resultados_{fecha_inicio}_{fecha_fin}.xlsx"},
+    )
+
+
+@router.get("/libro-diario/excel")
+def libro_diario_excel(
+    fecha_inicio: date = Query(...),
+    fecha_fin: date = Query(...),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_role(
+        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
+    )),
+):
+    """Descarga pólizas contables (libro diario) en Excel."""
+    buf = excel_service.exportar_polizas(db, fecha_inicio, fecha_fin)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=polizas_{fecha_inicio}_{fecha_fin}.xlsx"},
+    )
