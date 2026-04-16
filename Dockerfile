@@ -14,6 +14,9 @@ RUN apt-get update \
 
 WORKDIR /app
 
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
 COPY --from=builder /install /usr/local
 COPY --chown=app:app . .
 
