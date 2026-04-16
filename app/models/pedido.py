@@ -17,6 +17,7 @@ class EstadoPedido(str, enum.Enum):
     CONFIRMADO = "confirmado"
     EN_PREPARACION = "en_preparacion"
     LISTO = "listo"
+    EN_RUTA = "en_ruta"
     ENTREGADO = "entregado"
     CANCELADO = "cancelado"
 
@@ -60,6 +61,15 @@ class Pedido(Base):
 
     notas: Mapped[str | None] = mapped_column(Text)
     notas_internas: Mapped[str | None] = mapped_column(Text)  # Solo para staff
+
+    # Delivery tracking
+    repartidor_nombre: Mapped[str | None] = mapped_column(String(200))
+    repartidor_telefono: Mapped[str | None] = mapped_column(String(20))
+    direccion_entrega: Mapped[str | None] = mapped_column(Text)
+    referencia_entrega: Mapped[str | None] = mapped_column(String(300))
+    costo_envio: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0"))
+    en_ruta_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    entregado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     creado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

@@ -83,6 +83,11 @@ class Settings(BaseSettings):
     # Anthropic API (OCR de tickets)
     ANTHROPIC_API_KEY: str = ""
 
+    # Conekta (pagos online)
+    CONEKTA_API_KEY: str = ""
+    CONEKTA_API_VERSION: str = "2.1.0"
+    CONEKTA_WEBHOOK_KEY: str = ""
+
     # CLIP API (terminal de pagos)
     CLIP_API_KEY: str = ""
     CLIP_API_SECRET: str = ""

@@ -36,6 +36,11 @@ class PedidoUpdate(BaseModel):
     pagado: bool | None = None
     notas: str | None = None
     notas_internas: str | None = None
+    repartidor_nombre: str | None = None
+    repartidor_telefono: str | None = None
+    direccion_entrega: str | None = None
+    referencia_entrega: str | None = None
+    costo_envio: Decimal | None = None
 
 
 class DetallePedidoResponse(BaseModel):
@@ -62,6 +67,13 @@ class PedidoResponse(BaseModel):
     pagado: bool
     notas: str | None
     notas_internas: str | None
+    repartidor_nombre: str | None
+    repartidor_telefono: str | None
+    direccion_entrega: str | None
+    referencia_entrega: str | None
+    costo_envio: Decimal
+    en_ruta_en: datetime | None
+    entregado_en: datetime | None
     creado_en: datetime
     detalles: list[DetallePedidoResponse]
     model_config = {"from_attributes": True}
