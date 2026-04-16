@@ -145,6 +145,10 @@ app = FastAPI(
 from app.core.rate_limit import RateLimitMiddleware
 app.add_middleware(RateLimitMiddleware)
 
+# Auditoría automática de operaciones de escritura
+from app.core.audit_middleware import AuditMiddleware
+app.add_middleware(AuditMiddleware)
+
 # CORS — restringido a dominios configurados
 app.add_middleware(
     CORSMiddleware,
