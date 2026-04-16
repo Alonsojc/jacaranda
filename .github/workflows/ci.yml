@@ -74,12 +74,18 @@ jobs:
             -e SECRET_KEY="$SECRET" \
             -e ADMIN_PASSWORD=admin1234 \
             jacaranda:ci
-          for i in 1 2 3 4 5 6 7 8 9 10; do
-            if curl -fsS http://localhost:8000/health; then
-              echo "healthy"
+          # Wait up to 90s (30 attempts x 3s) for Alembic migrations + startup
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health 2>/dev/null; then
+              echo ""
+              echo "healthy after ${i} attempts"
+              docker logs jac | tail -20
               exit 0
             fi
             sleep 3
           done
+          echo "=== container did not become healthy ==="
+          docker ps -a
+          echo "=== container logs ==="
           docker logs jac
           exit 1
