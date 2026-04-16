@@ -28,8 +28,8 @@ def crear_categoria(db: Session, data: CategoriaCreate) -> CategoriaProducto:
     return categoria
 
 
-def listar_categorias(db: Session):
-    return db.query(CategoriaProducto).filter(CategoriaProducto.activo.is_(True)).all()
+def listar_categorias(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(CategoriaProducto).filter(CategoriaProducto.activo.is_(True)).offset(skip).limit(limit).all()
 
 
 # --- Proveedores ---
@@ -42,8 +42,8 @@ def crear_proveedor(db: Session, data: ProveedorCreate) -> Proveedor:
     return proveedor
 
 
-def listar_proveedores(db: Session):
-    return db.query(Proveedor).filter(Proveedor.activo.is_(True)).all()
+def listar_proveedores(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(Proveedor).filter(Proveedor.activo.is_(True)).offset(skip).limit(limit).all()
 
 
 # --- Ingredientes ---
@@ -67,11 +67,11 @@ def actualizar_ingrediente(db: Session, id: int, data: IngredienteUpdate) -> Ing
     return ingrediente
 
 
-def listar_ingredientes(db: Session, solo_activos: bool = True):
+def listar_ingredientes(db: Session, solo_activos: bool = True, skip: int = 0, limit: int = 100):
     query = db.query(Ingrediente)
     if solo_activos:
         query = query.filter(Ingrediente.activo.is_(True))
-    return query.all()
+    return query.offset(skip).limit(limit).all()
 
 
 def obtener_ingrediente(db: Session, id: int) -> Ingrediente:

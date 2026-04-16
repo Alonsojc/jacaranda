@@ -73,6 +73,8 @@ def auth_headers(client, admin_user):
     # Clear rate limit state between tests
     from app.api.routes.auth import _login_attempts
     _login_attempts.clear()
+    from app.core.rate_limit import _requests
+    _requests.clear()
 
     response = client.post("/api/v1/auth/login", json={
         "email": "admin@test.com",

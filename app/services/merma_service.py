@@ -146,6 +146,8 @@ def listar_mermas(
     fecha_inicio: date | None = None,
     fecha_fin: date | None = None,
     tipo: str | None = None,
+    skip: int = 0,
+    limit: int = 100,
 ) -> list[dict]:
     """Lista registros de merma con filtros opcionales."""
     query = db.query(RegistroMerma)
@@ -157,7 +159,7 @@ def listar_mermas(
     if tipo:
         query = query.filter(RegistroMerma.tipo == TipoMerma(tipo))
 
-    registros = query.order_by(RegistroMerma.fecha_merma.desc()).all()
+    registros = query.order_by(RegistroMerma.fecha_merma.desc()).offset(skip).limit(limit).all()
 
     resultados = []
     for r in registros:

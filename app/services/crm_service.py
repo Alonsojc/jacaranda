@@ -145,9 +145,9 @@ def crear_campana(db: Session, data: dict) -> dict:
     }
 
 
-def listar_campanas(db: Session) -> list[dict]:
+def listar_campanas(db: Session, skip: int = 0, limit: int = 100) -> list[dict]:
     """Lista todas las campañas ordenadas por fecha de creación."""
-    campanas = db.query(Campana).order_by(Campana.creado_en.desc()).all()
+    campanas = db.query(Campana).order_by(Campana.creado_en.desc()).offset(skip).limit(limit).all()
     return [
         {
             "id": c.id,
@@ -305,13 +305,13 @@ def registrar_interaccion(db: Session, data: dict) -> dict:
     }
 
 
-def listar_interacciones(db: Session, cliente_id: int) -> list[dict]:
+def listar_interacciones(db: Session, cliente_id: int, skip: int = 0, limit: int = 100) -> list[dict]:
     """Lista las interacciones de un cliente, ordenadas por fecha descendente."""
     interacciones = (
         db.query(InteraccionCliente)
         .filter(InteraccionCliente.cliente_id == cliente_id)
         .order_by(InteraccionCliente.creado_en.desc())
-        .all()
+        .offset(skip).limit(limit).all()
     )
     return [
         {

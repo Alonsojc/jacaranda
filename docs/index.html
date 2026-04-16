@@ -129,9 +129,9 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 /* Discount inline */
 .desc-input{width:55px;padding:.2rem .3rem;border:1px solid var(--brd);border-radius:5px;font-size:.72rem;font-family:inherit;text-align:center}
 .desc-input:focus{outline:none;border-color:var(--v)}
-@media(max-width:900px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.pos-prods{max-height:none}.prods{grid-template-columns:repeat(3,1fr)}.nav-links{flex-wrap:wrap;gap:.15rem}.nav-links a{padding:.4rem .55rem;font-size:.73rem}.pmt{grid-template-columns:1fr!important}#pos-btn-prods{display:block!important}.tkt{position:sticky;bottom:0;z-index:10}}
-@media(max-width:600px){.prods{grid-template-columns:repeat(2,1fr)}.qty-btn{width:36px;height:36px;font-size:1.1rem}.cobrar{padding:1rem;font-size:1rem}.pi-body{padding:.5rem}.pi-img,.pi-noimg{height:70px}.frow{grid-template-columns:1fr}.wrap{padding:.8rem}nav{padding:.5rem .8rem}.pbtn{padding:.9rem .5rem;font-size:.85rem}.ti{padding:.45rem 0;font-size:.85rem}.tkt h3{font-size:1rem}}
-@media(max-width:420px){.prods{grid-template-columns:1fr 1fr}.pi .pn{font-size:.78rem}.pi .pp{font-size:1rem}.nav-links a{padding:.35rem .4rem;font-size:.68rem}}
+@media(max-width:900px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.pos-prods{max-height:none}.prods{grid-template-columns:repeat(3,1fr)}.nav-links{flex-wrap:wrap;gap:.15rem}.nav-links a{padding:.4rem .55rem;font-size:.73rem}.pmt{grid-template-columns:1fr!important}#pos-btn-prods{display:block!important}.tkt{position:sticky;bottom:0;z-index:10}table{font-size:.75rem}th,td{padding:.3rem .4rem!important}}
+@media(max-width:600px){.prods{grid-template-columns:repeat(2,1fr)}.qty-btn{width:36px;height:36px;font-size:1.1rem}.cobrar{padding:1rem;font-size:1rem}.pi-body{padding:.5rem}.pi-img,.pi-noimg{height:70px}.frow{grid-template-columns:1fr}.wrap{padding:.8rem .6rem}nav{padding:.5rem .8rem}.pbtn{padding:.9rem .5rem;font-size:.85rem}.ti{padding:.45rem 0;font-size:.85rem}.tkt h3{font-size:1rem}.card{padding:.8rem;border-radius:10px;overflow-x:auto;-webkit-overflow-scrolling:touch}.tab{padding:.5rem .8rem;font-size:.78rem;min-height:40px}.kpi .n{font-size:1.3rem}.kpi .l{font-size:.7rem}h2{font-size:1.1rem;margin-bottom:.7rem}.srow{padding:.5rem 0;font-size:.82rem;min-height:36px}.badge{padding:.25rem .5rem;font-size:.72rem}}
+@media(max-width:420px){.prods{grid-template-columns:1fr 1fr}.pi .pn{font-size:.78rem}.pi .pp{font-size:1rem}.nav-links a{padding:.35rem .4rem;font-size:.68rem}.r4{grid-template-columns:1fr}.card{margin-bottom:.6rem}}
 .notif-panel{position:fixed;top:50px;right:10px;width:360px;max-height:500px;background:#fff;border:1px solid var(--brd);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:100;overflow-y:auto;display:none}
 .notif-panel.on{display:block}
 .notif-item{padding:.6rem .8rem;border-bottom:1px solid var(--bg2);font-size:.82rem;display:flex;gap:.5rem;align-items:flex-start}
@@ -7570,6 +7570,37 @@ function initWebSocket() {
   } catch(ex) { _ws = null; }
 }
 function closeWebSocket() { if (_ws) { _ws.close(); _ws = null; } }
+
+// Pull-to-refresh for mobile
+var _pullStart = 0;
+document.addEventListener('touchstart', function(e) {
+  if (window.scrollY === 0) _pullStart = e.touches[0].clientY;
+}, {passive: true});
+document.addEventListener('touchend', function(e) {
+  if (_pullStart > 0 && e.changedTouches[0].clientY - _pullStart > 100 && window.scrollY === 0) {
+    var pg = localStorage.getItem('jacaranda_tab') || 'dash';
+    go(pg);
+    toast('Actualizado');
+  }
+  _pullStart = 0;
+}, {passive: true});
+
+// Auto-hide desktop nav on small screens, show bottom nav
+function adaptiveNav() {
+  var w = window.innerWidth;
+  var nav = document.querySelector('.nav-links');
+  if (nav && w <= 600) {
+    document.querySelectorAll('.nav-links a[data-pg]').forEach(function(a) {
+      // Hide non-essential nav items on very small screens
+      var pg = a.getAttribute('data-pg');
+      if (['dash','pos','ped','inv'].indexOf(pg) === -1 && w <= 420) {
+        a.style.display = 'none';
+      }
+    });
+  }
+}
+window.addEventListener('resize', adaptiveNav);
+adaptiveNav();
 
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {

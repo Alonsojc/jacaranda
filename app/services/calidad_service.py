@@ -201,12 +201,12 @@ def crear_alerta_recall(
 
 def listar_alertas_recall(
     db: Session, estado: str | None = None,
-) -> list[AlertaRecall]:
+    skip: int = 0, limit: int = 100) -> list[AlertaRecall]:
     """Lista alertas de recall con filtro opcional de estado."""
     query = db.query(AlertaRecall)
     if estado is not None:
         query = query.filter(AlertaRecall.estado == estado)
-    return query.order_by(AlertaRecall.creado_en.desc()).all()
+    return query.order_by(AlertaRecall.creado_en.desc()).offset(skip).limit(limit).all()
 
 
 def resolver_recall(

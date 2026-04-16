@@ -21,12 +21,12 @@ ZERO = Decimal("0")
 
 # ─── Proveedores ─────────────────────────────────────────────────
 
-def listar_proveedores(db: Session, solo_activos: bool = True) -> list[dict]:
+def listar_proveedores(db: Session, solo_activos: bool = True, skip: int = 0, limit: int = 100) -> list[dict]:
     """Lista proveedores, opcionalmente solo activos."""
     query = db.query(Proveedor)
     if solo_activos:
         query = query.filter(Proveedor.activo.is_(True))
-    proveedores = query.order_by(Proveedor.nombre).all()
+    proveedores = query.order_by(Proveedor.nombre).offset(skip).limit(limit).all()
 
     return [
         {
@@ -166,7 +166,7 @@ def listar_ordenes_compra(
     db: Session,
     estado: str | None = None,
     proveedor_id: int | None = None,
-) -> list[dict]:
+    skip: int = 0, limit: int = 100) -> list[dict]:
     """Lista órdenes de compra con filtros opcionales."""
     query = db.query(OrdenCompra).options(
         joinedload(OrdenCompra.proveedor),
@@ -176,7 +176,7 @@ def listar_ordenes_compra(
     if proveedor_id:
         query = query.filter(OrdenCompra.proveedor_id == proveedor_id)
 
-    ordenes = query.order_by(OrdenCompra.creado_en.desc()).all()
+    ordenes = query.order_by(OrdenCompra.creado_en.desc()).offset(skip).limit(limit).all()
     return [_orden_to_dict(o, incluir_detalles=False) for o in ordenes]
 
 
@@ -337,7 +337,7 @@ def listar_cuentas_pagar(
     db: Session,
     estado: str | None = None,
     proveedor_id: int | None = None,
-) -> list[dict]:
+    skip: int = 0, limit: int = 100) -> list[dict]:
     """Lista cuentas por pagar con filtros opcionales."""
     query = db.query(CuentaPagar).options(
         joinedload(CuentaPagar.proveedor),
@@ -347,7 +347,7 @@ def listar_cuentas_pagar(
     if proveedor_id:
         query = query.filter(CuentaPagar.proveedor_id == proveedor_id)
 
-    cuentas = query.order_by(CuentaPagar.fecha_vencimiento).all()
+    cuentas = query.order_by(CuentaPagar.fecha_vencimiento).offset(skip).limit(limit).all()
     return [_cuenta_to_dict(c) for c in cuentas]
 
 
