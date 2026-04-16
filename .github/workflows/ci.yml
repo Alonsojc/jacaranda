@@ -68,9 +68,10 @@ jobs:
 
       - name: Smoke test container
         run: |
+          SECRET=$(python -c 'import secrets; print(secrets.token_urlsafe(64))')
           docker run -d --name jac -p 8000:8000 \
             -e DATABASE_URL=sqlite:///./jacaranda.db \
-            -e SECRET_KEY=ci-test-secret-key-must-be-at-least-32-chars-long \
+            -e SECRET_KEY="$SECRET" \
             -e ADMIN_PASSWORD=admin1234 \
             jacaranda:ci
           for i in 1 2 3 4 5 6 7 8 9 10; do

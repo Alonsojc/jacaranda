@@ -15,7 +15,6 @@ _WEAK_SECRETS = {
     "supersecret",
     "mysecret",
     "default",
-    "ci-test-secret-key-must-be-at-least-32-chars-long",
 }
 
 
