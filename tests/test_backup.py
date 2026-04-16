@@ -1,17 +1,23 @@
 """Tests para backup y restauración."""
 
+from unittest.mock import patch
+
 
 class TestBackup:
 
     def test_crear_backup_in_memory_returns_error(self, client, auth_headers):
         """In-memory SQLite can't be backed up - expect 500."""
-        resp = client.post("/api/v1/backup/crear", headers=auth_headers)
+        with patch("app.services.backup_service.settings") as mock_settings:
+            mock_settings.DATABASE_URL = "sqlite://"
+            resp = client.post("/api/v1/backup/crear", headers=auth_headers)
         # In-memory SQLite has no file, so backup fails with 500
         assert resp.status_code == 500
 
     def test_descargar_backup_in_memory_returns_error(self, client, auth_headers):
         """In-memory SQLite can't be downloaded."""
-        resp = client.get("/api/v1/backup/descargar", headers=auth_headers)
+        with patch("app.services.backup_service.settings") as mock_settings:
+            mock_settings.DATABASE_URL = "sqlite://"
+            resp = client.get("/api/v1/backup/descargar", headers=auth_headers)
         assert resp.status_code == 500
 
     def test_listar_backups(self, client, auth_headers):

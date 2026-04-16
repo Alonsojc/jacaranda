@@ -30,9 +30,12 @@ def crear_backup() -> dict:
     ts = _timestamp()
 
     if _is_sqlite():
-        db_path = settings.DATABASE_URL.replace("sqlite:///", "")
+        db_url = settings.DATABASE_URL
+        if db_url in ("sqlite://", "sqlite:///"):
+            raise FileNotFoundError("Base de datos in-memory no se puede respaldar")
+        db_path = db_url.replace("sqlite:///", "")
         src = Path(db_path)
-        if not src.exists():
+        if not src.exists() or src.stat().st_size == 0:
             raise FileNotFoundError("Base de datos SQLite no encontrada")
         filename = f"jacaranda_{ts}.db"
         dest = BACKUP_DIR / filename
