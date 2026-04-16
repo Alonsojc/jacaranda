@@ -213,8 +213,8 @@ def completar_produccion(
     return orden
 
 
-def listar_ordenes(db: Session, estado: EstadoProduccion | None = None):
+def listar_ordenes(db: Session, estado: EstadoProduccion | None = None, skip: int = 0, limit: int = 100):
     query = db.query(OrdenProduccion)
     if estado:
         query = query.filter(OrdenProduccion.estado == estado)
-    return query.order_by(OrdenProduccion.fecha_programada.desc()).all()
+    return query.order_by(OrdenProduccion.fecha_programada.desc()).offset(skip).limit(limit).all()

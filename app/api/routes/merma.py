@@ -64,12 +64,14 @@ def listar_mermas(
     fecha_inicio: date | None = Query(None),
     fecha_fin: date | None = Query(None),
     tipo: str | None = Query(None),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, le=500),
     db: Session = Depends(get_db),
     _user: Usuario = Depends(get_current_user),
 ):
     """Listar registros de merma con filtros opcionales."""
     try:
-        return svc.listar_mermas(db, fecha_inicio, fecha_fin, tipo)
+        return svc.listar_mermas(db, fecha_inicio, fecha_fin, tipo, skip=skip, limit=limit)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -59,11 +59,11 @@ def obtener_empleado(db: Session, id: int) -> Empleado:
     return empleado
 
 
-def listar_empleados(db: Session, solo_activos: bool = True):
+def listar_empleados(db: Session, solo_activos: bool = True, skip: int = 0, limit: int = 100):
     query = db.query(Empleado)
     if solo_activos:
         query = query.filter(Empleado.activo.is_(True))
-    return query.all()
+    return query.offset(skip).limit(limit).all()
 
 
 def _calcular_antiguedad(fecha_ingreso: date) -> int:
@@ -214,11 +214,11 @@ def calcular_nomina(db: Session, data: NominaCalculoRequest) -> RegistroNomina:
     return registro
 
 
-def listar_nominas(db: Session, empleado_id: int | None = None):
+def listar_nominas(db: Session, empleado_id: int | None = None, skip: int = 0, limit: int = 100):
     query = db.query(RegistroNomina)
     if empleado_id:
         query = query.filter(RegistroNomina.empleado_id == empleado_id)
-    return query.order_by(RegistroNomina.periodo_inicio.desc()).all()
+    return query.order_by(RegistroNomina.periodo_inicio.desc()).offset(skip).limit(limit).all()
 
 
 def calcular_nomina_batch(

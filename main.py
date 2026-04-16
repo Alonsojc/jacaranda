@@ -141,6 +141,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate limiting global
+from app.core.rate_limit import RateLimitMiddleware
+app.add_middleware(RateLimitMiddleware)
+
 # CORS — restringido a dominios configurados
 app.add_middleware(
     CORSMiddleware,

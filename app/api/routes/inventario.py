@@ -27,8 +27,8 @@ def crear_categoria(data: CategoriaCreate, db: Session = Depends(get_db), _user:
 
 
 @router.get("/categorias", response_model=list[CategoriaResponse])
-def listar_categorias(db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
-    return svc.listar_categorias(db)
+def listar_categorias(skip: int = Query(default=0, ge=0), limit: int = Query(default=100, le=500), db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+    return svc.listar_categorias(db, skip=skip, limit=limit)
 
 
 # --- Proveedores ---
@@ -39,8 +39,8 @@ def crear_proveedor(data: ProveedorCreate, db: Session = Depends(get_db), _user:
 
 
 @router.get("/proveedores", response_model=list[ProveedorResponse])
-def listar_proveedores(db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
-    return svc.listar_proveedores(db)
+def listar_proveedores(skip: int = Query(default=0, ge=0), limit: int = Query(default=100, le=500), db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+    return svc.listar_proveedores(db, skip=skip, limit=limit)
 
 
 # --- Ingredientes ---
@@ -55,8 +55,8 @@ def crear_ingrediente(
 
 
 @router.get("/ingredientes", response_model=list[IngredienteResponse])
-def listar_ingredientes(db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
-    return svc.listar_ingredientes(db)
+def listar_ingredientes(skip: int = Query(default=0, ge=0), limit: int = Query(default=100, le=500), db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+    return svc.listar_ingredientes(db, skip=skip, limit=limit)
 
 
 @router.get("/ingredientes/{id}", response_model=IngredienteResponse)

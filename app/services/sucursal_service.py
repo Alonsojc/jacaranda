@@ -32,11 +32,11 @@ def crear_sucursal(db: Session, data: dict) -> Sucursal:
     return sucursal
 
 
-def listar_sucursales(db: Session, solo_activas: bool = True) -> list[Sucursal]:
+def listar_sucursales(db: Session, solo_activas: bool = True, skip: int = 0, limit: int = 100) -> list[Sucursal]:
     query = db.query(Sucursal)
     if solo_activas:
         query = query.filter(Sucursal.activo.is_(True))
-    return query.order_by(Sucursal.es_matriz.desc(), Sucursal.nombre).all()
+    return query.order_by(Sucursal.es_matriz.desc(), Sucursal.nombre).offset(skip).limit(limit).all()
 
 
 def obtener_sucursal(db: Session, id: int) -> dict:

@@ -1,6 +1,6 @@
 """Rutas de gestión de empleados y nómina."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -30,10 +30,12 @@ def crear_empleado(
 
 @router.get("/", response_model=list[EmpleadoResponse])
 def listar_empleados(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, le=500),
     db: Session = Depends(get_db),
     _user: Usuario = Depends(get_current_user),
 ):
-    return svc.listar_empleados(db)
+    return svc.listar_empleados(db, skip=skip, limit=limit)
 
 
 # --- Asistencia (before /{id} to avoid route collision) ---
