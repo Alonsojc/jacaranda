@@ -100,6 +100,10 @@ def _seed_admin():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Validar SECRET_KEY antes de servir requests
+    from app.core.security_validation import validate_secret_key
+    validate_secret_key()
+
     # Run Alembic migrations, fallback to create_all
     try:
         from alembic.config import Config

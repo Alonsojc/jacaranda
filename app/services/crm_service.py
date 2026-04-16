@@ -338,7 +338,6 @@ def prediccion_churn(db: Session) -> list[dict]:
     Compara frecuencia de los últimos 90 días vs los 90 días anteriores.
     """
     ahora = datetime.now(timezone.utc)
-    hace_45_dias = ahora - timedelta(days=45)
     hace_90_dias = ahora - timedelta(days=90)
     hace_180_dias = ahora - timedelta(days=180)
 

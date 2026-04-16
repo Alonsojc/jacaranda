@@ -220,6 +220,7 @@ table.tbl th,table.tbl td{padding:.3rem .35rem;font-size:.72rem}
 h2{font-size:1.1rem}
 .conta-row{font-size:.78rem}
 }
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
@@ -6052,9 +6053,20 @@ document.addEventListener('change', function(e) {
 });
 
 // ─── Producción: Predicción, Plan, Eficiencia ───────────────────
+function _prodLoading(id, msg) {
+  document.getElementById(id).innerHTML = '<div style="display:flex;align-items:center;gap:.5rem;color:var(--mut);padding:1rem"><span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--mut);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span>' + (msg || 'Cargando...') + '</div>';
+}
+function _prodError(id, msg, retryFn) {
+  var html = '<div style="padding:1rem;border:1px solid #fca5a5;background:#fef2f2;border-radius:8px"><p style="color:#b91c1c;margin:0 0 .5rem">' + msg + '</p>';
+  if (retryFn) html += '<button class="btn btn-sm" onclick="' + retryFn + '()" style="font-size:.8rem">Reintentar</button>';
+  html += '</div>';
+  document.getElementById(id).innerHTML = html;
+}
+
 function cargarPrediccionDemanda() {
+  _prodLoading('prod-pred-content', 'Analizando historial de ventas...');
   api('GET', '/recetas/produccion/prediccion-demanda?dias=7').then(function(data) {
-    if (!data.length) { document.getElementById('prod-pred-content').innerHTML = '<p style="color:var(--mut)">Sin datos de ventas para predecir</p>'; return; }
+    if (!data.length) { document.getElementById('prod-pred-content').innerHTML = '<p style="color:var(--mut)">Sin datos de ventas para predecir. Registra ventas para generar pron&oacute;sticos.</p>'; return; }
     var h = '<table class="tbl"><tr><th>Producto</th><th>Stock actual</th><th>Demanda 7d</th><th>D&eacute;ficit</th><th>Estado</th></tr>';
     for (var i = 0; i < Math.min(data.length, 20); i++) {
       var p = data[i];
@@ -6067,10 +6079,13 @@ function cargarPrediccionDemanda() {
     }
     h += '</table>';
     document.getElementById('prod-pred-content').innerHTML = h;
-  }).catch(function() { document.getElementById('prod-pred-content').innerHTML = '<p style="color:#b91c1c">Error cargando predicci&oacute;n</p>'; });
+  }).catch(function(e) {
+    _prodError('prod-pred-content', 'Error cargando predicci&oacute;n: ' + (e && e.message ? e.message : 'intenta de nuevo'), 'cargarPrediccionDemanda');
+  });
 }
 
 function cargarPlanProduccion() {
+  _prodLoading('prod-plan-content', 'Generando plan de producci&oacute;n...');
   api('GET', '/recetas/produccion/plan?dias=7').then(function(data) {
     var h = '<div class="row r3" style="margin-bottom:1rem">';
     h += '<div class="card kpi"><div class="n">' + data.productos_a_producir + '</div><div class="l">Productos a producir</div></div>';
@@ -6104,10 +6119,13 @@ function cargarPlanProduccion() {
       h += '</table>';
     }
     document.getElementById('prod-plan-content').innerHTML = h;
-  }).catch(function() { document.getElementById('prod-plan-content').innerHTML = '<p style="color:#b91c1c">Error cargando plan</p>'; });
+  }).catch(function(e) {
+    _prodError('prod-plan-content', 'Error cargando plan: ' + (e && e.message ? e.message : 'intenta de nuevo'), 'cargarPlanProduccion');
+  });
 }
 
 function cargarEficiencia() {
+  _prodLoading('prod-efic-content', 'Calculando eficiencia de producci&oacute;n...');
   api('GET', '/recetas/produccion/eficiencia?dias=30').then(function(data) {
     var h = '<div class="row r4" style="margin-bottom:1rem">';
     h += '<div class="card kpi ' + (data.eficiencia_global_pct >= 85 ? 'g' : 'a') + '"><div class="n">' + data.eficiencia_global_pct + '%</div><div class="l">Eficiencia global</div></div>';
@@ -6131,7 +6149,9 @@ function cargarEficiencia() {
       h += '<p style="color:var(--mut);font-size:.83rem">Sin datos de producci&oacute;n en los &uacute;ltimos 30 d&iacute;as</p>';
     }
     document.getElementById('prod-efic-content').innerHTML = h;
-  }).catch(function() { document.getElementById('prod-efic-content').innerHTML = '<p style="color:#b91c1c">Error cargando eficiencia</p>'; });
+  }).catch(function(e) {
+    _prodError('prod-efic-content', 'Error cargando eficiencia: ' + (e && e.message ? e.message : 'intenta de nuevo'), 'cargarEficiencia');
+  });
 }
 
 // ─── IA / Pronósticos ─────────────────────────────────────────────

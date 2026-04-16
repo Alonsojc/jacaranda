@@ -179,7 +179,7 @@ def _media_ponderada_con_tendencia(series: list[tuple], total_semanas: int) -> t
     if total_peso == 0:
         return sum(valores) / len(valores), 30
 
-    media_ponderada = sum(v * w for v, w in zip(valores, pesos)) / total_peso
+    media_ponderada = sum(v * w for v, w in zip(valores, pesos, strict=False)) / total_peso
 
     # Trend adjustment using linear regression on the series
     n = len(valores)
@@ -458,9 +458,8 @@ def precision_modelo(db: Session, dias_atras: int = 14) -> dict:
     # For each of the last N days, simulate what we'd have predicted
     for delta in range(1, min(dias_atras + 1, 15)):
         dia_evaluado = hoy - timedelta(days=delta)
-        dia_anterior = dia_evaluado - timedelta(days=1)
 
-        # What we would have predicted (using data up to dia_anterior)
+        # What we would have predicted (using data up to day before)
         predicho = _predecir_dia_historico(db, dia_evaluado, semanas=6)
 
         # What actually happened

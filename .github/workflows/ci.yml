@@ -1,4 +1,4 @@
-name: CI Tests
+name: CI
 
 on:
   push:
@@ -14,9 +14,25 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install ruff
+        run: pip install ruff==0.8.4
+
+      - name: Ruff check
+        run: ruff check app/ main.py --output-format=github
+
   test:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v5
 
@@ -29,7 +45,40 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio
+          pip install pytest pytest-asyncio pytest-cov
 
-      - name: Run tests
-        run: python -m pytest tests/ -q --tb=short
+      - name: Run tests with coverage
+        run: python -m pytest tests/ -q --tb=short --cov=app --cov-report=term --cov-report=xml
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage.xml
+          retention-days: 7
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build image
+        run: docker build -t jacaranda:ci .
+
+      - name: Smoke test container
+        run: |
+          docker run -d --name jac -p 8000:8000 \
+            -e DATABASE_URL=sqlite:///./jacaranda.db \
+            -e SECRET_KEY=ci-test-secret-key-must-be-at-least-32-chars-long \
+            -e ADMIN_PASSWORD=admin1234 \
+            jacaranda:ci
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS http://localhost:8000/health; then
+              echo "healthy"
+              exit 0
+            fi
+            sleep 3
+          done
+          docker logs jac
+          exit 1

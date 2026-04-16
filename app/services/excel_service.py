@@ -156,7 +156,7 @@ def exportar_estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date)
         ("Ingresos netos", data["ingresos_netos"]),
         ("(-) Costo de ventas", data["costo_ventas"]),
         ("Utilidad bruta", data["utilidad_bruta"]),
-        (f"  Margen bruto", f"{data['margen_bruto_pct']}%"),
+        ("  Margen bruto", f"{data['margen_bruto_pct']}%"),
     ]
 
     ws.cell(row=row, column=1, value="Concepto")
@@ -199,7 +199,7 @@ def exportar_estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date)
         ("Utilidad de operación", data["utilidad_operacion"]),
         ("(-) ISR estimado (30%)", data["isr_estimado"]),
         ("UTILIDAD NETA", data["utilidad_neta"]),
-        (f"  Margen neto", f"{data['margen_neto_pct']}%"),
+        ("  Margen neto", f"{data['margen_neto_pct']}%"),
     ]
     for label, val in final_items:
         bold = label == "UTILIDAD NETA"

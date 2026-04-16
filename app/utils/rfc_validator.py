@@ -53,7 +53,6 @@ def validar_formato_rfc(rfc: str) -> tuple[bool, str]:
     else:
         fecha_str = rfc[4:10]
 
-    anio = int(fecha_str[0:2])
     mes = int(fecha_str[2:4])
     dia = int(fecha_str[4:6])
 

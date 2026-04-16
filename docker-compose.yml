@@ -2,24 +2,39 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: jacaranda
-      POSTGRES_PASSWORD: jacaranda_dev
-      POSTGRES_DB: jacaranda
+      POSTGRES_USER: ${POSTGRES_USER:-jacaranda}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jacaranda_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-jacaranda}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jacaranda} -d ${POSTGRES_DB:-jacaranda}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   app:
     build: .
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://jacaranda:jacaranda_dev@db:5432/jacaranda
-      DEBUG: "true"
-      ADMIN_PASSWORD: admin1234
+      DATABASE_URL: postgresql://${POSTGRES_USER:-jacaranda}:${POSTGRES_PASSWORD:-jacaranda_dev}@db:5432/${POSTGRES_DB:-jacaranda}
+      DEBUG: ${DEBUG:-false}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin1234}
+      SECRET_KEY: ${SECRET_KEY:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
 
 volumes:
   postgres_data:
