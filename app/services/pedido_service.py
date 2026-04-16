@@ -60,6 +60,10 @@ def actualizar_pedido(db: Session, pedido_id: int, data: PedidoUpdate) -> Pedido
     for field, value in data.model_dump(exclude_none=True).items():
         if field == "estado":
             setattr(pedido, field, EstadoPedido(value))
+            if value == "en_ruta":
+                pedido.en_ruta_en = datetime.now(timezone.utc)
+            elif value == "entregado":
+                pedido.entregado_en = datetime.now(timezone.utc)
         else:
             setattr(pedido, field, value)
 

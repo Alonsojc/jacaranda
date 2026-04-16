@@ -264,6 +264,8 @@ h2{font-size:1.1rem}
 <a data-pg="kpis" onclick="go('kpis')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">KPIs</a>
 <a data-pg="fiscal" onclick="go('fiscal')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">Fiscal</a>
 <a data-pg="auditoria" onclick="go('auditoria')" class="nav-role" data-roles="ADMINISTRADOR">Auditor&iacute;a</a>
+<a data-pg="ejecutivo" onclick="go('ejecutivo')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Ejecutivo</a>
+<a data-pg="deliveryp" onclick="go('deliveryp')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Delivery</a>
 <a data-pg="usuarios" onclick="go('usuarios')" class="nav-role" data-roles="ADMINISTRADOR">Usuarios</a>
 <a onclick="toggleNotifPanel()" id="btn-notif" style="display:none;cursor:pointer;color:var(--mut);font-size:.95rem;padding:.5rem .4rem;position:relative" title="Notificaciones">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:2px;right:0;background:#ef4444;color:#fff;font-size:.55rem;font-weight:700;padding:.05rem .3rem;border-radius:8px;min-width:14px;text-align:center"></span></a>
 <a onclick="cerrarSesion()" id="btn-logout" style="display:none;cursor:pointer;color:var(--mut);font-size:.78rem;padding:.5rem .6rem" title="Cerrar sesi&oacute;n">&#9211;</a>
@@ -1335,6 +1337,25 @@ h2{font-size:1.1rem}
 <div id="a-dashboard" style="display:none"><div id="audit-dash-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
 </div>
 
+<!-- DASHBOARD EJECUTIVO -->
+<div class="page" id="ejecutivo">
+<h2>Dashboard Ejecutivo</h2>
+<div id="ej-kpis"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+<div id="ej-alertas" style="margin-top:1rem"></div>
+<div id="ej-semanal" style="margin-top:1rem"></div>
+</div>
+
+<!-- DELIVERY TRACKING -->
+<div class="page" id="deliveryp">
+<h2>Delivery Tracking</h2>
+<div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
+<button class="tab active" onclick="deliveryTab('dl-ruta')">En ruta</button>
+<button class="tab" onclick="deliveryTab('dl-dashboard')">Dashboard</button>
+</div>
+<div id="dl-ruta"><div id="dl-ruta-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="dl-dashboard" style="display:none"><div id="dl-dash-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+</div>
+
 </div><!-- /wrap -->
 
 <!-- MOBILE BOTTOM NAV -->
@@ -1366,6 +1387,8 @@ h2{font-size:1.1rem}
 <a onclick="go('kpis');toggleMobileMenu()" class="mm-link">&#128202; KPIs</a>
 <a onclick="go('fiscal');toggleMobileMenu()" class="mm-link">&#128176; Fiscal</a>
 <a onclick="go('auditoria');toggleMobileMenu()" class="mm-link">&#128274; Auditor&iacute;a</a>
+<a onclick="go('ejecutivo');toggleMobileMenu()" class="mm-link">&#128188; Ejecutivo</a>
+<a onclick="go('deliveryp');toggleMobileMenu()" class="mm-link">&#128666; Delivery</a>
 <a onclick="go('usuarios');toggleMobileMenu()" class="mm-link">&#128101; Usuarios</a>
 <a onclick="cerrarSesion();toggleMobileMenu()" class="mm-link" style="color:#b91c1c">&#9211; Cerrar sesi&oacute;n</a>
 </div>
@@ -1922,6 +1945,8 @@ function go(p) {
   if (p === 'kpis') initKPIs();
   if (p === 'fiscal') initFiscal();
   if (p === 'auditoria') initAuditoria();
+  if (p === 'ejecutivo') initEjecutivo();
+  if (p === 'deliveryp') initDelivery();
   if (p === 'usuarios') cargarUsuarios();
   window.scrollTo(0, 0);
 }
@@ -7433,6 +7458,92 @@ function cargarAudDashboard() {
     h += '</div>';
     document.getElementById('audit-dash-tbl').innerHTML = h;
   }).catch(function() { document.getElementById('audit-dash-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+
+// ─── Dashboard Ejecutivo ──────────────────────────────────────────
+function initEjecutivo() { cargarEjecutivo(); }
+function cargarEjecutivo() {
+  api('GET', '/ejecutivo/dashboard').then(function(d) {
+    var v = d.ventas, p = d.pedidos, inv = d.inventario, f = d.finanzas, c = d.clientes;
+    var h = '<div class="row r4">';
+    h += '<div class="card kpi g"><div class="n">$' + num(v.hoy) + '</div><div class="l">Ventas hoy</div></div>';
+    h += '<div class="card kpi"><div class="n">' + v.tickets_hoy + '</div><div class="l">Tickets hoy</div></div>';
+    h += '<div class="card kpi a"><div class="n">$' + num(v.mes) + '</div><div class="l">Ventas mes</div></div>';
+    h += '<div class="card kpi p"><div class="n">' + v.cambio_vs_ayer_pct + '%</div><div class="l">vs ayer</div></div>';
+    h += '</div>';
+    h += '<div class="row r4" style="margin-top:.5rem">';
+    h += '<div class="card kpi"><div class="n">' + p.pendientes + '</div><div class="l">Pedidos pendientes</div></div>';
+    h += '<div class="card kpi a"><div class="n">' + inv.productos_stock_bajo + '</div><div class="l">Stock bajo</div></div>';
+    h += '<div class="card kpi g"><div class="n">' + f.margen_promedio_pct + '%</div><div class="l">Margen mes</div></div>';
+    h += '<div class="card kpi"><div class="n">' + c.total_activos + '</div><div class="l">Clientes activos</div></div>';
+    h += '</div>';
+    h += '<div class="row r3" style="margin-top:.5rem">';
+    h += '<div class="card"><h3>Finanzas</h3>';
+    h += '<div class="srow"><span>Ingresos mes</span><span class="green">$' + num(f.ingresos_mes) + '</span></div>';
+    h += '<div class="srow"><span>Merma mes</span><span style="color:#ef4444">$' + num(f.costo_merma_mes) + '</span></div>';
+    h += '<div class="srow"><span>Ticket promedio</span><span>$' + num(f.ticket_promedio_mes) + '</span></div>';
+    h += '</div>';
+    h += '<div class="card"><h3>Pedidos</h3>';
+    h += '<div class="srow"><span>En preparaci\u00f3n</span><span>' + p.en_preparacion + '</span></div>';
+    h += '<div class="srow"><span>Listos</span><span>' + p.listos + '</span></div>';
+    h += '<div class="srow"><span>Entregados hoy</span><span class="green">' + p.entregados_hoy + '</span></div>';
+    h += '<div class="srow"><span>Total mes</span><span>' + p.total_mes + '</span></div>';
+    h += '</div>';
+    h += '<div class="card"><h3>Clientes</h3>';
+    h += '<div class="srow"><span>Nuevos mes</span><span>' + c.nuevos_mes + '</span></div>';
+    h += '<div class="srow"><span>Satisfacci\u00f3n</span><span class="green">' + c.satisfaccion_promedio + '/5</span></div>';
+    h += '<div class="srow"><span>Empleados activos</span><span>' + d.empleados.total_activos + '</span></div>';
+    h += '</div></div>';
+    document.getElementById('ej-kpis').innerHTML = h;
+    // Alertas
+    if (d.alertas && d.alertas.length) {
+      var ah = '<div class="card"><h3>Alertas</h3>';
+      d.alertas.forEach(function(a) { ah += '<div class="srow"><span>' + a.mensaje + '</span><span class="badge ' + (a.severidad === 'alta' ? 'bout' : 'blow') + '">' + a.severidad + '</span></div>'; });
+      ah += '</div>';
+      document.getElementById('ej-alertas').innerHTML = ah;
+    }
+  }).catch(function() { document.getElementById('ej-kpis').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+  // Resumen semanal
+  api('GET', '/ejecutivo/resumen-semanal').then(function(data) {
+    var h = '<div class="card"><h3>Resumen semanal</h3><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">D\u00eda</th><th>Ventas</th><th>Tickets</th><th>Pedidos</th></tr>';
+    data.forEach(function(d) { h += '<tr><td style="padding:.35rem">' + d.fecha + '</td><td>$' + num(d.ventas) + '</td><td>' + d.tickets + '</td><td>' + d.pedidos + '</td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('ej-semanal').innerHTML = h;
+  }).catch(function(){});
+}
+
+// ─── Delivery Tracking ───────────────────────────────────────────
+function deliveryTab(tab) {
+  ['dl-ruta','dl-dashboard'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#deliveryp .tab').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  if (tab === 'dl-ruta') cargarDeliveryEnRuta();
+  if (tab === 'dl-dashboard') cargarDeliveryDashboard();
+}
+function initDelivery() { cargarDeliveryEnRuta(); }
+function cargarDeliveryEnRuta() {
+  api('GET', '/delivery/en-ruta').then(function(data) {
+    if (!data.length) { document.getElementById('dl-ruta-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin pedidos en ruta.</p></div>'; return; }
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Folio</th><th>Cliente</th><th>Destino</th><th>Repartidor</th><th>Hora salida</th><th></th></tr>';
+    data.forEach(function(p) { h += '<tr><td style="padding:.35rem;font-family:monospace">' + p.folio + '</td><td>' + p.cliente_nombre + '</td><td>' + (p.lugar_entrega||'-') + '</td><td>' + (p.repartidor_nombre||'-') + '</td><td>' + (p.en_ruta_en ? p.en_ruta_en.slice(11,16) : '-') + '</td><td><button onclick="marcarEntregado(' + p.id + ')" style="font-size:.72rem;padding:.2rem .4rem;cursor:pointer;background:#10b981;color:#fff;border:none;border-radius:4px">Entregado</button></td></tr>'; });
+    h += '</table></div>';
+    document.getElementById('dl-ruta-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('dl-ruta-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+function marcarEntregado(id) { api('POST', '/delivery/' + id + '/entregado').then(function() { toast('Pedido entregado'); cargarDeliveryEnRuta(); }).catch(function(e) { toast(e.message||'Error', true); }); }
+function cargarDeliveryDashboard() {
+  api('GET', '/delivery/dashboard').then(function(d) {
+    var h = '<div class="row r4">';
+    h += '<div class="card kpi a"><div class="n">' + d.en_ruta + '</div><div class="l">En ruta</div></div>';
+    h += '<div class="card kpi"><div class="n">' + d.listos_para_envio + '</div><div class="l">Listos para env\u00edo</div></div>';
+    h += '<div class="card kpi g"><div class="n">' + d.entregados_hoy + '</div><div class="l">Entregados hoy</div></div>';
+    h += '<div class="card kpi p"><div class="n">' + d.tiempo_promedio_entrega_min + 'm</div><div class="l">Tiempo promedio</div></div>';
+    h += '</div>';
+    document.getElementById('dl-dash-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('dl-dash-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
 }
 
 // ─── WebSocket para notificaciones en tiempo real ─────────────────
