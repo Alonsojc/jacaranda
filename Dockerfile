@@ -12,6 +12,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 1000 app
 
+RUN mkdir -p /app && chown app:app /app
 WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1 \
