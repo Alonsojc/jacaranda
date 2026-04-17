@@ -426,6 +426,97 @@ def reporte_comparativo(db: Session) -> list[dict]:
     return resultado
 
 
+def reporte_financiero_consolidado(db: Session) -> dict:
+    """Reporte financiero consolidado: inventario por sucursal + traspasos."""
+    from datetime import timedelta
+
+    sucursales = db.query(Sucursal).filter(Sucursal.activo.is_(True)).all()
+    hoy = date.today()
+    inicio_mes = date(hoy.year, hoy.month, 1)
+
+    resultados_sucursal = []
+    total_valor_inventario = Decimal("0")
+
+    for sucursal in sucursales:
+        # Valor de inventario
+        valor_inv = db.query(
+            func.coalesce(
+                func.sum(InventarioSucursal.stock_actual * Producto.precio_unitario),
+                Decimal("0"),
+            )
+        ).join(
+            Producto, InventarioSucursal.producto_id == Producto.id
+        ).filter(
+            InventarioSucursal.sucursal_id == sucursal.id
+        ).scalar() or Decimal("0")
+
+        # Total productos y bajo mínimo
+        total_items = db.query(func.count(InventarioSucursal.id)).filter(
+            InventarioSucursal.sucursal_id == sucursal.id
+        ).scalar() or 0
+
+        bajo_minimo = db.query(func.count(InventarioSucursal.id)).filter(
+            and_(
+                InventarioSucursal.sucursal_id == sucursal.id,
+                InventarioSucursal.stock_actual < InventarioSucursal.stock_minimo,
+            )
+        ).scalar() or 0
+
+        # Traspasos recibidos este mes
+        traspasos_recibidos = db.query(func.count(Traspaso.id)).filter(
+            and_(
+                Traspaso.sucursal_destino_id == sucursal.id,
+                Traspaso.estado == EstadoTraspaso.RECIBIDO,
+                Traspaso.recibido_en >= datetime.combine(inicio_mes, datetime.min.time()),
+            )
+        ).scalar() or 0
+
+        # Traspasos enviados este mes
+        traspasos_enviados = db.query(func.count(Traspaso.id)).filter(
+            and_(
+                Traspaso.sucursal_origen_id == sucursal.id,
+                Traspaso.estado.in_([EstadoTraspaso.EN_TRANSITO, EstadoTraspaso.RECIBIDO]),
+                Traspaso.creado_en >= datetime.combine(inicio_mes, datetime.min.time()),
+            )
+        ).scalar() or 0
+
+        total_valor_inventario += valor_inv
+
+        resultados_sucursal.append({
+            "sucursal_id": sucursal.id,
+            "nombre": sucursal.nombre,
+            "codigo": sucursal.codigo,
+            "es_matriz": sucursal.es_matriz,
+            "valor_inventario": float(valor_inv),
+            "total_productos": total_items,
+            "productos_bajo_minimo": bajo_minimo,
+            "traspasos_recibidos_mes": traspasos_recibidos,
+            "traspasos_enviados_mes": traspasos_enviados,
+        })
+
+    # Calcular participación en valor de inventario
+    for r in resultados_sucursal:
+        r["participacion_inventario_pct"] = (
+            round(r["valor_inventario"] / float(total_valor_inventario) * 100, 1)
+            if total_valor_inventario > 0 else 0
+        )
+
+    resultados_sucursal.sort(key=lambda x: x["valor_inventario"], reverse=True)
+
+    # Resumen de traspasos del mes
+    traspasos_mes = db.query(func.count(Traspaso.id)).filter(
+        Traspaso.creado_en >= datetime.combine(inicio_mes, datetime.min.time())
+    ).scalar() or 0
+
+    return {
+        "periodo": f"Mes actual ({inicio_mes.isoformat()} a {hoy.isoformat()})",
+        "total_sucursales": len(sucursales),
+        "total_valor_inventario": float(total_valor_inventario),
+        "traspasos_mes": traspasos_mes,
+        "sucursales": resultados_sucursal,
+    }
+
+
 def dashboard_sucursales(db: Session) -> dict:
     """Dashboard general multi-sucursal."""
     sucursales = db.query(Sucursal).filter(Sucursal.activo.is_(True)).all()

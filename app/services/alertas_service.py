@@ -117,7 +117,6 @@ def _alertas_caducidades(db: Session, dias_aviso: int = 3) -> list[dict]:
 def _alertas_pedidos(db: Session) -> list[dict]:
     """Pedidos pendientes: sin confirmar o con entrega próxima."""
     hoy = date.today()
-    manana = hoy + timedelta(days=1)
 
     # Pedidos sin confirmar (recibidos hace > 2 horas)
     hace_2h = datetime.now(timezone.utc) - timedelta(hours=2)

@@ -220,6 +220,7 @@ table.tbl th,table.tbl td{padding:.3rem .35rem;font-size:.72rem}
 h2{font-size:1.1rem}
 .conta-row{font-size:.78rem}
 }
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
@@ -1028,6 +1029,9 @@ h2{font-size:1.1rem}
 <span class="tab" onclick="prodTab('prod-proceso')">En proceso</span>
 <span class="tab" onclick="prodTab('prod-completadas')">Completadas</span>
 <span class="tab" onclick="prodTab('prod-rapido')">Hornear r&aacute;pido</span>
+<span class="tab" onclick="prodTab('prod-prediccion')">Predicci&oacute;n</span>
+<span class="tab" onclick="prodTab('prod-plan')">Plan</span>
+<span class="tab" onclick="prodTab('prod-eficiencia')">Eficiencia</span>
 </div>
 <div id="prod-pendientes">
 <div id="prod-list-pendientes"><p style="color:var(--mut);font-size:.83rem">Cargando &oacute;rdenes...</p></div>
@@ -1053,6 +1057,23 @@ h2{font-size:1.1rem}
 <h3>Recetas disponibles</h3>
 <div id="prod-recetas-list"><p style="color:var(--mut);font-size:.83rem">Cargando recetas...</p></div>
 </div>
+<!-- Predicción de demanda -->
+<div id="prod-prediccion" style="display:none">
+<div class="card"><h3>Predicci&oacute;n de Demanda (pr&oacute;ximos 7 d&iacute;as)</h3>
+<p style="font-size:.78rem;color:var(--mut);margin-bottom:.7rem">Basada en historial de ventas ponderado por d&iacute;a de la semana y recencia.</p>
+<div id="prod-pred-content"><p style="color:var(--mut);font-size:.83rem">Cargando predicci&oacute;n...</p></div></div>
+</div>
+<!-- Plan de producción -->
+<div id="prod-plan" style="display:none">
+<div class="card"><h3>Plan de Producci&oacute;n</h3>
+<p style="font-size:.78rem;color:var(--mut);margin-bottom:.7rem">Qu&eacute; producir, cu&aacute;ntos lotes, ingredientes necesarios y lista de compras.</p>
+<div id="prod-plan-content"><p style="color:var(--mut);font-size:.83rem">Cargando plan...</p></div></div>
+</div>
+<!-- Análisis de eficiencia -->
+<div id="prod-eficiencia" style="display:none">
+<div class="card"><h3>An&aacute;lisis de Eficiencia</h3>
+<p style="font-size:.78rem;color:var(--mut);margin-bottom:.7rem">Producci&oacute;n vs ventas, desperdicio estimado, clasificaci&oacute;n por producto.</p>
+<div id="prod-efic-content"><p style="color:var(--mut);font-size:.83rem">Cargando an&aacute;lisis...</p></div></div>
 </div>
 </div>
 
@@ -5781,12 +5802,15 @@ var _prodRecetas = [];
 var _prodTimers = {};
 
 function prodTab(tab) {
-  ['prod-pendientes','prod-proceso','prod-completadas','prod-rapido'].forEach(function(t) {
+  ['prod-pendientes','prod-proceso','prod-completadas','prod-rapido','prod-prediccion','prod-plan','prod-eficiencia'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('#prod .tab').forEach(function(t) { t.classList.remove('active'); });
   event.target.classList.add('active');
+  if (tab === 'prod-prediccion') cargarPrediccionDemanda();
+  if (tab === 'prod-plan') cargarPlanProduccion();
+  if (tab === 'prod-eficiencia') cargarEficiencia();
 }
 
 function cargarProduccion() {
@@ -6027,6 +6051,108 @@ document.addEventListener('change', function(e) {
     }).catch(function() { document.getElementById('prod-disp-check').innerHTML = ''; });
   }
 });
+
+// ─── Producción: Predicción, Plan, Eficiencia ───────────────────
+function _prodLoading(id, msg) {
+  document.getElementById(id).innerHTML = '<div style="display:flex;align-items:center;gap:.5rem;color:var(--mut);padding:1rem"><span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--mut);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span>' + (msg || 'Cargando...') + '</div>';
+}
+function _prodError(id, msg, retryFn) {
+  var html = '<div style="padding:1rem;border:1px solid #fca5a5;background:#fef2f2;border-radius:8px"><p style="color:#b91c1c;margin:0 0 .5rem">' + msg + '</p>';
+  if (retryFn) html += '<button class="btn btn-sm" onclick="' + retryFn + '()" style="font-size:.8rem">Reintentar</button>';
+  html += '</div>';
+  document.getElementById(id).innerHTML = html;
+}
+
+function cargarPrediccionDemanda() {
+  _prodLoading('prod-pred-content', 'Analizando historial de ventas...');
+  api('GET', '/recetas/produccion/prediccion-demanda?dias=7').then(function(data) {
+    if (!data.length) { document.getElementById('prod-pred-content').innerHTML = '<p style="color:var(--mut)">Sin datos de ventas para predecir. Registra ventas para generar pron&oacute;sticos.</p>'; return; }
+    var h = '<table class="tbl"><tr><th>Producto</th><th>Stock actual</th><th>Demanda 7d</th><th>D&eacute;ficit</th><th>Estado</th></tr>';
+    for (var i = 0; i < Math.min(data.length, 20); i++) {
+      var p = data[i];
+      var badge = p.requiere_produccion ? '<span class="badge bout">Producir</span>' : '<span class="badge bok">OK</span>';
+      h += '<tr><td style="font-weight:600">' + p.producto_nombre + '</td>';
+      h += '<td>' + p.stock_actual + '</td>';
+      h += '<td>' + p.demanda_semanal_estimada + '</td>';
+      h += '<td style="font-weight:600;color:' + (p.deficit > 0 ? '#b91c1c' : 'var(--grn)') + '">' + p.deficit + '</td>';
+      h += '<td>' + badge + '</td></tr>';
+    }
+    h += '</table>';
+    document.getElementById('prod-pred-content').innerHTML = h;
+  }).catch(function(e) {
+    _prodError('prod-pred-content', 'Error cargando predicci&oacute;n: ' + (e && e.message ? e.message : 'intenta de nuevo'), 'cargarPrediccionDemanda');
+  });
+}
+
+function cargarPlanProduccion() {
+  _prodLoading('prod-plan-content', 'Generando plan de producci&oacute;n...');
+  api('GET', '/recetas/produccion/plan?dias=7').then(function(data) {
+    var h = '<div class="row r3" style="margin-bottom:1rem">';
+    h += '<div class="card kpi"><div class="n">' + data.productos_a_producir + '</div><div class="l">Productos a producir</div></div>';
+    h += '<div class="card kpi a"><div class="n">' + data.tiempo_total_estimado_hrs + 'h</div><div class="l">Tiempo estimado</div></div>';
+    h += '<div class="card kpi p"><div class="n">' + data.ingredientes_por_comprar.length + '</div><div class="l">Ingredientes por comprar</div></div>';
+    h += '</div>';
+    if (data.plan.length) {
+      h += '<h4 style="font-size:.85rem;margin-bottom:.5rem">Plan de producci&oacute;n</h4>';
+      h += '<table class="tbl"><tr><th>Producto</th><th>Receta</th><th>Lotes</th><th>Cant.</th><th>Tiempo</th></tr>';
+      for (var i = 0; i < data.plan.length; i++) {
+        var p = data.plan[i];
+        h += '<tr><td style="font-weight:600">' + p.producto_nombre + '</td>';
+        h += '<td>' + (p.receta || '<span class="badge blow">Sin receta</span>') + '</td>';
+        h += '<td>' + p.lotes_necesarios + '</td>';
+        h += '<td>' + p.cantidad_producir + '</td>';
+        h += '<td>' + (p.tiempo_estimado_min || 0) + ' min</td></tr>';
+      }
+      h += '</table>';
+    }
+    if (data.ingredientes_por_comprar.length) {
+      h += '<h4 style="font-size:.85rem;margin:1rem 0 .5rem">Lista de compras</h4>';
+      h += '<table class="tbl"><tr><th>Ingrediente</th><th>Necesario</th><th>Stock</th><th>Comprar</th><th>Unidad</th></tr>';
+      for (var i = 0; i < data.ingredientes_por_comprar.length; i++) {
+        var ing = data.ingredientes_por_comprar[i];
+        h += '<tr><td>' + ing.nombre + '</td>';
+        h += '<td>' + ing.cantidad_necesaria + '</td>';
+        h += '<td>' + ing.stock_actual + '</td>';
+        h += '<td style="font-weight:600;color:#b91c1c">' + ing.deficit + '</td>';
+        h += '<td>' + ing.unidad + '</td></tr>';
+      }
+      h += '</table>';
+    }
+    document.getElementById('prod-plan-content').innerHTML = h;
+  }).catch(function(e) {
+    _prodError('prod-plan-content', 'Error cargando plan: ' + (e && e.message ? e.message : 'intenta de nuevo'), 'cargarPlanProduccion');
+  });
+}
+
+function cargarEficiencia() {
+  _prodLoading('prod-efic-content', 'Calculando eficiencia de producci&oacute;n...');
+  api('GET', '/recetas/produccion/eficiencia?dias=30').then(function(data) {
+    var h = '<div class="row r4" style="margin-bottom:1rem">';
+    h += '<div class="card kpi ' + (data.eficiencia_global_pct >= 85 ? 'g' : 'a') + '"><div class="n">' + data.eficiencia_global_pct + '%</div><div class="l">Eficiencia global</div></div>';
+    h += '<div class="card kpi"><div class="n">' + data.ordenes_completadas + '</div><div class="l">&Oacute;rdenes completadas</div></div>';
+    h += '<div class="card kpi g"><div class="n">' + data.productos_optimos + '</div><div class="l">&Oacute;ptimos</div></div>';
+    h += '<div class="card kpi p"><div class="n">' + data.productos_sobreproduccion + '</div><div class="l">Sobreproducci&oacute;n</div></div>';
+    h += '</div>';
+    if (data.detalle_productos.length) {
+      h += '<table class="tbl"><tr><th>Producto</th><th>Producido</th><th>Vendido</th><th>Ratio</th><th>Desperdicio %</th><th>Estado</th></tr>';
+      for (var i = 0; i < data.detalle_productos.length; i++) {
+        var p = data.detalle_productos[i];
+        var cls = p.clasificacion === 'optimo' ? 'bok' : p.clasificacion === 'sobreproduccion' ? 'blow' : 'bout';
+        h += '<tr><td style="font-weight:600">' + p.producto_nombre + '</td>';
+        h += '<td>' + p.producido + '</td><td>' + p.vendido + '</td>';
+        h += '<td>' + p.ratio_venta_produccion + '</td>';
+        h += '<td>' + p.desperdicio_estimado_pct + '%</td>';
+        h += '<td><span class="badge ' + cls + '">' + p.clasificacion + '</span></td></tr>';
+      }
+      h += '</table>';
+    } else {
+      h += '<p style="color:var(--mut);font-size:.83rem">Sin datos de producci&oacute;n en los &uacute;ltimos 30 d&iacute;as</p>';
+    }
+    document.getElementById('prod-efic-content').innerHTML = h;
+  }).catch(function(e) {
+    _prodError('prod-efic-content', 'Error cargando eficiencia: ' + (e && e.message ? e.message : 'intenta de nuevo'), 'cargarEficiencia');
+  });
+}
 
 // ─── IA / Pronósticos ─────────────────────────────────────────────
 function iaTab(tab) {

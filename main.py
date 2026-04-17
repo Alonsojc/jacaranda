@@ -100,17 +100,35 @@ def _seed_admin():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Lifespan starting")
+    # Validar SECRET_KEY antes de servir requests
+    from app.core.security_validation import validate_secret_key
+    validate_secret_key()
+    logger.info("SECRET_KEY validated")
+
     # Run Alembic migrations, fallback to create_all
     try:
         from alembic.config import Config
         from alembic import command
         alembic_cfg = Config("alembic.ini")
+        logger.info("Running Alembic migrations")
         command.upgrade(alembic_cfg, "head")
         logger.info("Database migrations applied")
     except Exception as e:
         logger.warning("Alembic migration failed (%s), using create_all fallback", e)
-        Base.metadata.create_all(bind=engine)
-    _seed_admin()
+        try:
+            Base.metadata.create_all(bind=engine)
+            logger.info("create_all fallback complete")
+        except Exception as e2:
+            logger.exception("create_all also failed: %s", e2)
+            raise
+    try:
+        _seed_admin()
+        logger.info("Admin seeded")
+    except Exception as e:
+        logger.exception("_seed_admin failed: %s", e)
+        raise
+    logger.info("Lifespan startup complete")
     yield
 
 
@@ -144,6 +162,10 @@ app = FastAPI(
 # Rate limiting global
 from app.core.rate_limit import RateLimitMiddleware
 app.add_middleware(RateLimitMiddleware)
+
+# Auditoría automática de operaciones de escritura
+from app.core.audit_middleware import AuditMiddleware
+app.add_middleware(AuditMiddleware)
 
 # CORS — restringido a dominios configurados
 app.add_middleware(

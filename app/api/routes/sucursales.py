@@ -170,6 +170,15 @@ def dashboard_sucursales(
     return svc.dashboard_sucursales(db)
 
 
+@router.get("/financiero")
+def reporte_financiero_consolidado(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+):
+    """Reporte financiero consolidado de todas las sucursales."""
+    return svc.reporte_financiero_consolidado(db)
+
+
 # --- CRUD Sucursales ---
 
 @router.post("/", response_model=SucursalResponse, status_code=201)

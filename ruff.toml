@@ -1,0 +1,16 @@
+line-length = 120
+target-version = "py311"
+
+[lint]
+# Focus on real bugs, not style. E9/F = syntax/undefined-name/unused, B = bugbear.
+select = ["E9", "F", "B"]
+ignore = [
+    "F401",  # unused imports (many re-exports in __init__.py)
+    "F403",  # star imports (used for model registration)
+    "F811",  # redefinition (tests use counters and helpers)
+    "B008",  # function call in default argument (FastAPI Depends pattern)
+    "B904",  # raise from (stylistic)
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["F401", "F811", "F841", "B"]

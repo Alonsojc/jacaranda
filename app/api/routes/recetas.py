@@ -1,17 +1,18 @@
-"""Rutas de recetas y producción."""
+"""Rutas de recetas, producción y optimización."""
 
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
-from app.models.usuario import Usuario
+from app.core.dependencies import get_current_user, require_role
+from app.models.usuario import Usuario, RolUsuario
 from app.schemas.receta import (
     RecetaCreate, RecetaUpdate, RecetaResponse, CostoRecetaResponse,
     OrdenProduccionCreate, OrdenProduccionResponse,
 )
 from app.services import receta_service as svc
+from app.services import produccion_service
 
 router = APIRouter()
 
@@ -218,3 +219,51 @@ def hornear(
         "piezas_producidas": piezas if producto else 0,
         "stock_producto": float(producto.stock_actual) if producto else 0,
     }
+
+
+# ─── Optimización de producción ───────────────────────────────────
+
+@router.get("/produccion/prediccion-demanda")
+def prediccion_demanda(
+    dias: int = Query(7, ge=1, le=30, description="Días a predecir"),
+    semanas_historial: int = Query(8, ge=2, le=52),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_role(
+        RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE, RolUsuario.PANADERO,
+    )),
+):
+    """Predicción de demanda por producto basada en historial de ventas."""
+    return produccion_service.predecir_demanda(db, dias, semanas_historial)
+
+
+@router.get("/produccion/plan")
+def plan_produccion(
+    dias: int = Query(7, ge=1, le=30),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_role(
+        RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE, RolUsuario.PANADERO,
+    )),
+):
+    """Plan de producción con recetas, lotes e ingredientes necesarios."""
+    return produccion_service.generar_plan_produccion(db, dias)
+
+
+@router.get("/produccion/eficiencia")
+def analisis_eficiencia(
+    dias: int = Query(30, ge=7, le=365),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+):
+    """Análisis de eficiencia: producción vs ventas, merma estimada."""
+    return produccion_service.analisis_eficiencia(db, dias)
+
+
+@router.get("/produccion/dashboard")
+def dashboard_produccion(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_role(
+        RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE, RolUsuario.PANADERO,
+    )),
+):
+    """Dashboard consolidado de producción."""
+    return produccion_service.dashboard_produccion(db)

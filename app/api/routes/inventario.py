@@ -136,6 +136,8 @@ async def subir_imagen_producto(
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
+    from app.core.security_validation import detect_mime
+
     if not archivo.content_type or not archivo.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="El archivo debe ser una imagen")
 
@@ -143,7 +145,11 @@ async def subir_imagen_producto(
     if len(image_bytes) > 5_000_000:
         raise HTTPException(status_code=400, detail="Imagen muy grande (máximo 5MB)")
 
-    data_url = f"data:{archivo.content_type};base64,{base64.b64encode(image_bytes).decode()}"
+    real_mime = detect_mime(image_bytes)
+    if not real_mime or not real_mime.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Contenido no corresponde a una imagen válida")
+
+    data_url = f"data:{real_mime};base64,{base64.b64encode(image_bytes).decode()}"
     producto.imagen = data_url
     db.commit()
 
@@ -359,6 +365,7 @@ async def subir_imagenes_masivo(
 ):
     """Sube fotos masivamente. El nombre del archivo debe contener el nombre del producto."""
     import base64
+    from app.core.security_validation import detect_mime
     from app.models.inventario import Producto
 
     productos = db.query(Producto).filter(Producto.activo.is_(True)).all()
@@ -369,6 +376,9 @@ async def subir_imagenes_masivo(
             continue
         image_bytes = await archivo.read()
         if len(image_bytes) > 5_000_000:
+            continue
+        real_mime = detect_mime(image_bytes)
+        if not real_mime or not real_mime.startswith("image/"):
             continue
 
         # Match filename to product name
@@ -457,6 +467,8 @@ async def ocr_ticket(
     """Extrae datos de una foto de ticket/factura de compra usando IA."""
     from app.services.ocr_service import extraer_datos_ticket
 
+    from app.core.security_validation import detect_mime
+
     allowed = archivo.content_type and (
         archivo.content_type.startswith("image/") or archivo.content_type == "application/pdf"
     )
@@ -467,5 +479,9 @@ async def ocr_ticket(
     if len(image_bytes) > 20_000_000:  # 20MB limit
         raise HTTPException(status_code=400, detail="El archivo es muy grande (máximo 20MB)")
 
-    resultado = extraer_datos_ticket(image_bytes, archivo.content_type)
+    real_mime = detect_mime(image_bytes)
+    if not real_mime or (not real_mime.startswith("image/") and real_mime != "application/pdf"):
+        raise HTTPException(status_code=400, detail="Contenido no corresponde a imagen o PDF válido")
+
+    resultado = extraer_datos_ticket(image_bytes, real_mime)
     return resultado

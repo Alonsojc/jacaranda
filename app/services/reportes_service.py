@@ -414,7 +414,6 @@ def pronostico_produccion(db: Session) -> list[dict]:
     from collections import defaultdict
 
     hoy = date.today()
-    dia_semana = hoy.weekday()  # 0=lunes, 6=domingo
 
     # Obtener ventas de los últimos 28 días (4 semanas) del mismo día de la semana
     semanas = 4
