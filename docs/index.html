@@ -22,15 +22,15 @@ nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1p
 .nav-links a{text-decoration:none;color:var(--mut);font-size:.82rem;font-weight:500;padding:.5rem .8rem;border-radius:8px;cursor:pointer}
 .nav-links a:hover,.nav-links a.on{color:var(--v);background:#faf3f0}
 .wa{background:var(--grn)!important;color:#fff!important;border-radius:20px!important;font-size:.78rem!important}
-.wrap{max-width:940px;margin:0 auto;padding:1.5rem 2rem;overflow:hidden}
+.wrap{max-width:1060px;margin:0 auto;padding:1.5rem 2rem;overflow:hidden}
 .page{display:none;min-width:0;max-width:100%;overflow:hidden}.page.on{display:block}
-.card{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd);box-shadow:0 1px 3px rgba(0,0,0,.04);transition:box-shadow .2s,transform .2s;max-width:100%;overflow-x:auto}
-.row{display:grid;gap:1rem;margin-bottom:1rem}
+.card{background:#fff;border-radius:14px;padding:1.2rem 1.3rem;border:1px solid var(--brd);box-shadow:0 1px 4px rgba(0,0,0,.04);transition:box-shadow .2s,transform .2s;max-width:100%;overflow-x:auto}
+.row{display:grid;gap:1.1rem;margin-bottom:1.1rem}
 .r4{grid-template-columns:repeat(4,1fr)}.r5{grid-template-columns:repeat(5,1fr)}
 .r2{grid-template-columns:1fr 1fr}
 .r3{grid-template-columns:1fr 1fr 1fr}
 .card:hover{box-shadow:0 4px 12px rgba(196,152,138,.12)}
-.card h3{font-size:.9rem;font-weight:600;margin-bottom:.7rem;color:var(--dk)}
+.card h3{font-size:.92rem;font-weight:600;margin-bottom:.8rem;color:var(--dk);display:flex;align-items:center;gap:.4rem}
 .kpi{text-align:center;position:relative;overflow:hidden}
 .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#c4988a,#d4a99c);border-radius:12px 12px 0 0}
 .kpi .n{font-size:1.7rem;font-weight:700;color:var(--v)}
@@ -85,7 +85,7 @@ nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1p
 .row.r4.hero-grid{grid-template-columns:repeat(4,1fr);gap:.9rem}
 @media(max-width:900px){.row.r4.hero-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:420px){.row.r4.hero-grid{grid-template-columns:1fr 1fr!important;gap:.6rem}.khero{padding:.8rem .7rem .6rem;min-height:110px}.khero .kh-value{font-size:1.3rem}.khero .kh-icon{width:26px;height:26px;font-size:.85rem}.ai-chip{min-width:82px;padding:.4rem .5rem}.ai-chip .ac-qty{font-size:1rem}}
-.srow{display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f0e8e5;font-size:.83rem}
+.srow{display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid #f0e8e5;font-size:.84rem;gap:.5rem}
 .srow:last-child{border:none}
 .green{color:var(--grn);font-weight:600}
 .badge{padding:.2rem .55rem;border-radius:6px;font-size:.7rem;font-weight:600;letter-spacing:.02em}
@@ -5179,55 +5179,68 @@ function renderDashAlertas(extra) {
 function cargarComparativoSemanal() {
   api('GET', '/reportes/ventas-por-dia?dias=14').then(function(dias) {
     var diasSemana = ['Dom','Lun','Mar','Mi\u00e9','Jue','Vie','S\u00e1b'];
-    // Split into this week and last week
     var semanaAct = dias.slice(-7);
     var semanaAnt = dias.slice(0, 7);
-    var totalAct = 0, totalAnt = 0, ticketsAct = 0, ticketsAnt = 0;
-    for (var i = 0; i < semanaAct.length; i++) { totalAct += semanaAct[i].total; ticketsAct += semanaAct[i].tickets; }
-    for (var j = 0; j < semanaAnt.length; j++) { totalAnt += semanaAnt[j].total; ticketsAnt += semanaAnt[j].tickets; }
+    var totalAct = 0, totalAnt = 0;
+    for (var i = 0; i < semanaAct.length; i++) totalAct += semanaAct[i].total;
+    for (var j = 0; j < semanaAnt.length; j++) totalAnt += semanaAnt[j].total;
     var cambio = totalAnt > 0 ? ((totalAct - totalAnt) / totalAnt * 100) : 0;
     var flecha = cambio > 0 ? '\u25B2' : cambio < 0 ? '\u25BC' : '\u25CF';
     var color = cambio > 0 ? 'var(--grn)' : cambio < 0 ? '#ef4444' : 'var(--mut)';
-    var h = '<div style="display:flex;gap:1rem;margin-bottom:.6rem;flex-wrap:wrap">';
-    h += '<div style="flex:1;min-width:120px"><div style="font-size:.72rem;color:var(--mut);text-transform:uppercase;letter-spacing:.03em">Esta semana</div>';
-    h += '<div style="font-size:1.2rem;font-weight:700;color:var(--v)">$' + fmt(totalAct) + '</div>';
-    h += '<div style="font-size:.75rem;color:var(--mut)">' + ticketsAct + ' tickets</div></div>';
-    h += '<div style="flex:1;min-width:120px"><div style="font-size:.72rem;color:var(--mut);text-transform:uppercase;letter-spacing:.03em">Semana anterior</div>';
-    h += '<div style="font-size:1.2rem;font-weight:700;color:var(--mut)">$' + fmt(totalAnt) + '</div>';
-    h += '<div style="font-size:.75rem;color:var(--mut)">' + ticketsAnt + ' tickets</div></div>';
-    h += '<div style="flex:1;min-width:100px;display:flex;align-items:center;justify-content:center">';
-    h += '<span style="font-size:1.3rem;font-weight:700;color:' + color + '">' + flecha + ' ' + Math.abs(cambio).toFixed(1) + '%</span></div>';
+
+    // Header con resumen compacto
+    var h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">';
+    h += '<div style="display:flex;gap:1.2rem;align-items:baseline">';
+    h += '<span style="font-size:.72rem;color:var(--mut);text-transform:uppercase;letter-spacing:.03em">Esta semana <strong style="font-size:1rem;color:var(--v)">$' + fmt(totalAct) + '</strong></span>';
+    h += '<span style="font-size:.72rem;color:var(--mut);text-transform:uppercase;letter-spacing:.03em">Anterior <strong style="font-size:1rem;color:var(--mut)">$' + fmt(totalAnt) + '</strong></span>';
     h += '</div>';
-    // Day by day comparison
-    var maxVal = 1;
-    for (var k = 0; k < 7; k++) {
-      var va = semanaAct[k] ? semanaAct[k].total : 0;
-      var vb = semanaAnt[k] ? semanaAnt[k].total : 0;
-      if (va > maxVal) maxVal = va;
-      if (vb > maxVal) maxVal = vb;
-    }
-    h += '<div style="font-size:.72rem;color:var(--mut);margin-bottom:.3rem;display:flex;gap:.5rem"><span style="display:inline-block;width:8px;height:8px;background:var(--v);border-radius:2px"></span> Esta semana <span style="display:inline-block;width:8px;height:8px;background:#ddd;border-radius:2px;margin-left:.3rem"></span> Anterior</div>';
+    h += '<span style="font-size:.85rem;font-weight:700;color:' + color + ';background:' + (cambio > 0 ? '#d1fae5' : cambio < 0 ? '#fee2e2' : '#f3f4f6') + ';padding:.2rem .5rem;border-radius:6px">' + flecha + ' ' + Math.abs(cambio).toFixed(1) + '%</span>';
+    h += '</div>';
+
+    // Chart.js grouped bar
+    h += '<div style="height:200px"><canvas id="chart-week-compare"></canvas></div>';
+    document.getElementById('d-week-compare').innerHTML = h;
+
+    // Render chart
+    var labels = [];
+    var dataAct = [];
+    var dataAnt = [];
     for (var d = 0; d < 7; d++) {
       var diaFecha = semanaAct[d] ? new Date(semanaAct[d].fecha + 'T12:00:00') : null;
-      var diaLabel = diaFecha ? diasSemana[diaFecha.getDay()] : '';
-      var vAct = semanaAct[d] ? semanaAct[d].total : 0;
-      var vAnt = semanaAnt[d] ? semanaAnt[d].total : 0;
-      var wAct = maxVal > 0 ? (vAct / maxVal * 100) : 0;
-      var wAnt = maxVal > 0 ? (vAnt / maxVal * 100) : 0;
-      h += '<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.25rem;font-size:.75rem">';
-      h += '<span style="min-width:28px;text-align:right;color:var(--mut)">' + diaLabel + '</span>';
-      h += '<div style="flex:1;display:flex;flex-direction:column;gap:2px">';
-      h += '<div style="background:var(--v);height:6px;width:' + Math.max(wAct, 1) + '%;border-radius:3px"></div>';
-      h += '<div style="background:#ddd;height:6px;width:' + Math.max(wAnt, 1) + '%;border-radius:3px"></div>';
-      h += '</div>';
-      h += '<span style="min-width:55px;text-align:right;font-weight:600">$' + fmt(vAct) + '</span>';
-      h += '</div>';
+      labels.push(diaFecha ? diasSemana[diaFecha.getDay()] : '');
+      dataAct.push(semanaAct[d] ? semanaAct[d].total : 0);
+      dataAnt.push(semanaAnt[d] ? semanaAnt[d].total : 0);
     }
-    document.getElementById('d-week-compare').innerHTML = h;
+    var ctx = document.getElementById('chart-week-compare');
+    if (ctx && typeof Chart !== 'undefined') {
+      if (_chartWeek) try { _chartWeek.destroy(); } catch(e){}
+      _chartWeek = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: 'Esta semana', data: dataAct, backgroundColor: 'rgba(196,152,138,0.85)', borderRadius: 5, borderSkipped: false },
+            { label: 'Anterior', data: dataAnt, backgroundColor: 'rgba(196,152,138,0.25)', borderRadius: 5, borderSkipped: false }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 }, padding: 12 } },
+            tooltip: { callbacks: { label: function(c) { return c.dataset.label + ': $' + c.parsed.y.toLocaleString('es-MX',{minimumFractionDigits:2}); } } }
+          },
+          scales: {
+            y: { beginAtZero: true, ticks: { callback: function(v){ return '$' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v); }, font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.04)' } },
+            x: { ticks: { font: { size: 11, weight: '600' } }, grid: { display: false } }
+          }
+        }
+      });
+    }
   }).catch(function() {
-    document.getElementById('d-week-compare').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Sin datos</p>';
+    document.getElementById('d-week-compare').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center;padding:1rem">Sin datos de ventas</p>';
   });
 }
+var _chartWeek = null;
 
 // Auto-conectar si hay URL guardada (con reintentos para Railway cold start)
 // ─── Permisos por rol ─────────────────────────────────────────────
