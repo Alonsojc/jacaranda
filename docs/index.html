@@ -38,6 +38,53 @@ nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1p
 .kpi.g .n{color:var(--grn)}.kpi.g::before{background:linear-gradient(90deg,#10b981,#34d399)}
 .kpi.p .n{color:var(--pk)}.kpi.p::before{background:linear-gradient(90deg,#ec4899,#f472b6)}
 .kpi.a .n{color:var(--amb)}.kpi.a::before{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+/* Dashboard hero KPIs (bigger, with icon + delta + sparkline) */
+.khero{background:#fff;border-radius:14px;padding:1.1rem 1rem .7rem;border:1px solid var(--brd);box-shadow:0 1px 3px rgba(0,0,0,.04);position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:128px;transition:box-shadow .2s,transform .2s}
+.khero:hover{box-shadow:0 6px 18px rgba(196,152,138,.15);transform:translateY(-1px)}
+.khero::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#c4988a,#d4a99c);border-radius:14px 14px 0 0}
+.khero.g::before{background:linear-gradient(90deg,#10b981,#34d399)}
+.khero.p::before{background:linear-gradient(90deg,#ec4899,#f472b6)}
+.khero.a::before{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+.khero.b::before{background:linear-gradient(90deg,#3b82f6,#60a5fa)}
+.khero .kh-top{display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem}
+.khero .kh-icon{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1rem;background:#faf3f0;flex-shrink:0}
+.khero.g .kh-icon{background:#d1fae5}
+.khero.p .kh-icon{background:#fce7f3}
+.khero.a .kh-icon{background:#fef3c7}
+.khero.b .kh-icon{background:#dbeafe}
+.khero .kh-delta{font-size:.7rem;font-weight:700;padding:.2rem .45rem;border-radius:6px;letter-spacing:.02em;display:inline-flex;align-items:center;gap:.2rem;white-space:nowrap}
+.kh-delta.up{background:#d1fae5;color:#047857}
+.kh-delta.down{background:#fee2e2;color:#b91c1c}
+.kh-delta.flat{background:#f3f4f6;color:#6b7280}
+.khero .kh-label{font-size:.72rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin-top:.5rem;font-weight:600}
+.khero .kh-value{font-size:1.75rem;font-weight:700;color:var(--v);margin-top:.15rem;line-height:1.1;font-family:'DM Serif Display',serif;letter-spacing:-.01em}
+.khero.g .kh-value{color:var(--grn)}
+.khero.p .kh-value{color:var(--pk)}
+.khero.a .kh-value{color:var(--amb)}
+.khero.b .kh-value{color:#2563eb}
+.khero .kh-sub{font-size:.72rem;color:var(--mut);margin-top:.15rem}
+.khero .kh-spark{margin-top:auto;height:36px;padding-top:.4rem}
+/* Section block (groups related cards) */
+.dash-section{margin-bottom:1.4rem}
+.dash-section-title{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--mut);margin-bottom:.55rem;display:flex;align-items:center;gap:.5rem}
+.dash-section-title::before{content:'';width:3px;height:14px;background:var(--v);border-radius:2px}
+/* AI hero card */
+.ai-hero{background:linear-gradient(135deg,#faf3f0 0%,#fdf9f7 60%,#f5eeeb 100%);border:1px solid var(--brd);border-radius:14px;padding:1rem 1.1rem;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-bottom:1rem;position:relative;overflow:hidden}
+.ai-hero::before{content:'';position:absolute;top:0;left:0;bottom:0;width:4px;background:linear-gradient(180deg,#c4988a,#b8877a)}
+.ai-hero .ah-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem}
+.ai-hero .ah-title{font-weight:700;color:var(--dk);font-size:.9rem;display:flex;align-items:center;gap:.4rem}
+.ai-hero .ah-tag{font-size:.65rem;background:var(--v);color:#fff;padding:.15rem .4rem;border-radius:5px;font-weight:700;letter-spacing:.04em}
+.ai-hero .ah-total{font-size:.8rem;color:var(--mut);font-weight:500}
+.ai-hero .ah-total strong{color:var(--dk)}
+.ai-hero .ah-items{display:flex;gap:.5rem;flex-wrap:wrap}
+.ai-chip{background:#fff;border:1px solid var(--brd);border-radius:10px;padding:.45rem .6rem;display:flex;flex-direction:column;min-width:95px;flex:0 1 auto;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.ai-chip .ac-qty{font-weight:700;color:var(--v);font-size:1.1rem;line-height:1}
+.ai-chip .ac-name{font-size:.72rem;color:var(--dk);margin-top:.2rem;line-height:1.15;font-weight:500}
+.ai-hero .ah-empty{text-align:center;color:var(--grn);font-size:.85rem;padding:.4rem 0;font-weight:600}
+/* Row gap improvement */
+.row.r4.hero-grid{grid-template-columns:repeat(4,1fr);gap:.9rem}
+@media(max-width:900px){.row.r4.hero-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:420px){.row.r4.hero-grid{grid-template-columns:1fr 1fr!important;gap:.6rem}.khero{padding:.8rem .7rem .6rem;min-height:110px}.khero .kh-value{font-size:1.3rem}.khero .kh-icon{width:26px;height:26px;font-size:.85rem}.ai-chip{min-width:82px;padding:.4rem .5rem}.ai-chip .ac-qty{font-size:1rem}}
 .srow{display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f0e8e5;font-size:.83rem}
 .srow:last-child{border:none}
 .green{color:var(--grn);font-weight:600}
@@ -284,75 +331,132 @@ h2{font-size:1.1rem}
 
 <!-- DASHBOARD -->
 <div class="page on" id="dash">
-<h2>Dashboard &mdash; Hoy</h2>
-<div class="row r3">
-<div class="card kpi g"><div class="n" id="d-ventas">$0</div><div class="l">Ventas del d&iacute;a</div></div>
-<div class="card kpi"><div class="n" id="d-tickets">0</div><div class="l">Tickets hoy</div></div>
-<div class="card kpi a"><div class="n" id="d-mes">$0</div><div class="l">Ventas del mes</div></div>
+<h2 style="margin-bottom:.3rem">Dashboard</h2>
+<p style="font-size:.82rem;color:var(--mut);margin-bottom:1rem" id="d-fecha-hoy"></p>
+
+<!-- HERO KPIs: 4 tarjetas con icono, delta, sparkline -->
+<div class="row r4 hero-grid">
+  <div class="khero g">
+    <div class="kh-top">
+      <div class="kh-icon">&#128184;</div>
+      <span class="kh-delta flat" id="d-delta-ventas">&mdash;</span>
+    </div>
+    <div class="kh-label">Ventas hoy</div>
+    <div class="kh-value" id="d-ventas">$0</div>
+    <div class="kh-sub" id="d-sub-ventas">vs. ayer</div>
+    <div class="kh-spark"><canvas id="spark-ventas"></canvas></div>
+  </div>
+  <div class="khero b">
+    <div class="kh-top">
+      <div class="kh-icon">&#128203;</div>
+      <span class="kh-delta flat" id="d-delta-tickets">&mdash;</span>
+    </div>
+    <div class="kh-label">Tickets hoy</div>
+    <div class="kh-value" id="d-tickets">0</div>
+    <div class="kh-sub" id="d-sub-tickets">vs. ayer</div>
+    <div class="kh-spark"><canvas id="spark-tickets"></canvas></div>
+  </div>
+  <div class="khero p">
+    <div class="kh-top">
+      <div class="kh-icon">&#127869;</div>
+      <span class="kh-delta flat" id="d-delta-ticket-prom">&mdash;</span>
+    </div>
+    <div class="kh-label">Ticket promedio</div>
+    <div class="kh-value" id="d-ticket-prom">$0</div>
+    <div class="kh-sub">&uacute;ltimos 7 d&iacute;as</div>
+    <div class="kh-spark"><canvas id="spark-ticket-prom"></canvas></div>
+  </div>
+  <div class="khero a">
+    <div class="kh-top">
+      <div class="kh-icon">&#128197;</div>
+      <span class="kh-delta flat" id="d-delta-mes">&mdash;</span>
+    </div>
+    <div class="kh-label">Ventas del mes</div>
+    <div class="kh-value" id="d-mes">$0</div>
+    <div class="kh-sub" id="d-sub-mes">proyecci&oacute;n &mdash;</div>
+    <div class="kh-spark"><canvas id="spark-mes"></canvas></div>
+  </div>
 </div>
-<div class="card" style="margin-bottom:1rem">
-<h3>Comparativo semanal</h3>
-<div id="d-week-compare"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+
+<!-- AI hero card -->
+<div class="ai-hero" id="d-ai-card">
+  <div class="ah-head">
+    <div class="ah-title">&#129302; Producir hoy <span class="ah-tag">IA</span></div>
+    <div class="ah-total" id="d-ai-total">Cargando sugerencia...</div>
+  </div>
+  <div class="ah-items" id="d-ai-items"></div>
 </div>
-<div class="row r2">
-<div class="card"><h3>Productos m&aacute;s vendidos</h3>
-<div id="d-top-prod"><div class="srow" style="color:var(--mut)"><span>Conecta al servidor para ver datos</span></div></div>
+
+<!-- OPERATIVO -->
+<div class="dash-section">
+  <div class="dash-section-title">Operaci&oacute;n de hoy</div>
+  <div class="row r2">
+    <div class="card"><h3>Pedidos de hoy</h3>
+      <div id="d-ped-hoy"><div class="srow" style="color:var(--mut)"><span>Sin pedidos para hoy</span></div></div>
+    </div>
+    <div class="card"><h3>Alertas</h3>
+      <div id="d-alertas" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Sin alertas</span></div></div>
+    </div>
+  </div>
+  <div class="row r2">
+    <div class="card"><h3>Productos m&aacute;s vendidos (mes)</h3>
+      <div id="d-top-prod"><div class="srow" style="color:var(--mut)"><span>Conecta al servidor para ver datos</span></div></div>
+    </div>
+    <div class="card"><h3>Caducidades pr&oacute;ximas</h3>
+      <div id="d-caducidad"><div class="srow" style="color:var(--mut)"><span>Sin alertas de caducidad</span></div></div>
+    </div>
+  </div>
+  <div class="row r2">
+    <div class="card"><h3>Inventario</h3>
+      <input type="text" id="d-inv-buscar" placeholder="Buscar producto..." oninput="filtrarDashInv()" style="width:100%;padding:.35rem .6rem;border:1px solid var(--brd);border-radius:8px;font-size:.8rem;margin-bottom:.4rem;font-family:inherit">
+      <div id="d-inv" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Conecta al servidor para ver stock</span></div></div>
+    </div>
+    <div class="card"><h3>Comparativo semanal</h3>
+      <div id="d-week-compare"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+    </div>
+  </div>
 </div>
-<div class="card"><h3>Pedidos de hoy</h3>
-<div id="d-ped-hoy"><div class="srow" style="color:var(--mut)"><span>Sin pedidos para hoy</span></div></div>
+
+<!-- DESEMPE&Ntilde;O -->
+<div class="dash-section">
+  <div class="dash-section-title">Desempe&ntilde;o mensual</div>
+  <div class="row r4">
+    <div class="card kpi g" style="margin-bottom:0"><div class="n" id="da-mes-actual">$0</div><div class="l">Este mes</div></div>
+    <div class="card kpi" style="margin-bottom:0"><div class="n" id="da-mes-ant">$0</div><div class="l">Mes anterior</div></div>
+    <div class="card kpi" style="margin-bottom:0"><div class="n" id="da-cambio">0%</div><div class="l">Cambio</div></div>
+    <div class="card kpi a" style="margin-bottom:0"><div class="n" id="da-proyeccion">$0</div><div class="l">Proyecci&oacute;n mes</div></div>
+  </div>
+  <div class="card" style="margin-top:1rem">
+    <h3>Ventas - &Uacute;ltimos 12 meses</h3>
+    <div class="chart-container"><canvas id="chart-meses"></canvas></div>
+  </div>
+  <div class="row r2" style="margin-top:1rem">
+    <div class="card"><h3>Utilidad estimada del mes</h3>
+      <div id="da-utilidad">
+        <div class="srow"><span>Ingresos</span><span class="green" id="da-u-ingresos">$0</span></div>
+        <div class="srow"><span>Costo de ventas</span><span style="color:#b91c1c" id="da-u-costos">$0</span></div>
+        <div class="srow"><span style="font-weight:600">Utilidad bruta</span><span class="green" id="da-u-bruta" style="font-weight:600">$0</span></div>
+        <div class="srow"><span>Gastos fijos</span><span style="color:#b91c1c" id="da-u-gastos">$0</span></div>
+        <div class="srow" style="border-top:2px solid var(--brd);padding-top:.5rem;margin-top:.3rem"><span style="font-weight:700;font-size:1rem">Utilidad neta</span><span id="da-u-neta" style="font-weight:700;font-size:1rem">$0</span></div>
+      </div>
+    </div>
+    <div class="card"><h3>Clientes VIP &#11088;</h3>
+      <div id="da-vip" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Cargando...</span></div></div>
+    </div>
+  </div>
 </div>
-</div>
-<div class="row r2">
-<div class="card"><h3>Inventario</h3>
-<input type="text" id="d-inv-buscar" placeholder="Buscar producto..." oninput="filtrarDashInv()" style="width:100%;padding:.35rem .6rem;border:1px solid var(--brd);border-radius:8px;font-size:.8rem;margin-bottom:.4rem;font-family:inherit">
-<div id="d-inv" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Conecta al servidor para ver stock</span></div></div>
-</div>
-<div class="card"><h3>Alertas</h3>
-<div id="d-alertas" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Sin alertas</span></div></div>
-</div>
-</div>
-<div class="row r2">
-<div class="card"><h3>Caducidades pr&oacute;ximas</h3>
-<div id="d-caducidad"><div class="srow" style="color:var(--mut)"><span>Sin alertas de caducidad</span></div></div>
-</div>
-<div class="card"><h3>Pron&oacute;stico de hoy</h3>
-<div id="d-pronostico"><div class="srow" style="color:var(--mut)"><span>Conecta para ver sugerencia</span></div></div>
-</div>
-</div>
-<div class="row r2">
-<div class="card"><h3>Equipo &#127874;</h3>
-<div id="d-emp-cumple"><div class="srow" style="color:var(--mut)"><span>Cargando...</span></div></div>
-</div>
-<div class="card"><h3>Documentos empleados</h3>
-<div id="d-emp-docs" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Cargando...</span></div></div>
-</div>
-</div>
-<div class="card" style="margin-bottom:1rem">
-<h3>Comparativo mensual</h3>
-<div class="row r4" style="margin-bottom:.8rem">
-<div class="card kpi g" style="margin-bottom:0"><div class="n" id="da-mes-actual">$0</div><div class="l">Este mes</div></div>
-<div class="card kpi" style="margin-bottom:0"><div class="n" id="da-mes-ant">$0</div><div class="l">Mes anterior</div></div>
-<div class="card kpi" style="margin-bottom:0"><div class="n" id="da-cambio">0%</div><div class="l">Cambio</div></div>
-<div class="card kpi a" style="margin-bottom:0"><div class="n" id="da-proyeccion">$0</div><div class="l">Proyecci&oacute;n mes</div></div>
-</div>
-</div>
-<div class="card" style="margin-bottom:1rem">
-<h3>Ventas - &Uacute;ltimos 12 meses</h3>
-<div class="chart-container"><canvas id="chart-meses"></canvas></div>
-</div>
-<div class="row r2">
-<div class="card"><h3>Utilidad estimada del mes</h3>
-<div id="da-utilidad">
-<div class="srow"><span>Ingresos</span><span class="green" id="da-u-ingresos">$0</span></div>
-<div class="srow"><span>Costo de ventas</span><span style="color:#b91c1c" id="da-u-costos">$0</span></div>
-<div class="srow"><span style="font-weight:600">Utilidad bruta</span><span class="green" id="da-u-bruta" style="font-weight:600">$0</span></div>
-<div class="srow"><span>Gastos fijos</span><span style="color:#b91c1c" id="da-u-gastos">$0</span></div>
-<div class="srow" style="border-top:2px solid var(--brd);padding-top:.5rem;margin-top:.3rem"><span style="font-weight:700;font-size:1rem">Utilidad neta</span><span id="da-u-neta" style="font-weight:700;font-size:1rem">$0</span></div>
-</div>
-</div>
-<div class="card"><h3>Clientes VIP &#11088;</h3>
-<div id="da-vip" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Cargando...</span></div></div>
-</div>
+
+<!-- EQUIPO -->
+<div class="dash-section">
+  <div class="dash-section-title">Equipo</div>
+  <div class="row r2">
+    <div class="card"><h3>Cumplea&ntilde;os pr&oacute;ximos &#127874;</h3>
+      <div id="d-emp-cumple"><div class="srow" style="color:var(--mut)"><span>Cargando...</span></div></div>
+    </div>
+    <div class="card"><h3>Documentos por vencer</h3>
+      <div id="d-emp-docs" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Cargando...</span></div></div>
+    </div>
+  </div>
 </div>
 </div>
 
@@ -2922,6 +3026,22 @@ function cargarDashAvanzado() {
     cambioEl.style.color = c.cambio_pct >= 0 ? 'var(--grn)' : '#b91c1c';
     document.getElementById('da-proyeccion').textContent = '$' + fmt(d.proyeccion.proyeccion_mes);
 
+    // Hero KPI "Ventas del mes": delta vs mes anterior + subtitulo proyección
+    var deltaMesEl = document.getElementById('d-delta-mes');
+    if (deltaMesEl) {
+      var pct = c.cambio_pct || 0;
+      var cls = pct > 1 ? 'up' : pct < -1 ? 'down' : 'flat';
+      var arrow = pct > 1 ? '▲' : pct < -1 ? '▼' : '●';
+      deltaMesEl.textContent = arrow + ' ' + Math.abs(pct).toFixed(0) + '%';
+      deltaMesEl.className = 'kh-delta ' + cls;
+    }
+    var subMesEl = document.getElementById('d-sub-mes');
+    if (subMesEl && d.proyeccion) subMesEl.textContent = 'proyecci\u00f3n: $' + fmt(d.proyeccion.proyeccion_mes);
+    // Sparkline del mes: usa 12 meses
+    if (d.meses && d.meses.length) {
+      _renderSpark('spark-mes', d.meses.map(function(m){ return parseFloat(m.total) || 0; }), '#f59e0b');
+    }
+
     // Utilidad
     document.getElementById('da-u-ingresos').textContent = '$' + fmt(d.utilidad.ingresos);
     document.getElementById('da-u-costos').textContent = '-$' + fmt(d.utilidad.costo_ventas);
@@ -4768,6 +4888,16 @@ function cargarPronostico() {
 
 function cargarDashboard() {
   _dashAlertas = '';
+  // Fecha de hoy en el header
+  try {
+    var fechaEl = document.getElementById('d-fecha-hoy');
+    if (fechaEl) {
+      var dias = ['Domingo','Lunes','Martes','Mi\u00e9rcoles','Jueves','Viernes','S\u00e1bado'];
+      var meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+      var hoy = new Date();
+      fechaEl.textContent = dias[hoy.getDay()] + ', ' + hoy.getDate() + ' de ' + meses[hoy.getMonth()] + ' de ' + hoy.getFullYear();
+    }
+  } catch(e){}
   // Dashboard endpoint returns {ventas_hoy: {total, numero_ventas}, ventas_mes: {total}}
   api('GET', '/reportes/dashboard').then(function(d) {
     var vh = d.ventas_hoy || {};
@@ -4775,7 +4905,12 @@ function cargarDashboard() {
     document.getElementById('d-ventas').textContent = '$' + fmt(vh.total);
     document.getElementById('d-tickets').textContent = vh.numero_ventas || 0;
     document.getElementById('d-mes').textContent = '$' + fmt(vm.total);
+    // Ticket promedio del día
+    var prom = (vh.numero_ventas > 0) ? (vh.total / vh.numero_ventas) : 0;
+    document.getElementById('d-ticket-prom').textContent = '$' + fmt(prom);
   }).catch(function(e){ console.warn('Error cargando datos:', e); });
+  // Cargar serie de 14 días para sparklines + deltas
+  cargarSparklines();
 
   // Week-over-week comparison
   cargarComparativoSemanal();
@@ -4911,18 +5046,116 @@ function cargarDashboard() {
     }
   }).catch(function(e){ console.warn('Error cargando datos:', e); });
 
-  // Pronóstico rápido
+  // Pron&oacute;stico de producci&oacute;n (IA) → tarjeta hero
+  cargarPronosticoHero();
+}
+
+function cargarPronosticoHero() {
+  var totalEl = document.getElementById('d-ai-total');
+  var itemsEl = document.getElementById('d-ai-items');
+  if (!totalEl || !itemsEl) return;
   api('GET', '/reportes/pronostico-produccion').then(function(items) {
-    if (!items.length) { document.getElementById('d-pronostico').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Sin datos de ventas a\u00fan</span></div>'; return; }
-    var hornear = items.filter(function(p) { return p.sugerido_hornear > 0; });
-    if (!hornear.length) { document.getElementById('d-pronostico').innerHTML = '<div class="srow" style="color:var(--grn)"><span>Stock suficiente para hoy</span></div>'; return; }
-    var h = '';
-    for (var i = 0; i < hornear.length; i++) {
-      var p = hornear[i];
-      h += '<div class="srow"><span>' + p.nombre + '</span><span style="font-weight:700;color:var(--v)">' + p.sugerido_hornear + ' pzas</span></div>';
+    if (!items || !items.length) {
+      totalEl.textContent = 'Sin datos de ventas a\u00fan';
+      itemsEl.innerHTML = '';
+      return;
     }
-    document.getElementById('d-pronostico').innerHTML = h;
-  }).catch(function(){ document.getElementById('d-pronostico').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Sin datos de ventas a\u00fan</span></div>'; });
+    var hornear = items.filter(function(p) { return p.sugerido_hornear > 0; });
+    if (!hornear.length) {
+      totalEl.innerHTML = '';
+      itemsEl.innerHTML = '<div class="ah-empty">\u2705 Stock suficiente para hoy</div>';
+      return;
+    }
+    hornear.sort(function(a,b){ return b.sugerido_hornear - a.sugerido_hornear; });
+    var total = 0;
+    for (var i = 0; i < hornear.length; i++) total += hornear[i].sugerido_hornear;
+    totalEl.innerHTML = '<strong>' + total + '</strong> pzas en <strong>' + hornear.length + '</strong> productos';
+    var h = '';
+    var maxItems = Math.min(hornear.length, 8);
+    for (var j = 0; j < maxItems; j++) {
+      var p = hornear[j];
+      h += '<div class="ai-chip"><span class="ac-qty">' + p.sugerido_hornear + '</span><span class="ac-name">' + (p.nombre || '') + '</span></div>';
+    }
+    if (hornear.length > maxItems) {
+      h += '<div class="ai-chip" style="justify-content:center;align-items:center;color:var(--mut);font-size:.75rem"><span>+' + (hornear.length - maxItems) + ' m\u00e1s</span></div>';
+    }
+    itemsEl.innerHTML = h;
+  }).catch(function(){
+    totalEl.textContent = 'No disponible';
+    itemsEl.innerHTML = '';
+  });
+}
+
+// ─── Sparklines + deltas ────────────────────────────────────────────
+var _sparkCharts = {};
+function _renderSpark(canvasId, data, color) {
+  var el = document.getElementById(canvasId);
+  if (!el || typeof Chart === 'undefined') return;
+  if (_sparkCharts[canvasId]) { try { _sparkCharts[canvasId].destroy(); } catch(e){} }
+  var ctx = el.getContext('2d');
+  _sparkCharts[canvasId] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.map(function(_,i){ return i; }),
+      datasets: [{
+        data: data,
+        borderColor: color,
+        backgroundColor: color + '22',
+        fill: true,
+        tension: 0.35,
+        pointRadius: 0,
+        borderWidth: 1.8
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: { x: { display: false }, y: { display: false, beginAtZero: false } },
+      animation: { duration: 400 }
+    }
+  });
+}
+
+function _setDelta(elId, subId, current, previous, fmtFn) {
+  var el = document.getElementById(elId);
+  if (!el) return;
+  fmtFn = fmtFn || function(v){ return v; };
+  if (!previous || previous <= 0) {
+    el.textContent = '—';
+    el.className = 'kh-delta flat';
+    return;
+  }
+  var pct = ((current - previous) / previous) * 100;
+  var cls = pct > 1 ? 'up' : pct < -1 ? 'down' : 'flat';
+  var arrow = pct > 1 ? '▲' : pct < -1 ? '▼' : '●';
+  el.textContent = arrow + ' ' + Math.abs(pct).toFixed(0) + '%';
+  el.className = 'kh-delta ' + cls;
+  if (subId) {
+    var sub = document.getElementById(subId);
+    if (sub) sub.textContent = 'ayer: ' + fmtFn(previous);
+  }
+}
+
+function cargarSparklines() {
+  api('GET', '/reportes/ventas-por-dia?dias=14').then(function(dias) {
+    if (!dias || !dias.length) return;
+    var ventas = dias.map(function(d){ return parseFloat(d.total) || 0; });
+    var tickets = dias.map(function(d){ return parseInt(d.tickets) || 0; });
+    var prom = dias.map(function(d){ return d.tickets > 0 ? (d.total / d.tickets) : 0; });
+    _renderSpark('spark-ventas', ventas, '#10b981');
+    _renderSpark('spark-tickets', tickets, '#3b82f6');
+    _renderSpark('spark-ticket-prom', prom, '#ec4899');
+    // Deltas: today vs yesterday
+    var n = dias.length;
+    if (n >= 2) {
+      var hoy = dias[n-1], ayer = dias[n-2];
+      _setDelta('d-delta-ventas', 'd-sub-ventas', hoy.total, ayer.total, function(v){ return '$' + fmt(v); });
+      _setDelta('d-delta-tickets', 'd-sub-tickets', hoy.tickets, ayer.tickets, function(v){ return v + ' tix'; });
+      var promHoy = hoy.tickets > 0 ? (hoy.total / hoy.tickets) : 0;
+      var promAyer = ayer.tickets > 0 ? (ayer.total / ayer.tickets) : 0;
+      _setDelta('d-delta-ticket-prom', null, promHoy, promAyer);
+    }
+  }).catch(function(){});
 }
 var _dashAlertas = '';
 function filtrarDashInv() {
