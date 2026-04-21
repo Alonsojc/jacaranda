@@ -13,7 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--v:#c4988a;--p:#b8877a;--lav:#e2cec8;--cream:#fdf9f7;--dk:#4a3530;--txt:#5c4440;--mut:#a08a84;--grn:#10b981;--amb:#f59e0b;--pk:#c4988a;--brd:#ede3df}
+:root{--v:#c4988a;--p:#b8877a;--lav:#e2cec8;--cream:#fdf9f7;--dk:#4a3530;--txt:#5c4440;--mut:#a08a84;--grn:#10b981;--amb:#f59e0b;--pk:#e879a0;--brd:#ede3df}
 body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--txt);min-height:100vh}
 nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--brd);padding:.7rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;box-shadow:0 1px 8px rgba(0,0,0,.05)}
 .logo{font-family:'DM Serif Display',serif;font-size:1.2rem;color:var(--v);letter-spacing:.2em;font-weight:400}
@@ -233,6 +233,23 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .ia-pricing-card .ip-detail{font-size:.78rem;color:var(--mut);margin-bottom:.3rem}
 .ia-pricing-card .ip-action{display:flex;align-items:center;gap:.5rem;font-size:.82rem;font-weight:600}
 .ia-act-subir{color:#047857}.ia-act-bajar{color:#f59e0b}.ia-act-descuento{color:#b91c1c}.ia-act-mantener{color:var(--mut)}
+/* Nav dropdown groups */
+.nav-group{position:relative;display:inline-block}
+.nav-group>a{text-decoration:none;color:var(--mut);font-size:.82rem;font-weight:500;padding:.5rem .8rem;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:.25rem}
+.nav-group>a:hover{color:var(--v);background:#faf3f0}
+.nav-group>a::after{content:'\25BE';font-size:.6rem;opacity:.5}
+.nav-group>a.on{color:var(--v);background:#faf3f0}
+.nav-dd{display:none;position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--brd);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:55;min-width:170px;padding:.35rem 0;animation:ddIn .15s ease-out}
+.nav-group:hover .nav-dd,.nav-group.open .nav-dd{display:block}
+@keyframes ddIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.nav-dd a{display:block;padding:.45rem .9rem;font-size:.82rem;color:var(--txt);text-decoration:none;cursor:pointer;transition:background .12s;white-space:nowrap;font-weight:500}
+.nav-dd a:hover{background:#faf3f0;color:var(--v)}
+.nav-dd a.on{color:var(--v);font-weight:600}
+.nav-dd-sep{height:1px;background:var(--brd);margin:.25rem .6rem}
+/* Empty state */
+.empty-state{text-align:center;padding:1.2rem .5rem;color:var(--mut)}
+.empty-state .es-icon{font-size:1.8rem;opacity:.35;margin-bottom:.3rem}
+.empty-state .es-text{font-size:.82rem}
 /* Mobile bottom nav */
 .mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.97);backdrop-filter:blur(10px);border-top:1px solid var(--brd);z-index:60;padding:.3rem 0 env(safe-area-inset-bottom,.3rem);box-shadow:0 -2px 10px rgba(0,0,0,.06)}
 .mobile-nav{justify-content:space-around;align-items:center}
@@ -251,6 +268,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 @media(max-width:768px){
 .mobile-nav{display:flex}
 nav .nav-links a[data-pg]{display:none!important}
+nav .nav-links .nav-group{display:none!important}
 nav .nav-links #btn-notif,nav .nav-links #btn-logout{display:none!important}
 nav .nav-links #btn-conn{display:none!important}
 body{padding-bottom:60px}
@@ -294,27 +312,49 @@ h2{font-size:1.1rem}
 <div class="logo">Jacaranda<span>sharing flavors</span></div>
 <div class="nav-links">
 <a class="on" data-pg="dash" onclick="go('dash')">Inicio</a>
-<a data-pg="pos" onclick="go('pos')">Venta</a>
-<a data-pg="ped" onclick="go('ped')">Pedidos <span id="ped-badge" style="display:none;background:#ef4444;color:#fff;font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;vertical-align:top;min-width:14px;text-align:center"></span></a>
-<a data-pg="inv" onclick="go('inv')">Inventario <span id="inv-badge" style="display:none;background:#ef4444;color:#fff;font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;vertical-align:top;min-width:14px;text-align:center"></span></a>
-<a data-pg="corte" onclick="go('corte')">Corte</a>
-<a data-pg="rep" onclick="go('rep')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">Reportes</a>
-<a data-pg="listas" onclick="go('listas')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Listas</a>
-<a data-pg="prod" onclick="go('prod')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO">Producci&oacute;n</a>
-<a data-pg="conta" onclick="go('conta')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">Contabilidad</a>
-<a data-pg="iapg" onclick="go('iapg')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">IA</a>
-<a data-pg="cofepris" onclick="go('cofepris')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">COFEPRIS</a>
-<a data-pg="compras" onclick="go('compras')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">Compras</a>
-<a data-pg="sucursales" onclick="go('sucursales')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Sucursales</a>
-<a data-pg="merma" onclick="go('merma')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO">Merma</a>
-<a data-pg="calidad" onclick="go('calidad')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Calidad</a>
-<a data-pg="crm" onclick="go('crm')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">CRM</a>
-<a data-pg="kpis" onclick="go('kpis')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">KPIs</a>
-<a data-pg="fiscal" onclick="go('fiscal')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">Fiscal</a>
-<a data-pg="auditoria" onclick="go('auditoria')" class="nav-role" data-roles="ADMINISTRADOR">Auditor&iacute;a</a>
-<a data-pg="ejecutivo" onclick="go('ejecutivo')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Ejecutivo</a>
-<a data-pg="deliveryp" onclick="go('deliveryp')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Delivery</a>
-<a data-pg="usuarios" onclick="go('usuarios')" class="nav-role" data-roles="ADMINISTRADOR">Usuarios</a>
+<div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,PANADERO,CAJERO,CONTADOR">
+  <a>Operaci&oacute;n</a>
+  <div class="nav-dd">
+    <a data-pg="pos" onclick="go('pos')">&#128181; Punto de venta</a>
+    <a data-pg="ped" onclick="go('ped')">&#128230; Pedidos <span id="ped-badge" style="display:none;background:#ef4444;color:#fff;font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;vertical-align:top;min-width:14px;text-align:center"></span></a>
+    <a data-pg="inv" onclick="go('inv')">&#128230; Inventario <span id="inv-badge" style="display:none;background:#ef4444;color:#fff;font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;vertical-align:top;min-width:14px;text-align:center"></span></a>
+    <a data-pg="prod" onclick="go('prod')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO">&#127838; Producci&oacute;n</a>
+    <a data-pg="corte" onclick="go('corte')">&#128178; Corte de caja</a>
+    <a data-pg="compras" onclick="go('compras')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">&#128722; Compras</a>
+    <a data-pg="deliveryp" onclick="go('deliveryp')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#128666; Delivery</a>
+  </div>
+</div>
+<div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,CONTADOR">
+  <a class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">Gesti&oacute;n</a>
+  <div class="nav-dd">
+    <a data-pg="rep" onclick="go('rep')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">&#128202; Reportes</a>
+    <a data-pg="kpis" onclick="go('kpis')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">&#128200; KPIs</a>
+    <a data-pg="ejecutivo" onclick="go('ejecutivo')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#127942; Ejecutivo</a>
+    <div class="nav-dd-sep"></div>
+    <a data-pg="conta" onclick="go('conta')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">&#128209; Contabilidad</a>
+    <a data-pg="fiscal" onclick="go('fiscal')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">&#127974; Fiscal</a>
+    <a data-pg="listas" onclick="go('listas')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#128203; Listas de precios</a>
+  </div>
+</div>
+<div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,PANADERO">
+  <a class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Calidad</a>
+  <div class="nav-dd">
+    <a data-pg="cofepris" onclick="go('cofepris')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#129514; COFEPRIS</a>
+    <a data-pg="calidad" onclick="go('calidad')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#9989; Calidad</a>
+    <a data-pg="merma" onclick="go('merma')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO">&#128465; Merma</a>
+  </div>
+</div>
+<div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE">
+  <a class="nav-role" data-roles="ADMINISTRADOR,GERENTE">M&aacute;s</a>
+  <div class="nav-dd">
+    <a data-pg="crm" onclick="go('crm')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#128101; CRM / Clientes</a>
+    <a data-pg="sucursales" onclick="go('sucursales')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#127978; Sucursales</a>
+    <a data-pg="iapg" onclick="go('iapg')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#129302; Inteligencia artificial</a>
+    <div class="nav-dd-sep"></div>
+    <a data-pg="auditoria" onclick="go('auditoria')" class="nav-role" data-roles="ADMINISTRADOR">&#128274; Auditor&iacute;a</a>
+    <a data-pg="usuarios" onclick="go('usuarios')" class="nav-role" data-roles="ADMINISTRADOR">&#128100; Usuarios</a>
+  </div>
+</div>
 <a onclick="toggleNotifPanel()" id="btn-notif" style="display:none;cursor:pointer;color:var(--mut);font-size:.95rem;padding:.5rem .4rem;position:relative" title="Notificaciones">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:2px;right:0;background:#ef4444;color:#fff;font-size:.55rem;font-weight:700;padding:.05rem .3rem;border-radius:8px;min-width:14px;text-align:center"></span></a>
 <a onclick="cerrarSesion()" id="btn-logout" style="display:none;cursor:pointer;color:var(--mut);font-size:.78rem;padding:.5rem .6rem" title="Cerrar sesi&oacute;n">&#9211;</a>
 <a onclick="conectarAPI()" id="btn-conn" style="cursor:pointer;background:var(--v);color:#fff;border-radius:20px;font-size:.78rem;padding:.5rem .8rem;display:inline-flex;align-items:center"><span class="conn-dot" id="conn-dot"></span>Conectar</a>
@@ -387,50 +427,46 @@ h2{font-size:1.1rem}
   <div class="ah-items" id="d-ai-items"></div>
 </div>
 
+<!-- COMPARATIVO SEMANAL (movido arriba, lo m&aacute;s importante a primera vista) -->
+<div class="card" style="margin-bottom:1.2rem">
+  <h3>Comparativo semanal</h3>
+  <div id="d-week-compare"><div class="empty-state"><div class="es-icon">&#128202;</div><div class="es-text">Cargando datos...</div></div></div>
+</div>
+
 <!-- OPERATIVO -->
 <div class="dash-section">
   <div class="dash-section-title">Operaci&oacute;n de hoy</div>
   <div class="row r2">
     <div class="card"><h3>Pedidos de hoy</h3>
-      <div id="d-ped-hoy"><div class="srow" style="color:var(--mut)"><span>Sin pedidos para hoy</span></div></div>
+      <div id="d-ped-hoy"><div class="empty-state"><div class="es-icon">&#128230;</div><div class="es-text">Sin pedidos para hoy</div></div></div>
     </div>
     <div class="card"><h3>Alertas</h3>
-      <div id="d-alertas" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Sin alertas</span></div></div>
+      <div id="d-alertas" style="max-height:320px;overflow-y:auto"><div class="empty-state"><div class="es-icon">&#9989;</div><div class="es-text">Sin alertas</div></div></div>
+      <div id="d-caducidad-section" style="display:none;border-top:1px solid var(--brd);padding-top:.6rem;margin-top:.6rem">
+        <div style="font-size:.78rem;font-weight:600;color:var(--mut);margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.04em">Caducidades</div>
+        <div id="d-caducidad"></div>
+      </div>
     </div>
   </div>
   <div class="row r2">
-    <div class="card"><h3>Productos m&aacute;s vendidos (mes)</h3>
-      <div id="d-top-prod"><div class="srow" style="color:var(--mut)"><span>Conecta al servidor para ver datos</span></div></div>
+    <div class="card"><h3>Productos m&aacute;s vendidos</h3>
+      <div id="d-top-prod"><div class="empty-state"><div class="es-icon">&#127942;</div><div class="es-text">Conecta al servidor para ver datos</div></div></div>
     </div>
-    <div class="card"><h3>Caducidades pr&oacute;ximas</h3>
-      <div id="d-caducidad"><div class="srow" style="color:var(--mut)"><span>Sin alertas de caducidad</span></div></div>
-    </div>
-  </div>
-  <div class="row r2">
     <div class="card"><h3>Inventario</h3>
       <input type="text" id="d-inv-buscar" placeholder="Buscar producto..." oninput="filtrarDashInv()" style="width:100%;padding:.35rem .6rem;border:1px solid var(--brd);border-radius:8px;font-size:.8rem;margin-bottom:.4rem;font-family:inherit">
-      <div id="d-inv" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Conecta al servidor para ver stock</span></div></div>
-    </div>
-    <div class="card"><h3>Comparativo semanal</h3>
-      <div id="d-week-compare"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+      <div id="d-inv" style="max-height:280px;overflow-y:auto"><div class="empty-state"><div class="es-icon">&#128230;</div><div class="es-text">Conecta al servidor para ver stock</div></div></div>
     </div>
   </div>
 </div>
 
-<!-- DESEMPE&Ntilde;O -->
+<!-- DESEMPE&Ntilde;O (sin KPI row duplicada, el hero ya muestra ese dato) -->
 <div class="dash-section">
   <div class="dash-section-title">Desempe&ntilde;o mensual</div>
-  <div class="row r4">
-    <div class="card kpi g" style="margin-bottom:0"><div class="n" id="da-mes-actual">$0</div><div class="l">Este mes</div></div>
-    <div class="card kpi" style="margin-bottom:0"><div class="n" id="da-mes-ant">$0</div><div class="l">Mes anterior</div></div>
-    <div class="card kpi" style="margin-bottom:0"><div class="n" id="da-cambio">0%</div><div class="l">Cambio</div></div>
-    <div class="card kpi a" style="margin-bottom:0"><div class="n" id="da-proyeccion">$0</div><div class="l">Proyecci&oacute;n mes</div></div>
-  </div>
-  <div class="card" style="margin-top:1rem">
+  <div class="card" style="margin-bottom:1.1rem">
     <h3>Ventas - &Uacute;ltimos 12 meses</h3>
     <div class="chart-container"><canvas id="chart-meses"></canvas></div>
   </div>
-  <div class="row r2" style="margin-top:1rem">
+  <div class="row r2">
     <div class="card"><h3>Utilidad estimada del mes</h3>
       <div id="da-utilidad">
         <div class="srow"><span>Ingresos</span><span class="green" id="da-u-ingresos">$0</span></div>
@@ -441,7 +477,7 @@ h2{font-size:1.1rem}
       </div>
     </div>
     <div class="card"><h3>Clientes VIP &#11088;</h3>
-      <div id="da-vip" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Cargando...</span></div></div>
+      <div id="da-vip" style="max-height:280px;overflow-y:auto"><div class="empty-state"><div class="es-icon">&#11088;</div><div class="es-text">Cargando...</div></div></div>
     </div>
   </div>
 </div>
@@ -451,10 +487,10 @@ h2{font-size:1.1rem}
   <div class="dash-section-title">Equipo</div>
   <div class="row r2">
     <div class="card"><h3>Cumplea&ntilde;os pr&oacute;ximos &#127874;</h3>
-      <div id="d-emp-cumple"><div class="srow" style="color:var(--mut)"><span>Cargando...</span></div></div>
+      <div id="d-emp-cumple"><div class="empty-state"><div class="es-icon">&#127874;</div><div class="es-text">Cargando...</div></div></div>
     </div>
     <div class="card"><h3>Documentos por vencer</h3>
-      <div id="d-emp-docs" style="max-height:280px;overflow-y:auto"><div class="srow" style="color:var(--mut)"><span>Cargando...</span></div></div>
+      <div id="d-emp-docs" style="max-height:280px;overflow-y:auto"><div class="empty-state"><div class="es-icon">&#128196;</div><div class="es-text">Cargando...</div></div></div>
     </div>
   </div>
 </div>
@@ -3017,15 +3053,8 @@ function canjearPuntosCliente() {
 var _chartMeses = null;
 function cargarDashAvanzado() {
   api('GET', '/reportes/dashboard-avanzado').then(function(d) {
-    // Comparativo
+    // Comparativo → hero KPIs (la fila duplicada se eliminó del HTML)
     var c = d.comparativo;
-    document.getElementById('da-mes-actual').textContent = '$' + fmt(c.este_mes);
-    document.getElementById('da-mes-ant').textContent = '$' + fmt(c.mes_anterior);
-    var cambioEl = document.getElementById('da-cambio');
-    cambioEl.textContent = (c.cambio_pct >= 0 ? '+' : '') + c.cambio_pct + '%';
-    cambioEl.style.color = c.cambio_pct >= 0 ? 'var(--grn)' : '#b91c1c';
-    document.getElementById('da-proyeccion').textContent = '$' + fmt(d.proyeccion.proyeccion_mes);
-
     // Hero KPI "Ventas del mes": delta vs mes anterior + subtitulo proyección
     var deltaMesEl = document.getElementById('d-delta-mes');
     if (deltaMesEl) {
@@ -5004,9 +5033,12 @@ function cargarDashboard() {
     renderDashAlertas(a);
   }).catch(function(e){ console.warn('Error cargando datos:', e); });
 
-  // Alertas de caducidad
+  // Alertas de caducidad (dentro del card de alertas)
   api('GET', '/reportes/alertas-caducidad?dias=7').then(function(items) {
-    if (!items.length) { document.getElementById('d-caducidad').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Sin alertas de caducidad</span></div>'; return; }
+    var section = document.getElementById('d-caducidad-section');
+    var el = document.getElementById('d-caducidad');
+    if (!items.length || !section || !el) return;
+    section.style.display = '';
     var h = '';
     for (var i = 0; i < items.length; i++) {
       var it = items[i];
@@ -5014,7 +5046,7 @@ function cargarDashboard() {
       var txt = it.vencido ? 'Vencido' : it.dias_restantes + ' d\u00edas';
       h += '<div class="srow"><span>' + it.ingrediente + ' (Lote: ' + it.numero_lote + ')</span><span class="badge ' + cls + '">' + txt + '</span></div>';
     }
-    document.getElementById('d-caducidad').innerHTML = h;
+    el.innerHTML = h;
   }).catch(function(e){ console.warn('Error cargando datos:', e); });
 
   // Alertas consolidadas (pedidos pendientes + merma)
