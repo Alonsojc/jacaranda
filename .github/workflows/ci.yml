@@ -72,7 +72,7 @@ jobs:
           docker run -d --name jac -p 8000:8000 \
             -e DATABASE_URL=sqlite:///./jacaranda.db \
             -e SECRET_KEY="$SECRET" \
-            -e ADMIN_PASSWORD=admin1234 \
+            -e ADMIN_PASSWORD=ci-admin-password-1234 \
             jacaranda:ci
           # Wait up to 90s (30 attempts x 3s) for Alembic migrations + startup
           for i in $(seq 1 30); do
