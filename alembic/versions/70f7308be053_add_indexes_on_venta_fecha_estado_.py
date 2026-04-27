@@ -8,6 +8,7 @@ Create Date: 2026-04-15 03:15:33.302840
 from typing import Sequence, Union
 
 from alembic import op
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -17,12 +18,19 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _index_exists(table_name: str, index_name: str) -> bool:
+    return index_name in {index["name"] for index in inspect(op.get_bind()).get_indexes(table_name)}
+
+
 def upgrade() -> None:
     """Add performance indexes on ventas table."""
     # Indexes for frequently queried columns in reports and filters
-    op.create_index('ix_ventas_fecha', 'ventas', ['fecha'])
-    op.create_index('ix_ventas_estado', 'ventas', ['estado'])
-    op.create_index('ix_ventas_cliente_id', 'ventas', ['cliente_id'])
+    if not _index_exists('ventas', 'ix_ventas_fecha'):
+        op.create_index('ix_ventas_fecha', 'ventas', ['fecha'])
+    if not _index_exists('ventas', 'ix_ventas_estado'):
+        op.create_index('ix_ventas_estado', 'ventas', ['estado'])
+    if not _index_exists('ventas', 'ix_ventas_cliente_id'):
+        op.create_index('ix_ventas_cliente_id', 'ventas', ['cliente_id'])
 
 
 def downgrade() -> None:

@@ -340,7 +340,7 @@ def seed_demo():
 
         # ── CRM: Encuestas ───────────────────────────────────────
         categorias_enc = ["servicio", "producto", "entrega", "precio", "ambiente"]
-        for i in range(10):
+        for _ in range(10):
             cli = random.choice(clientes)
             db.add(EncuestaSatisfaccion(
                 cliente_id=cli.id,
