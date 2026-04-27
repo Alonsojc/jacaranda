@@ -14,6 +14,7 @@ class DetallePedidoCreate(BaseModel):
 
 
 class PedidoCreate(BaseModel):
+    idempotency_key: str | None = Field(default=None, max_length=80)
     cliente_nombre: str
     cliente_telefono: str | None = None
     cliente_id: int | None = None

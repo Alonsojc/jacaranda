@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy import (
-    String, DateTime, ForeignKey, Text, Numeric, Enum as SAEnum,
+    String, DateTime, ForeignKey, Text, Numeric, Boolean, Enum as SAEnum,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
@@ -42,3 +42,18 @@ class PagoOnline(Base):
     )
 
     pedido: Mapped["Pedido"] = relationship()  # noqa: F821
+
+
+class ConektaWebhookEvent(Base):
+    """Eventos de webhook recibidos para evitar reprocesar reintentos."""
+    __tablename__ = "conekta_webhook_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    event_id: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    event_type: Mapped[str | None] = mapped_column(String(80))
+    order_id_externo: Mapped[str | None] = mapped_column(String(100), index=True)
+    processed: Mapped[bool] = mapped_column(Boolean, default=False)
+    payload_json: Mapped[str | None] = mapped_column(Text)
+    recibido_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )

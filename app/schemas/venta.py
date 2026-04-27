@@ -20,6 +20,7 @@ class PagoVentaCreate(BaseModel):
 
 
 class VentaCreate(BaseModel):
+    idempotency_key: str | None = Field(default=None, max_length=80)
     cliente_id: int | None = None
     metodo_pago: MetodoPago = MetodoPago.EFECTIVO
     forma_pago: FormaPago = FormaPago.PUE

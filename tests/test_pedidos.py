@@ -30,6 +30,15 @@ class TestPedidos:
         assert len(data["detalles"]) == 2
         assert data["estado"] == "recibido"
 
+    def test_crear_pedido_idempotente(self, client, auth_headers):
+        key = "pedido-test-idempotente-1"
+        resp1 = self._crear_pedido(client, auth_headers, idempotency_key=key)
+        resp2 = self._crear_pedido(client, auth_headers, idempotency_key=key)
+        assert resp1.status_code == 200
+        assert resp2.status_code == 200
+        assert resp2.json()["id"] == resp1.json()["id"]
+        assert resp2.json()["folio"] == resp1.json()["folio"]
+
     def test_listar_pedidos(self, client, auth_headers):
         self._crear_pedido(client, auth_headers)
         resp = client.get("/api/v1/pedidos/", headers=auth_headers)

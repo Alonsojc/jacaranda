@@ -32,6 +32,7 @@ def registrar_evento(
     datos_nuevos: dict | None = None,
     ip_address: str | None = None,
     user_agent: str | None = None,
+    commit: bool = True,
 ) -> LogAuditoria:
     """Crea una entrada en el log de auditoría."""
     evento = LogAuditoria(
@@ -47,8 +48,11 @@ def registrar_evento(
         user_agent=user_agent,
     )
     db.add(evento)
-    db.commit()
-    db.refresh(evento)
+    if commit:
+        db.commit()
+        db.refresh(evento)
+    else:
+        db.flush()
     return evento
 
 

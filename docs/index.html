@@ -13,8 +13,9 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
+html{scrollbar-gutter:stable}
 :root{--v:#c4988a;--p:#b8877a;--lav:#e2cec8;--cream:#fdf9f7;--dk:#4a3530;--txt:#5c4440;--mut:#a08a84;--grn:#10b981;--amb:#f59e0b;--pk:#e879a0;--brd:#ede3df}
-body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--txt);min-height:100vh}
+body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--txt);min-height:100vh;overflow-y:scroll}
 nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--brd);padding:.7rem 1.5rem;display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;position:sticky;top:0;z-index:50;box-shadow:0 1px 8px rgba(0,0,0,.05)}
 .logo{font-family:'DM Serif Display',serif;font-size:1.2rem;color:var(--v);letter-spacing:.2em;font-weight:400;flex:0 0 auto}
 .logo span{color:var(--mut);font-family:'Inter',sans-serif;font-size:.7rem;font-weight:300;letter-spacing:.15em;display:block;margin-top:-2px}
@@ -93,6 +94,13 @@ nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1p
 .bok{background:#d1fae5;color:#047857}.blow{background:#fef3c7;color:#92400e}.bout{background:#fee2e2;color:#b91c1c}
 .bpend{background:#f5e6e1;color:#b8877a}.bconf{background:#dbeafe;color:#1d4ed8}.bprep{background:#fef3c7;color:#92400e}.blist{background:#d1fae5;color:#047857}
 h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-bottom:1rem;font-weight:400}
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:.8rem;margin-bottom:1rem;flex-wrap:wrap;width:100%}
+.page-title h2{margin-bottom:.2rem}
+.page-title p{font-size:.83rem;color:var(--mut);margin:0;max-width:680px;line-height:1.4}
+.page-actions{display:flex;gap:.4rem;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.page-toolbar{display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;width:100%;max-width:100%}
+.page-toolbar .section-tabs{flex:1 1 420px;margin-bottom:0}
+.page-toolbar>.limpiar,.page-toolbar>.cobrar{flex:0 0 auto;margin:0;width:auto}
 /* POS */
 .pos-grid{display:grid;grid-template-columns:1fr 340px;gap:1rem;align-items:start}
 .pos-prods{max-height:calc(100vh - 180px);overflow-y:auto;padding-right:.3rem}
@@ -178,7 +186,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .desc-input{width:55px;padding:.2rem .3rem;border:1px solid var(--brd);border-radius:5px;font-size:.72rem;font-family:inherit;text-align:center}
 .desc-input:focus{outline:none;border-color:var(--v)}
 @media(max-width:900px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.pos-prods{max-height:none}.prods{grid-template-columns:repeat(3,1fr)}.nav-links{flex-wrap:wrap;gap:.15rem}.nav-links a{padding:.4rem .55rem;font-size:.73rem}.pmt{grid-template-columns:1fr!important}#pos-btn-prods{display:block!important}.tkt{position:sticky;bottom:0;z-index:10}table{font-size:.75rem}th,td{padding:.3rem .4rem!important}}
-@media(max-width:600px){.prods{grid-template-columns:repeat(2,1fr)}.qty-btn{width:36px;height:36px;font-size:1.1rem}.cobrar{padding:1rem;font-size:1rem}.pi-body{padding:.5rem}.pi-img,.pi-noimg{height:70px}.frow{grid-template-columns:1fr}.wrap{width:min(100% - 1.2rem,1240px);padding:.8rem 0 1rem}nav{padding:.5rem .8rem}.pbtn{padding:.9rem .5rem;font-size:.85rem}.ti{padding:.45rem 0;font-size:.85rem}.tkt h3{font-size:1rem}.card{padding:.8rem;border-radius:10px;overflow-x:auto;-webkit-overflow-scrolling:touch}.tab{padding:.5rem .8rem;font-size:.78rem;min-height:40px;white-space:nowrap}.kpi .n{font-size:1.3rem}.kpi .l{font-size:.7rem}h2{font-size:1.1rem;margin-bottom:.7rem}.srow{padding:.5rem 0;font-size:.82rem;min-height:36px}.badge{padding:.25rem .5rem;font-size:.72rem}}
+@media(max-width:600px){.prods{grid-template-columns:repeat(2,1fr)}.qty-btn{width:36px;height:36px;font-size:1.1rem}.cobrar{padding:1rem;font-size:1rem}.pi-body{padding:.5rem}.pi-img,.pi-noimg{height:70px}.frow{grid-template-columns:1fr}.wrap{width:min(100% - 1.2rem,1240px);padding:.8rem 0 1rem}nav{padding:.5rem .8rem}.pbtn{padding:.9rem .5rem;font-size:.85rem}.ti{padding:.45rem 0;font-size:.85rem}.tkt h3{font-size:1rem}.card{padding:.8rem;border-radius:10px;overflow-x:auto;-webkit-overflow-scrolling:touch}.tab{padding:.5rem .8rem;font-size:.78rem;min-height:40px;white-space:nowrap}.kpi .n{font-size:1.3rem}.kpi .l{font-size:.7rem}h2{font-size:1.1rem;margin-bottom:.7rem}.page-header{gap:.6rem}.page-actions{width:100%;justify-content:flex-start}.page-actions .limpiar,.page-actions .cobrar{flex:1 1 auto}.page-toolbar{gap:.45rem}.page-toolbar .section-tabs{flex-basis:100%}.srow{padding:.5rem 0;font-size:.82rem;min-height:36px}.badge{padding:.25rem .5rem;font-size:.72rem}}
 @media(max-width:420px){.prods{grid-template-columns:1fr 1fr}.pi .pn{font-size:.78rem}.pi .pp{font-size:1rem}.nav-links a{padding:.35rem .4rem;font-size:.68rem}.r4{grid-template-columns:1fr}.card{margin-bottom:.6rem}}
 .notif-panel{position:fixed;top:50px;right:10px;width:360px;max-height:500px;background:#fff;border:1px solid var(--brd);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:100;overflow-y:auto;display:none}
 .notif-panel.on{display:block}
@@ -913,9 +921,14 @@ h2{font-size:1.1rem}
 
 <!-- REPORTES -->
 <div class="page" id="rep">
+<div class="page-header">
+<div class="page-title">
 <h2>Reportes</h2>
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.4rem">
-<div class="section-tabs" style="margin-bottom:0;flex:1">
+<p>Ventas, productos, mermas y fiscal en una sola vista.</p>
+</div>
+</div>
+<div class="page-toolbar">
+<div class="section-tabs">
 <span class="tab active" onclick="repTab('rep-ventas')">Ventas</span>
 <span class="tab" onclick="repTab('rep-prod')">Productos</span>
 <span class="tab" onclick="repTab('rep-marg')">M&aacute;rgenes</span>
@@ -1053,12 +1066,19 @@ h2{font-size:1.1rem}
 
 <!-- COFEPRIS -->
 <div class="page" id="cofepris">
+<div class="page-header">
+<div class="page-title">
 <h2>COFEPRIS &mdash; Control Sanitario</h2>
-<div class="section-tabs" style="margin-bottom:1rem">
+<p>Temperaturas, limpieza, inspecciones y evidencia sanitaria.</p>
+</div>
+</div>
+<div class="page-toolbar">
+<div class="section-tabs">
 <span class="tab active" onclick="cofTab('cof-temp')">Temperaturas</span>
 <span class="tab" onclick="cofTab('cof-limp')">Limpieza</span>
 <span class="tab" onclick="cofTab('cof-insp')">Inspecciones</span>
 <span class="tab" onclick="cofTab('cof-rep')">Reporte</span>
+</div>
 </div>
 <div id="cof-temp">
 <div class="row r2">
@@ -1134,10 +1154,12 @@ h2{font-size:1.1rem}
 </div>
 <!-- USUARIOS (Admin) -->
 <div class="page" id="usuarios">
+<div class="page-header">
+<div class="page-title">
 <h2>Usuarios</h2>
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;gap:.4rem">
 <p style="font-size:.83rem;color:var(--mut);margin:0">Gestiona usuarios y permisos de acceso por m&oacute;dulo.</p>
-<div style="display:flex;gap:.4rem">
+</div>
+<div class="page-actions">
 <button class="limpiar" style="padding:.4rem .8rem;font-size:.78rem;margin:0" onclick="descargarBackup()">&#128190; Backup BD</button>
 <button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="abrirNuevoUsuario()">+ Nuevo Usuario</button>
 </div>
@@ -2011,8 +2033,15 @@ function fmt(n) { var x = parseFloat(n) || 0; return x.toLocaleString('en-US', {
 var API_URL = localStorage.getItem('jacaranda_api') || 'https://web-production-b51486.up.railway.app';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
+var _ventaEnProceso = false, _ventaIdempotencyKey = null;
+var _pedidoEnProceso = false, _pedidoIdempotencyKey = null;
 var _offline = false;
 var _ventasPendientes = JSON.parse(localStorage.getItem('jacaranda_ventas_pendientes') || '[]');
+
+function nuevaClaveIdempotencia(prefix) {
+  if (window.crypto && crypto.randomUUID) return prefix + '-' + crypto.randomUUID();
+  return prefix + '-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+}
 
 // ─── Toast ────────────────────────────────────────────────────────
 function toast(msg, isErr) {
@@ -2274,11 +2303,18 @@ function calcSplit() {
 }
 
 function procesarVenta() {
+  if (_ventaEnProceso) {
+    toast('Venta en proceso, espera un momento');
+    return;
+  }
+  _ventaEnProceso = true;
+  if (!_ventaIdempotencyKey) _ventaIdempotencyKey = nuevaClaveIdempotencia('venta');
+
   var total = _cartTotal();
   var detalles = cart.map(function(c) {
     return {producto_id: c.id, cantidad: c.q, descuento: c.desc || 0};
   });
-  var body = {detalles: detalles, forma_pago: 'PUE'};
+  var body = {detalles: detalles, forma_pago: 'PUE', idempotency_key: _ventaIdempotencyKey};
   var clienteId = document.getElementById('pos-cliente').value;
   if (clienteId) body.cliente_id = parseInt(clienteId);
 
@@ -2286,7 +2322,7 @@ function procesarVenta() {
     var ef = parseFloat(document.getElementById('mc-sp-ef').value) || 0;
     var tar = parseFloat(document.getElementById('mc-sp-tar').value) || 0;
     var trans = parseFloat(document.getElementById('mc-sp-trans').value) || 0;
-    if (ef + tar + trans < total) { toast('La suma de pagos es menor al total', true); return; }
+    if (ef + tar + trans < total) { _ventaEnProceso = false; toast('La suma de pagos es menor al total', true); return; }
     var pagos = [];
     if (ef > 0) pagos.push({metodo_pago:'01', monto:ef});
     if (tar > 0) pagos.push({metodo_pago:'04', monto:tar});
@@ -2299,7 +2335,7 @@ function procesarVenta() {
     var monto = total;
     if (pm === 'ef') {
       monto = parseFloat(document.getElementById('mc-recibido').value) || 0;
-      if (monto < total) { toast('El monto recibido es menor al total', true); return; }
+      if (monto < total) { _ventaEnProceso = false; toast('El monto recibido es menor al total', true); return; }
     }
     body.metodo_pago = metodos[pm];
     body.monto_recibido = monto;
@@ -2310,6 +2346,8 @@ function procesarVenta() {
     limpiar();
     mostrarTicket(venta);
     cargarPOSProductos();
+    _ventaEnProceso = false;
+    _ventaIdempotencyKey = null;
   }).catch(function(e) {
     // Offline: queue sale for later sync
     if (!navigator.onLine || _offline) {
@@ -2324,7 +2362,10 @@ function procesarVenta() {
       limpiar();
       actualizarBannerOffline();
       toast('Venta guardada offline (' + _ventasPendientes.length + ' pendientes)');
+      _ventaEnProceso = false;
+      _ventaIdempotencyKey = null;
     } else {
+      _ventaEnProceso = false;
       toast(e.message || 'Error al registrar venta', true);
     }
   });
@@ -2349,6 +2390,8 @@ function sincronizarVentas() {
   for (var i = 0; i < pending.length; i++) {
     (function(venta) {
       var body = {detalles: venta.detalles, forma_pago: venta.forma_pago, metodo_pago: venta.metodo_pago, monto_recibido: venta.monto_recibido};
+      if (venta.idempotency_key) body.idempotency_key = venta.idempotency_key;
+      if (venta.cliente_id) body.cliente_id = venta.cliente_id;
       if (venta.pagos) body.pagos = venta.pagos;
       chain = chain.then(function() {
         return api('POST', '/punto-de-venta/ventas', body).then(function() { ok++; }).catch(function() { fail++; });
@@ -2380,7 +2423,7 @@ function guardarVentaIndexedDB(body) {
     tx.objectStore('pending-sales').add({
       url: API_URL + '/api/v1/punto-de-venta/ventas',
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN},
-      body: JSON.stringify({detalles: body.detalles, forma_pago: body.forma_pago, metodo_pago: body.metodo_pago, monto_recibido: body.monto_recibido}),
+      body: JSON.stringify({detalles: body.detalles, forma_pago: body.forma_pago, metodo_pago: body.metodo_pago, monto_recibido: body.monto_recibido, pagos: body.pagos, cliente_id: body.cliente_id, idempotency_key: body.idempotency_key}),
       timestamp: new Date().toISOString(),
     });
     // Request background sync
@@ -2724,10 +2767,17 @@ function abrirVariantes(key) {
 
 // ─── Pedidos ──────────────────────────────────────────────────────
 function guardarPed() {
+  if (_pedidoEnProceso) {
+    toast('Pedido en proceso, espera un momento');
+    return;
+  }
   var nom = document.getElementById('np-nom').value;
   if (!nom) { alert('Escribe el nombre del cliente'); return; }
+  _pedidoEnProceso = true;
+  if (!_pedidoIdempotencyKey) _pedidoIdempotencyKey = nuevaClaveIdempotencia('pedido');
 
   var pedido = {
+    idempotency_key: _pedidoIdempotencyKey,
     cliente_nombre: nom,
     cliente_telefono: document.getElementById('np-tel').value,
     fecha_entrega: document.getElementById('np-fecha').value,
@@ -2742,10 +2792,14 @@ function guardarPed() {
   api('POST', '/pedidos/', pedido).then(function(p) {
     toast('Pedido ' + p.folio + ' guardado para ' + nom);
     document.getElementById('modal-ped').classList.remove('on');
+    _pedidoEnProceso = false;
+    _pedidoIdempotencyKey = null;
     cargarPedidos();
   }).catch(function() {
     toast('Pedido guardado (local) para ' + nom);
     document.getElementById('modal-ped').classList.remove('on');
+    _pedidoEnProceso = false;
+    _pedidoIdempotencyKey = null;
   });
 }
 

@@ -191,7 +191,10 @@ def obtener_producto(db: Session, id: int) -> Producto:
 # --- Movimientos de inventario ---
 
 def registrar_movimiento(
-    db: Session, data: MovimientoCreate, usuario_id: int | None = None,
+    db: Session,
+    data: MovimientoCreate,
+    usuario_id: int | None = None,
+    commit: bool = True,
 ) -> MovimientoInventario:
     """Registra un movimiento y actualiza el stock correspondiente."""
     movimiento = MovimientoInventario(
@@ -223,8 +226,11 @@ def registrar_movimiento(
         if producto.stock_actual < 0:
             raise ValueError("Stock insuficiente de producto")
 
-    db.commit()
-    db.refresh(movimiento)
+    if commit:
+        db.commit()
+        db.refresh(movimiento)
+    else:
+        db.flush()
     return movimiento
 
 
@@ -258,7 +264,7 @@ def registrar_lote(db: Session, data: LoteCreate) -> LoteIngrediente:
         costo_unitario=data.costo_unitario,
         referencia=f"Lote {data.numero_lote}",
     )
-    registrar_movimiento(db, movimiento)
+    registrar_movimiento(db, movimiento, commit=False)
 
     db.commit()
     db.refresh(lote)

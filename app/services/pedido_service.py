@@ -3,61 +3,89 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.models.pedido import Pedido, DetallePedido, EstadoPedido, OrigenPedido
 from app.schemas.pedido import PedidoCreate, PedidoUpdate
+from app.services.auditoria_service import registrar_evento
 
 
 def _generar_folio_pedido(db: Session) -> str:
-    ultimo = db.query(Pedido).order_by(Pedido.id.desc()).first()
+    ultimo = db.query(Pedido).order_by(Pedido.id.desc()).with_for_update().first()
     numero = (int(ultimo.folio.replace("P-", "")) + 1) if ultimo else 1
     return f"P-{numero:05d}"
 
 
 def crear_pedido(db: Session, data: PedidoCreate) -> Pedido:
-    folio = _generar_folio_pedido(db)
+    if data.idempotency_key:
+        pedido_existente = db.query(Pedido).filter(
+            Pedido.idempotency_key == data.idempotency_key
+        ).first()
+        if pedido_existente:
+            return pedido_existente
+
     total = sum(d.precio_unitario * d.cantidad for d in data.detalles)
 
-    pedido = Pedido(
-        folio=folio,
-        cliente_nombre=data.cliente_nombre,
-        cliente_telefono=data.cliente_telefono,
-        cliente_id=data.cliente_id,
-        fecha_entrega=data.fecha_entrega,
-        hora_entrega=data.hora_entrega,
-        lugar_entrega=data.lugar_entrega,
-        estado=EstadoPedido.RECIBIDO,
-        origen=OrigenPedido(data.origen) if data.origen else OrigenPedido.WHATSAPP,
-        anticipo=data.anticipo,
-        total=total if total > 0 else data.anticipo,
-        notas=data.notas,
-        notas_internas=data.notas_internas,
-    )
-    db.add(pedido)
-    db.flush()
+    for _attempt in range(3):
+        folio = _generar_folio_pedido(db)
 
-    for d in data.detalles:
-        detalle = DetallePedido(
-            pedido_id=pedido.id,
-            producto_id=d.producto_id,
-            descripcion=d.descripcion,
-            cantidad=d.cantidad,
-            precio_unitario=d.precio_unitario,
-            notas=d.notas,
+        pedido = Pedido(
+            folio=folio,
+            idempotency_key=data.idempotency_key,
+            cliente_nombre=data.cliente_nombre,
+            cliente_telefono=data.cliente_telefono,
+            cliente_id=data.cliente_id,
+            fecha_entrega=data.fecha_entrega,
+            hora_entrega=data.hora_entrega,
+            lugar_entrega=data.lugar_entrega,
+            estado=EstadoPedido.RECIBIDO,
+            origen=OrigenPedido(data.origen) if data.origen else OrigenPedido.WHATSAPP,
+            anticipo=data.anticipo,
+            total=total if total > 0 else data.anticipo,
+            notas=data.notas,
+            notas_internas=data.notas_internas,
         )
-        db.add(detalle)
+        db.add(pedido)
+        try:
+            db.flush()
 
-    db.commit()
-    db.refresh(pedido)
-    return pedido
+            for d in data.detalles:
+                detalle = DetallePedido(
+                    pedido_id=pedido.id,
+                    producto_id=d.producto_id,
+                    descripcion=d.descripcion,
+                    cantidad=d.cantidad,
+                    precio_unitario=d.precio_unitario,
+                    notas=d.notas,
+                )
+                db.add(detalle)
+
+            db.commit()
+            db.refresh(pedido)
+            return pedido
+        except IntegrityError:
+            db.rollback()
+            if data.idempotency_key:
+                pedido_existente = db.query(Pedido).filter(
+                    Pedido.idempotency_key == data.idempotency_key
+                ).first()
+                if pedido_existente:
+                    return pedido_existente
+
+    raise ValueError("No se pudo generar un folio único, intente de nuevo")
 
 
-def actualizar_pedido(db: Session, pedido_id: int, data: PedidoUpdate) -> Pedido:
+def actualizar_pedido(
+    db: Session, pedido_id: int, data: PedidoUpdate, usuario_id: int | None = None
+) -> Pedido:
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     if not pedido:
         raise ValueError("Pedido no encontrado")
 
-    for field, value in data.model_dump(exclude_none=True).items():
+    updates = data.model_dump(exclude_none=True)
+    datos_anteriores = {field: getattr(pedido, field, None) for field in updates}
+
+    for field, value in updates.items():
         if field == "estado":
             setattr(pedido, field, EstadoPedido(value))
             if value == "en_ruta":
@@ -66,6 +94,20 @@ def actualizar_pedido(db: Session, pedido_id: int, data: PedidoUpdate) -> Pedido
                 pedido.entregado_en = datetime.now(timezone.utc)
         else:
             setattr(pedido, field, value)
+
+    if updates:
+        registrar_evento(
+            db,
+            usuario_id=usuario_id,
+            usuario_nombre=None,
+            accion="actualizar",
+            modulo="pedidos",
+            entidad="pedidos",
+            entidad_id=pedido.id,
+            datos_anteriores=datos_anteriores,
+            datos_nuevos={field: getattr(pedido, field, None) for field in updates},
+            commit=False,
+        )
 
     db.commit()
     db.refresh(pedido)

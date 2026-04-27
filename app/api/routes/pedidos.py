@@ -64,6 +64,6 @@ def actualizar_pedido(
     user: Usuario = Depends(require_permission("ped", "editar")),
 ):
     try:
-        return pedido_service.actualizar_pedido(db, pedido_id, data)
+        return pedido_service.actualizar_pedido(db, pedido_id, data, user.id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

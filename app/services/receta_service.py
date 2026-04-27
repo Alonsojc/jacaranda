@@ -167,7 +167,7 @@ def iniciar_produccion(db: Session, orden_id: int) -> OrdenProduccion:
             cantidad=cantidad_total,
             referencia=f"Orden producción #{orden.id}",
         )
-        registrar_movimiento(db, mov)
+        registrar_movimiento(db, mov, commit=False)
 
     db.commit()
     db.refresh(orden)
@@ -196,7 +196,7 @@ def completar_produccion(
         cantidad=cantidad_producida,
         referencia=f"Orden producción #{orden.id}",
     )
-    registrar_movimiento(db, mov)
+    registrar_movimiento(db, mov, commit=False)
 
     # Registrar merma si existe
     if cantidad_merma > 0:
@@ -206,7 +206,7 @@ def completar_produccion(
             cantidad=cantidad_merma,
             referencia=f"Merma orden #{orden.id}",
         )
-        registrar_movimiento(db, mov_merma)
+        registrar_movimiento(db, mov_merma, commit=False)
 
     db.commit()
     db.refresh(orden)

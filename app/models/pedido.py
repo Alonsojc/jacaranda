@@ -35,6 +35,9 @@ class Pedido(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     folio: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(80), unique=True, index=True
+    )
 
     # Cliente
     cliente_nombre: Mapped[str] = mapped_column(String(200))

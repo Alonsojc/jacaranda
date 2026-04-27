@@ -16,6 +16,7 @@ from app.models.cliente import Cliente
 from app.schemas.venta import VentaCreate, CorteCajaCreate
 from app.schemas.inventario import MovimientoCreate
 from app.services.inventario_service import registrar_movimiento
+from app.services.auditoria_service import registrar_evento
 from app.core.config import settings
 
 # Loyalty: 1 punto por cada $10 MXN gastados, 100 puntos = $50 descuento
@@ -58,6 +59,13 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     3. Descuenta inventario
     4. Genera ticket
     """
+    if data.idempotency_key:
+        venta_existente = db.query(Venta).filter(
+            Venta.idempotency_key == data.idempotency_key
+        ).first()
+        if venta_existente:
+            return venta_existente
+
     subtotal_total = Decimal("0")
     descuento_total = Decimal("0")
     iva_0_total = Decimal("0")
@@ -150,6 +158,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         venta = Venta(
             folio=folio,
             serie="T",
+            idempotency_key=data.idempotency_key,
             cliente_id=data.cliente_id,
             usuario_id=usuario_id,
             subtotal=subtotal_total,
@@ -170,6 +179,12 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             break
         except IntegrityError:
             db.rollback()
+            if data.idempotency_key:
+                venta_existente = db.query(Venta).filter(
+                    Venta.idempotency_key == data.idempotency_key
+                ).first()
+                if venta_existente:
+                    return venta_existente
     else:
         raise ValueError("No se pudo generar un folio único, intente de nuevo")
 
@@ -197,7 +212,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             cantidad=item.cantidad,
             referencia=f"Venta {folio}",
         )
-        registrar_movimiento(db, mov, usuario_id)
+        registrar_movimiento(db, mov, usuario_id, commit=False)
 
     # Acumular puntos de lealtad si hay cliente asociado
     if venta.cliente_id:
@@ -219,6 +234,11 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
     if venta.estado == EstadoVenta.CANCELADA:
         raise ValueError("La venta ya está cancelada")
 
+    estado_anterior = venta.estado.value
+    puntos_revertidos = 0
+    puntos_antes = None
+    puntos_despues = None
+
     venta.estado = EstadoVenta.CANCELADA
 
     # Devolver inventario
@@ -229,7 +249,39 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
             cantidad=detalle.cantidad,
             referencia=f"Cancelación venta {venta.folio}",
         )
-        registrar_movimiento(db, mov, usuario_id)
+        registrar_movimiento(db, mov, usuario_id, commit=False)
+
+    if venta.cliente_id:
+        cliente = db.query(Cliente).filter(Cliente.id == venta.cliente_id).first()
+        if cliente:
+            puntos_antes = cliente.puntos_acumulados
+            puntos_revertidos = min(
+                cliente.puntos_acumulados,
+                int(venta.total * PUNTOS_POR_PESO),
+            )
+            cliente.puntos_acumulados -= puntos_revertidos
+            puntos_despues = cliente.puntos_acumulados
+
+    registrar_evento(
+        db,
+        usuario_id=usuario_id,
+        usuario_nombre=None,
+        accion="cancelar",
+        modulo="ventas",
+        entidad="ventas",
+        entidad_id=venta.id,
+        datos_anteriores={
+            "estado": estado_anterior,
+            "cliente_id": venta.cliente_id,
+            "puntos_acumulados": puntos_antes,
+        },
+        datos_nuevos={
+            "estado": EstadoVenta.CANCELADA.value,
+            "puntos_revertidos": puntos_revertidos,
+            "puntos_acumulados": puntos_despues,
+        },
+        commit=False,
+    )
 
     db.commit()
     db.refresh(venta)

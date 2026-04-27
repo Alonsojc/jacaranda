@@ -41,6 +41,24 @@ class TestVentas:
         assert data["estado"] == "completada"
         assert data["folio"].startswith("T-")
 
+    def test_venta_idempotente_no_duplica_stock(self, client, auth_headers):
+        pid = self._crear_producto(client, auth_headers, "PAN-IDEMP")
+        self._agregar_stock(client, auth_headers, pid, 10)
+        payload = {
+            "idempotency_key": "venta-test-idempotente-1",
+            "metodo_pago": "01",
+            "monto_recibido": "100.00",
+            "detalles": [{"producto_id": pid, "cantidad": "2"}],
+        }
+        resp1 = client.post("/api/v1/punto-de-venta/ventas", json=payload, headers=auth_headers)
+        resp2 = client.post("/api/v1/punto-de-venta/ventas", json=payload, headers=auth_headers)
+        assert resp1.status_code == 201
+        assert resp2.status_code == 201
+        assert resp2.json()["id"] == resp1.json()["id"]
+
+        prod = client.get(f"/api/v1/inventario/productos/{pid}", headers=auth_headers)
+        assert float(prod.json()["stock_actual"]) == 8.0
+
     def test_venta_descuenta_stock(self, client, auth_headers):
         pid = self._crear_producto(client, auth_headers, "PAN-002")
         self._agregar_stock(client, auth_headers, pid, 10)
@@ -91,6 +109,42 @@ class TestVentas:
         # Stock should be restored to 20
         prod = client.get(f"/api/v1/inventario/productos/{pid}", headers=auth_headers).json()
         assert float(prod["stock_actual"]) == 20.0
+
+    def test_cancelar_venta_revierte_puntos_y_audita(self, client, auth_headers, db):
+        from app.models.auditoria import LogAuditoria
+
+        cliente = client.post("/api/v1/clientes/", json={
+            "nombre": "Cliente Puntos",
+            "telefono": "4420000000",
+            "email": "puntos@example.com",
+        }, headers=auth_headers).json()
+        pid = self._crear_producto(client, auth_headers, "PAN-PUNTOS", "100.00")
+        self._agregar_stock(client, auth_headers, pid, 10)
+
+        venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "100.00",
+            "cliente_id": cliente["id"],
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers).json()
+        puntos = client.get(f"/api/v1/clientes/{cliente['id']}/puntos", headers=auth_headers).json()
+        assert puntos["puntos"] == 10
+
+        resp = client.post(
+            f"/api/v1/punto-de-venta/ventas/{venta['id']}/cancelar",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        puntos = client.get(f"/api/v1/clientes/{cliente['id']}/puntos", headers=auth_headers).json()
+        assert puntos["puntos"] == 0
+
+        evento = db.query(LogAuditoria).filter(
+            LogAuditoria.accion == "cancelar",
+            LogAuditoria.modulo == "ventas",
+            LogAuditoria.entidad_id == venta["id"],
+        ).first()
+        assert evento is not None
+        assert "puntos_revertidos" in evento.datos_nuevos
 
     def test_cancelar_venta_ya_cancelada(self, client, auth_headers):
         pid = self._crear_producto(client, auth_headers, "PAN-005")

@@ -115,6 +115,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Alembic migration failed (%s), using create_all fallback", e)
         Base.metadata.create_all(bind=engine)
+    from app.core.schema_guard import ensure_runtime_schema
+    ensure_runtime_schema(engine)
     _seed_admin()
     yield
 

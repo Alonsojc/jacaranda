@@ -175,7 +175,9 @@ def hornear(
     Ejemplo: hornear 2 tandas de Nutella = descuenta 2x ingredientes, suma 2x productos.
     """
     from app.models.receta import Receta, RecetaIngrediente
-    from app.models.inventario import Ingrediente, Producto
+    from app.models.inventario import Ingrediente, Producto, TipoMovimiento
+    from app.schemas.inventario import MovimientoCreate
+    from app.services.inventario_service import registrar_movimiento
 
     receta = db.query(Receta).filter(Receta.id == receta_id).first()
     if not receta:
@@ -186,7 +188,13 @@ def hornear(
     for ri in receta.ingredientes:
         ingrediente = db.query(Ingrediente).filter(Ingrediente.id == ri.ingrediente_id).first()
         necesario = ri.cantidad * cantidad
-        if ingrediente and ingrediente.stock_actual < necesario:
+        if not ingrediente:
+            faltantes.append({
+                "ingrediente": f"ID {ri.ingrediente_id}",
+                "necesario": float(necesario),
+                "disponible": 0,
+            })
+        elif ingrediente.stock_actual < necesario:
             faltantes.append({
                 "ingrediente": ingrediente.nombre,
                 "necesario": float(necesario),
@@ -199,25 +207,44 @@ def hornear(
             "faltantes": faltantes,
         })
 
-    # Descontar ingredientes
-    for ri in receta.ingredientes:
-        ingrediente = db.query(Ingrediente).filter(Ingrediente.id == ri.ingrediente_id).first()
-        if ingrediente:
-            ingrediente.stock_actual -= ri.cantidad * cantidad
-
-    # Sumar producto terminado
-    piezas = 0
     producto = db.query(Producto).filter(Producto.id == receta.producto_id).first()
-    if producto:
-        piezas = int(receta.rendimiento or 1) * cantidad
-        producto.stock_actual += Decimal(str(piezas))
+    if not producto:
+        raise HTTPException(status_code=400, detail="Producto de la receta no encontrado")
+
+    # Descontar ingredientes y sumar producto terminado con trazabilidad.
+    for ri in receta.ingredientes:
+        registrar_movimiento(
+            db,
+            MovimientoCreate(
+                tipo=TipoMovimiento.SALIDA_PRODUCCION,
+                ingrediente_id=ri.ingrediente_id,
+                cantidad=ri.cantidad * cantidad,
+                referencia=f"Horneado receta #{receta.id}",
+            ),
+            usuario_id=user.id,
+            commit=False,
+        )
+
+    piezas = int(receta.rendimiento or 1) * cantidad
+    registrar_movimiento(
+        db,
+        MovimientoCreate(
+            tipo=TipoMovimiento.ENTRADA_PRODUCCION,
+            producto_id=producto.id,
+            cantidad=Decimal(str(piezas)),
+            referencia=f"Horneado receta #{receta.id}",
+        ),
+        usuario_id=user.id,
+        commit=False,
+    )
 
     db.commit()
+    db.refresh(producto)
 
     return {
         "mensaje": f"Horneado: {cantidad}x {receta.nombre}",
-        "piezas_producidas": piezas if producto else 0,
-        "stock_producto": float(producto.stock_actual) if producto else 0,
+        "piezas_producidas": piezas,
+        "stock_producto": float(producto.stock_actual),
     }
 
 

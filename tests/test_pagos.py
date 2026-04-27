@@ -115,6 +115,23 @@ class TestPagos:
         assert resp.status_code == 200
         assert resp.json()["processed"] is True
 
+    def test_webhook_repetido_no_se_reprocesa(self, client, auth_headers, monkeypatch):
+        ped = self._crear_pedido(client, auth_headers)
+        orden = client.post("/api/v1/pagos/crear-orden", json={
+            "pedido_id": ped["id"], "metodo": "card",
+        }, headers=auth_headers).json()
+        payload = {
+            "id": "evt_test_replay_1",
+            "type": "order.paid",
+            "data": {"object": {"id": orden["order_id"]}},
+        }
+        resp1 = self._post_signed_webhook(client, monkeypatch, payload)
+        resp2 = self._post_signed_webhook(client, monkeypatch, payload)
+        assert resp1.status_code == 200
+        assert resp2.status_code == 200
+        assert resp1.json()["duplicate"] is False
+        assert resp2.json()["duplicate"] is True
+
     def test_webhook_rechaza_payload_sin_firma(self, client, auth_headers):
         ped = self._crear_pedido(client, auth_headers)
         orden = client.post("/api/v1/pagos/crear-orden", json={

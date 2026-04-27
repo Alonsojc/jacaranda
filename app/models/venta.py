@@ -48,6 +48,9 @@ class Venta(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     folio: Mapped[str] = mapped_column(String(30), unique=True, index=True)
     serie: Mapped[str] = mapped_column(String(5), default="T")  # T=Ticket, A=Factura
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(80), unique=True, index=True
+    )
 
     # Relaciones
     cliente_id: Mapped[int | None] = mapped_column(ForeignKey("clientes.id"), index=True)
