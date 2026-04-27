@@ -5,7 +5,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import require_permission
 from app.models.pedido import Pedido
 from app.models.usuario import Usuario
 from app.services import whatsapp_service as svc
@@ -47,7 +47,7 @@ def catalogo(
 @router.get("/catalogo/texto")
 def catalogo_texto(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("ped", "ver")),
 ):
     """Catálogo en texto formateado para copiar a WhatsApp."""
     return {"texto": svc.generar_catalogo(db)}
@@ -57,7 +57,7 @@ def catalogo_texto(
 def enviar_recordatorio(
     pedido_id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("ped", "editar")),
 ):
     """Envía recordatorio de entrega por WhatsApp (requiere autenticación)."""
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()

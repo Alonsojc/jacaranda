@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_role
+from app.core.dependencies import require_role
 from app.models.usuario import Usuario, RolUsuario
 from app.services import fiscal_service as svc
 from app.services import excel_service

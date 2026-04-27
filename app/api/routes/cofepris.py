@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import require_permission
 from app.models.usuario import Usuario
 from app.models.cofepris import AreaEstablecimiento
 from app.schemas.cofepris import (
@@ -25,7 +25,7 @@ router = APIRouter()
 def registrar_temperatura(
     data: TemperaturaCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("cofepris", "editar")),
 ):
     return svc.registrar_temperatura(db, data)
 
@@ -34,7 +34,7 @@ def registrar_temperatura(
 def listar_temperaturas(
     area: AreaEstablecimiento | None = None,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("cofepris", "ver")),
 ):
     return svc.listar_temperaturas(db, area)
 
@@ -42,7 +42,7 @@ def listar_temperaturas(
 @router.get("/temperaturas/alertas")
 def alertas_temperatura(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("cofepris", "ver")),
 ):
     return svc.alertas_temperatura(db)
 
@@ -53,7 +53,7 @@ def alertas_temperatura(
 def registrar_limpieza(
     data: LimpiezaCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("cofepris", "editar")),
 ):
     return svc.registrar_limpieza(db, data)
 
@@ -61,7 +61,7 @@ def registrar_limpieza(
 @router.get("/limpieza", response_model=list[LimpiezaResponse])
 def listar_limpieza(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("cofepris", "ver")),
 ):
     return svc.listar_limpieza(db)
 
@@ -72,7 +72,7 @@ def listar_limpieza(
 def registrar_control_plagas(
     data: ControlPlagasCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("cofepris", "editar")),
 ):
     return svc.registrar_control_plagas(db, data)
 
@@ -83,7 +83,7 @@ def registrar_control_plagas(
 def crear_inspeccion(
     data: InspeccionCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("cofepris", "editar")),
 ):
     return svc.crear_inspeccion(db, data)
 
@@ -91,7 +91,7 @@ def crear_inspeccion(
 @router.get("/inspecciones", response_model=list[InspeccionResponse])
 def listar_inspecciones(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("cofepris", "ver")),
 ):
     return svc.listar_inspecciones(db)
 
@@ -101,7 +101,7 @@ def listar_inspecciones(
 @router.get("/reporte-cumplimiento")
 def reporte_cumplimiento(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("cofepris", "ver")),
 ):
     return svc.generar_reporte_cumplimiento(db)
 
@@ -112,7 +112,7 @@ def reporte_cumplimiento(
 def licencias_por_vencer(
     dias: int = Query(default=30),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("cofepris", "ver")),
 ):
     licencias = svc.licencias_por_vencer(db, dias)
     return [
@@ -132,7 +132,7 @@ def licencias_por_vencer(
 def etiquetado_nom051(
     producto_id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("cofepris", "ver")),
 ):
     try:
         return svc.generar_etiquetado_nom051(db, producto_id)

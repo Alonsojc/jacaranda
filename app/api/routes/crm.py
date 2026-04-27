@@ -9,8 +9,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_role
-from app.models.usuario import Usuario, RolUsuario
+from app.core.dependencies import require_permission
+from app.models.usuario import Usuario
 from app.models.crm import SegmentoCliente
 from app.services import crm_service
 from app.services import excel_service
@@ -55,7 +55,7 @@ class InteraccionCreate(BaseModel):
 @router.get("/segmentacion")
 def obtener_segmentacion(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("crm", "ver")),
 ):
     """Resumen de segmentación de clientes por RFM."""
     return crm_service.obtener_segmentacion(db)
@@ -64,7 +64,7 @@ def obtener_segmentacion(
 @router.get("/segmentacion/detalle")
 def segmentacion_detalle(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("crm", "ver")),
 ):
     """Lista completa de clientes con su segmento RFM."""
     return crm_service.segmentar_clientes(db)
@@ -73,7 +73,7 @@ def segmentacion_detalle(
 @router.get("/clientes-en-riesgo")
 def clientes_en_riesgo(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("crm", "ver")),
 ):
     """Clientes en riesgo de abandono (última compra >30 días)."""
     return crm_service.clientes_en_riesgo(db)
@@ -86,7 +86,7 @@ def clientes_en_riesgo(
 def crear_campana(
     data: CampanaCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("crm", "editar")),
 ):
     """Crea una nueva campaña de marketing (ADMIN/GERENTE)."""
     payload = data.model_dump()
@@ -100,7 +100,7 @@ def crear_campana(
 @router.get("/campanas")
 def listar_campanas(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("crm", "ver")),
 ):
     """Lista todas las campañas."""
     return crm_service.listar_campanas(db)
@@ -110,7 +110,7 @@ def listar_campanas(
 def ejecutar_campana(
     campana_id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("crm", "editar")),
 ):
     """Ejecuta (simula envío) de una campaña (ADMIN/GERENTE)."""
     try:
@@ -128,7 +128,7 @@ def ejecutar_campana(
 def registrar_encuesta(
     data: EncuestaCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("crm", "editar")),
 ):
     """Registra una encuesta de satisfacción (cualquier usuario autenticado)."""
     resultado = crm_service.registrar_encuesta(db, data.model_dump())
@@ -140,7 +140,7 @@ def registrar_encuesta(
 def resumen_satisfaccion(
     dias: int = Query(default=30, ge=1, le=365, description="Días hacia atrás"),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("crm", "ver")),
 ):
     """Resumen de satisfacción de clientes."""
     return crm_service.resumen_satisfaccion(db, dias=dias)
@@ -153,7 +153,7 @@ def resumen_satisfaccion(
 def registrar_interaccion(
     data: InteraccionCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("crm", "editar")),
 ):
     """Registra una interacción con un cliente (cualquier usuario autenticado)."""
     resultado = crm_service.registrar_interaccion(db, data.model_dump())
@@ -165,7 +165,7 @@ def registrar_interaccion(
 def listar_interacciones(
     cliente_id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("crm", "ver")),
 ):
     """Lista interacciones de un cliente."""
     return crm_service.listar_interacciones(db, cliente_id)
@@ -177,7 +177,7 @@ def listar_interacciones(
 @router.get("/prediccion-churn")
 def prediccion_churn(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("crm", "ver")),
 ):
     """Predicción de clientes con probabilidad de abandono (ADMIN/GERENTE)."""
     return crm_service.prediccion_churn(db)
@@ -189,7 +189,7 @@ def prediccion_churn(
 @router.get("/dashboard")
 def dashboard_crm(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("crm", "ver")),
 ):
     """Dashboard resumen del módulo CRM (ADMIN/GERENTE)."""
     return crm_service.dashboard_crm(db)
@@ -201,7 +201,7 @@ def dashboard_crm(
 @router.get("/exportar-excel")
 def exportar_excel(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("crm", "ver")),
 ):
     """Descarga reporte CRM (segmentación, campañas, satisfacción) en Excel."""
     buf = excel_service.exportar_crm(db)

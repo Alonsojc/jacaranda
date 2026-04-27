@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_role
-from app.models.usuario import Usuario, RolUsuario
+from app.core.dependencies import require_permission
+from app.models.usuario import Usuario
 from app.schemas.receta import (
     RecetaCreate, RecetaUpdate, RecetaResponse, CostoRecetaResponse,
     OrdenProduccionCreate, OrdenProduccionResponse,
@@ -23,7 +23,7 @@ router = APIRouter()
 def crear_receta(
     data: RecetaCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("prod", "editar")),
 ):
     return svc.crear_receta(db, data)
 
@@ -31,7 +31,7 @@ def crear_receta(
 @router.get("/", response_model=list[RecetaResponse])
 def listar_recetas(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("prod", "ver")),
 ):
     return svc.listar_recetas(db)
 
@@ -40,7 +40,7 @@ def listar_recetas(
 def obtener_receta(
     id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("prod", "ver")),
 ):
     try:
         return svc.obtener_receta(db, id)
@@ -53,7 +53,7 @@ def actualizar_receta(
     id: int,
     data: RecetaUpdate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("prod", "editar")),
 ):
     from app.models.receta import Receta, RecetaIngrediente
     receta = db.query(Receta).filter(Receta.id == id).first()
@@ -85,7 +85,7 @@ def actualizar_receta(
 def costo_receta(
     id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("prod", "ver")),
 ):
     try:
         return svc.calcular_costo_receta(db, id)
@@ -98,7 +98,7 @@ def verificar_disponibilidad(
     id: int,
     lotes: Decimal = Query(default=Decimal("1")),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("prod", "ver")),
 ):
     faltantes = svc.verificar_disponibilidad_ingredientes(db, id, lotes)
     return {
@@ -113,7 +113,7 @@ def verificar_disponibilidad(
 def crear_orden(
     data: OrdenProduccionCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("prod", "editar")),
 ):
     try:
         return svc.crear_orden_produccion(db, data)
@@ -125,7 +125,7 @@ def crear_orden(
 def listar_ordenes(
     estado: str | None = None,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("prod", "ver")),
 ):
     from app.models.receta import EstadoProduccion
     est = None
@@ -141,7 +141,7 @@ def listar_ordenes(
 def iniciar_produccion(
     id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("prod", "editar")),
 ):
     try:
         return svc.iniciar_produccion(db, id)
@@ -155,7 +155,7 @@ def completar_produccion(
     cantidad_producida: Decimal = Query(...),
     cantidad_merma: Decimal = Query(default=Decimal("0")),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("prod", "editar")),
 ):
     try:
         return svc.completar_produccion(db, id, cantidad_producida, cantidad_merma)
@@ -168,7 +168,7 @@ def hornear(
     receta_id: int,
     cantidad: int = Query(1, description="Cuántas tandas hornear"),
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("prod", "editar")),
 ):
     """
     Hornear: descuenta ingredientes según receta y suma productos terminados.
@@ -228,9 +228,7 @@ def prediccion_demanda(
     dias: int = Query(7, ge=1, le=30, description="Días a predecir"),
     semanas_historial: int = Query(8, ge=2, le=52),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE, RolUsuario.PANADERO,
-    )),
+    _user: Usuario = Depends(require_permission("prod", "ver")),
 ):
     """Predicción de demanda por producto basada en historial de ventas."""
     return produccion_service.predecir_demanda(db, dias, semanas_historial)
@@ -240,9 +238,7 @@ def prediccion_demanda(
 def plan_produccion(
     dias: int = Query(7, ge=1, le=30),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE, RolUsuario.PANADERO,
-    )),
+    _user: Usuario = Depends(require_permission("prod", "ver")),
 ):
     """Plan de producción con recetas, lotes e ingredientes necesarios."""
     return produccion_service.generar_plan_produccion(db, dias)
@@ -252,7 +248,7 @@ def plan_produccion(
 def analisis_eficiencia(
     dias: int = Query(30, ge=7, le=365),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("prod", "ver")),
 ):
     """Análisis de eficiencia: producción vs ventas, merma estimada."""
     return produccion_service.analisis_eficiencia(db, dias)
@@ -261,9 +257,7 @@ def analisis_eficiencia(
 @router.get("/produccion/dashboard")
 def dashboard_produccion(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE, RolUsuario.PANADERO,
-    )),
+    _user: Usuario = Depends(require_permission("prod", "ver")),
 ):
     """Dashboard consolidado de producción."""
     return produccion_service.dashboard_produccion(db)

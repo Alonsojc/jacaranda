@@ -3,15 +3,24 @@ Servicio de integración de pagos - Conekta.
 En modo sandbox genera respuestas simuladas. En producción conecta a Conekta API.
 """
 
+import base64
+import binascii
 import json
 import secrets
 from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy.orm import Session
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
 
 from app.core.config import settings
 from app.models.pago_online import PagoOnline, EstadoPago
 from app.models.pedido import Pedido
+
+
+class WebhookSignatureError(ValueError):
+    """Raised when a payment webhook signature is missing or invalid."""
 
 
 def _is_sandbox() -> bool:
@@ -91,6 +100,37 @@ def verificar_pago(db: Session, order_id: str) -> dict:
         "referencia": pago.referencia,
         "pedido_id": pago.pedido_id,
     }
+
+
+def verificar_firma_webhook_conekta(raw_body: bytes, digest_header: str | None) -> None:
+    """Verify Conekta's RSA/SHA256 webhook signature from the DIGEST header."""
+    public_key_pem = (
+        settings.CONEKTA_WEBHOOK_PUBLIC_KEY
+        or settings.CONEKTA_WEBHOOK_KEY
+        or ""
+    ).strip()
+    if not public_key_pem:
+        raise WebhookSignatureError("CONEKTA_WEBHOOK_PUBLIC_KEY no configurada")
+    if not digest_header:
+        raise WebhookSignatureError("Header DIGEST requerido")
+
+    signature_b64 = digest_header.strip()
+    if signature_b64.lower().startswith("sha256="):
+        signature_b64 = signature_b64.split("=", 1)[1].strip()
+
+    try:
+        signature = base64.b64decode(signature_b64, validate=True)
+        public_key = serialization.load_pem_public_key(
+            public_key_pem.replace("\\n", "\n").encode("utf-8")
+        )
+        public_key.verify(
+            signature,
+            raw_body,
+            padding.PKCS1v15(),
+            hashes.SHA256(),
+        )
+    except (binascii.Error, ValueError, InvalidSignature) as exc:
+        raise WebhookSignatureError("Firma de webhook inválida") from exc
 
 
 def webhook_conekta(db: Session, payload: dict) -> dict:

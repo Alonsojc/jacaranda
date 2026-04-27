@@ -62,13 +62,15 @@ logger = logging.getLogger("jacaranda")
 
 
 def _seed_admin():
-    """Crea usuario administrador por defecto si no existe ninguno."""
+    """Crea usuario administrador inicial sin usar credenciales predecibles."""
     db = SessionLocal()
     try:
         admin = db.query(Usuario).filter(Usuario.rol == RolUsuario.ADMINISTRADOR).first()
         if not admin:
             # Usar contraseña de variable de entorno o generar una aleatoria
             password = os.environ.get("ADMIN_PASSWORD") or secrets.token_urlsafe(12)
+            if os.environ.get("ADMIN_PASSWORD") and len(password) < 12:
+                raise RuntimeError("ADMIN_PASSWORD debe tener al menos 12 caracteres")
             admin = Usuario(
                 nombre="Administrador",
                 email="admin@jacaranda.mx",

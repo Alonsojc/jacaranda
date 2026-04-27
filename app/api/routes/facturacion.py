@@ -5,8 +5,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_role
-from app.models.usuario import Usuario, RolUsuario
+from app.core.dependencies import require_permission
+from app.models.usuario import Usuario
 from app.schemas.facturacion import (
     CFDIGenerarRequest, CFDICancelRequest, CFDIResponse,
 )
@@ -20,7 +20,7 @@ router = APIRouter()
 def generar_cfdi(
     data: CFDIGenerarRequest,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("fiscal", "editar")),
 ):
     try:
         return svc.generar_cfdi(db, data)
@@ -32,7 +32,7 @@ def generar_cfdi(
 def listar_cfdis(
     cliente_id: int | None = None,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     return svc.listar_cfdis(db, cliente_id)
 
@@ -41,7 +41,7 @@ def listar_cfdis(
 def obtener_cfdi(
     id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     try:
         return svc.obtener_cfdi(db, id)
@@ -53,7 +53,7 @@ def obtener_cfdi(
 def descargar_xml(
     id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     try:
         cfdi = svc.obtener_cfdi(db, id)
@@ -77,7 +77,7 @@ def cancelar_cfdi(
     id: int,
     data: CFDICancelRequest,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("fiscal", "editar")),
 ):
     try:
         return svc.cancelar_cfdi(db, id, data)
@@ -92,7 +92,7 @@ def cancelar_cfdi(
 def timbrar_cfdi(
     id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR)),
+    _user: Usuario = Depends(require_permission("fiscal", "editar")),
 ):
     """Envía el CFDI al PAC para timbrado (sandbox)."""
     try:
@@ -111,7 +111,7 @@ def cancelar_cfdi_sat(
     id: int,
     data: CancelacionSATRequest,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR)),
+    _user: Usuario = Depends(require_permission("fiscal", "editar")),
 ):
     """Cancela un CFDI ante el SAT vía PAC (sandbox)."""
     try:
@@ -124,7 +124,7 @@ def cancelar_cfdi_sat(
 def consultar_estatus_sat(
     id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     """Consulta estatus del CFDI ante el SAT."""
     try:
@@ -141,7 +141,7 @@ class DescargaMasivaRequest(BaseModel):
 def descarga_masiva_xml(
     data: DescargaMasivaRequest,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     """Descarga múltiples XMLs de CFDIs."""
     return pac_service.descargar_xml_masivo(db, data.cfdi_ids)

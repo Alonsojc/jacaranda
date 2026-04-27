@@ -2,10 +2,12 @@ services:
   - type: web
     name: jacaranda
     runtime: python
-    buildCommand: pip install -r requirements.txt && python scripts/init_db.py
+    buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
         value: sqlite:///./jacaranda.db
+      - key: ADMIN_PASSWORD
+        sync: false

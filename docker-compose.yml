@@ -26,8 +26,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-jacaranda}:${POSTGRES_PASSWORD:-jacaranda_dev}@db:5432/${POSTGRES_DB:-jacaranda}
       DEBUG: ${DEBUG:-false}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin1234}
-      SECRET_KEY: ${SECRET_KEY:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY to a stable random value}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
       interval: 30s

@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_role
+from app.core.dependencies import require_permission, require_role
 from app.models.usuario import Usuario, RolUsuario
 from app.services import compras_service as svc
 
@@ -70,7 +70,7 @@ class EvaluacionInput(BaseModel):
 def listar_proveedores(
     solo_activos: bool = Query(True),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("compras", "ver")),
 ):
     """Lista proveedores (cualquier usuario autenticado)."""
     return svc.listar_proveedores(db, solo_activos)
@@ -80,7 +80,7 @@ def listar_proveedores(
 def obtener_proveedor(
     id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("compras", "ver")),
 ):
     """Detalle de un proveedor con sus ingredientes."""
     try:
@@ -114,7 +114,7 @@ def listar_ordenes_compra(
     estado: str | None = Query(None),
     proveedor_id: int | None = Query(None),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("compras", "ver")),
 ):
     """Lista órdenes de compra con filtros opcionales."""
     try:
@@ -127,7 +127,7 @@ def listar_ordenes_compra(
 def obtener_orden_compra(
     id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("compras", "ver")),
 ):
     """Detalle de una orden de compra."""
     try:

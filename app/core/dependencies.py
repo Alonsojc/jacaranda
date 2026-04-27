@@ -47,3 +47,27 @@ def require_role(*roles: RolUsuario):
             )
         return current_user
     return role_checker
+
+
+_PERMISSION_LEVELS = {"oculto": 0, "ver": 1, "editar": 2}
+
+
+def require_permission(module: str, level: str = "ver"):
+    """Restrict access using server-side module permissions."""
+    required = _PERMISSION_LEVELS.get(level)
+    if required is None:
+        raise ValueError(f"Nivel de permiso inválido: {level}")
+
+    def permission_checker(
+        current_user: Usuario = Depends(get_current_user),
+    ) -> Usuario:
+        permissions = current_user.permisos_modulos or {}
+        current = _PERMISSION_LEVELS.get(permissions.get(module, "oculto"), 0)
+        if current < required:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permiso insuficiente para módulo '{module}'",
+            )
+        return current_user
+
+    return permission_checker

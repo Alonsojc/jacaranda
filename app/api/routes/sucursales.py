@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_role
+from app.core.dependencies import require_permission, require_role
 from app.models.usuario import Usuario, RolUsuario
 from app.services import sucursal_service as svc
 
@@ -105,7 +105,7 @@ def listar_traspasos(
     sucursal_id: int | None = Query(None),
     estado: str | None = Query(None),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("sucursales", "ver")),
 ):
     traspasos = svc.listar_traspasos(db, sucursal_id=sucursal_id, estado=estado)
     return [_traspaso_to_dict(t) for t in traspasos]
@@ -157,7 +157,7 @@ def cancelar_traspaso(
 @router.get("/comparativo")
 def reporte_comparativo(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("sucursales", "ver")),
 ):
     return svc.reporte_comparativo(db)
 
@@ -165,7 +165,7 @@ def reporte_comparativo(
 @router.get("/dashboard")
 def dashboard_sucursales(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("sucursales", "ver")),
 ):
     return svc.dashboard_sucursales(db)
 
@@ -197,7 +197,7 @@ def crear_sucursal(
 def listar_sucursales(
     solo_activas: bool = Query(True),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("sucursales", "ver")),
 ):
     return svc.listar_sucursales(db, solo_activas=solo_activas)
 
@@ -208,7 +208,7 @@ def listar_sucursales(
 def obtener_sucursal(
     id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("sucursales", "ver")),
 ):
     try:
         return svc.obtener_sucursal(db, id)
@@ -246,7 +246,7 @@ def inicializar_inventario(
 def obtener_inventario_sucursal(
     id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("sucursales", "ver")),
 ):
     try:
         return svc.obtener_inventario_sucursal(db, id)

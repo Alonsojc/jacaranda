@@ -56,21 +56,24 @@ def crear_datos_semilla():
 
         # --- Usuario administrador (solo si no existen) ---
         if not tiene_usuarios:
-            admin = Usuario(
-                nombre="Administrador",
-                email="admin@jacaranda.mx",
-                hashed_password=get_password_hash("admin1234"),
-                rol=RolUsuario.ADMINISTRADOR,
-            )
-            db.add(admin)
-
-            cajero = Usuario(
-                nombre="Cajero Principal",
-                email="cajero@jacaranda.mx",
-                hashed_password=get_password_hash("cajero1234"),
-                rol=RolUsuario.CAJERO,
-            )
-            db.add(cajero)
+            admin_password = os.environ.get("ADMIN_PASSWORD")
+            if admin_password:
+                if len(admin_password) < 12:
+                    raise RuntimeError(
+                        "ADMIN_PASSWORD debe tener al menos 12 caracteres"
+                    )
+                admin = Usuario(
+                    nombre=os.environ.get("ADMIN_NAME", "Administrador"),
+                    email=os.environ.get("ADMIN_EMAIL", "admin@jacaranda.mx"),
+                    hashed_password=get_password_hash(admin_password),
+                    rol=RolUsuario.ADMINISTRADOR,
+                )
+                db.add(admin)
+            else:
+                print(
+                    "ADMIN_PASSWORD no configurado; no se crearon usuarios "
+                    "por defecto."
+                )
 
         # --- Categorías ---
         categorias = [
@@ -420,14 +423,13 @@ def crear_datos_semilla():
 
         if not tiene_usuarios:
             print("Datos semilla insertados exitosamente.")
-            print("  - 2 usuarios creados")
+            if os.environ.get("ADMIN_PASSWORD"):
+                print("  - 1 usuario admin creado")
+            else:
+                print("  - 0 usuarios creados")
             print(f"  - {len(categorias)} categorías")
             print(f"  - {len(ingredientes)} ingredientes")
             print(f"  - {len(productos)} productos")
-            print("")
-            print("Credenciales del administrador:")
-            print("  Email: admin@jacaranda.mx")
-            print("  Password: admin1234")
         else:
             print(f"Inventario re-sembrado: {len(categorias)} cat, {len(ingredientes)} ing, {len(productos)} prod.")
 

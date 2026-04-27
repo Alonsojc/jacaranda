@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import require_permission
 from app.models.cliente import Cliente
 from app.models.usuario import Usuario
 from app.schemas.cliente import ClienteCreate, ClienteUpdate, ClienteResponse
@@ -15,7 +15,11 @@ router = APIRouter()
 
 
 @router.post("/", response_model=ClienteResponse, status_code=201)
-def crear_cliente(data: ClienteCreate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def crear_cliente(
+    data: ClienteCreate,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("listas", "editar")),
+):
     cliente = Cliente(**data.model_dump())
     db.add(cliente)
     db.commit()
@@ -29,7 +33,7 @@ def listar_clientes(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, le=500),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("listas", "ver")),
 ):
     query = db.query(Cliente).filter(Cliente.activo.is_(True))
     if q:
@@ -40,7 +44,11 @@ def listar_clientes(
 
 
 @router.get("/{id}", response_model=ClienteResponse)
-def obtener_cliente(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def obtener_cliente(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("listas", "ver")),
+):
     cliente = db.query(Cliente).filter(Cliente.id == id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
@@ -48,7 +56,12 @@ def obtener_cliente(id: int, db: Session = Depends(get_db), _user: Usuario = Dep
 
 
 @router.put("/{id}", response_model=ClienteResponse)
-def actualizar_cliente(id: int, data: ClienteUpdate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def actualizar_cliente(
+    id: int,
+    data: ClienteUpdate,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("listas", "editar")),
+):
     cliente = db.query(Cliente).filter(Cliente.id == id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
@@ -64,19 +77,31 @@ def actualizar_cliente(id: int, data: ClienteUpdate, db: Session = Depends(get_d
 
 
 @router.get("/{id}/facturas")
-def facturas_cliente(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def facturas_cliente(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("listas", "ver")),
+):
     from app.models.facturacion import CFDIComprobante
     return db.query(CFDIComprobante).filter(CFDIComprobante.cliente_id == id).all()
 
 
 @router.get("/{id}/historial")
-def historial_cliente(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def historial_cliente(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("listas", "ver")),
+):
     from app.services.reportes_service import historial_compras_cliente
     return historial_compras_cliente(db, id)
 
 
 @router.get("/{id}/puntos")
-def consultar_puntos(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def consultar_puntos(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("listas", "ver")),
+):
     """Consulta puntos acumulados y su valor en pesos."""
     cliente = db.query(Cliente).filter(Cliente.id == id).first()
     if not cliente:
@@ -93,7 +118,7 @@ def canjear_puntos(
     id: int,
     puntos: int = Query(..., gt=0),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("listas", "editar")),
 ):
     """Canjea puntos del cliente. Devuelve el descuento en pesos."""
     cliente = db.query(Cliente).filter(Cliente.id == id).first()

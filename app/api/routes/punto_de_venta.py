@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import require_permission
 from app.models.usuario import Usuario
 from app.models.venta import CorteCaja
 from app.models.gasto_fijo import GastoFijo
@@ -45,7 +45,7 @@ class GastoFijoResponse(BaseModel):
 def crear_venta(
     data: VentaCreate,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("pos", "editar")),
 ):
     try:
         return svc.procesar_venta(db, data, user.id)
@@ -59,12 +59,17 @@ def listar_ventas(
     fecha_fin: date | None = None,
     limit: int = Query(default=100, le=500),
     db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("pos", "ver")),
 ):
     return svc.listar_ventas(db, fecha_inicio, fecha_fin, limit)
 
 
 @router.get("/ventas/{id}", response_model=VentaResponse)
-def obtener_venta(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def obtener_venta(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("pos", "ver")),
+):
     try:
         return svc.obtener_venta(db, id)
     except ValueError as e:
@@ -72,7 +77,11 @@ def obtener_venta(id: int, db: Session = Depends(get_db), _user: Usuario = Depen
 
 
 @router.get("/ventas/{id}/ticket")
-def obtener_ticket(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def obtener_ticket(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("pos", "ver")),
+):
     try:
         return svc.generar_ticket(db, id)
     except ValueError as e:
@@ -80,7 +89,11 @@ def obtener_ticket(id: int, db: Session = Depends(get_db), _user: Usuario = Depe
 
 
 @router.get("/ventas/{id}/ticket/pdf")
-def ticket_pdf(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def ticket_pdf(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("pos", "ver")),
+):
     """Descarga ticket de venta en PDF."""
     from app.services import pdf_service
     try:
@@ -98,7 +111,7 @@ def ticket_pdf(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(
 def cancelar_venta(
     id: int,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("pos", "editar")),
 ):
     try:
         return svc.cancelar_venta(db, id, user.id)
@@ -112,7 +125,7 @@ def cancelar_venta(
 def realizar_corte(
     data: CorteCajaCreate,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("corte", "editar")),
 ):
     return svc.realizar_corte_caja(db, data, user.id)
 
@@ -121,7 +134,7 @@ def realizar_corte(
 def historial_cortes(
     limit: int = Query(default=30, le=100),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("corte", "ver")),
 ):
     """Historial de cortes de caja."""
     return db.query(CorteCaja).order_by(desc(CorteCaja.fecha)).limit(limit).all()
@@ -134,13 +147,17 @@ def listar_gastos_fijos(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, le=500),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("corte", "ver")),
 ):
     return db.query(GastoFijo).filter(GastoFijo.activo.is_(True)).offset(skip).limit(limit).all()
 
 
 @router.post("/gastos-fijos", response_model=GastoFijoResponse, status_code=201)
-def crear_gasto_fijo(data: GastoFijoCreate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def crear_gasto_fijo(
+    data: GastoFijoCreate,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("corte", "editar")),
+):
     gasto = GastoFijo(**data.model_dump())
     db.add(gasto)
     db.commit()
@@ -149,7 +166,12 @@ def crear_gasto_fijo(data: GastoFijoCreate, db: Session = Depends(get_db), _user
 
 
 @router.put("/gastos-fijos/{id}", response_model=GastoFijoResponse)
-def actualizar_gasto_fijo(id: int, data: GastoFijoCreate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def actualizar_gasto_fijo(
+    id: int,
+    data: GastoFijoCreate,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("corte", "editar")),
+):
     gasto = db.query(GastoFijo).filter(GastoFijo.id == id).first()
     if not gasto:
         raise HTTPException(status_code=404, detail="Gasto no encontrado")
@@ -164,7 +186,11 @@ def actualizar_gasto_fijo(id: int, data: GastoFijoCreate, db: Session = Depends(
 
 
 @router.delete("/gastos-fijos/{id}")
-def eliminar_gasto_fijo(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def eliminar_gasto_fijo(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("corte", "editar")),
+):
     gasto = db.query(GastoFijo).filter(GastoFijo.id == id).first()
     if not gasto:
         raise HTTPException(status_code=404, detail="Gasto no encontrado")

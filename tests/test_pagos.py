@@ -1,9 +1,35 @@
 """Tests para pagos online (Conekta sandbox)."""
 
+import base64
+import json
 from datetime import date
+
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+
+from app.core.config import settings
 
 
 class TestPagos:
+
+    def _post_signed_webhook(self, client, monkeypatch, payload):
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        public_key = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        ).decode()
+        monkeypatch.setattr(settings, "CONEKTA_WEBHOOK_PUBLIC_KEY", public_key)
+
+        raw_body = json.dumps(payload, separators=(",", ":")).encode()
+        signature = private_key.sign(raw_body, padding.PKCS1v15(), hashes.SHA256())
+        return client.post(
+            "/api/v1/pagos/webhook",
+            content=raw_body,
+            headers={
+                "Content-Type": "application/json",
+                "DIGEST": base64.b64encode(signature).decode(),
+            },
+        )
 
     def _crear_pedido(self, client, auth_headers):
         resp = client.post("/api/v1/pedidos/", json={
@@ -77,7 +103,19 @@ class TestPagos:
                           headers=auth_headers)
         assert resp.status_code == 404
 
-    def test_webhook(self, client, auth_headers):
+    def test_webhook(self, client, auth_headers, monkeypatch):
+        ped = self._crear_pedido(client, auth_headers)
+        orden = client.post("/api/v1/pagos/crear-orden", json={
+            "pedido_id": ped["id"], "metodo": "card",
+        }, headers=auth_headers).json()
+        resp = self._post_signed_webhook(client, monkeypatch, {
+            "type": "order.paid",
+            "data": {"object": {"id": orden["order_id"]}},
+        })
+        assert resp.status_code == 200
+        assert resp.json()["processed"] is True
+
+    def test_webhook_rechaza_payload_sin_firma(self, client, auth_headers):
         ped = self._crear_pedido(client, auth_headers)
         orden = client.post("/api/v1/pagos/crear-orden", json={
             "pedido_id": ped["id"], "metodo": "card",
@@ -86,21 +124,20 @@ class TestPagos:
             "type": "order.paid",
             "data": {"object": {"id": orden["order_id"]}},
         })
-        assert resp.status_code == 200
-        assert resp.json()["processed"] is True
+        assert resp.status_code == 401
 
     def test_historial(self, client, auth_headers):
         resp = client.get("/api/v1/pagos/historial", headers=auth_headers)
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
-    def test_reembolso(self, client, auth_headers):
+    def test_reembolso(self, client, auth_headers, monkeypatch):
         ped = self._crear_pedido(client, auth_headers)
         orden = client.post("/api/v1/pagos/crear-orden", json={
             "pedido_id": ped["id"], "metodo": "card",
         }, headers=auth_headers).json()
         # Pay first via webhook
-        client.post("/api/v1/pagos/webhook", json={
+        self._post_signed_webhook(client, monkeypatch, {
             "type": "order.paid",
             "data": {"object": {"id": orden["order_id"]}},
         })

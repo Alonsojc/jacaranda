@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import require_permission
 from app.models.usuario import Usuario
 from app.services import delivery_service
 
@@ -22,7 +22,7 @@ def marcar_en_ruta(
     pedido_id: int,
     data: EnRutaRequest,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("deliveryp", "editar")),
 ):
     try:
         pedido = delivery_service.marcar_en_ruta(
@@ -37,7 +37,7 @@ def marcar_en_ruta(
 def marcar_entregado(
     pedido_id: int,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("deliveryp", "editar")),
 ):
     try:
         pedido = delivery_service.marcar_entregado(db, pedido_id)
@@ -49,7 +49,7 @@ def marcar_entregado(
 @router.get("/en-ruta")
 def listar_en_ruta(
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("deliveryp", "ver")),
 ):
     pedidos = delivery_service.pedidos_en_ruta(db)
     return [
@@ -75,6 +75,6 @@ def tracking_publico(folio: str, db: Session = Depends(get_db)):
 @router.get("/dashboard")
 def dashboard(
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("deliveryp", "ver")),
 ):
     return delivery_service.dashboard_delivery(db)

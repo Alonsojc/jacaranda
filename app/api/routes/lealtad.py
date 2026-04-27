@@ -9,8 +9,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_role
-from app.models.usuario import Usuario, RolUsuario
+from app.core.dependencies import require_permission
+from app.models.usuario import Usuario
 from app.models.lealtad import TipoCupon, NivelLealtad, HistorialPuntos
 from app.services import lealtad_service
 
@@ -53,7 +53,7 @@ class AsignarCuponBody(BaseModel):
 # ── Niveles ──────────────────────────────────────────────────────────
 
 @router.get("/niveles")
-def obtener_niveles(_user: Usuario = Depends(get_current_user)):
+def obtener_niveles(_user: Usuario = Depends(require_permission("listas", "ver"))):
     """Retorna los niveles de lealtad con umbrales y beneficios."""
     return {
         "niveles": [
@@ -88,7 +88,7 @@ def obtener_niveles(_user: Usuario = Depends(get_current_user)):
 def obtener_tarjeta(
     cliente_id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("listas", "ver")),
 ):
     """Obtiene los datos de la tarjeta de lealtad digital de un cliente."""
     try:
@@ -109,7 +109,7 @@ def obtener_tarjeta(
 def buscar_por_qr(
     qr_code: str,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("listas", "ver")),
 ):
     """Busca un cliente por codigo QR (para uso en POS)."""
     cliente = lealtad_service.buscar_por_qr(db, qr_code)
@@ -129,7 +129,7 @@ def buscar_por_qr(
 def crear_cupon(
     data: CuponCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("listas", "editar")),
 ):
     """Crea un nuevo cupon (solo ADMIN/GERENTE)."""
     cupon = lealtad_service.crear_cupon(db, data.model_dump())
@@ -150,7 +150,7 @@ def crear_cupon(
 def listar_cupones(
     activos_only: bool = Query(default=True, description="Solo cupones activos y vigentes"),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("listas", "ver")),
 ):
     """Lista cupones disponibles."""
     cupones = lealtad_service.listar_cupones(db, activos_only=activos_only)
@@ -177,7 +177,7 @@ def listar_cupones(
 def validar_cupon(
     data: CuponValidar,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("pos", "ver")),
 ):
     """Valida si un cupon es aplicable."""
     resultado = lealtad_service.validar_cupon(
@@ -193,7 +193,7 @@ def validar_cupon(
 def canjear_cupon(
     data: CuponCanjear,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("pos", "editar")),
 ):
     """Canjea un cupon en una venta."""
     # Primero validar
@@ -219,7 +219,7 @@ def canjear_cupon(
 @router.get("/cumpleanos")
 def cumpleanos_del_mes(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("listas", "ver")),
 ):
     """Lista clientes que cumplen anos este mes."""
     clientes = lealtad_service.cumpleanos_del_mes(db)
@@ -237,7 +237,7 @@ def cumpleanos_del_mes(
 @router.post("/cumpleanos/enviar-ofertas")
 def enviar_ofertas_cumpleanos(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("listas", "editar")),
 ):
     """Genera cupones de cumpleanos para clientes del mes."""
     resultados = lealtad_service.enviar_ofertas_cumpleanos(db)
@@ -253,7 +253,7 @@ def enviar_ofertas_cumpleanos(
 @router.get("/dashboard")
 def dashboard_lealtad(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("listas", "ver")),
 ):
     """Estadisticas del programa de lealtad."""
     return lealtad_service.dashboard_lealtad(db)
@@ -267,7 +267,7 @@ def historial_puntos(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, le=200),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("listas", "ver")),
 ):
     """Historial de movimientos de puntos de un cliente."""
     registros = (

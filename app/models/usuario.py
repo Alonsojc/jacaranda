@@ -20,7 +20,9 @@ class RolUsuario(str, enum.Enum):
 
 # Módulos del sistema con permisos configurables
 MODULOS_DISPONIBLES = [
-    "dash", "pos", "ped", "inv", "corte", "rep", "listas", "cofepris", "usuarios",
+    "dash", "pos", "ped", "inv", "corte", "rep", "listas", "prod", "conta",
+    "iapg", "cofepris", "compras", "sucursales", "merma", "calidad", "crm",
+    "kpis", "fiscal", "auditoria", "ejecutivo", "deliveryp", "usuarios",
 ]
 
 
@@ -47,20 +49,38 @@ class Usuario(Base):
     @property
     def permisos_modulos(self) -> dict:
         if self._permisos_modulos:
-            return json.loads(self._permisos_modulos)
+            try:
+                return json.loads(self._permisos_modulos)
+            except json.JSONDecodeError:
+                return {}
         # Defaults por rol
         if self.rol == RolUsuario.ADMINISTRADOR:
             return {m: "editar" for m in MODULOS_DISPONIBLES}
         elif self.rol in (RolUsuario.GERENTE,):
-            return {m: "editar" for m in MODULOS_DISPONIBLES if m != "usuarios"}
+            ocultos = {"usuarios", "conta", "fiscal", "auditoria"}
+            return {m: "editar" for m in MODULOS_DISPONIBLES if m not in ocultos}
         elif self.rol == RolUsuario.CAJERO:
-            return {"dash": "ver", "pos": "editar", "ped": "ver", "corte": "ver"}
+            return {
+                "dash": "ver", "pos": "editar", "ped": "editar",
+                "corte": "ver", "listas": "ver",
+            }
         elif self.rol == RolUsuario.CONTADOR:
-            return {"dash": "ver", "rep": "editar", "corte": "ver"}
+            return {
+                "dash": "ver", "rep": "editar", "corte": "ver",
+                "compras": "ver", "conta": "editar",
+                "fiscal": "editar", "kpis": "ver",
+            }
         elif self.rol == RolUsuario.PANADERO:
-            return {"dash": "ver", "inv": "editar", "ped": "ver"}
+            return {
+                "dash": "ver", "inv": "editar", "ped": "ver",
+                "prod": "editar", "merma": "editar", "calidad": "editar",
+            }
         elif self.rol == RolUsuario.ALMACENISTA:
-            return {"dash": "ver", "inv": "editar", "listas": "ver"}
+            return {
+                "dash": "ver", "inv": "editar", "listas": "ver",
+                "compras": "ver", "sucursales": "ver", "merma": "editar",
+                "calidad": "editar",
+            }
         return {"dash": "ver", "pos": "ver"}
 
     @permisos_modulos.setter

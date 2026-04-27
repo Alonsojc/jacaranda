@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import require_permission
 from app.models.usuario import Usuario
 from app.schemas.inventario import (
     CategoriaCreate, CategoriaResponse,
@@ -22,24 +22,24 @@ router = APIRouter()
 # --- Categorías ---
 
 @router.post("/categorias", response_model=CategoriaResponse, status_code=201)
-def crear_categoria(data: CategoriaCreate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def crear_categoria(data: CategoriaCreate, db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "editar"))):
     return svc.crear_categoria(db, data)
 
 
 @router.get("/categorias", response_model=list[CategoriaResponse])
-def listar_categorias(skip: int = Query(default=0, ge=0), limit: int = Query(default=100, le=500), db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def listar_categorias(skip: int = Query(default=0, ge=0), limit: int = Query(default=100, le=500), db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "ver"))):
     return svc.listar_categorias(db, skip=skip, limit=limit)
 
 
 # --- Proveedores ---
 
 @router.post("/proveedores", response_model=ProveedorResponse, status_code=201)
-def crear_proveedor(data: ProveedorCreate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def crear_proveedor(data: ProveedorCreate, db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "editar"))):
     return svc.crear_proveedor(db, data)
 
 
 @router.get("/proveedores", response_model=list[ProveedorResponse])
-def listar_proveedores(skip: int = Query(default=0, ge=0), limit: int = Query(default=100, le=500), db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def listar_proveedores(skip: int = Query(default=0, ge=0), limit: int = Query(default=100, le=500), db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "ver"))):
     return svc.listar_proveedores(db, skip=skip, limit=limit)
 
 
@@ -49,18 +49,18 @@ def listar_proveedores(skip: int = Query(default=0, ge=0), limit: int = Query(de
 def crear_ingrediente(
     data: IngredienteCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("inv", "editar")),
 ):
     return svc.crear_ingrediente(db, data)
 
 
 @router.get("/ingredientes", response_model=list[IngredienteResponse])
-def listar_ingredientes(skip: int = Query(default=0, ge=0), limit: int = Query(default=100, le=500), db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def listar_ingredientes(skip: int = Query(default=0, ge=0), limit: int = Query(default=100, le=500), db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "ver"))):
     return svc.listar_ingredientes(db, skip=skip, limit=limit)
 
 
 @router.get("/ingredientes/{id}", response_model=IngredienteResponse)
-def obtener_ingrediente(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def obtener_ingrediente(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "ver"))):
     try:
         return svc.obtener_ingrediente(db, id)
     except ValueError as e:
@@ -68,7 +68,7 @@ def obtener_ingrediente(id: int, db: Session = Depends(get_db), _user: Usuario =
 
 
 @router.put("/ingredientes/{id}", response_model=IngredienteResponse)
-def actualizar_ingrediente(id: int, data: IngredienteUpdate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def actualizar_ingrediente(id: int, data: IngredienteUpdate, db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "editar"))):
     try:
         return svc.actualizar_ingrediente(db, id, data)
     except ValueError as e:
@@ -81,7 +81,7 @@ def actualizar_ingrediente(id: int, data: IngredienteUpdate, db: Session = Depen
 def crear_producto(
     data: ProductoCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("inv", "editar")),
 ):
     try:
         return svc.crear_producto(db, data)
@@ -95,13 +95,13 @@ def listar_productos(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=200, le=500),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("inv", "ver")),
 ):
     return svc.listar_productos(db, q=q, skip=skip, limit=limit)
 
 
 @router.get("/productos/{id}", response_model=ProductoResponse)
-def obtener_producto(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def obtener_producto(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "ver"))):
     try:
         return svc.obtener_producto(db, id)
     except ValueError as e:
@@ -113,7 +113,7 @@ def actualizar_producto(
     id: int,
     data: ProductoUpdate,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("inv", "editar")),
 ):
     try:
         return svc.actualizar_producto(db, id, data, usuario_id=user.id)
@@ -126,7 +126,7 @@ async def subir_imagen_producto(
     id: int,
     archivo: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("inv", "editar")),
 ):
     """Sube una foto de producto y la guarda como base64 en la BD."""
     import base64
@@ -162,7 +162,7 @@ async def subir_imagen_producto(
 def registrar_movimiento(
     data: MovimientoCreate,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("inv", "editar")),
 ):
     try:
         return svc.registrar_movimiento(db, data, user.id)
@@ -175,6 +175,7 @@ def listar_movimientos(
     ingrediente_id: int | None = None,
     producto_id: int | None = None,
     db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("inv", "ver")),
 ):
     return svc.listar_movimientos(db, ingrediente_id, producto_id)
 
@@ -182,7 +183,7 @@ def listar_movimientos(
 # --- Lotes ---
 
 @router.post("/lotes", response_model=LoteResponse, status_code=201)
-def registrar_lote(data: LoteCreate, db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def registrar_lote(data: LoteCreate, db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "editar"))):
     try:
         return svc.registrar_lote(db, data)
     except ValueError as e:
@@ -192,12 +193,12 @@ def registrar_lote(data: LoteCreate, db: Session = Depends(get_db), _user: Usuar
 # --- Alertas ---
 
 @router.get("/alertas/stock-bajo")
-def alertas_stock_bajo(db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def alertas_stock_bajo(db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "ver"))):
     return svc.alertas_stock_bajo(db)
 
 
 @router.get("/alertas/por-caducar")
-def alertas_caducidad(dias: int = Query(default=7), db: Session = Depends(get_db), _user: Usuario = Depends(get_current_user)):
+def alertas_caducidad(dias: int = Query(default=7), db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "ver"))):
     lotes = svc.ingredientes_por_caducar(db, dias)
     return [
         {
@@ -218,7 +219,7 @@ def registrar_compra_ingrediente(
     costo: float = Query(0),
     proveedor: str = Query(""),
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("inv", "editar")),
 ):
     """Registrar entrada de ingrediente (compra a proveedor)."""
     from app.models.inventario import Ingrediente, MovimientoInventario, TipoMovimiento, LoteIngrediente
@@ -269,7 +270,7 @@ def ajustar_stock_producto(
     cantidad: int = Query(..., description="Nueva cantidad en stock"),
     motivo: str = Query("Conteo nocturno"),
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("inv", "editar")),
 ):
     """Ajustar stock de producto terminado (conteo nocturno del pizarrón)."""
     from app.models.inventario import Producto
@@ -300,7 +301,7 @@ def registrar_merma(
     cantidad: int = Query(..., gt=0),
     motivo: str = Query("Merma"),
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("inv", "editar")),
 ):
     """Registrar merma de producto (desperdicio, roto, caducado)."""
     from app.models.inventario import Producto, MovimientoInventario, TipoMovimiento
@@ -334,6 +335,7 @@ def registrar_merma(
 def historial_precios(
     producto_id: int,
     db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("inv", "ver")),
 ):
     """Obtener historial de cambios de precio de un producto."""
     from app.models.inventario import HistorialPrecio
@@ -361,7 +363,7 @@ def historial_precios(
 async def subir_imagenes_masivo(
     archivos: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("inv", "editar")),
 ):
     """Sube fotos masivamente. El nombre del archivo debe contener el nombre del producto."""
     import base64
@@ -411,7 +413,7 @@ async def subir_imagenes_masivo(
 def conteo_nocturno(
     conteos: list[dict],
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("inv", "editar")),
 ):
     """Registrar conteo nocturno de productos."""
     from app.models.conteo_inventario import ConteoInventario
@@ -462,7 +464,7 @@ def conteo_nocturno(
 @router.post("/ocr-ticket")
 async def ocr_ticket(
     archivo: UploadFile = File(...),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("inv", "editar")),
 ):
     """Extrae datos de una foto de ticket/factura de compra usando IA."""
     from app.services.ocr_service import extraer_datos_ticket

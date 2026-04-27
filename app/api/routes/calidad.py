@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_role
-from app.models.usuario import Usuario, RolUsuario
+from app.core.dependencies import require_permission
+from app.models.usuario import Usuario
 from app.schemas.calidad import (
     ChecklistCalidadCreate, ChecklistCalidadResponse,
     TrazabilidadLoteCreate, TrazabilidadLoteResponse,
@@ -23,9 +23,7 @@ router = APIRouter()
 def crear_checklist(
     data: ChecklistCalidadCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(
-        require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE, RolUsuario.PANADERO)
-    ),
+    _user: Usuario = Depends(require_permission("calidad", "editar")),
 ):
     """Crea un nuevo checklist de inspeccion de calidad."""
     return svc.crear_checklist(db, data)
@@ -38,7 +36,7 @@ def listar_checklists(
     fecha_inicio: str | None = Query(default=None),
     fecha_fin: str | None = Query(default=None),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("calidad", "ver")),
 ):
     """Lista checklists de calidad con filtros opcionales."""
     return svc.listar_checklists(db, producto_id, estado, fecha_inicio, fecha_fin)
@@ -48,7 +46,7 @@ def listar_checklists(
 def obtener_checklist(
     checklist_id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("calidad", "ver")),
 ):
     """Obtiene el detalle de un checklist de calidad."""
     try:
@@ -63,12 +61,7 @@ def obtener_checklist(
 def registrar_trazabilidad(
     data: TrazabilidadLoteCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(
-        require_role(
-            RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE,
-            RolUsuario.ALMACENISTA, RolUsuario.PANADERO,
-        )
-    ),
+    _user: Usuario = Depends(require_permission("calidad", "editar")),
 ):
     """Registra el uso de un lote de ingrediente en produccion."""
     try:
@@ -81,7 +74,7 @@ def registrar_trazabilidad(
 def trazabilidad_producto(
     producto_id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("calidad", "ver")),
 ):
     """Trazabilidad hacia adelante: que lotes se usaron para hacer este producto."""
     return svc.trazabilidad_producto(db, producto_id)
@@ -91,7 +84,7 @@ def trazabilidad_producto(
 def trazabilidad_lote(
     lote_id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("calidad", "ver")),
 ):
     """Trazabilidad inversa: que productos se hicieron con este lote."""
     return svc.trazabilidad_lote(db, lote_id)
@@ -103,9 +96,7 @@ def trazabilidad_lote(
 def crear_alerta_recall(
     data: AlertaRecallCreate,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(
-        require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)
-    ),
+    user: Usuario = Depends(require_permission("calidad", "editar")),
 ):
     """Crea una alerta de recall. Auto-detecta productos afectados via trazabilidad."""
     return svc.crear_alerta_recall(db, data, usuario_id=user.id)
@@ -115,7 +106,7 @@ def crear_alerta_recall(
 def listar_alertas_recall(
     estado: str | None = Query(default=None),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("calidad", "ver")),
 ):
     """Lista alertas de recall con filtro opcional de estado."""
     return svc.listar_alertas_recall(db, estado)
@@ -126,9 +117,7 @@ def resolver_recall(
     recall_id: int,
     data: ResolverRecallRequest,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(
-        require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)
-    ),
+    _user: Usuario = Depends(require_permission("calidad", "editar")),
 ):
     """Marca una alerta de recall como resuelta."""
     try:
@@ -143,7 +132,7 @@ def resolver_recall(
 def indicadores_calidad(
     dias: int = Query(default=30, ge=1, le=365),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("calidad", "ver")),
 ):
     """KPIs de calidad para los ultimos N dias."""
     return svc.indicadores_calidad(db, dias)
@@ -152,7 +141,7 @@ def indicadores_calidad(
 @router.get("/dashboard")
 def dashboard_calidad(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("calidad", "ver")),
 ):
     """Dashboard resumen de calidad."""
     return svc.dashboard_calidad(db)

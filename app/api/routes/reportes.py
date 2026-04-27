@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.services import pdf_service
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_role
+from app.core.dependencies import require_permission, require_role
 from app.models.usuario import Usuario, RolUsuario
 from app.services import reportes_service as svc
 from app.services import alertas_service
@@ -21,7 +21,7 @@ router = APIRouter()
 @router.get("/dashboard")
 def dashboard(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("dash", "ver")),
 ):
     return svc.dashboard_resumen(db)
 
@@ -30,7 +30,7 @@ def dashboard(
 def gastos_hoy(
     fecha: date | None = None,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("corte", "ver")),
 ):
     return svc.gastos_hoy(db, fecha)
 
@@ -40,7 +40,7 @@ def reporte_ventas(
     fecha_inicio: date = Query(...),
     fecha_fin: date = Query(...),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("rep", "ver")),
 ):
     return svc.reporte_ventas_periodo(db, fecha_inicio, fecha_fin)
 
@@ -51,7 +51,7 @@ def productos_mas_vendidos(
     fecha_fin: date = Query(...),
     limit: int = Query(default=20, le=100),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("dash", "ver")),
 ):
     return svc.reporte_productos_mas_vendidos(db, fecha_inicio, fecha_fin, limit)
 
@@ -61,9 +61,7 @@ def reporte_iva(
     mes: int = Query(..., ge=1, le=12),
     anio: int = Query(..., ge=2020),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     return svc.reporte_iva_mensual(db, mes, anio)
 
@@ -73,9 +71,7 @@ def reporte_isr(
     mes: int = Query(..., ge=1, le=12),
     anio: int = Query(..., ge=2020),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     return svc.reporte_isr_provisional(db, mes, anio)
 
@@ -83,7 +79,7 @@ def reporte_isr(
 @router.get("/margenes-producto")
 def margenes_producto(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("rep", "ver")),
 ):
     """Margen de ganancia por producto (precio - costo)."""
     return svc.reporte_margenes_producto(db)
@@ -93,7 +89,7 @@ def margenes_producto(
 def ventas_por_dia(
     dias: int = Query(default=30, le=90),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("dash", "ver")),
 ):
     """Ventas diarias de los últimos N días para gráfica de tendencia."""
     return svc.reporte_ventas_por_dia(db, dias)
@@ -102,7 +98,7 @@ def ventas_por_dia(
 @router.get("/pronostico-produccion")
 def pronostico_produccion(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("prod", "ver")),
 ):
     """Pronóstico de producción basado en ventas históricas."""
     try:
@@ -115,7 +111,7 @@ def pronostico_produccion(
 def alertas_caducidad(
     dias: int = Query(default=7, le=30),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("inv", "ver")),
 ):
     """Ingredientes con lotes por caducar."""
     return svc.alertas_caducidad(db, dias)
@@ -124,7 +120,7 @@ def alertas_caducidad(
 @router.get("/gastos-fijos-resumen")
 def gastos_fijos_resumen(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("corte", "ver")),
 ):
     """Resumen de gastos fijos mensuales."""
     return svc.resumen_gastos_fijos(db)
@@ -134,7 +130,7 @@ def gastos_fijos_resumen(
 def reporte_mermas(
     dias: int = Query(default=30, le=90),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("merma", "ver")),
 ):
     """Reporte de mermas y desperdicio por producto/ingrediente."""
     return svc.reporte_mermas(db, dias)
@@ -145,7 +141,7 @@ def kardex_ingrediente(
     ingrediente_id: int,
     limit: int = Query(default=100, le=500),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("inv", "ver")),
 ):
     """Kardex de un ingrediente: historial de movimientos con saldo."""
     try:
@@ -157,7 +153,9 @@ def kardex_ingrediente(
 @router.get("/empleados-dashboard")
 def dashboard_empleados(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_role(
+        RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE, RolUsuario.CONTADOR
+    )),
 ):
     """Dashboard de empleados: cumpleaños, documentos por vencer."""
     return svc.dashboard_empleados(db)
@@ -167,7 +165,7 @@ def dashboard_empleados(
 def ventas_por_hora(
     dias: int = Query(default=7, le=30),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("rep", "ver")),
 ):
     """Ventas agrupadas por hora del día para heatmap."""
     return svc.reporte_ventas_por_hora(db, dias)
@@ -177,7 +175,7 @@ def ventas_por_hora(
 def analisis_abc(
     dias: int = Query(default=30, le=90),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("rep", "ver")),
 ):
     """Análisis ABC (Pareto 80/20) de productos por ingresos."""
     return svc.analisis_abc(db, dias)
@@ -187,7 +185,7 @@ def analisis_abc(
 def comparativo_anual(
     anio: int = Query(..., ge=2020),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("rep", "ver")),
 ):
     """Comparativo de ventas año actual vs anterior, mes a mes."""
     return svc.comparativo_anual(db, anio)
@@ -196,7 +194,7 @@ def comparativo_anual(
 @router.get("/estacionalidad")
 def analisis_estacionalidad(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("rep", "ver")),
 ):
     """Análisis de estacionalidad: meses pico, fechas festivas, días de semana."""
     return svc.analisis_estacionalidad(db)
@@ -205,7 +203,7 @@ def analisis_estacionalidad(
 @router.get("/dashboard-avanzado")
 def dashboard_avanzado(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("rep", "ver")),
 ):
     """Dashboard avanzado: comparativos mensuales, proyección, clientes VIP, utilidad."""
     return svc.dashboard_avanzado(db)
@@ -215,7 +213,7 @@ def dashboard_avanzado(
 def punto_equilibrio(
     dias: int = Query(default=30, le=90),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("rep", "ver")),
 ):
     """Punto de equilibrio (break-even analysis) de la panadería."""
     return svc.punto_de_equilibrio(db, dias)
@@ -225,7 +223,7 @@ def punto_equilibrio(
 def flujo_efectivo(
     meses: int = Query(default=3, le=12),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("rep", "ver")),
 ):
     """Proyección de flujo de efectivo a N meses."""
     return svc.flujo_efectivo_proyectado(db, meses)
@@ -234,7 +232,7 @@ def flujo_efectivo(
 @router.get("/alertas")
 def alertas_consolidadas_endpoint(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("dash", "ver")),
 ):
     """Alertas consolidadas: stock bajo, caducidades, pedidos pendientes, merma."""
     data = alertas_service.alertas_consolidadas(db)
@@ -292,7 +290,7 @@ def reporte_ventas_pdf(
     fecha_inicio: date = Query(...),
     fecha_fin: date = Query(...),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_permission("rep", "ver")),
 ):
     """Descarga reporte de ventas en PDF."""
     data = svc.reporte_ventas_periodo(db, fecha_inicio, fecha_fin)
@@ -308,9 +306,7 @@ def reporte_iva_pdf(
     mes: int = Query(..., ge=1, le=12),
     anio: int = Query(..., ge=2020),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     """Descarga reporte de IVA mensual en PDF."""
     data = svc.reporte_iva_mensual(db, mes, anio)
@@ -326,9 +322,7 @@ def reporte_isr_pdf(
     mes: int = Query(..., ge=1, le=12),
     anio: int = Query(..., ge=2020),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     """Descarga reporte de ISR provisional en PDF."""
     data = svc.reporte_isr_provisional(db, mes, anio)

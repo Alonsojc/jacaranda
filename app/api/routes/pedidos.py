@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import require_permission
 from app.models.usuario import Usuario
 from app.schemas.pedido import PedidoCreate, PedidoUpdate, PedidoResponse
 from app.services import pedido_service
@@ -17,7 +17,7 @@ router = APIRouter()
 def crear_pedido(
     data: PedidoCreate,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("ped", "editar")),
 ):
     try:
         return pedido_service.crear_pedido(db, data)
@@ -31,7 +31,7 @@ def listar_pedidos(
     estado: str | None = Query(None),
     limit: int = Query(default=50, le=200),
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("ped", "ver")),
 ):
     return pedido_service.listar_pedidos(db, fecha=fecha, estado=estado, limit=limit)
 
@@ -39,7 +39,7 @@ def listar_pedidos(
 @router.get("/hoy", response_model=list[PedidoResponse])
 def pedidos_de_hoy(
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("ped", "ver")),
 ):
     return pedido_service.pedidos_del_dia(db)
 
@@ -48,7 +48,7 @@ def pedidos_de_hoy(
 def obtener_pedido(
     pedido_id: int,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("ped", "ver")),
 ):
     try:
         return pedido_service.obtener_pedido(db, pedido_id)
@@ -61,7 +61,7 @@ def actualizar_pedido(
     pedido_id: int,
     data: PedidoUpdate,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(get_current_user),
+    user: Usuario = Depends(require_permission("ped", "editar")),
 ):
     try:
         return pedido_service.actualizar_pedido(db, pedido_id, data)

@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_role
+from app.core.dependencies import require_role
 from app.models.usuario import Usuario, RolUsuario
 from app.schemas.empleado import (
     EmpleadoCreate, EmpleadoUpdate, EmpleadoResponse,
@@ -33,7 +33,9 @@ def listar_empleados(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, le=500),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_role(
+        RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE, RolUsuario.CONTADOR
+    )),
 ):
     return svc.listar_empleados(db, skip=skip, limit=limit)
 
@@ -44,7 +46,7 @@ def listar_empleados(
 def registrar_asistencia(
     data: AsistenciaCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
 ):
     return svc.registrar_asistencia(db, data)
 
@@ -111,7 +113,9 @@ def recibo_nomina_pdf(
 def obtener_empleado(
     id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(get_current_user),
+    _user: Usuario = Depends(require_role(
+        RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE, RolUsuario.CONTADOR
+    )),
 ):
     try:
         return svc.obtener_empleado(db, id)
