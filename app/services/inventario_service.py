@@ -197,34 +197,42 @@ def registrar_movimiento(
     commit: bool = True,
 ) -> MovimientoInventario:
     """Registra un movimiento y actualiza el stock correspondiente."""
-    movimiento = MovimientoInventario(
-        **data.model_dump(), usuario_id=usuario_id,
-    )
-    db.add(movimiento)
+    targets = [data.ingrediente_id is not None, data.producto_id is not None]
+    if sum(targets) != 1:
+        raise ValueError("Debe especificar exactamente un ingrediente o producto")
 
     # Actualizar stock
     es_entrada = data.tipo.value.startswith("entrada")
     cantidad = data.cantidad if es_entrada else -data.cantidad
 
-    if data.ingrediente_id:
+    if data.ingrediente_id is not None:
         ingrediente = db.query(Ingrediente).filter(
             Ingrediente.id == data.ingrediente_id
-        ).first()
+        ).with_for_update().first()
         if not ingrediente:
             raise ValueError("Ingrediente no encontrado")
-        ingrediente.stock_actual += cantidad
-        if ingrediente.stock_actual < 0:
+        nuevo_stock = ingrediente.stock_actual + cantidad
+        if nuevo_stock < 0:
             raise ValueError("Stock insuficiente de ingrediente")
+        ingrediente.stock_actual = nuevo_stock
         if es_entrada and data.costo_unitario:
             ingrediente.costo_unitario = data.costo_unitario
 
-    if data.producto_id:
-        producto = db.query(Producto).filter(Producto.id == data.producto_id).first()
+    if data.producto_id is not None:
+        producto = db.query(Producto).filter(
+            Producto.id == data.producto_id
+        ).with_for_update().first()
         if not producto:
             raise ValueError("Producto no encontrado")
-        producto.stock_actual += cantidad
-        if producto.stock_actual < 0:
+        nuevo_stock = producto.stock_actual + cantidad
+        if nuevo_stock < 0:
             raise ValueError("Stock insuficiente de producto")
+        producto.stock_actual = nuevo_stock
+
+    movimiento = MovimientoInventario(
+        **data.model_dump(), usuario_id=usuario_id,
+    )
+    db.add(movimiento)
 
     if commit:
         db.commit()

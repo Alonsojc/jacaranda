@@ -85,6 +85,27 @@ class TestClientes:
         assert resp2.status_code == 400
         assert "insuficientes" in resp2.json()["detail"].lower()
 
+    def test_canjear_puntos_solo_cotiza_no_descuenta(self, client, auth_headers, db):
+        from app.models.cliente import Cliente
+
+        resp = self._crear_cliente(client, auth_headers)
+        cid = resp.json()["id"]
+        cliente = db.query(Cliente).filter(Cliente.id == cid).first()
+        cliente.puntos_acumulados = 50
+        db.commit()
+
+        resp2 = client.post(
+            f"/api/v1/clientes/{cid}/canjear-puntos?puntos=10",
+            headers=auth_headers,
+        )
+        assert resp2.status_code == 200
+        assert resp2.json()["descuento"] == 5.0
+        assert resp2.json()["puntos_restantes"] == 40
+        assert resp2.json()["requiere_venta"] is True
+
+        puntos = client.get(f"/api/v1/clientes/{cid}/puntos", headers=auth_headers)
+        assert puntos.json()["puntos"] == 50
+
     def test_cliente_con_datos_fiscales(self, client, auth_headers):
         resp = self._crear_cliente(client, auth_headers,
             rfc="XAXX010101000",

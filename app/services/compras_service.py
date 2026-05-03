@@ -3,18 +3,22 @@ Servicio de gestión de proveedores y compras.
 Órdenes de compra, recepción de mercancía, cuentas por pagar, evaluaciones.
 """
 
+import json
 from decimal import Decimal
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_
+from sqlalchemy.exc import IntegrityError
 
 from app.models.compras import (
     OrdenCompra, DetalleOrdenCompra, CuentaPagar, PagoCuentaPagar,
-    EvaluacionProveedor, EstadoOrdenCompra, EstadoCuentaPagar,
+    EvaluacionProveedor, RecepcionOrdenCompra, EstadoOrdenCompra,
+    EstadoCuentaPagar,
 )
 from app.models.inventario import (
     Proveedor, Ingrediente, MovimientoInventario, TipoMovimiento,
 )
+from app.services.auditoria_service import registrar_evento
 
 ZERO = Decimal("0")
 
@@ -229,41 +233,88 @@ def _orden_to_dict(orden: OrdenCompra, incluir_detalles: bool = True) -> dict:
 
 # ─── Recepción de mercancía ──────────────────────────────────────
 
-def recibir_orden(db: Session, orden_id: int, items_recibidos: list[dict]) -> dict:
+def recibir_orden(
+    db: Session,
+    orden_id: int,
+    items_recibidos: list[dict],
+    idempotency_key: str | None = None,
+    usuario_id: int | None = None,
+) -> dict:
     """
     Recibe mercancía de una orden de compra.
     items_recibidos: [{detalle_id, cantidad_recibida}]
     Actualiza stock de ingredientes y crea movimientos de inventario.
     """
-    orden = db.query(OrdenCompra).options(
-        joinedload(OrdenCompra.detalles).joinedload(DetalleOrdenCompra.ingrediente),
-    ).filter(OrdenCompra.id == orden_id).first()
+    if idempotency_key:
+        recepcion_existente = db.query(RecepcionOrdenCompra).filter(
+            RecepcionOrdenCompra.idempotency_key == idempotency_key
+        ).first()
+        if recepcion_existente:
+            if recepcion_existente.orden_id != orden_id:
+                raise ValueError("La clave idempotente ya fue usada en otra orden")
+            return obtener_orden_compra(db, orden_id)
 
-    if not orden:
-        raise ValueError("Orden de compra no encontrada")
-    if orden.estado in (EstadoOrdenCompra.RECIBIDA, EstadoOrdenCompra.CANCELADA):
-        raise ValueError(f"No se puede recibir una orden en estado '{orden.estado.value}'")
+    try:
+        orden = db.query(OrdenCompra).options(
+            joinedload(OrdenCompra.detalles).joinedload(DetalleOrdenCompra.ingrediente),
+        ).filter(OrdenCompra.id == orden_id).with_for_update().first()
 
-    detalles_map = {d.id: d for d in orden.detalles}
-    toda_completa = True
+        if not orden:
+            raise ValueError("Orden de compra no encontrada")
+        if orden.estado in (EstadoOrdenCompra.RECIBIDA, EstadoOrdenCompra.CANCELADA):
+            raise ValueError(f"No se puede recibir una orden en estado '{orden.estado.value}'")
+        if not items_recibidos:
+            raise ValueError("Debe registrar al menos un item recibido")
 
-    for item in items_recibidos:
-        detalle = detalles_map.get(item["detalle_id"])
-        if not detalle:
-            raise ValueError(f"Detalle ID {item['detalle_id']} no pertenece a esta orden")
+        if idempotency_key:
+            recepcion = RecepcionOrdenCompra(
+                orden_id=orden_id,
+                idempotency_key=idempotency_key,
+                usuario_id=usuario_id,
+                payload_json=json.dumps(items_recibidos, default=str, sort_keys=True),
+            )
+            db.add(recepcion)
+            try:
+                db.flush()
+            except IntegrityError:
+                db.rollback()
+                return obtener_orden_compra(db, orden_id)
 
-        cantidad = Decimal(str(item["cantidad_recibida"]))
-        if cantidad < 0:
-            raise ValueError("La cantidad recibida no puede ser negativa")
+        detalles_map = {d.id: d for d in orden.detalles}
+        toda_completa = True
+        datos_anteriores: dict[str, dict] = {"estado": orden.estado.value, "detalles": {}}
+        datos_nuevos: dict[str, dict] = {"detalles": {}}
 
-        detalle.cantidad_recibida = detalle.cantidad_recibida + cantidad
+        for item in items_recibidos:
+            detalle = detalles_map.get(item["detalle_id"])
+            if not detalle:
+                raise ValueError(f"Detalle ID {item['detalle_id']} no pertenece a esta orden")
 
-        # Actualizar stock del ingrediente
-        ingrediente = detalle.ingrediente
-        if ingrediente:
+            cantidad = Decimal(str(item["cantidad_recibida"]))
+            if cantidad <= 0:
+                raise ValueError("La cantidad recibida debe ser mayor a cero")
+
+            pendiente = detalle.cantidad_solicitada - detalle.cantidad_recibida
+            if cantidad > pendiente:
+                raise ValueError(
+                    "La cantidad recibida excede lo pendiente para el detalle "
+                    f"{detalle.id}: pendiente {pendiente}, recibido {cantidad}"
+                )
+
+            ingrediente = db.query(Ingrediente).filter(
+                Ingrediente.id == detalle.ingrediente_id
+            ).with_for_update().first()
+            if not ingrediente:
+                raise ValueError(f"Ingrediente ID {detalle.ingrediente_id} no encontrado")
+
+            datos_anteriores["detalles"][str(detalle.id)] = {
+                "cantidad_recibida": detalle.cantidad_recibida,
+                "stock_ingrediente": ingrediente.stock_actual,
+            }
+
+            detalle.cantidad_recibida = detalle.cantidad_recibida + cantidad
             ingrediente.stock_actual = ingrediente.stock_actual + cantidad
 
-            # Crear movimiento de inventario
             mov = MovimientoInventario(
                 tipo=TipoMovimiento.ENTRADA_COMPRA,
                 ingrediente_id=ingrediente.id,
@@ -271,24 +322,47 @@ def recibir_orden(db: Session, orden_id: int, items_recibidos: list[dict]) -> di
                 costo_unitario=detalle.precio_unitario,
                 referencia=f"OC {orden.folio}",
                 notas=f"Recepcion orden de compra {orden.folio}",
+                usuario_id=usuario_id,
             )
             db.add(mov)
 
-    # Determinar estado de la orden
-    for detalle in orden.detalles:
-        if detalle.cantidad_recibida < detalle.cantidad_solicitada:
-            toda_completa = False
-            break
+            datos_nuevos["detalles"][str(detalle.id)] = {
+                "cantidad_recibida": detalle.cantidad_recibida,
+                "stock_ingrediente": ingrediente.stock_actual,
+            }
 
-    if toda_completa:
-        orden.estado = EstadoOrdenCompra.RECIBIDA
-        orden.fecha_recepcion = date.today()
-    else:
-        orden.estado = EstadoOrdenCompra.PARCIAL
+        # Determinar estado de la orden
+        for detalle in orden.detalles:
+            if detalle.cantidad_recibida < detalle.cantidad_solicitada:
+                toda_completa = False
+                break
 
-    db.commit()
-    db.refresh(orden)
-    return _orden_to_dict(orden)
+        if toda_completa:
+            orden.estado = EstadoOrdenCompra.RECIBIDA
+            orden.fecha_recepcion = date.today()
+        else:
+            orden.estado = EstadoOrdenCompra.PARCIAL
+
+        datos_nuevos["estado"] = orden.estado.value
+        registrar_evento(
+            db,
+            usuario_id=usuario_id,
+            usuario_nombre=None,
+            accion="recibir",
+            modulo="compras",
+            entidad="ordenes_compra",
+            entidad_id=orden.id,
+            datos_anteriores=datos_anteriores,
+            datos_nuevos=datos_nuevos,
+            commit=False,
+        )
+
+        db.commit()
+        db.refresh(orden)
+        return _orden_to_dict(orden)
+    except Exception:
+        db.rollback()
+        raise
 
 
 # ─── Cuentas por pagar ──────────────────────────────────────────

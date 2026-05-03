@@ -78,6 +78,32 @@ class TestDelivery:
         }, headers=auth_headers)
         assert resp.status_code == 404
 
+    def test_no_permite_en_ruta_sin_estar_listo(self, client, auth_headers):
+        ped = self._crear_pedido(client, auth_headers)
+        resp = client.post(f"/api/v1/delivery/{ped['id']}/en-ruta", json={
+            "repartidor_nombre": "Juan",
+        }, headers=auth_headers)
+        assert resp.status_code == 400
+
+    def test_no_permite_entregar_sin_estar_en_ruta(self, client, auth_headers):
+        ped = self._crear_pedido(client, auth_headers)
+        self._preparar_pedido(client, auth_headers, ped["id"])
+        resp = client.post(f"/api/v1/delivery/{ped['id']}/entregado",
+                           headers=auth_headers)
+        assert resp.status_code == 400
+
+    def test_entregar_no_marca_pagado(self, client, auth_headers):
+        ped = self._crear_pedido(client, auth_headers)
+        self._preparar_pedido(client, auth_headers, ped["id"])
+        client.post(f"/api/v1/delivery/{ped['id']}/en-ruta", json={
+            "repartidor_nombre": "Juan",
+        }, headers=auth_headers)
+        resp = client.post(f"/api/v1/delivery/{ped['id']}/entregado",
+                           headers=auth_headers)
+        assert resp.status_code == 200
+        detalle = client.get(f"/api/v1/pedidos/{ped['id']}", headers=auth_headers)
+        assert detalle.json()["pagado"] is False
+
     def test_sin_autenticacion(self, client):
         resp = client.get("/api/v1/delivery/en-ruta")
         assert resp.status_code in (401, 403)

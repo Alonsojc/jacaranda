@@ -37,7 +37,7 @@ from app.models.contabilidad import (  # noqa: F401
     TipoCuenta, NaturalezaCuenta, TipoAsiento,
 )
 from app.models.compras import (  # noqa: F401
-    OrdenCompra, DetalleOrdenCompra, CuentaPagar, PagoCuentaPagar,
+    OrdenCompra, DetalleOrdenCompra, RecepcionOrdenCompra, CuentaPagar, PagoCuentaPagar,
     EvaluacionProveedor, EstadoOrdenCompra, EstadoCuentaPagar,
 )
 from app.models.lealtad import (  # noqa: F401

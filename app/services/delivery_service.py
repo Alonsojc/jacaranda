@@ -18,6 +18,8 @@ def marcar_en_ruta(
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     if not pedido:
         raise ValueError("Pedido no encontrado")
+    if pedido.estado != EstadoPedido.LISTO:
+        raise ValueError("Solo pedidos en estado 'listo' pueden salir a ruta")
     pedido.estado = EstadoPedido.EN_RUTA
     pedido.en_ruta_en = datetime.now(timezone.utc)
     pedido.repartidor_nombre = repartidor_nombre
@@ -31,9 +33,10 @@ def marcar_entregado(db: Session, pedido_id: int) -> Pedido:
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     if not pedido:
         raise ValueError("Pedido no encontrado")
+    if pedido.estado != EstadoPedido.EN_RUTA:
+        raise ValueError("Solo pedidos en ruta pueden marcarse como entregados")
     pedido.estado = EstadoPedido.ENTREGADO
     pedido.entregado_en = datetime.now(timezone.utc)
-    pedido.pagado = True
     db.commit()
     db.refresh(pedido)
     return pedido

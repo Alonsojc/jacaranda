@@ -55,7 +55,7 @@ def acumular_puntos(
     Actualiza puntos_acumulados, puntos_totales_historicos y nivel.
     Registra movimiento en HistorialPuntos.
     """
-    cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id).with_for_update().first()
     if not cliente:
         raise ValueError("Cliente no encontrado")
 

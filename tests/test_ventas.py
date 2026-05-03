@@ -112,6 +112,7 @@ class TestVentas:
 
     def test_cancelar_venta_revierte_puntos_y_audita(self, client, auth_headers, db):
         from app.models.auditoria import LogAuditoria
+        from app.models.lealtad import HistorialPuntos
 
         cliente = client.post("/api/v1/clientes/", json={
             "nombre": "Cliente Puntos",
@@ -137,6 +138,11 @@ class TestVentas:
         assert resp.status_code == 200
         puntos = client.get(f"/api/v1/clientes/{cliente['id']}/puntos", headers=auth_headers).json()
         assert puntos["puntos"] == 0
+        historial = db.query(HistorialPuntos).filter(
+            HistorialPuntos.cliente_id == cliente["id"],
+            HistorialPuntos.venta_id == venta["id"],
+        ).order_by(HistorialPuntos.id.asc()).all()
+        assert [h.puntos for h in historial] == [10, -10]
 
         evento = db.query(LogAuditoria).filter(
             LogAuditoria.accion == "cancelar",
@@ -189,6 +195,53 @@ class TestVentas:
         assert float(data["total"]) == 116.00
         assert float(data["iva_16"]) == 16.00
 
+    def test_venta_canjea_puntos_en_misma_transaccion(self, client, auth_headers):
+        cliente = client.post("/api/v1/clientes/", json={
+            "nombre": "Cliente Canje",
+            "telefono": "4421111111",
+        }, headers=auth_headers).json()
+        pid = self._crear_producto(client, auth_headers, "PAN-CANJE", "100.00")
+        self._agregar_stock(client, auth_headers, pid, 10)
+
+        primera = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "100.00",
+            "cliente_id": cliente["id"],
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert primera.status_code == 201
+        assert client.get(
+            f"/api/v1/clientes/{cliente['id']}/puntos",
+            headers=auth_headers,
+        ).json()["puntos"] == 10
+
+        segunda = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "100.00",
+            "cliente_id": cliente["id"],
+            "puntos_canjeados": 10,
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert segunda.status_code == 201, segunda.text
+        assert segunda.json()["total"] == "95.00"
+        assert segunda.json()["descuento"] == "5.00"
+        puntos = client.get(
+            f"/api/v1/clientes/{cliente['id']}/puntos",
+            headers=auth_headers,
+        ).json()
+        assert puntos["puntos"] == 9
+
+        cancelada = client.post(
+            f"/api/v1/punto-de-venta/ventas/{segunda.json()['id']}/cancelar",
+            headers=auth_headers,
+        )
+        assert cancelada.status_code == 200
+        puntos = client.get(
+            f"/api/v1/clientes/{cliente['id']}/puntos",
+            headers=auth_headers,
+        ).json()
+        assert puntos["puntos"] == 10
+
 
 class TestInventarioMovimientos:
     """Tests para movimientos de inventario."""
@@ -238,6 +291,53 @@ class TestInventarioMovimientos:
         # Verify stock decreased
         prod = client.get(f"/api/v1/inventario/productos/{pid}", headers=auth_headers).json()
         assert float(prod["stock_actual"]) == 17.0
+
+    def test_merma_no_permite_stock_negativo(self, client, auth_headers):
+        resp = client.post("/api/v1/inventario/productos", json={
+            "codigo": "MERMA-NEG",
+            "nombre": "Pan merma negativa",
+            "precio_unitario": "10.00",
+            "tasa_iva": "0.00",
+        }, headers=auth_headers)
+        pid = resp.json()["id"]
+        client.post("/api/v1/inventario/movimientos", json={
+            "tipo": "entrada_ajuste",
+            "producto_id": pid,
+            "cantidad": "2",
+        }, headers=auth_headers)
+        resp = client.post(
+            f"/api/v1/inventario/productos/{pid}/merma?cantidad=5&motivo=Caducado",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
+        prod = client.get(f"/api/v1/inventario/productos/{pid}", headers=auth_headers).json()
+        assert float(prod["stock_actual"]) == 2.0
+
+    def test_ajuste_stock_rechaza_negativo_y_registra_movimiento(self, client, auth_headers):
+        resp = client.post("/api/v1/inventario/productos", json={
+            "codigo": "AJUSTE-001",
+            "nombre": "Pan ajuste",
+            "precio_unitario": "10.00",
+            "tasa_iva": "0.00",
+        }, headers=auth_headers)
+        pid = resp.json()["id"]
+
+        negativo = client.post(
+            f"/api/v1/inventario/productos/{pid}/ajuste-stock?cantidad=-1",
+            headers=auth_headers,
+        )
+        assert negativo.status_code == 422
+
+        ajuste = client.post(
+            f"/api/v1/inventario/productos/{pid}/ajuste-stock?cantidad=5&motivo=Inicial",
+            headers=auth_headers,
+        )
+        assert ajuste.status_code == 200
+        movimientos = client.get(
+            f"/api/v1/inventario/movimientos?producto_id={pid}",
+            headers=auth_headers,
+        ).json()
+        assert movimientos[0]["tipo"] == "entrada_ajuste"
 
     def test_movimientos_listado(self, client, auth_headers):
         resp = client.post("/api/v1/inventario/ingredientes", json={

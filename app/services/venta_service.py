@@ -22,6 +22,7 @@ from app.core.config import settings
 # Loyalty: 1 punto por cada $10 MXN gastados, 100 puntos = $50 descuento
 PUNTOS_POR_PESO = Decimal("0.1")  # 1 punto por $10
 VALOR_PUNTO = Decimal("0.5")      # cada punto vale $0.50
+CENTAVO = Decimal("0.01")
 
 
 def _generar_folio(db: Session, serie: str = "T") -> str:
@@ -51,6 +52,56 @@ def _obtener_tasa_iva(producto: Producto) -> Decimal:
         return Decimal("0.00")
 
 
+def _aplicar_descuento_global(detalles: list[DetalleVenta], descuento_bruto: Decimal) -> None:
+    """Distribuye un descuento con IVA incluido entre partidas."""
+    if descuento_bruto <= 0:
+        return
+
+    totales_brutos = [d.subtotal + d.monto_iva for d in detalles]
+    total_bruto = sum(totales_brutos, Decimal("0"))
+    if total_bruto <= 0:
+        raise ValueError("No se puede aplicar descuento a una venta sin total")
+    if descuento_bruto > total_bruto:
+        raise ValueError("El descuento por puntos no puede exceder el total de la venta")
+
+    restante_bruto = descuento_bruto
+    for index, detalle in enumerate(detalles):
+        if index == len(detalles) - 1:
+            descuento_linea_bruto = restante_bruto
+        else:
+            descuento_linea_bruto = (
+                descuento_bruto * (totales_brutos[index] / total_bruto)
+            ).quantize(CENTAVO)
+            restante_bruto -= descuento_linea_bruto
+
+        divisor = Decimal("1") + detalle.tasa_iva
+        descuento_base = (descuento_linea_bruto / divisor).quantize(CENTAVO)
+        descuento_base = min(descuento_base, detalle.subtotal)
+        if descuento_base <= 0:
+            continue
+
+        detalle.descuento += descuento_base
+        detalle.subtotal -= descuento_base
+        detalle.monto_iva = (detalle.subtotal * detalle.tasa_iva).quantize(CENTAVO)
+
+
+def _recalcular_totales(
+    detalles: list[DetalleVenta],
+) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal]:
+    subtotal_total = sum((d.subtotal for d in detalles), Decimal("0")).quantize(CENTAVO)
+    descuento_total = sum((d.descuento for d in detalles), Decimal("0")).quantize(CENTAVO)
+    iva_0_total = sum(
+        (d.subtotal for d in detalles if d.tasa_iva == Decimal("0.00")),
+        Decimal("0"),
+    ).quantize(CENTAVO)
+    iva_16_total = sum(
+        (d.monto_iva for d in detalles if d.tasa_iva != Decimal("0.00")),
+        Decimal("0"),
+    ).quantize(CENTAVO)
+    total_impuestos = iva_16_total
+    return subtotal_total, descuento_total, iva_0_total, iva_16_total, total_impuestos
+
+
 def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     """
     Procesa una venta completa:
@@ -65,6 +116,22 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         ).first()
         if venta_existente:
             return venta_existente
+
+    cliente_lealtad = None
+    if data.cliente_id:
+        cliente_lealtad = db.query(Cliente).filter(
+            Cliente.id == data.cliente_id
+        ).with_for_update().first()
+        if not cliente_lealtad:
+            raise ValueError("Cliente no encontrado")
+    if data.puntos_canjeados:
+        if not cliente_lealtad:
+            raise ValueError("El canje de puntos requiere cliente asociado")
+        if data.puntos_canjeados > cliente_lealtad.puntos_acumulados:
+            raise ValueError(
+                "Puntos insuficientes: tiene "
+                f"{cliente_lealtad.puntos_acumulados}, pidió {data.puntos_canjeados}"
+            )
 
     subtotal_total = Decimal("0")
     descuento_total = Decimal("0")
@@ -114,7 +181,14 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         )
         detalles.append(detalle)
 
-    total_impuestos = iva_16_total
+    if data.puntos_canjeados:
+        descuento_puntos = Decimal(str(data.puntos_canjeados)) * VALOR_PUNTO
+        _aplicar_descuento_global(detalles, descuento_puntos)
+        subtotal_total, descuento_total, iva_0_total, iva_16_total, total_impuestos = (
+            _recalcular_totales(detalles)
+        )
+    else:
+        total_impuestos = iva_16_total
     total = subtotal_total + total_impuestos
 
     # Validar pago
@@ -193,6 +267,20 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         detalle.venta_id = venta.id
         db.add(detalle)
 
+    if data.puntos_canjeados and cliente_lealtad:
+        from app.models.lealtad import HistorialPuntos
+
+        saldo_anterior = cliente_lealtad.puntos_acumulados
+        cliente_lealtad.puntos_acumulados -= data.puntos_canjeados
+        db.add(HistorialPuntos(
+            cliente_id=cliente_lealtad.id,
+            puntos=-data.puntos_canjeados,
+            concepto=f"Canje en venta {folio}",
+            venta_id=venta.id,
+            saldo_anterior=saldo_anterior,
+            saldo_nuevo=cliente_lealtad.puntos_acumulados,
+        ))
+
     # Agregar pagos (split payment records)
     if data.pagos:
         for pago_data in data.pagos:
@@ -216,10 +304,8 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
 
     # Acumular puntos de lealtad si hay cliente asociado
     if venta.cliente_id:
-        cliente = db.query(Cliente).filter(Cliente.id == venta.cliente_id).first()
-        if cliente:
-            puntos_ganados = int(total * PUNTOS_POR_PESO)
-            cliente.puntos_acumulados += puntos_ganados
+        from app.services.lealtad_service import acumular_puntos
+        acumular_puntos(db, venta.cliente_id, venta.id, total)
 
     db.commit()
     db.refresh(venta)
@@ -236,6 +322,7 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
 
     estado_anterior = venta.estado.value
     puntos_revertidos = 0
+    puntos_restaurados = 0
     puntos_antes = None
     puntos_despues = None
 
@@ -252,14 +339,56 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
         registrar_movimiento(db, mov, usuario_id, commit=False)
 
     if venta.cliente_id:
-        cliente = db.query(Cliente).filter(Cliente.id == venta.cliente_id).first()
+        from app.models.lealtad import HistorialPuntos
+        from app.services.lealtad_service import calcular_nivel
+
+        cliente = db.query(Cliente).filter(
+            Cliente.id == venta.cliente_id
+        ).with_for_update().first()
         if cliente:
             puntos_antes = cliente.puntos_acumulados
-            puntos_revertidos = min(
-                cliente.puntos_acumulados,
-                int(venta.total * PUNTOS_POR_PESO),
+            puntos_generados = db.query(func.coalesce(func.sum(HistorialPuntos.puntos), 0)).filter(
+                HistorialPuntos.cliente_id == cliente.id,
+                HistorialPuntos.venta_id == venta.id,
+                HistorialPuntos.puntos > 0,
+                HistorialPuntos.concepto.like("Compra%"),
+            ).scalar()
+            puntos_canjeados = db.query(func.coalesce(func.sum(HistorialPuntos.puntos), 0)).filter(
+                HistorialPuntos.cliente_id == cliente.id,
+                HistorialPuntos.venta_id == venta.id,
+                HistorialPuntos.puntos < 0,
+            ).scalar()
+            puntos_revertidos = int(puntos_generados or int(venta.total * PUNTOS_POR_PESO))
+            puntos_restaurados = abs(int(puntos_canjeados or 0))
+            saldo_actual = cliente.puntos_acumulados
+            cliente.puntos_totales_historicos = max(
+                0,
+                cliente.puntos_totales_historicos - puntos_revertidos,
             )
-            cliente.puntos_acumulados -= puntos_revertidos
+            cliente.nivel_lealtad = calcular_nivel(cliente.puntos_totales_historicos).value
+            if puntos_revertidos:
+                saldo_despues_reversion = saldo_actual - puntos_revertidos
+                db.add(HistorialPuntos(
+                    cliente_id=cliente.id,
+                    puntos=-puntos_revertidos,
+                    concepto=f"Cancelación venta {venta.folio}",
+                    venta_id=venta.id,
+                    saldo_anterior=saldo_actual,
+                    saldo_nuevo=saldo_despues_reversion,
+                ))
+                saldo_actual = saldo_despues_reversion
+            if puntos_restaurados:
+                saldo_despues_restauracion = saldo_actual + puntos_restaurados
+                db.add(HistorialPuntos(
+                    cliente_id=cliente.id,
+                    puntos=puntos_restaurados,
+                    concepto=f"Restauración canje venta {venta.folio}",
+                    venta_id=venta.id,
+                    saldo_anterior=saldo_actual,
+                    saldo_nuevo=saldo_despues_restauracion,
+                ))
+                saldo_actual = saldo_despues_restauracion
+            cliente.puntos_acumulados = saldo_actual
             puntos_despues = cliente.puntos_acumulados
 
     registrar_evento(
@@ -278,6 +407,7 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
         datos_nuevos={
             "estado": EstadoVenta.CANCELADA.value,
             "puntos_revertidos": puntos_revertidos,
+            "puntos_restaurados": puntos_restaurados,
             "puntos_acumulados": puntos_despues,
         },
         commit=False,

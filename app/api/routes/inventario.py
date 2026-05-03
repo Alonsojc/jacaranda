@@ -215,14 +215,14 @@ def alertas_caducidad(dias: int = Query(default=7), db: Session = Depends(get_db
 @router.post("/ingredientes/{ingrediente_id}/compra")
 def registrar_compra_ingrediente(
     ingrediente_id: int,
-    cantidad: float = Query(...),
-    costo: float = Query(0),
+    cantidad: float = Query(..., gt=0),
+    costo: float = Query(0, ge=0),
     proveedor: str = Query(""),
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_permission("inv", "editar")),
 ):
     """Registrar entrada de ingrediente (compra a proveedor)."""
-    from app.models.inventario import Ingrediente, MovimientoInventario, TipoMovimiento, LoteIngrediente
+    from app.models.inventario import Ingrediente, TipoMovimiento, LoteIngrediente
     from datetime import datetime, timezone, timedelta, date
     from decimal import Decimal
 
@@ -230,17 +230,17 @@ def registrar_compra_ingrediente(
     if not ingrediente:
         raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
 
-    ingrediente.stock_actual += Decimal(str(cantidad))
-
-    # Registrar movimiento
-    mov = MovimientoInventario(
+    mov = MovimientoCreate(
         ingrediente_id=ingrediente_id,
         tipo=TipoMovimiento.ENTRADA_COMPRA,
         cantidad=Decimal(str(cantidad)),
+        costo_unitario=Decimal(str(costo)) if costo else Decimal("0"),
         referencia=f"Compra - {proveedor}" if proveedor else "Compra",
-        usuario_id=user.id,
     )
-    db.add(mov)
+    try:
+        svc.registrar_movimiento(db, mov, user.id, commit=False)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     # Crear lote
     hoy = date.today()
@@ -267,28 +267,48 @@ def registrar_compra_ingrediente(
 @router.post("/productos/{producto_id}/ajuste-stock")
 def ajustar_stock_producto(
     producto_id: int,
-    cantidad: int = Query(..., description="Nueva cantidad en stock"),
+    cantidad: int = Query(..., ge=0, description="Nueva cantidad en stock"),
     motivo: str = Query("Conteo nocturno"),
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_permission("inv", "editar")),
 ):
     """Ajustar stock de producto terminado (conteo nocturno del pizarrón)."""
-    from app.models.inventario import Producto
+    from app.models.inventario import Producto, TipoMovimiento
     from decimal import Decimal
 
-    producto = db.query(Producto).filter(Producto.id == producto_id).first()
+    producto = db.query(Producto).filter(
+        Producto.id == producto_id
+    ).with_for_update().first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
     anterior = producto.stock_actual
-    producto.stock_actual = Decimal(str(cantidad))
+    nuevo = Decimal(str(cantidad))
+    diferencia = nuevo - anterior
+    if diferencia:
+        tipo = (
+            TipoMovimiento.ENTRADA_AJUSTE
+            if diferencia > 0
+            else TipoMovimiento.SALIDA_AJUSTE
+        )
+        mov = MovimientoCreate(
+            producto_id=producto_id,
+            tipo=tipo,
+            cantidad=abs(diferencia),
+            referencia=motivo,
+        )
+        try:
+            svc.registrar_movimiento(db, mov, user.id, commit=False)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
     db.commit()
+    db.refresh(producto)
 
     return {
         "producto": producto.nombre,
         "stock_anterior": float(anterior),
         "stock_nuevo": cantidad,
-        "diferencia": float(Decimal(str(cantidad)) - anterior),
+        "diferencia": float(diferencia),
         "motivo": motivo,
     }
 
@@ -304,23 +324,25 @@ def registrar_merma(
     user: Usuario = Depends(require_permission("inv", "editar")),
 ):
     """Registrar merma de producto (desperdicio, roto, caducado)."""
-    from app.models.inventario import Producto, MovimientoInventario, TipoMovimiento
+    from app.models.inventario import Producto, TipoMovimiento
     from decimal import Decimal
 
     producto = db.query(Producto).filter(Producto.id == producto_id).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    producto.stock_actual = max(Decimal("0"), producto.stock_actual - Decimal(str(cantidad)))
-    mov = MovimientoInventario(
+    mov = MovimientoCreate(
         producto_id=producto_id,
         tipo=TipoMovimiento.SALIDA_MERMA,
         cantidad=Decimal(str(cantidad)),
         referencia=motivo,
-        usuario_id=user.id,
     )
-    db.add(mov)
+    try:
+        svc.registrar_movimiento(db, mov, user.id, commit=False)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     db.commit()
+    db.refresh(producto)
 
     return {
         "mensaje": f"Merma registrada: {cantidad} de {producto.nombre}",
@@ -417,17 +439,21 @@ def conteo_nocturno(
 ):
     """Registrar conteo nocturno de productos."""
     from app.models.conteo_inventario import ConteoInventario
-    from app.models.inventario import Producto
+    from app.models.inventario import Producto, TipoMovimiento
     from datetime import date
     from decimal import Decimal
 
     hoy = date.today()
     resultados = []
     for c in conteos:
-        producto = db.query(Producto).filter(Producto.id == c["producto_id"]).first()
+        producto = db.query(Producto).filter(
+            Producto.id == c["producto_id"]
+        ).with_for_update().first()
         if not producto:
             continue
         contada = int(c.get("cantidad_contada", 0))
+        if contada < 0:
+            raise HTTPException(status_code=400, detail="El conteo no puede ser negativo")
         esperada = int(float(producto.stock_actual))
         diferencia = contada - esperada
 
@@ -445,8 +471,23 @@ def conteo_nocturno(
         )
         db.add(conteo)
 
-        # Ajustar stock al conteo real
-        producto.stock_actual = Decimal(str(contada))
+        if diferencia:
+            tipo = (
+                TipoMovimiento.ENTRADA_AJUSTE
+                if diferencia > 0
+                else TipoMovimiento.SALIDA_AJUSTE
+            )
+            mov = MovimientoCreate(
+                producto_id=producto.id,
+                tipo=tipo,
+                cantidad=abs(Decimal(str(diferencia))),
+                referencia="Conteo nocturno",
+                notas=c.get("notas"),
+            )
+            try:
+                svc.registrar_movimiento(db, mov, user.id, commit=False)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
 
         resultados.append({
             "producto": producto.nombre,

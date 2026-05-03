@@ -7,7 +7,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from sqlalchemy import (
     String, Integer, DateTime, Date, ForeignKey, Text,
-    Numeric, Boolean, Enum as SAEnum,
+    Numeric, Boolean, Enum as SAEnum, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
@@ -84,6 +84,25 @@ class DetalleOrdenCompra(Base):
 
     orden: Mapped["OrdenCompra"] = relationship(back_populates="detalles")
     ingrediente: Mapped["Ingrediente"] = relationship()  # noqa: F821
+
+
+class RecepcionOrdenCompra(Base):
+    """Registro idempotente de recepciones de mercancía."""
+    __tablename__ = "recepciones_orden_compra"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_recepciones_oc_idempotency_key"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    orden_id: Mapped[int] = mapped_column(ForeignKey("ordenes_compra.id"), index=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(80))
+    usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    payload_json: Mapped[str | None] = mapped_column(Text)
+    creado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    orden: Mapped["OrdenCompra"] = relationship()
 
 
 class CuentaPagar(Base):

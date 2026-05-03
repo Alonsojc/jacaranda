@@ -3,6 +3,7 @@
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
+from app.models.compras import RecepcionOrdenCompra
 from app.models.pago_online import ConektaWebhookEvent
 
 
@@ -35,3 +36,4 @@ def ensure_runtime_schema(engine: Engine) -> None:
             ))
 
     ConektaWebhookEvent.__table__.create(bind=engine, checkfirst=True)
+    RecepcionOrdenCompra.__table__.create(bind=engine, checkfirst=True)

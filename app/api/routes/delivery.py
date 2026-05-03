@@ -12,6 +12,10 @@ from app.services import delivery_service
 router = APIRouter()
 
 
+def _status_from_delivery_error(error: ValueError) -> int:
+    return 404 if "no encontrado" in str(error).lower() else 400
+
+
 class EnRutaRequest(BaseModel):
     repartidor_nombre: str
     repartidor_telefono: str | None = None
@@ -30,7 +34,7 @@ def marcar_en_ruta(
         )
         return {"ok": True, "pedido_id": pedido.id, "estado": pedido.estado.value}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=_status_from_delivery_error(e), detail=str(e))
 
 
 @router.post("/{pedido_id}/entregado")
@@ -43,7 +47,7 @@ def marcar_entregado(
         pedido = delivery_service.marcar_entregado(db, pedido_id)
         return {"ok": True, "pedido_id": pedido.id, "estado": pedido.estado.value}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=_status_from_delivery_error(e), detail=str(e))
 
 
 @router.get("/en-ruta")

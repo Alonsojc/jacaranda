@@ -182,3 +182,70 @@ class TestFiscal:
             f"/api/v1/fiscal/reporte-completo?mes={CURRENT_MONTH}&anio={CURRENT_YEAR}"
         )
         assert resp.status_code in (401, 403)
+
+
+class TestCFDI:
+    """Tests de generación CFDI."""
+
+    def _crear_producto(self, client, auth_headers, codigo, precio, tasa_iva):
+        resp = client.post("/api/v1/inventario/productos", json={
+            "codigo": codigo,
+            "nombre": f"Producto {codigo}",
+            "precio_unitario": precio,
+            "tasa_iva": tasa_iva,
+        }, headers=auth_headers)
+        assert resp.status_code == 201, resp.text
+        pid = resp.json()["id"]
+        stock = client.post("/api/v1/inventario/movimientos", json={
+            "tipo": "entrada_ajuste",
+            "producto_id": pid,
+            "cantidad": "10",
+        }, headers=auth_headers)
+        assert stock.status_code == 201, stock.text
+        return pid
+
+    def test_cfdi_agrupa_iva_por_tasa_y_conceptos_sin_iva_incluido(self, client, auth_headers):
+        pan_id = self._crear_producto(client, auth_headers, "CFDI-PAN-0", "100.00", "0.00")
+        pastel_id = self._crear_producto(client, auth_headers, "CFDI-PASTEL-16", "100.00", "0.16")
+        cliente = client.post("/api/v1/clientes/", json={
+            "nombre": "Cliente Fiscal",
+            "telefono": "4422222222",
+            "rfc": "XAXX010101000",
+            "razon_social": "PUBLICO EN GENERAL",
+            "regimen_fiscal": "616",
+            "domicilio_fiscal_cp": "76146",
+            "uso_cfdi": "S01",
+        }, headers=auth_headers)
+        assert cliente.status_code == 201, cliente.text
+
+        venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "300.00",
+            "cliente_id": cliente.json()["id"],
+            "detalles": [
+                {"producto_id": pan_id, "cantidad": "1"},
+                {"producto_id": pastel_id, "cantidad": "1"},
+            ],
+        }, headers=auth_headers)
+        assert venta.status_code == 201, venta.text
+        assert venta.json()["total"] == "216.00"
+
+        cfdi = client.post("/api/v1/facturacion/generar", json={
+            "venta_id": venta.json()["id"],
+            "cliente_id": cliente.json()["id"],
+            "uso_cfdi": "S01",
+            "forma_pago": "01",
+            "metodo_pago": "PUE",
+        }, headers=auth_headers)
+        assert cfdi.status_code == 201, cfdi.text
+
+        xml = client.get(
+            f"/api/v1/facturacion/{cfdi.json()['id']}/xml",
+            headers=auth_headers,
+        ).text
+        assert 'SubTotal="200.00"' in xml
+        assert 'Total="216.00"' in xml
+        assert 'Importe="116.00"' not in xml
+        assert 'TasaOCuota="0.000000"' in xml
+        assert 'TasaOCuota="0.160000"' in xml
+        assert 'Base="100.00" Impuesto="002"\n        TipoFactor="Tasa" TasaOCuota="0.160000"' in xml

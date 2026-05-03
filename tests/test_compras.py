@@ -128,6 +128,45 @@ class TestCompras:
         assert resp2.status_code == 200
         assert resp2.json()["estado"] == "parcial"
 
+    def test_recibir_orden_no_permite_exceder_pendiente(self, client, auth_headers):
+        prov_id, ing_id = self._crear_proveedor(client, auth_headers)
+        resp = self._crear_orden(client, auth_headers, prov_id, ing_id)
+        orden = resp.json()
+        detalle_id = orden["detalles"][0]["id"]
+
+        resp2 = client.post(f"/api/v1/compras/ordenes/{orden['id']}/recibir", json={
+            "items": [{"detalle_id": detalle_id, "cantidad_recibida": "60"}],
+        }, headers=auth_headers)
+        assert resp2.status_code == 400
+        assert "excede" in resp2.json()["detail"].lower()
+
+    def test_recibir_orden_idempotente_no_duplica_stock(self, client, auth_headers):
+        prov_id, ing_id = self._crear_proveedor(client, auth_headers)
+        resp = self._crear_orden(client, auth_headers, prov_id, ing_id)
+        orden = resp.json()
+        detalle_id = orden["detalles"][0]["id"]
+        payload = {
+            "idempotency_key": "recepcion-test-1",
+            "items": [{"detalle_id": detalle_id, "cantidad_recibida": "10"}],
+        }
+
+        resp1 = client.post(
+            f"/api/v1/compras/ordenes/{orden['id']}/recibir",
+            json=payload,
+            headers=auth_headers,
+        )
+        resp2 = client.post(
+            f"/api/v1/compras/ordenes/{orden['id']}/recibir",
+            json=payload,
+            headers=auth_headers,
+        )
+        assert resp1.status_code == 200
+        assert resp2.status_code == 200
+        assert resp2.json()["detalles"][0]["cantidad_recibida"] == 10.0
+
+        ing = client.get(f"/api/v1/inventario/ingredientes/{ing_id}", headers=auth_headers)
+        assert float(ing.json()["stock_actual"]) == 10.0
+
     # ── Cuentas por pagar ──
 
     def test_crear_cuenta_pagar(self, client, auth_headers):

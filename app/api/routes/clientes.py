@@ -120,7 +120,7 @@ def canjear_puntos(
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_permission("listas", "editar")),
 ):
-    """Canjea puntos del cliente. Devuelve el descuento en pesos."""
+    """Cotiza un canje; el descuento real se aplica al crear la venta."""
     cliente = db.query(Cliente).filter(Cliente.id == id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
@@ -130,10 +130,10 @@ def canjear_puntos(
             detail=f"Puntos insuficientes: tiene {cliente.puntos_acumulados}, pidió {puntos}",
         )
     descuento = float(Decimal(str(puntos)) * VALOR_PUNTO)
-    cliente.puntos_acumulados -= puntos
-    db.commit()
     return {
         "puntos_canjeados": puntos,
         "descuento": descuento,
-        "puntos_restantes": cliente.puntos_acumulados,
+        "puntos_restantes": cliente.puntos_acumulados - puntos,
+        "requiere_venta": True,
+        "mensaje": "El canje se descuenta al registrar la venta con puntos_canjeados",
     }

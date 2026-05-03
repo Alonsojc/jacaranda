@@ -6,13 +6,14 @@ Nota: El timbrado requiere integración con un PAC (Proveedor Autorizado de Cert
 
 from decimal import Decimal
 from datetime import datetime, timezone
+from html import escape
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from app.models.facturacion import (
     CFDIComprobante, CFDIConcepto, EstadoCFDI, TipoComprobante,
 )
-from app.models.venta import Venta, DetalleVenta
+from app.models.venta import Venta, EstadoVenta
 from app.models.cliente import Cliente
 from app.schemas.facturacion import CFDIGenerarRequest, CFDICancelRequest
 from app.core.config import settings
@@ -32,6 +33,28 @@ def _generar_folio_cfdi(db: Session, serie: str = "A") -> str:
     return str(numero)
 
 
+def _decimal(value) -> Decimal:
+    if isinstance(value, Decimal):
+        return value
+    return Decimal(str(value or "0"))
+
+
+def _money(value) -> str:
+    return f"{_decimal(value).quantize(Decimal('0.01')):.2f}"
+
+
+def _quantity(value) -> str:
+    return f"{_decimal(value):.4f}"
+
+
+def _rate(value) -> str:
+    return f"{_decimal(value):.6f}"
+
+
+def _xml_attr(value) -> str:
+    return escape("" if value is None else str(value), quote=True)
+
+
 def generar_cfdi(db: Session, data: CFDIGenerarRequest) -> CFDIComprobante:
     """
     Genera un CFDI 4.0 a partir de una venta.
@@ -42,6 +65,8 @@ def generar_cfdi(db: Session, data: CFDIGenerarRequest) -> CFDIComprobante:
         raise ValueError("Venta no encontrada")
     if venta.facturada:
         raise ValueError("Esta venta ya fue facturada")
+    if venta.estado == EstadoVenta.CANCELADA:
+        raise ValueError("No se puede facturar una venta cancelada")
 
     cliente = db.query(Cliente).filter(Cliente.id == data.cliente_id).first()
     if not cliente:
@@ -54,6 +79,12 @@ def generar_cfdi(db: Session, data: CFDIGenerarRequest) -> CFDIComprobante:
         raise ValueError("El cliente no tiene código postal fiscal registrado")
 
     ahora = datetime.now(timezone.utc)
+
+    cfdi_subtotal = sum(
+        (detalle.precio_unitario * detalle.cantidad).quantize(Decimal("0.01"))
+        for detalle in venta.detalles
+    )
+    cfdi_descuento = sum((detalle.descuento for detalle in venta.detalles), Decimal("0"))
 
     # Retry folio generation to handle race conditions
     for _attempt in range(3):
@@ -78,8 +109,8 @@ def generar_cfdi(db: Session, data: CFDIGenerarRequest) -> CFDIComprobante:
             receptor_domicilio_fiscal=cliente.domicilio_fiscal_cp,
             receptor_uso_cfdi=data.uso_cfdi,
             # Totales
-            subtotal=venta.subtotal,
-            descuento=venta.descuento,
+            subtotal=cfdi_subtotal,
+            descuento=cfdi_descuento,
             total_impuestos_trasladados=venta.total_impuestos,
             total=venta.total,
             # Relación con venta
@@ -98,6 +129,9 @@ def generar_cfdi(db: Session, data: CFDIGenerarRequest) -> CFDIComprobante:
     # Crear conceptos desde detalles de venta
     for detalle in venta.detalles:
         producto = detalle.producto
+        importe_bruto = (detalle.precio_unitario * detalle.cantidad).quantize(
+            Decimal("0.01")
+        )
         concepto = CFDIConcepto(
             comprobante_id=comprobante.id,
             clave_prod_serv=detalle.clave_prod_serv_sat,
@@ -107,7 +141,7 @@ def generar_cfdi(db: Session, data: CFDIGenerarRequest) -> CFDIComprobante:
             unidad=producto.unidad_medida.value if producto else "pz",
             descripcion=producto.nombre if producto else "Producto",
             valor_unitario=detalle.precio_unitario,
-            importe=detalle.subtotal + detalle.monto_iva,
+            importe=importe_bruto,
             descuento=detalle.descuento,
             objeto_imp=detalle.objeto_impuesto,
             impuesto_traslado_base=detalle.subtotal,
@@ -116,6 +150,8 @@ def generar_cfdi(db: Session, data: CFDIGenerarRequest) -> CFDIComprobante:
             impuesto_traslado_importe=detalle.monto_iva,
         )
         db.add(concepto)
+
+    db.flush()
 
     # Generar XML
     xml = _construir_xml_cfdi(comprobante, db)
@@ -141,63 +177,83 @@ def _construir_xml_cfdi(comprobante: CFDIComprobante, db: Session) -> str:
     conceptos_xml = ""
     for c in conceptos:
         impuestos_concepto = ""
-        if c.impuesto_traslado_importe > 0 or c.impuesto_traslado_tasa == Decimal("0"):
+        if c.impuesto_traslado_tipo:
             impuestos_concepto = f"""
         <cfdi:Impuestos>
           <cfdi:Traslados>
-            <cfdi:Traslado Base="{c.impuesto_traslado_base}" Impuesto="002"
-              TipoFactor="Tasa" TasaOCuota="{c.impuesto_traslado_tasa:.6f}"
-              Importe="{c.impuesto_traslado_importe}" />
+            <cfdi:Traslado Base="{_money(c.impuesto_traslado_base)}" Impuesto="002"
+              TipoFactor="Tasa" TasaOCuota="{_rate(c.impuesto_traslado_tasa)}"
+              Importe="{_money(c.impuesto_traslado_importe)}" />
           </cfdi:Traslados>
         </cfdi:Impuestos>"""
 
         conceptos_xml += f"""
-      <cfdi:Concepto ClaveProdServ="{c.clave_prod_serv}"
-        NoIdentificacion="{c.no_identificacion or ''}"
-        Cantidad="{c.cantidad}" ClaveUnidad="{c.clave_unidad}"
-        Unidad="{c.unidad or ''}" Descripcion="{c.descripcion}"
-        ValorUnitario="{c.valor_unitario}" Importe="{c.importe}"
-        Descuento="{c.descuento}" ObjetoImp="{c.objeto_imp}">{impuestos_concepto}
+      <cfdi:Concepto ClaveProdServ="{_xml_attr(c.clave_prod_serv)}"
+        NoIdentificacion="{_xml_attr(c.no_identificacion)}"
+        Cantidad="{_quantity(c.cantidad)}" ClaveUnidad="{_xml_attr(c.clave_unidad)}"
+        Unidad="{_xml_attr(c.unidad)}" Descripcion="{_xml_attr(c.descripcion)}"
+        ValorUnitario="{_money(c.valor_unitario)}" Importe="{_money(c.importe)}"
+        Descuento="{_money(c.descuento)}" ObjetoImp="{_xml_attr(c.objeto_imp)}">{impuestos_concepto}
       </cfdi:Concepto>"""
+
+    traslados_por_tasa: dict[str, dict[str, Decimal]] = {}
+    for c in conceptos:
+        if not c.impuesto_traslado_tipo:
+            continue
+        tasa = _rate(c.impuesto_traslado_tasa)
+        acumulado = traslados_por_tasa.setdefault(
+            tasa, {"base": Decimal("0"), "importe": Decimal("0")}
+        )
+        acumulado["base"] += _decimal(c.impuesto_traslado_base)
+        acumulado["importe"] += _decimal(c.impuesto_traslado_importe)
+
+    impuestos_xml = ""
+    if traslados_por_tasa:
+        traslados_xml = ""
+        for tasa, valores in sorted(traslados_por_tasa.items()):
+            traslados_xml += f"""
+      <cfdi:Traslado Base="{_money(valores['base'])}" Impuesto="002"
+        TipoFactor="Tasa" TasaOCuota="{tasa}"
+        Importe="{_money(valores['importe'])}" />"""
+        impuestos_xml = f"""
+  <cfdi:Impuestos TotalImpuestosTrasladados="{_money(comprobante.total_impuestos_trasladados)}">
+    <cfdi:Traslados>{traslados_xml}
+    </cfdi:Traslados>
+  </cfdi:Impuestos>
+"""
 
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://www.sat.gob.mx/cfd/4
     http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd"
-  Version="{comprobante.version}"
-  Serie="{comprobante.serie}" Folio="{comprobante.folio}"
+  Version="{_xml_attr(comprobante.version)}"
+  Serie="{_xml_attr(comprobante.serie)}" Folio="{_xml_attr(comprobante.folio)}"
   Fecha="{comprobante.fecha.strftime('%Y-%m-%dT%H:%M:%S')}"
-  FormaPago="{comprobante.forma_pago}"
-  MetodoPago="{comprobante.metodo_pago}"
-  TipoDeComprobante="{comprobante.tipo_comprobante.value}"
-  Moneda="{comprobante.moneda}"
-  LugarExpedicion="{comprobante.lugar_expedicion}"
-  SubTotal="{comprobante.subtotal}"
-  Descuento="{comprobante.descuento}"
-  Total="{comprobante.total}"
-  Exportacion="{comprobante.exportacion}">
+  FormaPago="{_xml_attr(comprobante.forma_pago)}"
+  MetodoPago="{_xml_attr(comprobante.metodo_pago)}"
+  TipoDeComprobante="{_xml_attr(comprobante.tipo_comprobante.value)}"
+  Moneda="{_xml_attr(comprobante.moneda)}"
+  LugarExpedicion="{_xml_attr(comprobante.lugar_expedicion)}"
+  SubTotal="{_money(comprobante.subtotal)}"
+  Descuento="{_money(comprobante.descuento)}"
+  Total="{_money(comprobante.total)}"
+  Exportacion="{_xml_attr(comprobante.exportacion)}">
 
-  <cfdi:Emisor Rfc="{comprobante.emisor_rfc}"
-    Nombre="{comprobante.emisor_nombre}"
-    RegimenFiscal="{comprobante.emisor_regimen_fiscal}" />
+  <cfdi:Emisor Rfc="{_xml_attr(comprobante.emisor_rfc)}"
+    Nombre="{_xml_attr(comprobante.emisor_nombre)}"
+    RegimenFiscal="{_xml_attr(comprobante.emisor_regimen_fiscal)}" />
 
-  <cfdi:Receptor Rfc="{comprobante.receptor_rfc}"
-    Nombre="{comprobante.receptor_nombre}"
-    RegimenFiscalReceptor="{comprobante.receptor_regimen_fiscal}"
-    DomicilioFiscalReceptor="{comprobante.receptor_domicilio_fiscal}"
-    UsoCFDI="{comprobante.receptor_uso_cfdi}" />
+  <cfdi:Receptor Rfc="{_xml_attr(comprobante.receptor_rfc)}"
+    Nombre="{_xml_attr(comprobante.receptor_nombre)}"
+    RegimenFiscalReceptor="{_xml_attr(comprobante.receptor_regimen_fiscal)}"
+    DomicilioFiscalReceptor="{_xml_attr(comprobante.receptor_domicilio_fiscal)}"
+    UsoCFDI="{_xml_attr(comprobante.receptor_uso_cfdi)}" />
 
   <cfdi:Conceptos>{conceptos_xml}
   </cfdi:Conceptos>
 
-  <cfdi:Impuestos TotalImpuestosTrasladados="{comprobante.total_impuestos_trasladados}">
-    <cfdi:Traslados>
-      <cfdi:Traslado Base="{comprobante.subtotal}" Impuesto="002"
-        TipoFactor="Tasa" TasaOCuota="0.160000"
-        Importe="{comprobante.total_impuestos_trasladados}" />
-    </cfdi:Traslados>
-  </cfdi:Impuestos>
+{impuestos_xml}
 
   <!-- Complemento TimbreFiscalDigital se agrega después del timbrado por el PAC -->
 

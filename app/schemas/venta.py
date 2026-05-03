@@ -25,6 +25,7 @@ class VentaCreate(BaseModel):
     metodo_pago: MetodoPago = MetodoPago.EFECTIVO
     forma_pago: FormaPago = FormaPago.PUE
     monto_recibido: Decimal = Field(default=Decimal("0"), ge=0)
+    puntos_canjeados: int = Field(default=0, ge=0)
     notas: str | None = None
     detalles: list[DetalleVentaCreate] = Field(..., min_length=1)
     pagos: list[PagoVentaCreate] | None = None  # Split payments (optional)

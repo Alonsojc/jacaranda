@@ -7,6 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+ALEMBIC_HEAD = "b3c4d5e6f7a8 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:
@@ -28,7 +29,7 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path):
     _run([sys.executable, "-m", "alembic", "upgrade", "head"], database_url)
     current = _run([sys.executable, "-m", "alembic", "current"], database_url)
 
-    assert "9b7c6d5e4f31 (head)" in current.stdout
+    assert ALEMBIC_HEAD in current.stdout
 
 
 def test_alembic_upgrade_head_on_precreated_schema(tmp_path):
@@ -42,4 +43,4 @@ def test_alembic_upgrade_head_on_precreated_schema(tmp_path):
     _run([sys.executable, "-m", "alembic", "upgrade", "head"], database_url)
     current = _run([sys.executable, "-m", "alembic", "current"], database_url)
 
-    assert "9b7c6d5e4f31 (head)" in current.stdout
+    assert ALEMBIC_HEAD in current.stdout

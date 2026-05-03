@@ -37,6 +37,7 @@ class ItemRecibido(BaseModel):
 
 
 class RecepcionOrden(BaseModel):
+    idempotency_key: str | None = None
     items: list[ItemRecibido]
 
 
@@ -141,14 +142,14 @@ def recibir_orden(
     id: int,
     data: RecepcionOrden,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
+    user: Usuario = Depends(require_role(
         RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE, RolUsuario.ALMACENISTA
     )),
 ):
     """Recibe mercancía: actualiza stock de ingredientes y estado de la orden."""
     try:
         items = [item.model_dump() for item in data.items]
-        return svc.recibir_orden(db, id, items)
+        return svc.recibir_orden(db, id, items, data.idempotency_key, user.id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
