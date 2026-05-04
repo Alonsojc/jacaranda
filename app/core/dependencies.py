@@ -1,13 +1,14 @@
 """Dependencias de FastAPI: autenticación, roles, sesión de BD."""
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from app.core.security import JWTError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import decode_access_token
+from app.core.security import decode_access_token, verify_password
 from app.models.usuario import Usuario, RolUsuario
+from app.services.auditoria_service import registrar_evento
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -71,3 +72,59 @@ def require_permission(module: str, level: str = "ver"):
         return current_user
 
     return permission_checker
+
+
+def _admin_from_override_password(db: Session, password: str | None) -> Usuario | None:
+    if not password:
+        return None
+    admins = (
+        db.query(Usuario)
+        .filter(
+            Usuario.rol == RolUsuario.ADMINISTRADOR,
+            Usuario.activo.is_(True),
+        )
+        .all()
+    )
+    for admin in admins:
+        if verify_password(password, admin.hashed_password):
+            return admin
+    return None
+
+
+def require_admin_or_override(module: str, action: str):
+    """Allow admins directly; require an admin password override for others."""
+
+    def checker(
+        current_user: Usuario = Depends(require_permission(module, "editar")),
+        db: Session = Depends(get_db),
+        admin_password: str | None = Header(
+            default=None,
+            alias="X-Admin-Override-Password",
+        ),
+    ) -> Usuario:
+        if current_user.rol == RolUsuario.ADMINISTRADOR:
+            return current_user
+
+        authorizing_admin = _admin_from_override_password(db, admin_password)
+        if not authorizing_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Esta acción requiere administrador o contraseña de administrador",
+            )
+
+        registrar_evento(
+            db,
+            usuario_id=current_user.id,
+            usuario_nombre=current_user.nombre,
+            accion="autorizar",
+            modulo=module,
+            entidad="admin_override",
+            datos_nuevos={
+                "accion": action,
+                "admin_id": authorizing_admin.id,
+                "admin_nombre": authorizing_admin.nombre,
+            },
+        )
+        return current_user
+
+    return checker

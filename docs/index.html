@@ -2017,6 +2017,19 @@ h2{font-size:1.1rem}
 </div>
 </div>
 
+<!-- MODAL: Autorización admin -->
+<div class="modal-bg" id="modal-admin-auth">
+<div class="modal" style="max-width:360px">
+<h3>Autorizaci&oacute;n requerida</h3>
+<p id="maa-msg" style="font-size:.83rem;color:var(--mut);line-height:1.4;margin-bottom:.8rem"></p>
+<div class="fg"><label>Contrase&ntilde;a de administrador</label><div class="password-wrap"><input type="password" id="maa-pass" placeholder="Contrase&ntilde;a" onkeydown="if(event.key==='Enter')confirmarAdminAuth()"><button type="button" class="password-toggle" onclick="togglePassword('maa-pass', this)" aria-label="Mostrar contrase&ntilde;a" title="Mostrar contrase&ntilde;a">&#128065;</button></div></div>
+<div style="display:flex;gap:.5rem;margin-top:1rem">
+<button class="cobrar" style="flex:1" onclick="confirmarAdminAuth()">Autorizar</button>
+<button class="limpiar" style="flex:1" onclick="cancelarAdminAuth()">Cancelar</button>
+</div>
+</div>
+</div>
+
 <div class="toast" id="toast"></div>
 <div class="footer">
 <strong style="font-family:'DM Serif Display',serif;letter-spacing:.2em;color:var(--v);font-weight:400">Jacaranda</strong> <span style="color:var(--mut);font-size:.75rem">sharing flavors</span><br>
@@ -2052,15 +2065,22 @@ function toast(msg, isErr) {
 // ─── API helpers ──────────────────────────────────────────────────
 var REFRESH_TOKEN = localStorage.getItem('jacaranda_refresh_token') || '';
 
-function api(method, path, body, _retry) {
+function api(method, path, body, _retry, extraHeaders) {
   if (!API_URL) return Promise.reject('offline');
   var opts = {method: method, headers: {'Content-Type':'application/json'}};
   if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
+  if (extraHeaders) {
+    for (var hk in extraHeaders) {
+      if (Object.prototype.hasOwnProperty.call(extraHeaders, hk) && extraHeaders[hk]) {
+        opts.headers[hk] = extraHeaders[hk];
+      }
+    }
+  }
   if (body) opts.body = JSON.stringify(body);
   return fetch(API_URL + '/api/v1' + path, opts).then(function(r) {
     if (r.status === 401 && !_retry && REFRESH_TOKEN) {
       return refreshAccessToken().then(function() {
-        return api(method, path, body, true);
+        return api(method, path, body, true, extraHeaders);
       });
     }
     if (r.status === 401) {
@@ -2069,6 +2089,52 @@ function api(method, path, body, _retry) {
     }
     if (!r.ok) return r.json().catch(function(){return {};}).then(function(body){var e=new Error(typeof body.detail==='string'?body.detail:r.status);e.status=r.status;throw e;});
     return r.json();
+  });
+}
+
+function esAdminActual() {
+  return _currentUser && String(_currentUser.rol || '').toLowerCase() === 'administrador';
+}
+
+var _adminAuthPending = null;
+
+function pedirPasswordAdminSiHaceFalta(accion) {
+  if (esAdminActual()) return Promise.resolve({});
+  return new Promise(function(resolve, reject) {
+    _adminAuthPending = {resolve: resolve, reject: reject};
+    document.getElementById('maa-msg').textContent = 'Para ' + accion + ', pide a un administrador que autorice esta acción.';
+    var passInput = document.getElementById('maa-pass');
+    passInput.value = '';
+    passInput.type = 'password';
+    document.getElementById('modal-admin-auth').classList.add('on');
+    setTimeout(function() { passInput.focus(); }, 50);
+  });
+}
+
+function confirmarAdminAuth() {
+  if (!_adminAuthPending) return;
+  var pass = document.getElementById('maa-pass').value;
+  if (!pass) { toast('Ingresa la contraseña de administrador', true); return; }
+  var pending = _adminAuthPending;
+  _adminAuthPending = null;
+  document.getElementById('modal-admin-auth').classList.remove('on');
+  pending.resolve({'X-Admin-Override-Password': pass});
+}
+
+function cancelarAdminAuth() {
+  if (!_adminAuthPending) {
+    document.getElementById('modal-admin-auth').classList.remove('on');
+    return;
+  }
+  var pending = _adminAuthPending;
+  _adminAuthPending = null;
+  document.getElementById('modal-admin-auth').classList.remove('on');
+  pending.reject(new Error('Autorización cancelada'));
+}
+
+function apiProtegida(method, path, body, accion) {
+  return pedirPasswordAdminSiHaceFalta(accion).then(function(headers) {
+    return api(method, path, body, false, headers);
   });
 }
 
@@ -2594,7 +2660,7 @@ function verTicket(ventaId, cancelada) {
 function cancelarVentaActual() {
   if (!_ventaActualId) return;
   if (!confirm('¿Cancelar esta venta? Se devolverá el inventario.')) return;
-  api('POST', '/punto-de-venta/ventas/' + _ventaActualId + '/cancelar').then(function() {
+  apiProtegida('POST', '/punto-de-venta/ventas/' + _ventaActualId + '/cancelar', null, 'cancelar venta').then(function() {
     toast('Venta cancelada');
     cerrarModal('modal-ticket');
     cargarCorte();
@@ -3855,7 +3921,7 @@ function renderInvProductos() {
   var start = _invProdPage * _invProdPerPage;
   var page = filtered.slice(start, start + _invProdPerPage);
 
-  var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th style="width:120px"></th></tr>';
+  var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th style="width:150px"></th></tr>';
   for (var i = 0; i < page.length; i++) {
     var p = page[i];
     var stock = parseFloat(p.stock_actual) || 0;
@@ -3872,7 +3938,8 @@ function renderInvProductos() {
     h += '<td>';
     h += '<a href="#" onclick="editarProducto(' + p.id + ');return false" style="font-size:.9rem;cursor:pointer;margin-right:.4rem" title="Editar">&#9998;</a>';
     h += '<a href="#" onclick="abrirMerma(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="font-size:.9rem;cursor:pointer;margin-right:.4rem" title="Registrar merma">&#128465;</a>';
-    h += '<a href="#" onclick="verHistorialPrecio(' + p.id + ',\'' + esc + '\');return false" style="font-size:.8rem;cursor:pointer" title="Historial de precios">&#128200;</a>';
+    h += '<a href="#" onclick="verHistorialPrecio(' + p.id + ',\'' + esc + '\');return false" style="font-size:.8rem;cursor:pointer;margin-right:.4rem" title="Historial de precios">&#128200;</a>';
+    h += '<a href="#" onclick="eliminarProducto(' + p.id + ',\'' + esc + '\');return false" style="font-size:.9rem;cursor:pointer;color:#b91c1c" title="Desactivar producto">&#10005;</a>';
     h += '</td>';
     h += '</tr>';
   }
@@ -3929,7 +3996,7 @@ function renderInvIngredientes() {
       return g.nombre.toLowerCase().indexOf(q) >= 0;
     });
   }
-  var h = '<table class="tbl"><tr><th>Ingrediente</th><th>Stock</th><th>Unidad</th><th>Costo</th><th>M&iacute;n</th><th>Estado</th><th style="width:40px"></th></tr>';
+  var h = '<table class="tbl"><tr><th>Ingrediente</th><th>Stock</th><th>Unidad</th><th>Costo</th><th>M&iacute;n</th><th>Estado</th><th style="width:70px"></th></tr>';
   for (var i = 0; i < filtered.length; i++) {
     var g = filtered[i];
     var stock = parseFloat(g.stock_actual) || 0;
@@ -3940,7 +4007,9 @@ function renderInvIngredientes() {
     h += '<tr><td>' + g.nombre + '</td><td>' + stock.toFixed(1) + '</td><td>' + g.unidad_medida + '</td>';
     h += '<td>$' + fmt(costo) + '</td><td>' + min + '</td>';
     h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
-    h += '<td><a href="#" onclick="editarIngrediente(' + g.id + ');return false" style="font-size:.9rem;cursor:pointer" title="Editar">&#9998;</a></td>';
+    var escIng = g.nombre.replace(/'/g,"\\'");
+    h += '<td><a href="#" onclick="editarIngrediente(' + g.id + ');return false" style="font-size:.9rem;cursor:pointer;margin-right:.4rem" title="Editar">&#9998;</a>';
+    h += '<a href="#" onclick="eliminarIngrediente(' + g.id + ',\'' + escIng + '\');return false" style="font-size:.9rem;cursor:pointer;color:#b91c1c" title="Desactivar ingrediente">&#10005;</a></td>';
     h += '</tr>';
   }
   h += '</table>';
@@ -3962,7 +4031,7 @@ function cargarRecetas() {
     // Recetas list in hornear tab — build basic table first, then load costs
     var list = document.getElementById('recetas-list');
     if (list) {
-      var h = '<table class="tbl"><tr><th>Receta</th><th>Rinde</th><th>Costo</th><th>$/pza</th><th>Horno</th><th style="width:40px"></th></tr>';
+      var h = '<table class="tbl"><tr><th>Receta</th><th>Rinde</th><th>Costo</th><th>$/pza</th><th>Horno</th><th style="width:70px"></th></tr>';
       for (var j = 0; j < recs.length; j++) {
         var rc = recs[j];
         h += '<tr><td>' + rc.nombre + '</td>';
@@ -3970,7 +4039,8 @@ function cargarRecetas() {
         h += '<td id="rc-cost-' + rc.id + '" style="color:var(--mut)">...</td>';
         h += '<td id="rc-pza-' + rc.id + '" style="color:var(--mut)">...</td>';
         h += '<td>' + (rc.tiempo_horneado_min ? rc.tiempo_horneado_min + 'min/' + (rc.temperatura_horneado_c||'?') + '\u00b0C' : '-') + '</td>';
-        h += '<td><a href="#" onclick="editarReceta(' + rc.id + ');return false" style="font-size:.9rem;cursor:pointer" title="Editar">&#9998;</a></td>';
+        h += '<td><a href="#" onclick="editarReceta(' + rc.id + ');return false" style="font-size:.9rem;cursor:pointer;margin-right:.4rem" title="Editar">&#9998;</a>';
+        h += '<a href="#" onclick="eliminarReceta(' + rc.id + ',\'' + rc.nombre.replace(/'/g,"\\'") + '\');return false" style="font-size:.9rem;cursor:pointer;color:#b91c1c" title="Desactivar receta">&#10005;</a></td>';
         h += '</tr>';
       }
       h += '</table>';
@@ -4020,16 +4090,25 @@ function cargarInventarioCompleto() {
 }
 
 // ─── Edit modals ─────────────────────────────────────────────────
-function cerrarModal(id) { document.getElementById(id).classList.remove('on'); }
+function cerrarModal(id) {
+  if (id === 'modal-admin-auth') { cancelarAdminAuth(); return; }
+  document.getElementById(id).classList.remove('on');
+}
 
 // ESC cierra cualquier modal abierto, click fuera del modal también
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
-    document.querySelectorAll('.modal-bg.on').forEach(function(m) { m.classList.remove('on'); });
+    document.querySelectorAll('.modal-bg.on').forEach(function(m) {
+      if (m.id === 'modal-admin-auth') cancelarAdminAuth();
+      else m.classList.remove('on');
+    });
   }
 });
 document.addEventListener('click', function(e) {
-  if (e.target.classList.contains('modal-bg')) { e.target.classList.remove('on'); }
+  if (e.target.classList.contains('modal-bg')) {
+    if (e.target.id === 'modal-admin-auth') cancelarAdminAuth();
+    else e.target.classList.remove('on');
+  }
 });
 
 function editarProducto(id) {
@@ -4083,30 +4162,44 @@ function guardarProducto() {
     stock_minimo: parseFloat(document.getElementById('mep-minimo').value),
     tasa_iva: document.getElementById('mep-iva').value,
   };
-  // Subir imagen si se seleccionó una nueva
-  var imgInput = document.getElementById('mep-img-input');
-  var imgPromise = Promise.resolve();
-  if (imgInput.files && imgInput.files[0]) {
-    var fd = new FormData();
-    fd.append('archivo', imgInput.files[0]);
-    imgPromise = fetch(API_URL + '/api/v1/inventario/productos/' + id + '/imagen', {
-      method: 'PUT',
-      headers: { 'Authorization': 'Bearer ' + TOKEN },
-      body: fd
-    }).then(function(r) {
-      if (!r.ok) throw new Error('Error al subir imagen');
-    });
-  }
-  Promise.all([
-    api('PUT', '/inventario/productos/' + id, data),
-    imgPromise
-  ]).then(function() {
+  pedirPasswordAdminSiHaceFalta('editar producto').then(function(headers) {
+    // Subir imagen si se seleccionó una nueva
+    var imgInput = document.getElementById('mep-img-input');
+    var imgPromise = Promise.resolve();
+    if (imgInput.files && imgInput.files[0]) {
+      var fd = new FormData();
+      fd.append('archivo', imgInput.files[0]);
+      var imgHeaders = { 'Authorization': 'Bearer ' + TOKEN };
+      if (headers['X-Admin-Override-Password']) imgHeaders['X-Admin-Override-Password'] = headers['X-Admin-Override-Password'];
+      imgPromise = fetch(API_URL + '/api/v1/inventario/productos/' + id + '/imagen', {
+        method: 'PUT',
+        headers: imgHeaders,
+        body: fd
+      }).then(function(r) {
+        if (!r.ok) throw new Error('Error al subir imagen');
+      });
+    }
+    return Promise.all([
+      api('PUT', '/inventario/productos/' + id, data, false, headers),
+      imgPromise
+    ]);
+  }).then(function() {
     toast('Producto actualizado');
     cerrarModal('modal-edit-prod');
     cargarProductos();
     cargarListaProductos();
     cargarPOSProductos();
-  }).catch(function() { toast('Error al guardar', true); });
+  }).catch(function(e) { toast(e.message || 'Error al guardar', true); });
+}
+
+function eliminarProducto(id, nombre) {
+  if (!confirm('Desactivar "' + nombre + '"? Ya no aparecerá en venta ni inventario, pero se conserva el historial.')) return;
+  apiProtegida('DELETE', '/inventario/productos/' + id, null, 'desactivar producto').then(function() {
+    toast('Producto desactivado');
+    cargarProductos();
+    cargarListaProductos();
+    cargarPOSProductos();
+  }).catch(function(e) { toast(e.message || 'Error al desactivar producto', true); });
 }
 
 function ajustarStock(id, nombre, stockActual) {
@@ -4120,7 +4213,7 @@ function guardarAjuste() {
   var id = document.getElementById('maj-id').value;
   var nuevoStock = document.getElementById('maj-stock').value;
   var motivo = document.getElementById('maj-motivo').value;
-  api('POST', '/inventario/productos/' + id + '/ajuste-stock?cantidad=' + nuevoStock + '&motivo=' + encodeURIComponent(motivo))
+  apiProtegida('POST', '/inventario/productos/' + id + '/ajuste-stock?cantidad=' + nuevoStock + '&motivo=' + encodeURIComponent(motivo), null, 'ajustar stock')
   .then(function(r) {
     toast(r.producto + ': ' + r.stock_anterior + ' \u2192 ' + r.stock_nuevo + ' pzas');
     cerrarModal('modal-ajuste');
@@ -4151,12 +4244,21 @@ function guardarIngrediente() {
     costo_unitario: parseFloat(document.getElementById('mei-costo').value),
     stock_minimo: parseFloat(document.getElementById('mei-minimo').value),
   };
-  api('PUT', '/inventario/ingredientes/' + id, data).then(function() {
+  apiProtegida('PUT', '/inventario/ingredientes/' + id, data, 'editar ingrediente').then(function() {
     toast('Ingrediente actualizado');
     cerrarModal('modal-edit-ing');
     cargarIngredientes();
     cargarListaIngredientes();
   }).catch(function() { toast('Error al guardar', true); });
+}
+
+function eliminarIngrediente(id, nombre) {
+  if (!confirm('Desactivar "' + nombre + '"? Solo se puede si no tiene stock ni recetas activas.')) return;
+  apiProtegida('DELETE', '/inventario/ingredientes/' + id, null, 'desactivar ingrediente').then(function() {
+    toast('Ingrediente desactivado');
+    cargarIngredientes();
+    cargarListaIngredientes();
+  }).catch(function(e) { toast(e.message || 'Error al desactivar ingrediente', true); });
 }
 
 // ─── Recipe editing ──────────────────────────────────────────────
@@ -4248,12 +4350,21 @@ function guardarReceta() {
     temperatura_horneado_c: parseInt(document.getElementById('mer-temp').value) || null,
     ingredientes: ings,
   };
-  api('PUT', '/recetas/' + id, data).then(function() {
+  apiProtegida('PUT', '/recetas/' + id, data, 'editar receta').then(function() {
     toast('Receta actualizada');
     cerrarModal('modal-edit-rec');
     cargarRecetas();
     cargarListaRecetas();
   }).catch(function() { toast('Error al guardar receta', true); });
+}
+
+function eliminarReceta(id, nombre) {
+  if (!confirm('Desactivar receta "' + nombre + '"? Se conservará el historial de producción.')) return;
+  apiProtegida('DELETE', '/recetas/' + id, null, 'desactivar receta').then(function() {
+    toast('Receta desactivada');
+    cargarRecetas();
+    cargarListaRecetas();
+  }).catch(function(e) { toast(e.message || 'Error al desactivar receta', true); });
 }
 
 // ─── Listas page ─────────────────────────────────────────────────
@@ -4287,7 +4398,7 @@ function cargarListas() {
 
 function cargarListaProductos() {
   api('GET', '/inventario/productos').then(function(prods) {
-    var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th>IVA</th><th style="width:90px"></th></tr>';
+    var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th>IVA</th><th style="width:115px"></th></tr>';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
       var stock = parseFloat(p.stock_actual) || 0;
@@ -4306,7 +4417,8 @@ function cargarListaProductos() {
       h += '<td>';
       h += '<a href="#" onclick="editarProducto(' + p.id + ');return false" title="Editar" style="font-size:.9rem;margin-right:.3rem">&#9998;</a>';
       h += '<a href="#" onclick="abrirMerma(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" title="Merma" style="font-size:.9rem;margin-right:.3rem">&#128465;</a>';
-      h += '<a href="#" onclick="verHistorialPrecio(' + p.id + ',\'' + esc + '\');return false" title="Historial precios" style="font-size:.8rem">&#128200;</a>';
+      h += '<a href="#" onclick="verHistorialPrecio(' + p.id + ',\'' + esc + '\');return false" title="Historial precios" style="font-size:.8rem;margin-right:.3rem">&#128200;</a>';
+      h += '<a href="#" onclick="eliminarProducto(' + p.id + ',\'' + esc + '\');return false" title="Desactivar producto" style="font-size:.9rem;color:#b91c1c">&#10005;</a>';
       h += '</td>';
       h += '</tr>';
     }
@@ -4335,8 +4447,10 @@ function cargarListaIngredientes() {
       h += '<td>$' + fmt(costo) + '</td>';
       h += '<td>' + min + '</td>';
       h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
+      var escIng = g.nombre.replace(/'/g,"\\'");
       h += '<td><a href="#" onclick="editarIngrediente(' + g.id + ');return false" title="Editar" style="font-size:.9rem;margin-right:.3rem">&#9998;</a>';
-      h += '<a href="#" onclick="verKardex(' + g.id + ',\'' + g.nombre.replace(/'/g,"\\'") + '\');return false" title="Kardex" style="font-size:.8rem">&#128209;</a></td>';
+      h += '<a href="#" onclick="verKardex(' + g.id + ',\'' + escIng + '\');return false" title="Kardex" style="font-size:.8rem;margin-right:.3rem">&#128209;</a>';
+      h += '<a href="#" onclick="eliminarIngrediente(' + g.id + ',\'' + escIng + '\');return false" title="Desactivar ingrediente" style="font-size:.9rem;color:#b91c1c">&#10005;</a></td>';
       h += '</tr>';
     }
     h += '</table>';
@@ -4387,6 +4501,7 @@ function cargarListaRecetas() {
       h += '<div style="display:flex;align-items:center;gap:.6rem">';
       h += '<span id="lr-cost-' + r.id + '" style="font-size:.82rem;color:var(--mut)">...</span>';
       h += '<a href="#" onclick="editarReceta(' + r.id + ');return false" style="font-size:.9rem;cursor:pointer" title="Editar">&#9998;</a>';
+      h += '<a href="#" onclick="eliminarReceta(' + r.id + ',\'' + r.nombre.replace(/'/g,"\\'") + '\');return false" style="font-size:.9rem;cursor:pointer;color:#b91c1c" title="Desactivar receta">&#10005;</a>';
       h += '</div></div>';
       if (r.ingredientes && r.ingredientes.length) {
         h += '<div style="margin-top:.4rem;display:flex;flex-wrap:wrap;gap:.3rem">';
@@ -4410,7 +4525,7 @@ function cargarListaRecetas() {
         api('GET', '/recetas/' + id + '/costo').then(function(c) {
           var el = document.getElementById('lr-cost-' + id);
           if (el) {
-            el.innerHTML = '<span class="badge" style="background:#fef3c7;color:#92400e">$' + fmt(costo_total_ingredientes) + ' total</span> <span class="badge" style="background:#dbeafe;color:#1d4ed8">$' + fmt(c.costo_por_pieza) + '/pza</span>';
+            el.innerHTML = '<span class="badge" style="background:#fef3c7;color:#92400e">$' + fmt(c.costo_total_ingredientes) + ' total</span> <span class="badge" style="background:#dbeafe;color:#1d4ed8">$' + fmt(c.costo_por_pieza) + '/pza</span>';
           }
         }).catch(function(e){ console.warn('Error cargando datos:', e); });
       })(recs[m].id);
@@ -4784,7 +4899,8 @@ function guardarGasto() {
   if (!data.concepto || !data.monto) { toast('Llena concepto y monto', true); return; }
   var method = id ? 'PUT' : 'POST';
   var url = id ? '/punto-de-venta/gastos-fijos/' + id : '/punto-de-venta/gastos-fijos';
-  api(method, url, data).then(function() {
+  var req = id ? apiProtegida(method, url, data, 'editar gasto fijo') : api(method, url, data);
+  req.then(function() {
     toast('Gasto guardado');
     cerrarModal('modal-gasto');
     cargarGastosFijos();
@@ -4793,7 +4909,7 @@ function guardarGasto() {
 
 function eliminarGasto(id) {
   if (!confirm('Eliminar este gasto fijo?')) return;
-  api('DELETE', '/punto-de-venta/gastos-fijos/' + id).then(function() {
+  apiProtegida('DELETE', '/punto-de-venta/gastos-fijos/' + id, null, 'desactivar gasto fijo').then(function() {
     toast('Gasto eliminado');
     cargarGastosFijos();
   }).catch(function(e) { toast(e.message || 'Error', true); });

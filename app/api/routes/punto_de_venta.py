@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_admin_or_override, require_permission
 from app.models.usuario import Usuario
 from app.models.venta import CorteCaja
 from app.models.gasto_fijo import GastoFijo
@@ -111,7 +111,7 @@ def ticket_pdf(
 def cancelar_venta(
     id: int,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(require_permission("pos", "editar")),
+    user: Usuario = Depends(require_admin_or_override("pos", "cancelar venta")),
 ):
     try:
         return svc.cancelar_venta(db, id, user.id)
@@ -170,7 +170,7 @@ def actualizar_gasto_fijo(
     id: int,
     data: GastoFijoCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_permission("corte", "editar")),
+    _user: Usuario = Depends(require_admin_or_override("corte", "editar gasto fijo")),
 ):
     gasto = db.query(GastoFijo).filter(GastoFijo.id == id).first()
     if not gasto:
@@ -189,7 +189,7 @@ def actualizar_gasto_fijo(
 def eliminar_gasto_fijo(
     id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_permission("corte", "editar")),
+    _user: Usuario = Depends(require_admin_or_override("corte", "desactivar gasto fijo")),
 ):
     gasto = db.query(GastoFijo).filter(GastoFijo.id == id).first()
     if not gasto:

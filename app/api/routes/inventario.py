@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_admin_or_override, require_permission
 from app.models.usuario import Usuario
 from app.schemas.inventario import (
     CategoriaCreate, CategoriaResponse,
@@ -68,11 +68,52 @@ def obtener_ingrediente(id: int, db: Session = Depends(get_db), _user: Usuario =
 
 
 @router.put("/ingredientes/{id}", response_model=IngredienteResponse)
-def actualizar_ingrediente(id: int, data: IngredienteUpdate, db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "editar"))):
+def actualizar_ingrediente(
+    id: int,
+    data: IngredienteUpdate,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_admin_or_override("inv", "editar ingrediente")),
+):
     try:
         return svc.actualizar_ingrediente(db, id, data)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/ingredientes/{id}")
+def desactivar_ingrediente(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_admin_or_override("inv", "desactivar ingrediente")),
+):
+    from app.models.inventario import Ingrediente
+    from app.models.receta import Receta, RecetaIngrediente
+
+    ingrediente = db.query(Ingrediente).filter(Ingrediente.id == id).first()
+    if not ingrediente:
+        raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
+    receta_activa = (
+        db.query(Receta)
+        .join(RecetaIngrediente, RecetaIngrediente.receta_id == Receta.id)
+        .filter(
+            RecetaIngrediente.ingrediente_id == id,
+            Receta.activo.is_(True),
+        )
+        .first()
+    )
+    if receta_activa:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede desactivar: está usado en una receta activa",
+        )
+    if ingrediente.stock_actual and ingrediente.stock_actual > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede desactivar: todavía tiene stock",
+        )
+    ingrediente.activo = False
+    db.commit()
+    return {"ok": True}
 
 
 # --- Productos ---
@@ -113,7 +154,7 @@ def actualizar_producto(
     id: int,
     data: ProductoUpdate,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(require_permission("inv", "editar")),
+    user: Usuario = Depends(require_admin_or_override("inv", "editar producto")),
 ):
     try:
         return svc.actualizar_producto(db, id, data, usuario_id=user.id)
@@ -126,7 +167,7 @@ async def subir_imagen_producto(
     id: int,
     archivo: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_permission("inv", "editar")),
+    _user: Usuario = Depends(require_admin_or_override("inv", "editar imagen de producto")),
 ):
     """Sube una foto de producto y la guarda como base64 en la BD."""
     import base64
@@ -154,6 +195,32 @@ async def subir_imagen_producto(
     db.commit()
 
     return {"mensaje": "Imagen guardada", "producto_id": id}
+
+
+@router.delete("/productos/{id}")
+def desactivar_producto(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_admin_or_override("inv", "desactivar producto")),
+):
+    from app.models.inventario import Producto
+    from app.models.receta import Receta
+
+    producto = db.query(Producto).filter(Producto.id == id).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    receta_activa = db.query(Receta).filter(
+        Receta.producto_id == id,
+        Receta.activo.is_(True),
+    ).first()
+    if receta_activa:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede desactivar: primero desactiva su receta",
+        )
+    producto.activo = False
+    db.commit()
+    return {"ok": True}
 
 
 # --- Movimientos ---
@@ -270,7 +337,7 @@ def ajustar_stock_producto(
     cantidad: int = Query(..., ge=0, description="Nueva cantidad en stock"),
     motivo: str = Query("Conteo nocturno"),
     db: Session = Depends(get_db),
-    user: Usuario = Depends(require_permission("inv", "editar")),
+    user: Usuario = Depends(require_admin_or_override("inv", "ajustar stock")),
 ):
     """Ajustar stock de producto terminado (conteo nocturno del pizarrón)."""
     from app.models.inventario import Producto, TipoMovimiento

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_admin_or_override, require_permission
 from app.models.usuario import Usuario
 from app.schemas.receta import (
     RecetaCreate, RecetaUpdate, RecetaResponse, CostoRecetaResponse,
@@ -53,7 +53,7 @@ def actualizar_receta(
     id: int,
     data: RecetaUpdate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_permission("prod", "editar")),
+    _user: Usuario = Depends(require_admin_or_override("prod", "editar receta")),
 ):
     from app.models.receta import Receta, RecetaIngrediente
     receta = db.query(Receta).filter(Receta.id == id).first()
@@ -79,6 +79,34 @@ def actualizar_receta(
     db.commit()
     db.refresh(receta)
     return receta
+
+
+@router.delete("/{id}")
+def desactivar_receta(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_admin_or_override("prod", "desactivar receta")),
+):
+    from app.models.receta import Receta, OrdenProduccion, EstadoProduccion
+
+    receta = db.query(Receta).filter(Receta.id == id).first()
+    if not receta:
+        raise HTTPException(status_code=404, detail="Receta no encontrada")
+    orden_abierta = db.query(OrdenProduccion).filter(
+        OrdenProduccion.receta_id == id,
+        OrdenProduccion.estado.in_([
+            EstadoProduccion.PLANIFICADA,
+            EstadoProduccion.EN_PROCESO,
+        ]),
+    ).first()
+    if orden_abierta:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede desactivar: tiene órdenes de producción abiertas",
+        )
+    receta.activo = False
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/{id}/costo")
