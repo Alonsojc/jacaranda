@@ -285,7 +285,6 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 nav .nav-links a[data-pg]{display:none!important}
 nav .nav-links .nav-group{display:none!important}
 nav .nav-links #btn-notif,nav .nav-links #btn-logout{display:none!important}
-nav .nav-links #btn-conn{display:none!important}
 body{padding-bottom:60px}
 }
 @media(max-width:400px){
@@ -314,13 +313,6 @@ h2{font-size:1.1rem}
 <div class="fg"><label>Contrase&ntilde;a</label><div class="password-wrap"><input type="password" id="login-pass" placeholder="********" onkeydown="if(event.key==='Enter')hacerLogin()"><button type="button" class="password-toggle" onclick="togglePassword('login-pass', this)" aria-label="Mostrar contrase&ntilde;a" title="Mostrar contrase&ntilde;a">&#128065;</button></div></div>
 <button class="cobrar" style="width:100%;margin-top:.5rem" onclick="hacerLogin()">Entrar</button>
 <p id="login-error" style="color:#b91c1c;font-size:.82rem;margin-top:.5rem;display:none"></p>
-<div style="margin-top:1rem">
-<a href="#" onclick="mostrarConfigAPI();return false" style="font-size:.75rem;color:var(--mut)">Configurar servidor</a>
-<div id="login-api-cfg" style="display:none;margin-top:.5rem">
-<input type="text" id="login-api-url" placeholder="https://..." style="width:100%;padding:.4rem .6rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;margin-bottom:.3rem">
-<button class="limpiar" style="font-size:.78rem;padding:.3rem .6rem" onclick="guardarAPIUrl()">Guardar URL</button>
-</div>
-</div>
 </div>
 </div>
 <nav role="navigation" aria-label="Navegaci&oacute;n principal">
@@ -372,7 +364,6 @@ h2{font-size:1.1rem}
 </div>
 <a onclick="toggleNotifPanel()" id="btn-notif" style="display:none;cursor:pointer;color:var(--mut);font-size:.95rem;padding:.5rem .4rem;position:relative" title="Notificaciones">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:2px;right:0;background:#ef4444;color:#fff;font-size:.55rem;font-weight:700;padding:.05rem .3rem;border-radius:8px;min-width:14px;text-align:center"></span></a>
 <a onclick="cerrarSesion()" id="btn-logout" style="display:none;cursor:pointer;color:var(--mut);font-size:.78rem;padding:.5rem .6rem" title="Cerrar sesi&oacute;n">&#9211;</a>
-<a onclick="conectarAPI()" id="btn-conn" style="cursor:pointer;background:var(--v);color:#fff;border-radius:20px;font-size:.78rem;padding:.5rem .8rem;display:inline-flex;align-items:center"><span class="conn-dot" id="conn-dot"></span>Conectar</a>
 </div>
 </nav>
 <div class="notif-panel" id="notif-panel">
@@ -2034,7 +2025,7 @@ Plaza Distrito Marqu&eacute;s, Quer&eacute;taro &bull; <a href="https://instagra
 // ─── Config ───────────────────────────────────────────────────────
 // Cambiar API_URL cuando el backend esté desplegado
 function fmt(n) { var x = parseFloat(n) || 0; return x.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
-var API_URL = localStorage.getItem('jacaranda_api') || 'https://web-production-b51486.up.railway.app';
+var API_URL = 'https://web-production-b51486.up.railway.app';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
@@ -3285,17 +3276,6 @@ function renderChartVentas(dias) {
   });
 }
 
-// ─── Config modal ─────────────────────────────────────────────────
-function conectarAPI() {
-  var url = prompt('URL del servidor Jacaranda (ej: https://web-production-b51486.up.railway.app)', API_URL);
-  if (url) {
-    API_URL = url.replace(/\/$/, '');
-    localStorage.setItem('jacaranda_api', API_URL);
-    _reconectar = 0;
-    autoConectar();
-  }
-}
-
 // ─── Inventario tabs ──────────────────────────────────────────────
 function invTab(tab) {
   ['productos','ingredientes','compras','hornear','conteo','pronostico'].forEach(function(t) {
@@ -4458,6 +4438,7 @@ function crearIngrediente() {
 // ─── Connection status ────────────────────────────────────────────
 function setConnected(ok) {
   var btn = document.getElementById('btn-conn');
+  if (!btn) return;
   if (ok) {
     btn.innerHTML = '<span class="conn-dot on"></span>Conectado';
     btn.style.background = 'var(--grn)';
@@ -4468,6 +4449,7 @@ function setConnected(ok) {
 }
 function setConnecting() {
   var btn = document.getElementById('btn-conn');
+  if (!btn) return;
   btn.innerHTML = '<span class="conn-dot" style="background:var(--amb)"></span>Conectando...';
   btn.style.background = 'var(--amb)';
 }
@@ -7181,21 +7163,6 @@ function cerrarSesion() {
   document.getElementById('login-pass').value = '';
   document.getElementById('login-error').style.display = 'none';
   setConnected(false);
-}
-
-function mostrarConfigAPI() {
-  var cfg = document.getElementById('login-api-cfg');
-  cfg.style.display = cfg.style.display === 'none' ? 'block' : 'none';
-  document.getElementById('login-api-url').value = API_URL || '';
-}
-
-function guardarAPIUrl() {
-  var url = document.getElementById('login-api-url').value.trim().replace(/\/$/, '');
-  if (url) {
-    API_URL = url;
-    localStorage.setItem('jacaranda_api', API_URL);
-    toast('Servidor configurado');
-  }
 }
 
 // ─── Gestión de usuarios (admin) ─────────────────────────────────
