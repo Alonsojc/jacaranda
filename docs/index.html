@@ -17,7 +17,8 @@ html{scrollbar-gutter:stable}
 :root{--v:#c4988a;--p:#b8877a;--lav:#e2cec8;--cream:#fdf9f7;--dk:#4a3530;--txt:#5c4440;--mut:#a08a84;--grn:#10b981;--amb:#f59e0b;--pk:#e879a0;--brd:#ede3df}
 body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--txt);min-height:100vh;overflow-y:scroll}
 nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--brd);padding:.7rem 1.5rem;display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;position:sticky;top:0;z-index:50;box-shadow:0 1px 8px rgba(0,0,0,.05)}
-.logo{font-family:'DM Serif Display',serif;font-size:1.2rem;color:var(--v);letter-spacing:.2em;font-weight:400;flex:0 0 auto}
+.logo{font-family:'DM Serif Display',serif;font-size:1.2rem;color:var(--v);letter-spacing:.2em;font-weight:400;flex:0 0 auto;cursor:pointer;text-decoration:none}
+.logo:hover{opacity:.85}
 .logo span{color:var(--mut);font-family:'Inter',sans-serif;font-size:.7rem;font-weight:300;letter-spacing:.15em;display:block;margin-top:-2px}
 .nav-links{display:flex;gap:.3rem;flex:1;min-width:0;flex-wrap:wrap;justify-content:flex-end}
 .nav-links a{text-decoration:none;color:var(--mut);font-size:.82rem;font-weight:500;padding:.5rem .8rem;border-radius:8px;cursor:pointer}
@@ -317,7 +318,7 @@ h2{font-size:1.1rem}
 </div>
 </div>
 <nav role="navigation" aria-label="Navegaci&oacute;n principal">
-<div class="logo">Jacaranda<span>sharing flavors</span></div>
+<a class="logo" onclick="go('dash');return false" href="#dash" aria-label="Ir al dashboard">Jacaranda<span>sharing flavors</span></a>
 <div class="nav-links">
 <a class="on" data-pg="dash" onclick="go('dash')">Inicio</a>
 <div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,PANADERO,CAJERO,CONTADOR">
