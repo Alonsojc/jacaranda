@@ -127,6 +127,10 @@ def crear_orden_compra(db: Session, data: dict) -> dict:
 
         cantidad = Decimal(str(item["cantidad"]))
         precio = Decimal(str(item["precio_unitario"]))
+        if cantidad <= ZERO:
+            raise ValueError("La cantidad solicitada debe ser mayor a cero")
+        if precio < ZERO:
+            raise ValueError("El precio unitario no puede ser negativo")
         sub = (cantidad * precio).quantize(Decimal("0.01"))
         subtotal += sub
 
@@ -380,6 +384,8 @@ def crear_cuenta_pagar(db: Session, data: dict) -> dict:
         raise ValueError("Proveedor no encontrado")
 
     monto_total = Decimal(str(data["monto_total"]))
+    if monto_total <= ZERO:
+        raise ValueError("El monto total debe ser mayor a cero")
 
     fecha_factura = data["fecha_factura"]
     if isinstance(fecha_factura, str):
@@ -387,6 +393,8 @@ def crear_cuenta_pagar(db: Session, data: dict) -> dict:
     fecha_vencimiento = data["fecha_vencimiento"]
     if isinstance(fecha_vencimiento, str):
         fecha_vencimiento = date.fromisoformat(fecha_vencimiento)
+    if fecha_vencimiento < fecha_factura:
+        raise ValueError("La fecha de vencimiento no puede ser anterior a la factura")
 
     cuenta = CuentaPagar(
         proveedor_id=data["proveedor_id"],

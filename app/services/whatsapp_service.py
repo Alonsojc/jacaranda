@@ -3,6 +3,9 @@ Servicio de integración con WhatsApp Business API.
 Procesa mensajes entrantes, crea pedidos, y envía respuestas automáticas.
 """
 
+import hashlib
+import hmac
+import json
 import logging
 import re
 from datetime import date, timedelta
@@ -10,6 +13,7 @@ from decimal import Decimal
 
 import httpx
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
 from app.models.inventario import Producto
@@ -19,9 +23,14 @@ from app.models.pedido import (
     OrigenPedido,
     Pedido,
 )
+from app.models.whatsapp import WhatsAppWebhookEvent
 from app.services.pedido_service import _generar_folio_pedido
 
 logger = logging.getLogger("jacaranda.whatsapp")
+
+
+class WhatsAppSignatureError(ValueError):
+    """Raised when a WhatsApp webhook signature is missing or invalid."""
 
 
 def verificar_webhook(mode: str, token: str, challenge: str) -> str | None:
@@ -31,18 +40,102 @@ def verificar_webhook(mode: str, token: str, challenge: str) -> str | None:
     return None
 
 
+def verificar_firma_webhook(raw_body: bytes, signature_header: str | None) -> None:
+    """Validate Meta's X-Hub-Signature-256 webhook signature."""
+    secret = (settings.WA_APP_SECRET or "").strip()
+    if not secret:
+        if settings.WA_ALLOW_UNSIGNED_WEBHOOKS:
+            logger.warning("WhatsApp webhook aceptado sin firma por WA_ALLOW_UNSIGNED_WEBHOOKS")
+            return
+        raise WhatsAppSignatureError("WA_APP_SECRET no configurado")
+    if not signature_header:
+        raise WhatsAppSignatureError("Header X-Hub-Signature-256 requerido")
+
+    prefix = "sha256="
+    supplied = signature_header.strip()
+    if not supplied.startswith(prefix):
+        raise WhatsAppSignatureError("Formato de firma inválido")
+
+    expected = prefix + hmac.new(
+        secret.encode("utf-8"),
+        raw_body,
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected, supplied):
+        raise WhatsAppSignatureError("Firma de webhook inválida")
+
+
+def _message_event_id(msg: dict) -> str:
+    explicit_id = msg.get("id") or msg.get("message_id")
+    if explicit_id:
+        return str(explicit_id)
+    stable_payload = json.dumps(msg, sort_keys=True, separators=(",", ":"), default=str)
+    return f"payload:{hashlib.sha256(stable_payload.encode('utf-8')).hexdigest()}"
+
+
+def _already_processed_or_claim(
+    db: Session,
+    message_id: str,
+    telefono: str,
+    tipo: str,
+    phone_number_id: str | None,
+    msg: dict,
+) -> WhatsAppWebhookEvent | None:
+    existing = db.query(WhatsAppWebhookEvent).filter(
+        WhatsAppWebhookEvent.message_id == message_id
+    ).first()
+    if existing:
+        return None
+
+    event = WhatsAppWebhookEvent(
+        message_id=message_id,
+        phone_number_id=phone_number_id,
+        sender_phone=telefono,
+        message_type=tipo,
+        processed=False,
+        payload_json=json.dumps(msg, default=str, sort_keys=True),
+    )
+    db.add(event)
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        return None
+    return event
+
+
 def procesar_webhook(payload: dict, db: Session) -> dict:
     """Procesa un mensaje entrante de WhatsApp Business API."""
     results = []
+    duplicates = 0
+    rejected = 0
 
     for entry in payload.get("entry", []):
         for change in entry.get("changes", []):
             value = change.get("value", {})
+            metadata = value.get("metadata", {}) or {}
+            phone_number_id = metadata.get("phone_number_id")
+            if settings.WA_PHONE_NUMBER_ID and phone_number_id:
+                if str(phone_number_id) != str(settings.WA_PHONE_NUMBER_ID):
+                    rejected += len(value.get("messages", []))
+                    logger.warning(
+                        "WhatsApp webhook rechazado por phone_number_id inesperado: %s",
+                        phone_number_id,
+                    )
+                    continue
             messages = value.get("messages", [])
 
             for msg in messages:
                 telefono = msg.get("from", "")
                 tipo = msg.get("type", "")
+                message_id = _message_event_id(msg)
+                event = _already_processed_or_claim(
+                    db, message_id, telefono, tipo, phone_number_id, msg
+                )
+                if event is None:
+                    duplicates += 1
+                    continue
+
                 texto = ""
 
                 if tipo == "text":
@@ -56,9 +149,19 @@ def procesar_webhook(payload: dict, db: Session) -> dict:
 
                 if texto:
                     resp = _procesar_mensaje(telefono, texto, db)
+                    event.processed = True
+                    db.commit()
                     results.append(resp)
+                else:
+                    event.processed = True
+                    db.commit()
 
-    return {"processed": len(results), "results": results}
+    return {
+        "processed": len(results),
+        "duplicates": duplicates,
+        "rejected": rejected,
+        "results": results,
+    }
 
 
 def _procesar_mensaje(telefono: str, texto: str, db: Session) -> dict:

@@ -35,6 +35,16 @@ def registrar_evento(
     commit: bool = True,
 ) -> LogAuditoria:
     """Crea una entrada en el log de auditoría."""
+    if usuario_id is not None and not usuario_nombre:
+        try:
+            from app.models.usuario import Usuario
+
+            usuario = db.get(Usuario, usuario_id)
+            if usuario:
+                usuario_nombre = usuario.nombre
+        except Exception:
+            usuario_nombre = None
+
     evento = LogAuditoria(
         usuario_id=usuario_id,
         usuario_nombre=usuario_nombre,

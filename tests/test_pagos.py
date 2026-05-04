@@ -88,6 +88,17 @@ class TestPagos:
         }, headers=auth_headers)
         assert resp.status_code == 400
 
+    def test_crear_orden_produccion_no_usa_checkout_fake(self, client, auth_headers, monkeypatch):
+        ped = self._crear_pedido(client, auth_headers)
+        monkeypatch.setattr(settings, "CONEKTA_SANDBOX_MODE", False)
+        monkeypatch.setattr(settings, "CONEKTA_API_KEY", "key_prod_test")
+        resp = client.post("/api/v1/pagos/crear-orden", json={
+            "pedido_id": ped["id"],
+            "metodo": "card",
+        }, headers=auth_headers)
+        assert resp.status_code == 400
+        assert "producción" in resp.json()["detail"]
+
     def test_verificar_pago(self, client, auth_headers):
         ped = self._crear_pedido(client, auth_headers)
         orden = client.post("/api/v1/pagos/crear-orden", json={
@@ -142,6 +153,21 @@ class TestPagos:
             "data": {"object": {"id": orden["order_id"]}},
         })
         assert resp.status_code == 401
+
+    def test_webhook_no_marca_pagado_si_monto_no_coincide(self, client, auth_headers, monkeypatch):
+        ped = self._crear_pedido(client, auth_headers)
+        orden = client.post("/api/v1/pagos/crear-orden", json={
+            "pedido_id": ped["id"], "metodo": "card",
+        }, headers=auth_headers).json()
+        resp = self._post_signed_webhook(client, monkeypatch, {
+            "id": "evt_mismatch_amount",
+            "type": "order.paid",
+            "data": {"object": {"id": orden["order_id"], "amount": 100, "currency": "MXN"}},
+        })
+        assert resp.status_code == 200
+        assert resp.json()["processed"] is False
+        ver = client.get(f"/api/v1/pagos/verificar/{orden['order_id']}", headers=auth_headers)
+        assert ver.json()["estado"] == "pendiente"
 
     def test_historial(self, client, auth_headers):
         resp = client.get("/api/v1/pagos/historial", headers=auth_headers)

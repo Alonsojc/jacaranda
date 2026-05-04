@@ -1,6 +1,8 @@
 """Rutas de integración WhatsApp Business."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
@@ -32,7 +34,20 @@ async def recibir_webhook(
     db: Session = Depends(get_db),
 ):
     """Recibe mensajes entrantes de WhatsApp Business API."""
-    payload = await request.json()
+    raw_body = await request.body()
+    try:
+        svc.verificar_firma_webhook(
+            raw_body,
+            request.headers.get("x-hub-signature-256"),
+        )
+        payload = json.loads(raw_body)
+    except svc.WhatsAppSignatureError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+        )
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="JSON inválido")
     return svc.procesar_webhook(payload, db)
 
 

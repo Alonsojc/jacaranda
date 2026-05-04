@@ -76,7 +76,12 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario no encontrado o inactivo",
         )
-    new_access = create_access_token(data={"sub": usuario.id, "rol": usuario.rol.value})
+    new_access = create_access_token(data={
+        "sub": usuario.id,
+        "rol": usuario.rol.value,
+        "nombre": usuario.nombre,
+        "email": usuario.email,
+    })
     return Token(access_token=new_access)
 
 

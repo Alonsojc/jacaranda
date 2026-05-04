@@ -108,6 +108,15 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 from app.models.auditoria import LogAuditoria
                 db = SessionLocal()
                 try:
+                    if user_id is not None and not user_nombre:
+                        try:
+                            from app.models.usuario import Usuario
+
+                            usuario = db.get(Usuario, user_id)
+                            if usuario:
+                                user_nombre = usuario.nombre
+                        except Exception:
+                            user_nombre = None
                     evento = LogAuditoria(
                         usuario_id=user_id,
                         usuario_nombre=user_nombre,

@@ -8,7 +8,6 @@ import binascii
 import hashlib
 import json
 import secrets
-from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -27,7 +26,7 @@ class WebhookSignatureError(ValueError):
 
 
 def _is_sandbox() -> bool:
-    return not settings.CONEKTA_API_KEY
+    return settings.CONEKTA_SANDBOX_MODE or not settings.CONEKTA_API_KEY
 
 
 def _sandbox_order_id() -> str:
@@ -45,10 +44,20 @@ def crear_orden_pago(
     if metodo not in ("card", "oxxo", "spei"):
         raise ValueError("Método de pago inválido. Use: card, oxxo, spei")
 
+    if pedido.total <= Decimal("0"):
+        raise ValueError("El pedido no tiene total por cobrar")
+    if pedido.pagado:
+        raise ValueError("El pedido ya está marcado como pagado")
+    if not _is_sandbox():
+        raise ValueError(
+            "Pagos Conekta en producción aún no están habilitados. "
+            "Active CONEKTA_SANDBOX_MODE=true o implemente la llamada real a Conekta."
+        )
+
     order_id = _sandbox_order_id()
     monto = pedido.total
 
-    # Sandbox: simulated response
+    # Sandbox/manual: simulated response. Never present it as a real provider order.
     checkout_url = f"https://pay.conekta.com/checkout/{order_id}"
     referencia = None
     if metodo == "oxxo":
@@ -66,6 +75,7 @@ def crear_orden_pago(
         referencia=referencia,
         metadata_json=json.dumps({
             "sandbox": True,
+            "modo": "sandbox_manual",
             "pedido_folio": pedido.folio,
         }),
     )
@@ -145,10 +155,70 @@ def _webhook_event_id(payload: dict) -> str:
     return f"payload:{hashlib.sha256(stable_payload.encode('utf-8')).hexdigest()}"
 
 
+def _decimal_from_minor_units(value) -> Decimal | None:
+    if value is None:
+        return None
+    try:
+        return (Decimal(str(value)) / Decimal("100")).quantize(Decimal("0.01"))
+    except Exception:
+        return None
+
+
+def _extract_order_amount(order_obj: dict) -> Decimal | None:
+    """Extract a paid amount from common Conekta order payload shapes."""
+    for key in ("amount", "amount_paid", "total"):
+        amount = _decimal_from_minor_units(order_obj.get(key))
+        if amount is not None:
+            return amount
+
+    charges = order_obj.get("charges", {})
+    if isinstance(charges, dict):
+        data = charges.get("data") or []
+        for charge in data:
+            if not isinstance(charge, dict):
+                continue
+            amount = _decimal_from_minor_units(charge.get("amount"))
+            if amount is not None:
+                return amount
+    return None
+
+
+def _extract_order_currency(order_obj: dict) -> str | None:
+    currency = order_obj.get("currency")
+    if currency:
+        return str(currency).upper()
+    charges = order_obj.get("charges", {})
+    if isinstance(charges, dict):
+        for charge in charges.get("data") or []:
+            if isinstance(charge, dict) and charge.get("currency"):
+                return str(charge["currency"]).upper()
+    return None
+
+
+def _validate_paid_payload(db: Session, evento: ConektaWebhookEvent, pago: PagoOnline, order_obj: dict) -> bool:
+    payload_amount = _extract_order_amount(order_obj)
+    payload_currency = _extract_order_currency(order_obj)
+
+    if payload_amount is not None and payload_amount != pago.monto:
+        evento.processed = False
+        db.commit()
+        return False
+    if payload_currency is not None and payload_currency != (pago.moneda or "MXN").upper():
+        evento.processed = False
+        db.commit()
+        return False
+    if not _is_sandbox() and (payload_amount is None or payload_currency is None):
+        evento.processed = False
+        db.commit()
+        return False
+    return True
+
+
 def webhook_conekta(db: Session, payload: dict) -> dict:
     """Procesa webhook de Conekta."""
     event_type = payload.get("type", "")
-    order_id = payload.get("data", {}).get("object", {}).get("id", "")
+    order_obj = payload.get("data", {}).get("object", {})
+    order_id = order_obj.get("id", "")
     event_id = _webhook_event_id(payload)
 
     if not order_id:
@@ -199,6 +269,14 @@ def webhook_conekta(db: Session, payload: dict) -> dict:
     pagado_anterior = pedido.pagado if pedido else None
 
     if event_type == "order.paid":
+        if not _validate_paid_payload(db, evento, pago, order_obj):
+            return {
+                "processed": False,
+                "duplicate": False,
+                "order_id": order_id,
+                "event": event_type,
+                "reason": "amount_or_currency_mismatch",
+            }
         pago.estado = EstadoPago.PAGADO
         if pedido:
             pedido.pagado = True
@@ -262,8 +340,15 @@ def reembolso(db: Session, pago_id: int, monto: Decimal | None = None) -> dict:
         raise ValueError("Solo se pueden reembolsar pagos completados")
 
     monto_reembolso = monto or pago.monto
+    if monto_reembolso <= Decimal("0"):
+        raise ValueError("El monto de reembolso debe ser mayor a cero")
     if monto_reembolso > pago.monto:
         raise ValueError("Monto de reembolso excede el pago original")
+    if not _is_sandbox():
+        raise ValueError(
+            "Reembolsos Conekta en producción aún no están habilitados. "
+            "Use el panel/proveedor o implemente la llamada real antes de marcarlo en Jacaranda."
+        )
 
     pago.estado = EstadoPago.REEMBOLSADO
     db.commit()

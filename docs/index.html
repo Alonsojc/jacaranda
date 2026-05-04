@@ -306,6 +306,7 @@ h2{font-size:1.1rem}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="js/jacaranda-core.js"></script>
 </head>
 <body>
 <!-- LOGIN SCREEN -->
@@ -2069,8 +2070,13 @@ Plaza Distrito Marqu&eacute;s, Quer&eacute;taro &bull; <a href="https://instagra
 <script>
 // ─── Config ───────────────────────────────────────────────────────
 // Cambiar API_URL cuando el backend esté desplegado
-function fmt(n) { var x = parseFloat(n) || 0; return x.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function fmt(n) {
+  if (window.JacarandaCore && JacarandaCore.fmt) return JacarandaCore.fmt(n);
+  var x = parseFloat(n) || 0;
+  return x.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
 function escHtml(v) {
+  if (window.JacarandaCore && JacarandaCore.escHtml) return JacarandaCore.escHtml(v);
   return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) {
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
   });
@@ -2080,10 +2086,14 @@ var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
 var _pedidoEnProceso = false, _pedidoIdempotencyKey = null;
+var _recepcionesCompraEnProceso = {};
 var _offline = false;
 var _ventasPendientes = JSON.parse(localStorage.getItem('jacaranda_ventas_pendientes') || '[]');
 
 function nuevaClaveIdempotencia(prefix) {
+  if (window.JacarandaCore && JacarandaCore.nuevaClaveIdempotencia) {
+    return JacarandaCore.nuevaClaveIdempotencia(prefix);
+  }
   if (window.crypto && crypto.randomUUID) return prefix + '-' + crypto.randomUUID();
   return prefix + '-' + Date.now() + '-' + Math.random().toString(16).slice(2);
 }
@@ -3087,7 +3097,7 @@ function renderPedidos() {
 
 var _estadoLabels = {recibido:'Recibido',confirmado:'Confirmado',en_preparacion:'En preparaci\u00f3n',listo:'\u00a1Listo!',entregado:'Entregado'};
 function avanzarPedido(id, nuevoEstado) {
-  api('PATCH', '/pedidos/' + id, {estado: nuevoEstado}).then(function() {
+  api('PATCH', '/pedidos/' + id + '/estado', {estado: nuevoEstado}).then(function() {
     var label = _estadoLabels[nuevoEstado] || nuevoEstado;
     toast('Pedido \u2192 ' + label);
     playNotif();
@@ -7440,6 +7450,9 @@ function cerrarSesion() {
   document.getElementById('login-pass').value = '';
   document.getElementById('login-error').style.display = 'none';
   setConnected(false);
+  if (window.JacarandaCore && JacarandaCore.clearSensitiveCaches) {
+    JacarandaCore.clearSensitiveCaches().catch(function() {});
+  }
 }
 
 function confirmarCerrarSesion() {
@@ -7712,8 +7725,11 @@ function initCompras() { cargarOrdenesCompra(); }
 function cargarOrdenesCompra() {
   api('GET', '/compras/ordenes').then(function(data) {
     if (!data.length) { document.getElementById('c-ordenes-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin ordenes de compra.</p></div>'; return; }
-    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Folio</th><th>Proveedor</th><th>Estado</th><th>Total</th><th>Fecha</th></tr>';
-    data.forEach(function(o) { h += '<tr><td style="padding:.35rem">' + o.folio + '</td><td>' + (o.proveedor_nombre||'-') + '</td><td><span class="badge">' + o.estado + '</span></td><td>$' + num(o.total) + '</td><td>' + (o.fecha_emision||'') + '</td></tr>'; });
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Folio</th><th>Proveedor</th><th>Estado</th><th>Total</th><th>Fecha</th><th></th></tr>';
+    data.forEach(function(o) {
+      var puedeRecibir = o.estado !== 'recibida' && o.estado !== 'cancelada';
+      h += '<tr><td style="padding:.35rem">' + escHtml(o.folio) + '</td><td>' + escHtml(o.proveedor_nombre||'-') + '</td><td><span class="badge">' + escHtml(o.estado) + '</span></td><td>$' + num(o.total) + '</td><td>' + escHtml(o.fecha_emision||'') + '</td><td>' + (puedeRecibir ? '<button onclick="recibirOrden(' + o.id + ')" style="font-size:.72rem;padding:.2rem .5rem;cursor:pointer">Recibir</button>' : '') + '</td></tr>';
+    });
     h += '</table></div>';
     document.getElementById('c-ordenes-tbl').innerHTML = h;
   }).catch(function() { document.getElementById('c-ordenes-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
@@ -7751,9 +7767,22 @@ function pagarCuenta(id) {
   api('POST', '/compras/cuentas-pagar/' + id + '/pago', { monto: monto, metodo_pago: 'transferencia', fecha_pago: new Date().toISOString().slice(0,10) }).then(function() { toast('Pago registrado'); cargarCuentasPagar(); }).catch(function(e) { toast(e.message || 'Error', true); });
 }
 function recibirOrden(id) {
+  if (_recepcionesCompraEnProceso[id]) {
+    toast('Recepción en proceso, espera un momento');
+    return;
+  }
+  if (!confirm('¿Registrar recepción de esta orden de compra?')) return;
+  _recepcionesCompraEnProceso[id] = nuevaClaveIdempotencia('recepcion-oc-' + id);
   api('GET', '/compras/ordenes/' + id).then(function(o) {
-    var items = o.detalles.map(function(d) { return { detalle_id: d.id, cantidad_recibida: String(d.cantidad_solicitada) }; });
-    api('POST', '/compras/ordenes/' + id + '/recibir', { items: items }).then(function() { toast('Orden recibida'); cargarOrdenesCompra(); }).catch(function(e) { toast(e.message || 'Error', true); });
+    var items = o.detalles.map(function(d) {
+      var pendiente = (parseFloat(d.cantidad_solicitada) || 0) - (parseFloat(d.cantidad_recibida) || 0);
+      return { detalle_id: d.id, cantidad_recibida: String(Math.max(0, pendiente)) };
+    }).filter(function(d) { return parseFloat(d.cantidad_recibida) > 0; });
+    if (!items.length) { delete _recepcionesCompraEnProceso[id]; toast('La orden no tiene cantidades pendientes'); return; }
+    api('POST', '/compras/ordenes/' + id + '/recibir', { idempotency_key: _recepcionesCompraEnProceso[id], items: items }).then(function() { toast('Orden recibida'); cargarOrdenesCompra(); }).catch(function(e) { toast(e.message || 'Error', true); }).finally(function() { delete _recepcionesCompraEnProceso[id]; });
+  }).catch(function(e) {
+    delete _recepcionesCompraEnProceso[id];
+    toast(e.message || 'Error', true);
   });
 }
 

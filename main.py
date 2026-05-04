@@ -105,7 +105,16 @@ async def lifespan(app: FastAPI):
     from app.core.security_validation import validate_secret_key
     validate_secret_key()
 
-    # Run Alembic migrations, fallback to create_all
+    if (
+        settings.is_production
+        and settings.DATABASE_URL.startswith("sqlite")
+        and not settings.ALLOW_SQLITE_IN_PRODUCTION
+    ):
+        raise RuntimeError(
+            "DATABASE_URL no puede usar SQLite en producción. Configure Postgres."
+        )
+
+    # Run Alembic migrations. In production, startup must fail if migrations fail.
     try:
         from alembic.config import Config
         from alembic import command
@@ -113,6 +122,8 @@ async def lifespan(app: FastAPI):
         command.upgrade(alembic_cfg, "head")
         logger.info("Database migrations applied")
     except Exception as e:
+        if settings.is_production and not settings.ALLOW_CREATE_ALL_FALLBACK:
+            raise RuntimeError("Alembic migration failed in production") from e
         logger.warning("Alembic migration failed (%s), using create_all fallback", e)
         Base.metadata.create_all(bind=engine)
     from app.core.schema_guard import ensure_runtime_schema
@@ -162,7 +173,13 @@ app.add_middleware(
     allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "X-Admin-Override-Password",
+        "X-Admin-Override-Motivo",
+        "X-Requested-With",
+    ],
 )
 
 # Rutas API

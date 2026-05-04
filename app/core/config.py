@@ -18,12 +18,16 @@ class Settings(BaseSettings):
     # --- Aplicación ---
     APP_NAME: str = "Jacaranda - Sistema de Gestión de Panadería"
     APP_VERSION: str = "1.0.0"
+    ENVIRONMENT: str = "development"
+    RAILWAY_ENVIRONMENT: str = ""
     DEBUG: bool = False
     SECRET_KEY: str = Field(default_factory=_default_secret)
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 horas
 
     # --- Base de datos ---
     DATABASE_URL: str = "sqlite:///./jacaranda.db"
+    ALLOW_SQLITE_IN_PRODUCTION: bool = False
+    ALLOW_CREATE_ALL_FALLBACK: bool = False
 
     # --- CORS (comma-separated origins) ---
     CORS_ORIGINS: str = "https://alonsojc.github.io"
@@ -86,6 +90,7 @@ class Settings(BaseSettings):
     # Conekta (pagos online)
     CONEKTA_API_KEY: str = ""
     CONEKTA_API_VERSION: str = "2.1.0"
+    CONEKTA_SANDBOX_MODE: bool = True
     CONEKTA_WEBHOOK_KEY: str = ""
     CONEKTA_WEBHOOK_PUBLIC_KEY: str = ""
 
@@ -125,8 +130,15 @@ class Settings(BaseSettings):
     WA_API_TOKEN: str = ""
     WA_PHONE_NUMBER_ID: str = ""
     WA_VERIFY_TOKEN: str = "jacaranda_wa_verify"
+    WA_APP_SECRET: str = ""
+    WA_ALLOW_UNSIGNED_WEBHOOKS: bool = False
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+    @property
+    def is_production(self) -> bool:
+        environment = (self.RAILWAY_ENVIRONMENT or self.ENVIRONMENT).lower()
+        return environment in {"prod", "production"} and not self.DEBUG
 
 
 settings = Settings()

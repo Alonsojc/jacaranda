@@ -3,7 +3,7 @@
 from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -17,44 +17,50 @@ router = APIRouter()
 # --- Schemas ---
 
 class ItemOrdenCompra(BaseModel):
-    ingrediente_id: int
-    cantidad: Decimal
-    precio_unitario: Decimal
+    ingrediente_id: int = Field(..., gt=0)
+    cantidad: Decimal = Field(..., gt=0)
+    precio_unitario: Decimal = Field(..., ge=0)
     notas: str | None = None
 
 
 class OrdenCompraCreate(BaseModel):
-    proveedor_id: int
-    sucursal_id: int | None = None
+    proveedor_id: int = Field(..., gt=0)
+    sucursal_id: int | None = Field(default=None, gt=0)
     fecha_entrega_esperada: date | None = None
     notas: str | None = None
     items: list[ItemOrdenCompra]
 
 
 class ItemRecibido(BaseModel):
-    detalle_id: int
-    cantidad_recibida: Decimal
+    detalle_id: int = Field(..., gt=0)
+    cantidad_recibida: Decimal = Field(..., gt=0)
 
 
 class RecepcionOrden(BaseModel):
-    idempotency_key: str | None = None
+    idempotency_key: str | None = Field(default=None, max_length=80)
     items: list[ItemRecibido]
 
 
 class CuentaPagarCreate(BaseModel):
-    proveedor_id: int
-    orden_compra_id: int | None = None
-    concepto: str
-    monto_total: Decimal
+    proveedor_id: int = Field(..., gt=0)
+    orden_compra_id: int | None = Field(default=None, gt=0)
+    concepto: str = Field(..., min_length=1, max_length=300)
+    monto_total: Decimal = Field(..., gt=0)
     fecha_factura: date
     fecha_vencimiento: date
     numero_factura: str | None = None
     notas: str | None = None
 
+    @model_validator(mode="after")
+    def validar_fechas(self):
+        if self.fecha_vencimiento < self.fecha_factura:
+            raise ValueError("La fecha de vencimiento no puede ser anterior a la factura")
+        return self
+
 
 class PagoCreate(BaseModel):
-    monto: Decimal
-    metodo_pago: str
+    monto: Decimal = Field(..., gt=0)
+    metodo_pago: str = Field(..., min_length=1, max_length=50)
     referencia: str | None = None
     fecha_pago: date
     notas: str | None = None
@@ -63,6 +69,12 @@ class PagoCreate(BaseModel):
 class EvaluacionInput(BaseModel):
     periodo_inicio: date
     periodo_fin: date
+
+    @model_validator(mode="after")
+    def validar_periodo(self):
+        if self.periodo_fin < self.periodo_inicio:
+            raise ValueError("El periodo final no puede ser anterior al inicial")
+        return self
 
 
 # --- Proveedores ---

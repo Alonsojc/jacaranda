@@ -70,9 +70,9 @@ class IngredienteCreate(BaseModel):
 
 class IngredienteUpdate(BaseModel):
     nombre: str | None = None
-    costo_unitario: Decimal | None = None
-    stock_minimo: Decimal | None = None
-    proveedor_id: int | None = None
+    costo_unitario: Decimal | None = Field(default=None, ge=0)
+    stock_minimo: Decimal | None = Field(default=None, ge=0)
+    proveedor_id: int | None = Field(default=None, gt=0)
     activo: bool | None = None
 
 
@@ -126,11 +126,11 @@ class ProductoCreate(BaseModel):
 
 class ProductoUpdate(BaseModel):
     nombre: str | None = None
-    precio_unitario: Decimal | None = None
-    costo_produccion: Decimal | None = None
+    precio_unitario: Decimal | None = Field(default=None, gt=0)
+    costo_produccion: Decimal | None = Field(default=None, ge=0)
     tasa_iva: TasaIVA | None = None
     activo: bool | None = None
-    stock_minimo: Decimal | None = None
+    stock_minimo: Decimal | None = Field(default=None, ge=0)
 
 
 class ProductoResponse(BaseModel):

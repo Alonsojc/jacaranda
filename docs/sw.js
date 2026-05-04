@@ -1,8 +1,9 @@
 // Jacaranda Service Worker — Offline support + sync queue
-const CACHE_NAME = 'jacaranda-v9';
+const CACHE_NAME = 'jacaranda-v10';
 const STATIC_ASSETS = [
   './',
   './index.html',
+  './js/jacaranda-core.js',
   './manifest.json',
   'https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js',
@@ -38,26 +39,13 @@ self.addEventListener('fetch', function(event) {
   // Skip non-GET for caching (POST requests handled by offline queue in app)
   if (event.request.method !== 'GET') return;
 
-  // API calls: network-first with cache fallback for GET
+  // API calls: network-only. Authenticated business data must not be cached.
   if (url.pathname.includes('/api/')) {
     event.respondWith(
-      fetch(event.request).then(function(response) {
-        // Cache successful GET API responses for offline reads
-        if (response.status === 200) {
-          var clone = response.clone();
-          caches.open(CACHE_NAME + '-api').then(function(cache) {
-            cache.put(event.request, clone);
-          });
-        }
-        return response;
-      }).catch(function() {
-        // Try cached API response first
-        return caches.match(event.request).then(function(cached) {
-          if (cached) return cached;
-          return new Response(JSON.stringify({error: 'offline'}), {
-            status: 503,
-            headers: {'Content-Type': 'application/json'}
-          });
+      fetch(event.request, {cache: 'no-store'}).catch(function() {
+        return new Response(JSON.stringify({error: 'offline'}), {
+          status: 503,
+          headers: {'Content-Type': 'application/json'}
         });
       })
     );

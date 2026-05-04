@@ -69,12 +69,33 @@ class TestPedidos:
         resp = self._crear_pedido(client, auth_headers)
         pid = resp.json()["id"]
         resp2 = client.patch(
-            f"/api/v1/pedidos/{pid}",
+            f"/api/v1/pedidos/{pid}/estado",
             json={"estado": "confirmado"},
             headers=auth_headers,
         )
         assert resp2.status_code == 200
         assert resp2.json()["estado"] == "confirmado"
+
+    def test_no_permite_saltar_estado_pedido(self, client, auth_headers):
+        resp = self._crear_pedido(client, auth_headers)
+        pid = resp.json()["id"]
+        resp2 = client.patch(
+            f"/api/v1/pedidos/{pid}/estado",
+            json={"estado": "entregado"},
+            headers=auth_headers,
+        )
+        assert resp2.status_code == 400
+        assert "transición inválida" in resp2.json()["detail"].lower()
+
+    def test_no_permite_marcar_pagado_en_edicion_general(self, client, auth_headers):
+        resp = self._crear_pedido(client, auth_headers)
+        pid = resp.json()["id"]
+        resp2 = client.patch(
+            f"/api/v1/pedidos/{pid}",
+            json={"pagado": True},
+            headers=auth_headers,
+        )
+        assert resp2.status_code == 400
 
     def test_pedido_con_anticipo(self, client, auth_headers):
         resp = self._crear_pedido(client, auth_headers, anticipo="200.00")

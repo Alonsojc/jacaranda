@@ -112,6 +112,15 @@ def require_admin_or_override(module: str, action: str):
 
         authorizing_admin = _admin_from_override_password(db, admin_password)
         if not authorizing_admin:
+            registrar_evento(
+                db,
+                usuario_id=current_user.id,
+                usuario_nombre=current_user.nombre,
+                accion="autorizar_fallida",
+                modulo=module,
+                entidad="admin_override",
+                datos_nuevos={"accion": action, "motivo": unquote(motivo or "").strip()},
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Esta acción requiere administrador o contraseña de administrador",

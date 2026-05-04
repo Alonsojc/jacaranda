@@ -1,14 +1,33 @@
 """Tests para creación de pedidos vía WhatsApp y notificaciones."""
 
+import hashlib
+import hmac
+import json
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
 
+from app.core.config import settings
+
 
 class TestWhatsAppOrders:
     """Tests del flujo de pedidos por WhatsApp."""
+
+    def _post_webhook(self, client, monkeypatch, payload, secret="wa_test_secret"):
+        monkeypatch.setattr(settings, "WA_APP_SECRET", secret)
+        monkeypatch.setattr(settings, "WA_ALLOW_UNSIGNED_WEBHOOKS", False)
+        raw_body = json.dumps(payload, separators=(",", ":")).encode()
+        signature = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+        return client.post(
+            "/api/v1/whatsapp/webhook",
+            content=raw_body,
+            headers={
+                "Content-Type": "application/json",
+                "X-Hub-Signature-256": f"sha256={signature}",
+            },
+        )
 
     def _crear_producto(self, client, auth_headers, nombre="Concha", precio="15.00"):
         import random
@@ -30,7 +49,7 @@ class TestWhatsAppOrders:
         return pid
 
     @patch("app.services.whatsapp_service._enviar_mensaje")
-    def test_crear_pedido_via_whatsapp(self, mock_enviar, client, auth_headers):
+    def test_crear_pedido_via_whatsapp(self, mock_enviar, client, auth_headers, monkeypatch):
         """Test creating an order via WhatsApp message."""
         self._crear_producto(client, auth_headers, "Conchas", "15.00")
 
@@ -47,7 +66,7 @@ class TestWhatsAppOrders:
                 }]
             }]
         }
-        resp = client.post("/api/v1/whatsapp/webhook", json=payload)
+        resp = self._post_webhook(client, monkeypatch, payload)
         assert resp.status_code == 200
         data = resp.json()
         assert data["processed"] == 1
@@ -58,7 +77,7 @@ class TestWhatsAppOrders:
         mock_enviar.assert_called()
 
     @patch("app.services.whatsapp_service._enviar_mensaje")
-    def test_pedido_multiples_items(self, mock_enviar, client, auth_headers):
+    def test_pedido_multiples_items(self, mock_enviar, client, auth_headers, monkeypatch):
         """Test order with multiple comma-separated items."""
         self._crear_producto(client, auth_headers, "Conchas", "15.00")
         self._crear_producto(client, auth_headers, "Pastel Chocolate", "250.00")
@@ -76,13 +95,13 @@ class TestWhatsAppOrders:
                 }]
             }]
         }
-        resp = client.post("/api/v1/whatsapp/webhook", json=payload)
+        resp = self._post_webhook(client, monkeypatch, payload)
         assert resp.status_code == 200
         result = resp.json()["results"][0]
         assert result["tipo"] == "pedido_creado"
 
     @patch("app.services.whatsapp_service._enviar_mensaje")
-    def test_pedido_producto_no_encontrado(self, mock_enviar, client, auth_headers):
+    def test_pedido_producto_no_encontrado(self, mock_enviar, client, auth_headers, monkeypatch):
         """When no products match, should return error."""
         payload = {
             "entry": [{
@@ -97,14 +116,14 @@ class TestWhatsAppOrders:
                 }]
             }]
         }
-        resp = client.post("/api/v1/whatsapp/webhook", json=payload)
+        resp = self._post_webhook(client, monkeypatch, payload)
         assert resp.status_code == 200
         result = resp.json()["results"][0]
         assert result["tipo"] == "pedido_error"
         assert result["error"] == "productos_no_encontrados"
 
     @patch("app.services.whatsapp_service._enviar_mensaje")
-    def test_catalogo_whatsapp(self, mock_enviar, client, auth_headers):
+    def test_catalogo_whatsapp(self, mock_enviar, client, auth_headers, monkeypatch):
         """Test 'catalogo' keyword triggers catalog response."""
         payload = {
             "entry": [{
@@ -119,13 +138,13 @@ class TestWhatsAppOrders:
                 }]
             }]
         }
-        resp = client.post("/api/v1/whatsapp/webhook", json=payload)
+        resp = self._post_webhook(client, monkeypatch, payload)
         assert resp.status_code == 200
         result = resp.json()["results"][0]
         assert result["tipo"] == "catalogo"
 
     @patch("app.services.whatsapp_service._enviar_mensaje")
-    def test_saludo_default(self, mock_enviar, client, auth_headers):
+    def test_saludo_default(self, mock_enviar, client, auth_headers, monkeypatch):
         """Unknown text triggers greeting/help."""
         payload = {
             "entry": [{
@@ -140,10 +159,43 @@ class TestWhatsAppOrders:
                 }]
             }]
         }
-        resp = client.post("/api/v1/whatsapp/webhook", json=payload)
+        resp = self._post_webhook(client, monkeypatch, payload)
         assert resp.status_code == 200
         result = resp.json()["results"][0]
         assert result["tipo"] == "saludo"
+
+    def test_webhook_rechaza_payload_sin_firma(self, client, monkeypatch):
+        monkeypatch.setattr(settings, "WA_APP_SECRET", "wa_test_secret")
+        monkeypatch.setattr(settings, "WA_ALLOW_UNSIGNED_WEBHOOKS", False)
+        resp = client.post("/api/v1/whatsapp/webhook", json={
+            "entry": [{"changes": [{"value": {"messages": []}}]}]
+        })
+        assert resp.status_code == 401
+
+    @patch("app.services.whatsapp_service._enviar_mensaje")
+    def test_webhook_repetido_no_crea_doble_pedido(self, mock_enviar, client, auth_headers, monkeypatch):
+        self._crear_producto(client, auth_headers, "Conchas", "15.00")
+        payload = {
+            "entry": [{
+                "changes": [{
+                    "value": {
+                        "messages": [{
+                            "id": "wamid.replay-test-1",
+                            "from": "5214421234567",
+                            "type": "text",
+                            "text": {"body": "pedido 3 conchas"},
+                        }]
+                    }
+                }]
+            }]
+        }
+        resp1 = self._post_webhook(client, monkeypatch, payload)
+        resp2 = self._post_webhook(client, monkeypatch, payload)
+        assert resp1.status_code == 200
+        assert resp2.status_code == 200
+        assert resp1.json()["processed"] == 1
+        assert resp2.json()["processed"] == 0
+        assert resp2.json()["duplicates"] == 1
 
 
 class TestWhatsAppRecordatorio:

@@ -43,7 +43,12 @@ def autenticar_usuario(db: Session, email: str, password: str) -> Usuario | None
 
 def generar_tokens(usuario: Usuario) -> dict:
     """Genera access_token y refresh_token para el usuario."""
-    token_data = {"sub": usuario.id, "rol": usuario.rol.value}
+    token_data = {
+        "sub": usuario.id,
+        "rol": usuario.rol.value,
+        "nombre": usuario.nombre,
+        "email": usuario.email,
+    }
     return {
         "access_token": create_access_token(data=token_data),
         "refresh_token": create_refresh_token(data=token_data),
@@ -52,4 +57,9 @@ def generar_tokens(usuario: Usuario) -> dict:
 
 # Backward compat alias
 def generar_token(usuario: Usuario) -> str:
-    return create_access_token(data={"sub": usuario.id, "rol": usuario.rol.value})
+    return create_access_token(data={
+        "sub": usuario.id,
+        "rol": usuario.rol.value,
+        "nombre": usuario.nombre,
+        "email": usuario.email,
+    })

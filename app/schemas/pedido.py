@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class DetallePedidoCreate(BaseModel):
@@ -27,13 +27,21 @@ class PedidoCreate(BaseModel):
     notas_internas: str | None = None
     detalles: list[DetallePedidoCreate]
 
+    @model_validator(mode="after")
+    def validar_fecha_y_detalles(self):
+        if self.fecha_entrega < date.today():
+            raise ValueError("La fecha de entrega no puede estar en el pasado")
+        if not self.detalles:
+            raise ValueError("El pedido debe tener al menos un detalle")
+        return self
+
 
 class PedidoUpdate(BaseModel):
     estado: str | None = None
     hora_entrega: str | None = None
     lugar_entrega: str | None = None
-    anticipo: Decimal | None = None
-    total: Decimal | None = None
+    anticipo: Decimal | None = Field(default=None, ge=0)
+    total: Decimal | None = Field(default=None, ge=0)
     pagado: bool | None = None
     notas: str | None = None
     notas_internas: str | None = None
@@ -41,7 +49,16 @@ class PedidoUpdate(BaseModel):
     repartidor_telefono: str | None = None
     direccion_entrega: str | None = None
     referencia_entrega: str | None = None
-    costo_envio: Decimal | None = None
+    costo_envio: Decimal | None = Field(default=None, ge=0)
+
+
+class PedidoEstadoUpdate(BaseModel):
+    estado: str
+
+
+class PedidoPagoUpdate(BaseModel):
+    pagado: bool
+    motivo: str | None = None
 
 
 class DetallePedidoResponse(BaseModel):
