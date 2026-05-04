@@ -166,6 +166,10 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .fg input,.fg select,.fg textarea{width:100%;padding:.5rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.85rem;font-family:inherit;transition:border-color .2s,box-shadow .2s}
 .fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--v);box-shadow:0 0 0 3px rgba(196,152,138,.15)}
 .fg textarea{resize:vertical;height:60px}
+.password-wrap{position:relative}
+.password-wrap input{padding-right:2.45rem}
+.password-toggle{position:absolute;right:.35rem;top:50%;transform:translateY(-50%);width:2rem;height:2rem;border:0;background:transparent;color:var(--mut);cursor:pointer;border-radius:8px;font-size:1rem;line-height:2rem}
+.password-toggle:hover,.password-toggle:focus{color:var(--v);background:#f8f3ef;outline:none}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
 .footer{text-align:center;padding:1.5rem;color:var(--mut);font-size:.8rem;border-top:1px solid var(--brd);margin-top:2rem}
 .footer a{color:var(--v);text-decoration:none}
@@ -307,7 +311,7 @@ h2{font-size:1.1rem}
 <div style="font-family:'DM Serif Display',serif;font-size:1.6rem;color:var(--v);margin-bottom:.2rem">Jacaranda</div>
 <div style="font-size:.75rem;color:var(--mut);letter-spacing:.15em;margin-bottom:1.5rem">sharing flavors</div>
 <div class="fg"><label>Email</label><input type="email" id="login-email" placeholder="tu@email.com" value=""></div>
-<div class="fg"><label>Contrase&ntilde;a</label><input type="password" id="login-pass" placeholder="********" onkeydown="if(event.key==='Enter')hacerLogin()"></div>
+<div class="fg"><label>Contrase&ntilde;a</label><div class="password-wrap"><input type="password" id="login-pass" placeholder="********" onkeydown="if(event.key==='Enter')hacerLogin()"><button type="button" class="password-toggle" onclick="togglePassword('login-pass', this)" aria-label="Mostrar contrase&ntilde;a" title="Mostrar contrase&ntilde;a">&#128065;</button></div></div>
 <button class="cobrar" style="width:100%;margin-top:.5rem" onclick="hacerLogin()">Entrar</button>
 <p id="login-error" style="color:#b91c1c;font-size:.82rem;margin-top:.5rem;display:none"></p>
 <div style="margin-top:1rem">
@@ -2004,7 +2008,7 @@ h2{font-size:1.1rem}
 <h3>Nuevo usuario</h3>
 <div class="fg"><label>Nombre</label><input id="mu-nombre" placeholder="Mar&iacute;a L&oacute;pez"></div>
 <div class="fg"><label>Email</label><input type="email" id="mu-email" placeholder="maria@jacaranda.mx"></div>
-<div class="fg"><label>Contrase&ntilde;a</label><input type="password" id="mu-pass" placeholder="M&iacute;nimo 8 caracteres"></div>
+<div class="fg"><label>Contrase&ntilde;a</label><div class="password-wrap"><input type="password" id="mu-pass" placeholder="M&iacute;nimo 8 caracteres"><button type="button" class="password-toggle" onclick="togglePassword('mu-pass', this)" aria-label="Mostrar contrase&ntilde;a" title="Mostrar contrase&ntilde;a">&#128065;</button></div></div>
 <div class="fg"><label>Rol</label><select id="mu-rol">
 <option value="cajero">Cajero(a)</option>
 <option value="panadero">Panadero(a)</option>
@@ -2106,6 +2110,17 @@ function login(email, pass) {
     }
     return d;
   });
+}
+
+function togglePassword(inputId, btn) {
+  var input = document.getElementById(inputId);
+  if (!input) return;
+  var visible = input.type === 'text';
+  input.type = visible ? 'password' : 'text';
+  btn.setAttribute('aria-label', visible ? 'Mostrar contraseña' : 'Ocultar contraseña');
+  btn.setAttribute('title', visible ? 'Mostrar contraseña' : 'Ocultar contraseña');
+  btn.innerHTML = visible ? '&#128065;' : '&#128065;&#65039;';
+  input.focus();
 }
 
 // ─── Navegación ───────────────────────────────────────────────────
@@ -7414,20 +7429,22 @@ var _reconectar = 0;
 function autoConectar() {
   if (!API_URL) { document.getElementById('login-screen').style.display = 'flex'; return; }
   var savedToken = localStorage.getItem('jacaranda_token');
-  if (!savedToken) { document.getElementById('login-screen').style.display = 'flex'; return; }
-  // Try to reuse saved token
-  TOKEN = savedToken;
+  var savedRefresh = localStorage.getItem('jacaranda_refresh_token');
+  if (!savedToken && !savedRefresh) { document.getElementById('login-screen').style.display = 'flex'; return; }
+  // Reusar sesión guardada; si el access token venció, api() intenta refresh.
+  TOKEN = savedToken || '';
+  REFRESH_TOKEN = savedRefresh || '';
   setConnecting();
+  document.getElementById('login-screen').style.display = 'none';
   api('GET', '/auth/me').then(function(u) {
     _reconectar = 0;
     setConnected(true);
     document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('login-error').style.display = 'none';
     document.getElementById('btn-logout').style.display = '';
     postLogin();
   }).catch(function() {
-    // Token invalid or server down
-    TOKEN = '';
-    localStorage.removeItem('jacaranda_token');
+    // Si el servidor está despertando/no disponible, no borrar la sesión guardada.
     _reconectar++;
     if (_reconectar <= 2) {
       // Railway puede tardar en despertar, reintentar
@@ -7436,6 +7453,11 @@ function autoConectar() {
       setConnected(false);
       _reconectar = 0;
       document.getElementById('login-screen').style.display = 'flex';
+      var errEl = document.getElementById('login-error');
+      if (TOKEN || REFRESH_TOKEN) {
+        errEl.textContent = 'No se pudo conectar al servidor. Tu sesión sigue guardada; vuelve a intentar en unos segundos.';
+        errEl.style.display = 'block';
+      }
     }
   });
 }
