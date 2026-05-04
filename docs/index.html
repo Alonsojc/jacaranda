@@ -255,6 +255,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .nav-group>a::after{content:'\25BE';font-size:.6rem;opacity:.5}
 .nav-group>a.on{color:var(--v);background:#faf3f0}
 .nav-dd{display:none;position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--brd);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:55;min-width:170px;padding:.35rem 0;animation:ddIn .15s ease-out}
+.nav-dd::before{content:'';position:absolute;left:0;right:0;top:-10px;height:10px}
 .nav-group:hover .nav-dd,.nav-group.open .nav-dd{display:block}
 @keyframes ddIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 .nav-dd a{display:block;padding:.45rem .9rem;font-size:.82rem;color:var(--txt);text-decoration:none;cursor:pointer;transition:background .12s;white-space:nowrap;font-weight:500}
