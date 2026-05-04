@@ -3,7 +3,10 @@
 from decimal import Decimal
 
 from app.core.security import get_password_hash
-from app.models.inventario import Producto, TasaIVA, UnidadMedida
+from app.models.auditoria import LogAuditoria
+from app.models.gasto_fijo import GastoFijo
+from app.models.inventario import Ingrediente, Producto, TasaIVA, UnidadMedida
+from app.models.receta import Receta
 from app.models.usuario import RolUsuario, Usuario
 
 
@@ -49,6 +52,50 @@ def _crear_producto(db, codigo: str = "PAN-001") -> Producto:
     db.commit()
     db.refresh(producto)
     return producto
+
+
+def _crear_gasto(db) -> GastoFijo:
+    gasto = GastoFijo(
+        concepto="Renta",
+        monto=Decimal("12000.00"),
+        periodicidad="mensual",
+        activo=True,
+    )
+    db.add(gasto)
+    db.commit()
+    db.refresh(gasto)
+    return gasto
+
+
+def _crear_ingrediente(db, nombre: str = "Harina") -> Ingrediente:
+    ingrediente = Ingrediente(
+        nombre=nombre,
+        unidad_medida=UnidadMedida.KILOGRAMO,
+        stock_actual=Decimal("0"),
+        stock_minimo=Decimal("0"),
+        costo_unitario=Decimal("12.00"),
+    )
+    db.add(ingrediente)
+    db.commit()
+    db.refresh(ingrediente)
+    return ingrediente
+
+
+def _crear_receta(db, producto: Producto) -> Receta:
+    receta = Receta(
+        producto_id=producto.id,
+        nombre=f"Receta {producto.codigo}",
+        descripcion=None,
+        instrucciones="Mezclar y hornear",
+        rendimiento=Decimal("12"),
+        tiempo_preparacion_min=20,
+        tiempo_horneado_min=15,
+        temperatura_horneado_c=180,
+    )
+    db.add(receta)
+    db.commit()
+    db.refresh(receta)
+    return receta
 
 
 def test_operational_history_requires_auth(client):
@@ -106,10 +153,21 @@ def test_sensitive_edit_requires_admin_password_for_non_admin(client, db, admin_
     )
     assert wrong.status_code == 403
 
-    allowed = client.put(
+    sin_motivo = client.put(
         f"/api/v1/inventario/productos/{producto.id}",
         json={"precio_unitario": 22},
         headers={**headers, "X-Admin-Override-Password": "test1234"},
+    )
+    assert sin_motivo.status_code == 400
+
+    allowed = client.put(
+        f"/api/v1/inventario/productos/{producto.id}",
+        json={"precio_unitario": 22},
+        headers={
+            **headers,
+            "X-Admin-Override-Password": "test1234",
+            "X-Admin-Override-Motivo": "Correcci%C3%B3n de prueba",
+        },
     )
     assert allowed.status_code == 200, allowed.text
 
@@ -120,6 +178,7 @@ def test_sensitive_delete_is_soft_delete_with_override(client, db, admin_user):
     headers = {
         **_login(client, gerente.email),
         "X-Admin-Override-Password": "test1234",
+        "X-Admin-Override-Motivo": "Producto duplicado",
     }
 
     resp = client.delete(f"/api/v1/inventario/productos/{producto.id}", headers=headers)
@@ -127,3 +186,112 @@ def test_sensitive_delete_is_soft_delete_with_override(client, db, admin_user):
     assert resp.status_code == 200, resp.text
     db.refresh(producto)
     assert producto.activo is False
+
+
+def test_trash_lists_and_reactivates_soft_deleted_product(client, db, admin_user):
+    gerente = _crear_usuario(db, RolUsuario.GERENTE, "gerente-trash@test.com")
+    producto = _crear_producto(db, codigo="PAN-003")
+    producto.activo = False
+    db.commit()
+
+    headers = _login(client, gerente.email)
+    listado = client.get("/api/v1/inventario/productos/inactivos", headers=headers)
+    assert listado.status_code == 200, listado.text
+    assert any(item["id"] == producto.id for item in listado.json())
+
+    denied = client.post(f"/api/v1/inventario/productos/{producto.id}/reactivar", headers=headers)
+    assert denied.status_code == 403
+
+    allowed = client.post(
+        f"/api/v1/inventario/productos/{producto.id}/reactivar",
+        headers={
+            **headers,
+            "X-Admin-Override-Password": "test1234",
+            "X-Admin-Override-Motivo": "Reactivacion de prueba",
+        },
+    )
+    assert allowed.status_code == 200, allowed.text
+    db.refresh(producto)
+    assert producto.activo is True
+    evento = db.query(LogAuditoria).filter(
+        LogAuditoria.modulo == "papelera",
+        LogAuditoria.entidad == "producto",
+        LogAuditoria.entidad_id == producto.id,
+        LogAuditoria.accion == "actualizar",
+    ).first()
+    assert evento is not None
+    assert '"activo": false' in evento.datos_anteriores
+    assert '"accion": "reactivar producto"' in evento.datos_nuevos
+
+
+def test_trash_lists_and_reactivates_soft_deleted_ingredient(client, db, admin_user):
+    gerente = _crear_usuario(db, RolUsuario.GERENTE, "gerente-ing-trash@test.com")
+    ingrediente = _crear_ingrediente(db)
+    ingrediente.activo = False
+    db.commit()
+
+    headers = _login(client, gerente.email)
+    listado = client.get("/api/v1/inventario/ingredientes/inactivos", headers=headers)
+    assert listado.status_code == 200, listado.text
+    assert any(item["id"] == ingrediente.id for item in listado.json())
+
+    allowed = client.post(
+        f"/api/v1/inventario/ingredientes/{ingrediente.id}/reactivar",
+        headers={
+            **headers,
+            "X-Admin-Override-Password": "test1234",
+            "X-Admin-Override-Motivo": "Reactivacion de prueba",
+        },
+    )
+    assert allowed.status_code == 200, allowed.text
+    db.refresh(ingrediente)
+    assert ingrediente.activo is True
+
+
+def test_trash_lists_and_reactivates_soft_deleted_recipe(client, db, admin_user):
+    gerente = _crear_usuario(db, RolUsuario.GERENTE, "gerente-rec-trash@test.com")
+    producto = _crear_producto(db, codigo="PAN-004")
+    receta = _crear_receta(db, producto)
+    receta.activo = False
+    db.commit()
+
+    headers = _login(client, gerente.email)
+    listado = client.get("/api/v1/recetas/inactivas", headers=headers)
+    assert listado.status_code == 200, listado.text
+    assert any(item["id"] == receta.id for item in listado.json())
+
+    allowed = client.post(
+        f"/api/v1/recetas/{receta.id}/reactivar",
+        headers={
+            **headers,
+            "X-Admin-Override-Password": "test1234",
+            "X-Admin-Override-Motivo": "Reactivacion de prueba",
+        },
+    )
+    assert allowed.status_code == 200, allowed.text
+    db.refresh(receta)
+    assert receta.activo is True
+
+
+def test_trash_lists_and_reactivates_fixed_expense(client, db, admin_user):
+    gerente = _crear_usuario(db, RolUsuario.GERENTE, "gerente-gasto-trash@test.com")
+    gasto = _crear_gasto(db)
+    gasto.activo = False
+    db.commit()
+
+    headers = _login(client, gerente.email)
+    listado = client.get("/api/v1/punto-de-venta/gastos-fijos/inactivos", headers=headers)
+    assert listado.status_code == 200, listado.text
+    assert any(item["id"] == gasto.id for item in listado.json())
+
+    allowed = client.post(
+        f"/api/v1/punto-de-venta/gastos-fijos/{gasto.id}/reactivar",
+        headers={
+            **headers,
+            "X-Admin-Override-Password": "test1234",
+            "X-Admin-Override-Motivo": "Reactivacion de prueba",
+        },
+    )
+    assert allowed.status_code == 200, allowed.text
+    db.refresh(gasto)
+    assert gasto.activo is True

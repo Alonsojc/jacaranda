@@ -49,8 +49,17 @@ def obtener_receta(db: Session, id: int) -> Receta:
     return receta
 
 
-def listar_recetas(db: Session):
-    return db.query(Receta).filter(Receta.activo.is_(True)).all()
+def listar_recetas(
+    db: Session,
+    solo_activas: bool = True,
+    solo_inactivas: bool = False,
+):
+    query = db.query(Receta)
+    if solo_inactivas:
+        query = query.filter(Receta.activo.is_(False))
+    elif solo_activas:
+        query = query.filter(Receta.activo.is_(True))
+    return query.order_by(Receta.nombre).all()
 
 
 def calcular_costo_receta(db: Session, receta_id: int) -> dict:

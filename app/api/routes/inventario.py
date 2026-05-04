@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import require_admin_or_override, require_permission
 from app.models.usuario import Usuario
+from app.services.auditoria_service import registrar_evento
 from app.schemas.inventario import (
     CategoriaCreate, CategoriaResponse,
     ProveedorCreate, ProveedorResponse,
@@ -57,6 +58,16 @@ def crear_ingrediente(
 @router.get("/ingredientes", response_model=list[IngredienteResponse])
 def listar_ingredientes(skip: int = Query(default=0, ge=0), limit: int = Query(default=100, le=500), db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "ver"))):
     return svc.listar_ingredientes(db, skip=skip, limit=limit)
+
+
+@router.get("/ingredientes/inactivos", response_model=list[IngredienteResponse])
+def listar_ingredientes_inactivos(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, le=500),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("papelera", "ver")),
+):
+    return svc.listar_ingredientes(db, solo_activos=False, skip=skip, limit=limit, solo_inactivos=True)
 
 
 @router.get("/ingredientes/{id}", response_model=IngredienteResponse)
@@ -116,6 +127,37 @@ def desactivar_ingrediente(
     return {"ok": True}
 
 
+@router.post("/ingredientes/{id}/reactivar", response_model=IngredienteResponse)
+def reactivar_ingrediente(
+    id: int,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_admin_or_override("papelera", "reactivar ingrediente")),
+):
+    from app.models.inventario import Ingrediente
+
+    ingrediente = db.query(Ingrediente).filter(Ingrediente.id == id).first()
+    if not ingrediente:
+        raise HTTPException(status_code=404, detail="Ingrediente no encontrado")
+    if ingrediente.activo:
+        raise HTTPException(status_code=400, detail="El ingrediente ya está activo")
+    ingrediente.activo = True
+    registrar_evento(
+        db,
+        usuario_id=user.id,
+        usuario_nombre=user.nombre,
+        accion="actualizar",
+        modulo="papelera",
+        entidad="ingrediente",
+        entidad_id=id,
+        datos_anteriores={"activo": False},
+        datos_nuevos={"activo": True, "accion": "reactivar ingrediente"},
+        commit=False,
+    )
+    db.commit()
+    db.refresh(ingrediente)
+    return ingrediente
+
+
 # --- Productos ---
 
 @router.post("/productos", response_model=ProductoResponse, status_code=201)
@@ -139,6 +181,19 @@ def listar_productos(
     _user: Usuario = Depends(require_permission("inv", "ver")),
 ):
     return svc.listar_productos(db, q=q, skip=skip, limit=limit)
+
+
+@router.get("/productos/inactivos", response_model=list[ProductoResponse])
+def listar_productos_inactivos(
+    q: str | None = Query(None, description="Buscar por nombre o código"),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=200, le=500),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("papelera", "ver")),
+):
+    return svc.listar_productos(
+        db, solo_activos=False, solo_inactivos=True, q=q, skip=skip, limit=limit
+    )
 
 
 @router.get("/productos/{id}", response_model=ProductoResponse)
@@ -221,6 +276,37 @@ def desactivar_producto(
     producto.activo = False
     db.commit()
     return {"ok": True}
+
+
+@router.post("/productos/{id}/reactivar", response_model=ProductoResponse)
+def reactivar_producto(
+    id: int,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_admin_or_override("papelera", "reactivar producto")),
+):
+    from app.models.inventario import Producto
+
+    producto = db.query(Producto).filter(Producto.id == id).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    if producto.activo:
+        raise HTTPException(status_code=400, detail="El producto ya está activo")
+    producto.activo = True
+    registrar_evento(
+        db,
+        usuario_id=user.id,
+        usuario_nombre=user.nombre,
+        accion="actualizar",
+        modulo="papelera",
+        entidad="producto",
+        entidad_id=id,
+        datos_anteriores={"activo": False},
+        datos_nuevos={"activo": True, "accion": "reactivar producto"},
+        commit=False,
+    )
+    db.commit()
+    db.refresh(producto)
+    return producto
 
 
 # --- Movimientos ---

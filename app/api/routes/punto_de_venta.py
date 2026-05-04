@@ -13,6 +13,7 @@ from app.core.dependencies import require_admin_or_override, require_permission
 from app.models.usuario import Usuario
 from app.models.venta import CorteCaja
 from app.models.gasto_fijo import GastoFijo
+from app.services.auditoria_service import registrar_evento
 from app.schemas.venta import (
     VentaCreate, VentaResponse, TicketResponse, CorteCajaCreate, CorteCajaResponse,
 )
@@ -152,6 +153,16 @@ def listar_gastos_fijos(
     return db.query(GastoFijo).filter(GastoFijo.activo.is_(True)).offset(skip).limit(limit).all()
 
 
+@router.get("/gastos-fijos/inactivos", response_model=list[GastoFijoResponse])
+def listar_gastos_fijos_inactivos(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, le=500),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("papelera", "ver")),
+):
+    return db.query(GastoFijo).filter(GastoFijo.activo.is_(False)).offset(skip).limit(limit).all()
+
+
 @router.post("/gastos-fijos", response_model=GastoFijoResponse, status_code=201)
 def crear_gasto_fijo(
     data: GastoFijoCreate,
@@ -197,3 +208,32 @@ def eliminar_gasto_fijo(
     gasto.activo = False
     db.commit()
     return {"ok": True}
+
+
+@router.post("/gastos-fijos/{id}/reactivar", response_model=GastoFijoResponse)
+def reactivar_gasto_fijo(
+    id: int,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_admin_or_override("papelera", "reactivar gasto fijo")),
+):
+    gasto = db.query(GastoFijo).filter(GastoFijo.id == id).first()
+    if not gasto:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    if gasto.activo:
+        raise HTTPException(status_code=400, detail="El gasto ya está activo")
+    gasto.activo = True
+    registrar_evento(
+        db,
+        usuario_id=user.id,
+        usuario_nombre=user.nombre,
+        accion="actualizar",
+        modulo="papelera",
+        entidad="gasto_fijo",
+        entidad_id=id,
+        datos_anteriores={"activo": False},
+        datos_nuevos={"activo": True, "accion": "reactivar gasto fijo"},
+        commit=False,
+    )
+    db.commit()
+    db.refresh(gasto)
+    return gasto

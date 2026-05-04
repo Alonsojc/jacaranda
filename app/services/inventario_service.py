@@ -67,9 +67,17 @@ def actualizar_ingrediente(db: Session, id: int, data: IngredienteUpdate) -> Ing
     return ingrediente
 
 
-def listar_ingredientes(db: Session, solo_activos: bool = True, skip: int = 0, limit: int = 100):
+def listar_ingredientes(
+    db: Session,
+    solo_activos: bool = True,
+    skip: int = 0,
+    limit: int = 100,
+    solo_inactivos: bool = False,
+):
     query = db.query(Ingrediente)
-    if solo_activos:
+    if solo_inactivos:
+        query = query.filter(Ingrediente.activo.is_(False))
+    elif solo_activos:
         query = query.filter(Ingrediente.activo.is_(True))
     return query.offset(skip).limit(limit).all()
 
@@ -170,9 +178,12 @@ def actualizar_producto(db: Session, id: int, data: ProductoUpdate, usuario_id: 
 def listar_productos(
     db: Session, solo_activos: bool = True,
     q: str | None = None, skip: int = 0, limit: int = 200,
+    solo_inactivos: bool = False,
 ):
     query = db.query(Producto)
-    if solo_activos:
+    if solo_inactivos:
+        query = query.filter(Producto.activo.is_(False))
+    elif solo_activos:
         query = query.filter(Producto.activo.is_(True))
     if q:
         query = query.filter(

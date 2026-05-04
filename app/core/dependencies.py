@@ -4,6 +4,7 @@ from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from app.core.security import JWTError
 from sqlalchemy.orm import Session
+from urllib.parse import unquote
 
 from app.core.database import get_db
 from app.core.security import decode_access_token, verify_password
@@ -101,6 +102,10 @@ def require_admin_or_override(module: str, action: str):
             default=None,
             alias="X-Admin-Override-Password",
         ),
+        motivo: str | None = Header(
+            default=None,
+            alias="X-Admin-Override-Motivo",
+        ),
     ) -> Usuario:
         if current_user.rol == RolUsuario.ADMINISTRADOR:
             return current_user
@@ -110,6 +115,13 @@ def require_admin_or_override(module: str, action: str):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Esta acción requiere administrador o contraseña de administrador",
+            )
+
+        motivo_limpio = unquote(motivo or "").strip()
+        if not motivo_limpio:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El motivo es obligatorio para autorizar esta acción",
             )
 
         registrar_evento(
@@ -123,6 +135,7 @@ def require_admin_or_override(module: str, action: str):
                 "accion": action,
                 "admin_id": authorizing_admin.id,
                 "admin_nombre": authorizing_admin.nombre,
+                "motivo": motivo_limpio,
             },
         )
         return current_user

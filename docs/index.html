@@ -345,6 +345,9 @@ h2{font-size:1.1rem}
     <a data-pg="conta" onclick="go('conta')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">&#128209; Contabilidad</a>
     <a data-pg="fiscal" onclick="go('fiscal')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">&#127974; Fiscal</a>
     <a data-pg="listas" onclick="go('listas')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#128203; Listas de precios</a>
+    <div class="nav-dd-sep"></div>
+    <a data-pg="papelera" onclick="go('papelera')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#9851; Papelera</a>
+    <a data-pg="auditoria" onclick="go('auditoria')" class="nav-role" data-roles="ADMINISTRADOR">&#128274; Auditor&iacute;a</a>
   </div>
 </div>
 <div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,PANADERO">
@@ -361,8 +364,6 @@ h2{font-size:1.1rem}
     <a data-pg="crm" onclick="go('crm')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#128101; CRM / Clientes</a>
     <a data-pg="sucursales" onclick="go('sucursales')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#127978; Sucursales</a>
     <a data-pg="iapg" onclick="go('iapg')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#129302; Inteligencia artificial</a>
-    <div class="nav-dd-sep"></div>
-    <a data-pg="auditoria" onclick="go('auditoria')" class="nav-role" data-roles="ADMINISTRADOR">&#128274; Auditor&iacute;a</a>
     <a data-pg="usuarios" onclick="go('usuarios')" class="nav-role" data-roles="ADMINISTRADOR">&#128100; Usuarios</a>
   </div>
 </div>
@@ -1509,15 +1510,40 @@ h2{font-size:1.1rem}
 <div id="f-activo"><div id="fiscal-activo-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
 </div>
 
+<!-- PAPELERA -->
+<div class="page" id="papelera">
+<div class="page-header">
+<div class="page-title">
+<h2>Papelera</h2>
+<p>Elementos desactivados. Se pueden reactivar con autorizaci&oacute;n de administrador.</p>
+</div>
+</div>
+<div class="section-tabs" style="margin-bottom:1rem">
+<span class="tab active" onclick="papeleraTab('pap-prod')">Productos</span>
+<span class="tab" onclick="papeleraTab('pap-ing')">Ingredientes</span>
+<span class="tab" onclick="papeleraTab('pap-rec')">Recetas</span>
+<span class="tab" onclick="papeleraTab('pap-gasto')">Gastos fijos</span>
+</div>
+<div class="card" style="margin-bottom:1rem">
+<div class="srow"><span>Ventas</span><span class="badge blow">No se borran; solo se cancelan/anulan con motivo</span></div>
+</div>
+<div id="pap-prod"><div id="pap-prod-list"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="pap-ing" style="display:none"><div id="pap-ing-list"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="pap-rec" style="display:none"><div id="pap-rec-list"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="pap-gasto" style="display:none"><div id="pap-gasto-list"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+</div>
+
 <!-- AUDITORIA -->
 <div class="page" id="auditoria">
 <h2>Auditor&iacute;a y Seguridad</h2>
 <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
-<button class="tab active" onclick="auditTab('a-eventos')">Eventos</button>
+<button class="tab active" onclick="auditTab('a-criticos')">Cambios cr&iacute;ticos</button>
+<button class="tab" onclick="auditTab('a-eventos')">Eventos</button>
 <button class="tab" onclick="auditTab('a-anomalias')">Anomal&iacute;as</button>
 <button class="tab" onclick="auditTab('a-dashboard')">Dashboard</button>
 </div>
-<div id="a-eventos"><div id="audit-eventos-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="a-criticos"><div id="audit-criticos-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="a-eventos" style="display:none"><div id="audit-eventos-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
 <div id="a-anomalias" style="display:none"><div id="audit-anomalias-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
 <div id="a-dashboard" style="display:none"><div id="audit-dash-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
 </div>
@@ -1571,6 +1597,7 @@ h2{font-size:1.1rem}
 <a onclick="go('crm');toggleMobileMenu()" class="mm-link">&#128200; CRM</a>
 <a onclick="go('kpis');toggleMobileMenu()" class="mm-link">&#128202; KPIs</a>
 <a onclick="go('fiscal');toggleMobileMenu()" class="mm-link">&#128176; Fiscal</a>
+<a onclick="go('papelera');toggleMobileMenu()" class="mm-link">&#9851; Papelera</a>
 <a onclick="go('auditoria');toggleMobileMenu()" class="mm-link">&#128274; Auditor&iacute;a</a>
 <a onclick="go('ejecutivo');toggleMobileMenu()" class="mm-link">&#128188; Ejecutivo</a>
 <a onclick="go('deliveryp');toggleMobileMenu()" class="mm-link">&#128666; Delivery</a>
@@ -2025,6 +2052,7 @@ h2{font-size:1.1rem}
 <h3>Autorizaci&oacute;n requerida</h3>
 <p id="maa-msg" style="font-size:.83rem;color:var(--mut);line-height:1.4;margin-bottom:.8rem"></p>
 <div class="fg"><label>Contrase&ntilde;a de administrador</label><div class="password-wrap"><input type="password" id="maa-pass" placeholder="Contrase&ntilde;a" onkeydown="if(event.key==='Enter')confirmarAdminAuth()"><button type="button" class="password-toggle" onclick="togglePassword('maa-pass', this)" aria-label="Mostrar contrase&ntilde;a" title="Mostrar contrase&ntilde;a">&#128065;</button></div></div>
+<div class="fg"><label>Motivo</label><textarea id="maa-motivo" rows="3" placeholder="Error de captura, correcci&oacute;n autorizada..."></textarea></div>
 <div style="display:flex;gap:.5rem;margin-top:1rem">
 <button class="cobrar" style="flex:1" onclick="confirmarAdminAuth()">Autorizar</button>
 <button class="limpiar" style="flex:1" onclick="cancelarAdminAuth()">Cancelar</button>
@@ -2042,6 +2070,11 @@ Plaza Distrito Marqu&eacute;s, Quer&eacute;taro &bull; <a href="https://instagra
 // ─── Config ───────────────────────────────────────────────────────
 // Cambiar API_URL cuando el backend esté desplegado
 function fmt(n) { var x = parseFloat(n) || 0; return x.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function escHtml(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
@@ -2106,8 +2139,10 @@ function pedirPasswordAdminSiHaceFalta(accion) {
     _adminAuthPending = {resolve: resolve, reject: reject};
     document.getElementById('maa-msg').textContent = 'Para ' + accion + ', pide a un administrador que autorice esta acción.';
     var passInput = document.getElementById('maa-pass');
+    var motivoInput = document.getElementById('maa-motivo');
     passInput.value = '';
     passInput.type = 'password';
+    motivoInput.value = '';
     document.getElementById('modal-admin-auth').classList.add('on');
     setTimeout(function() { passInput.focus(); }, 50);
   });
@@ -2116,11 +2151,16 @@ function pedirPasswordAdminSiHaceFalta(accion) {
 function confirmarAdminAuth() {
   if (!_adminAuthPending) return;
   var pass = document.getElementById('maa-pass').value;
+  var motivo = document.getElementById('maa-motivo').value.trim();
   if (!pass) { toast('Ingresa la contraseña de administrador', true); return; }
+  if (!motivo) { toast('Escribe el motivo de la autorización', true); return; }
   var pending = _adminAuthPending;
   _adminAuthPending = null;
   document.getElementById('modal-admin-auth').classList.remove('on');
-  pending.resolve({'X-Admin-Override-Password': pass});
+  pending.resolve({
+    'X-Admin-Override-Password': pass,
+    'X-Admin-Override-Motivo': encodeURIComponent(motivo)
+  });
 }
 
 function cancelarAdminAuth() {
@@ -2256,6 +2296,7 @@ function go(p) {
   if (p === 'auditoria') initAuditoria();
   if (p === 'ejecutivo') initEjecutivo();
   if (p === 'deliveryp') initDelivery();
+  if (p === 'papelera') initPapelera();
   if (p === 'usuarios') cargarUsuarios();
   window.scrollTo(0, 0);
 }
@@ -4211,6 +4252,7 @@ function guardarProducto() {
       fd.append('archivo', imgInput.files[0]);
       var imgHeaders = { 'Authorization': 'Bearer ' + TOKEN };
       if (headers['X-Admin-Override-Password']) imgHeaders['X-Admin-Override-Password'] = headers['X-Admin-Override-Password'];
+      if (headers['X-Admin-Override-Motivo']) imgHeaders['X-Admin-Override-Motivo'] = headers['X-Admin-Override-Motivo'];
       imgPromise = fetch(API_URL + '/api/v1/inventario/productos/' + id + '/imagen', {
         method: 'PUT',
         headers: imgHeaders,
@@ -5330,8 +5372,68 @@ function cargarDashboard() {
     }
   }).catch(function(e){ console.warn('Error cargando datos:', e); });
 
+  cargarAlertasPracticas();
+
   // Pron&oacute;stico de producci&oacute;n (IA) → tarjeta hero
   cargarPronosticoHero();
+}
+
+function dashAction(label, targetFn) {
+  return '<a href="#" onclick="' + targetFn + ';return false" style="color:var(--v);text-decoration:none;font-weight:600">' + escHtml(label) + '</a>';
+}
+
+function cargarAlertasPracticas() {
+  var hoy = new Date().toISOString().split('T')[0];
+  Promise.all([
+    api('GET', '/inventario/productos'),
+    api('GET', '/inventario/ingredientes'),
+    api('GET', '/recetas/'),
+    api('GET', '/punto-de-venta/ventas?fecha_inicio=' + hoy + '&fecha_fin=' + hoy),
+  ]).then(function(res) {
+    var prods = res[0] || [];
+    var ings = res[1] || [];
+    var recetas = res[2] || [];
+    var ventas = res[3] || [];
+    var recetaPorProducto = {};
+    var a = '';
+
+    for (var r = 0; r < recetas.length; r++) {
+      if (recetas[r].producto_id) recetaPorProducto[recetas[r].producto_id] = true;
+      if (!recetas[r].ingredientes || recetas[r].ingredientes.length === 0) {
+        a += '<div class="srow"><span>' + dashAction('Receta sin ingredientes: ' + recetas[r].nombre, "go('prod')") + '</span><span class="badge blow">Completar</span></div>';
+      }
+    }
+
+    for (var i = 0; i < prods.length; i++) {
+      var p = prods[i];
+      var costo = parseFloat(p.costo_produccion) || 0;
+      var stock = parseFloat(p.stock_actual) || 0;
+      if (!recetaPorProducto[p.id]) {
+        a += '<div class="srow"><span>' + dashAction('Producto sin receta: ' + p.nombre, "go('prod')") + '</span><span class="badge blow">Costeo incompleto</span></div>';
+      }
+      if (costo <= 0) {
+        a += '<div class="srow"><span>' + dashAction('Producto sin costo: ' + p.nombre, "go('listas')") + '</span><span class="badge blow">Precio/costo</span></div>';
+      }
+      if (stock < 0 || stock > 10000) {
+        a += '<div class="srow"><span>' + dashAction('Stock raro: ' + p.nombre, "go('inv')") + '</span><span class="badge bout">' + fmt(stock) + '</span></div>';
+      }
+    }
+
+    for (var j = 0; j < ings.length; j++) {
+      var ing = ings[j];
+      var min = parseFloat(ing.stock_minimo) || 0;
+      if (min <= 0) {
+        a += '<div class="srow"><span>' + dashAction('Ingrediente sin stock mínimo: ' + ing.nombre, "go('inv')") + '</span><span class="badge blow">Configurar</span></div>';
+      }
+    }
+
+    var canceladas = ventas.filter(function(v) { return v.estado === 'cancelada'; });
+    if (canceladas.length) {
+      a += '<div class="srow"><span>' + dashAction('Ventas canceladas hoy: ' + canceladas.length, "go('corte')") + '</span><span class="badge bout">Revisar</span></div>';
+    }
+
+    if (a) renderDashAlertas(a);
+  }).catch(function(e){ console.warn('Error cargando alertas prácticas:', e); });
 }
 
 function cargarPronosticoHero() {
@@ -7352,7 +7454,7 @@ var _moduloNombres = {
   conta:'Contabilidad', iapg:'IA', cofepris:'COFEPRIS', compras:'Compras',
   sucursales:'Sucursales', merma:'Merma', calidad:'Calidad', crm:'CRM',
   kpis:'KPIs', fiscal:'Fiscal', auditoria:'Auditoría', ejecutivo:'Ejecutivo',
-  deliveryp:'Delivery', usuarios:'Usuarios'
+  deliveryp:'Delivery', papelera:'Papelera', usuarios:'Usuarios'
 };
 
 function descargarBackup() {
@@ -7414,7 +7516,7 @@ function editarPermisos(userId, nombre, rol) {
     var user = users.find(function(u) { return u.id === userId; });
     if (!user) return;
     var perms = user.permisos_modulos || {};
-    var mods = ['dash','pos','ped','inv','corte','rep','listas','prod','conta','iapg','cofepris','compras','sucursales','merma','calidad','crm','kpis','fiscal','auditoria','ejecutivo','deliveryp','usuarios'];
+    var mods = ['dash','pos','ped','inv','corte','rep','listas','prod','conta','iapg','cofepris','compras','sucursales','merma','calidad','crm','kpis','fiscal','auditoria','ejecutivo','deliveryp','papelera','usuarios'];
     var h = '';
     for (var i = 0; i < mods.length; i++) {
       var m = mods[i];
@@ -8031,25 +8133,152 @@ function cargarFiscalActivo() {
   });
 }
 
+// ─── Papelera ────────────────────────────────────────────────────
+var _papeleraActual = 'pap-prod';
+
+function initPapelera() {
+  papeleraTab(_papeleraActual || 'pap-prod');
+}
+
+function papeleraTab(tab) {
+  _papeleraActual = tab;
+  ['pap-prod','pap-ing','pap-rec','pap-gasto'].forEach(function(t) {
+    var el = document.getElementById(t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#papelera .tab').forEach(function(t) { t.classList.remove('active'); });
+  var active = document.querySelector('#papelera .tab[onclick*="' + tab + '"]');
+  if (active) active.classList.add('active');
+  if (tab === 'pap-prod') cargarPapeleraProductos();
+  if (tab === 'pap-ing') cargarPapeleraIngredientes();
+  if (tab === 'pap-rec') cargarPapeleraRecetas();
+  if (tab === 'pap-gasto') cargarPapeleraGastos();
+}
+
+function renderPapelera(elId, items, tipo) {
+  var el = document.getElementById(elId);
+  if (!items.length) {
+    el.innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">No hay elementos inactivos.</p></div>';
+    return;
+  }
+  var h = '<div class="card"><table class="tbl"><tr><th>Elemento</th><th>Detalle</th><th style="width:110px"></th></tr>';
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    var nombre = it.nombre || it.concepto || ('ID ' + it.id);
+    var detalle = '';
+    if (tipo === 'producto') detalle = '$' + fmt(it.precio_unitario) + ' | stock ' + fmt(it.stock_actual);
+    if (tipo === 'ingrediente') detalle = fmt(it.stock_actual) + ' ' + (it.unidad_medida || '') + ' | min ' + fmt(it.stock_minimo);
+    if (tipo === 'receta') detalle = 'Rinde ' + fmt(it.rendimiento) + ' pzas | ingredientes ' + ((it.ingredientes || []).length);
+    if (tipo === 'gasto') detalle = '$' + fmt(it.monto) + ' | ' + (it.periodicidad || '');
+    h += '<tr><td><strong>' + escHtml(nombre) + '</strong></td><td>' + escHtml(detalle) + '</td>';
+    h += '<td><button class="limpiar" style="padding:.3rem .6rem;font-size:.76rem;margin:0" onclick="reactivarPapelera(\'' + tipo + '\',' + it.id + ')">Reactivar</button></td></tr>';
+  }
+  h += '</table></div>';
+  el.innerHTML = h;
+}
+
+function cargarPapeleraProductos() {
+  api('GET', '/inventario/productos/inactivos').then(function(items) {
+    renderPapelera('pap-prod-list', items, 'producto');
+  }).catch(function(e) { document.getElementById('pap-prod-list').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+
+function cargarPapeleraIngredientes() {
+  api('GET', '/inventario/ingredientes/inactivos').then(function(items) {
+    renderPapelera('pap-ing-list', items, 'ingrediente');
+  }).catch(function(e) { document.getElementById('pap-ing-list').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+
+function cargarPapeleraRecetas() {
+  api('GET', '/recetas/inactivas').then(function(items) {
+    renderPapelera('pap-rec-list', items, 'receta');
+  }).catch(function(e) { document.getElementById('pap-rec-list').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+
+function cargarPapeleraGastos() {
+  api('GET', '/punto-de-venta/gastos-fijos/inactivos').then(function(items) {
+    renderPapelera('pap-gasto-list', items, 'gasto');
+  }).catch(function(e) { document.getElementById('pap-gasto-list').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+
+function reactivarPapelera(tipo, id) {
+  var endpoints = {
+    producto: '/inventario/productos/' + id + '/reactivar',
+    ingrediente: '/inventario/ingredientes/' + id + '/reactivar',
+    receta: '/recetas/' + id + '/reactivar',
+    gasto: '/punto-de-venta/gastos-fijos/' + id + '/reactivar'
+  };
+  apiProtegida('POST', endpoints[tipo], null, 'reactivar ' + tipo).then(function() {
+    toast('Elemento reactivado');
+    if (tipo === 'producto') { cargarPapeleraProductos(); cargarProductos(); cargarListaProductos(); cargarPOSProductos(); }
+    if (tipo === 'ingrediente') { cargarPapeleraIngredientes(); cargarIngredientes(); cargarListaIngredientes(); }
+    if (tipo === 'receta') { cargarPapeleraRecetas(); cargarRecetas(); cargarListaRecetas(); }
+    if (tipo === 'gasto') { cargarPapeleraGastos(); cargarGastosFijos(); }
+  }).catch(function(e) { toast(e.message || 'Error al reactivar', true); });
+}
+
 // ─── Auditoría ───────────────────────────────────────────────────
 function auditTab(tab) {
-  ['a-eventos','a-anomalias','a-dashboard'].forEach(function(t) {
+  ['a-criticos','a-eventos','a-anomalias','a-dashboard'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('#auditoria .tab').forEach(function(t) { t.classList.remove('active'); });
-  event.target.classList.add('active');
+  var active = document.querySelector('#auditoria .tab[onclick*="' + tab + '"]');
+  if (active) active.classList.add('active');
+  if (tab === 'a-criticos') cargarAudCriticos();
   if (tab === 'a-eventos') cargarAudEventos();
   if (tab === 'a-anomalias') cargarAudAnomalias();
   if (tab === 'a-dashboard') cargarAudDashboard();
 }
-function initAuditoria() { cargarAudEventos(); }
+function initAuditoria() { cargarAudCriticos(); }
+
+function auditJson(raw) {
+  if (!raw) return {};
+  try { return typeof raw === 'string' ? JSON.parse(raw) : raw; }
+  catch(e) { return {}; }
+}
+
+function auditMotivo(e) {
+  var data = auditJson(e.datos_nuevos);
+  return data.motivo || data.razon || data.reason || '-';
+}
+
+function auditDescripcion(e) {
+  var data = auditJson(e.datos_nuevos);
+  if (data.accion) return data.accion;
+  var entidad = e.entidad ? e.entidad : e.modulo;
+  return (e.accion || '-') + ' ' + (entidad || '-') + (e.entidad_id ? ' #' + e.entidad_id : '');
+}
+
+function cargarAudCriticos() {
+  api('GET', '/auditoria/?limit=80').then(function(items) {
+    items = (Array.isArray(items) ? items : []).filter(function(e) {
+      return ['actualizar','eliminar','autorizar'].indexOf(e.accion) >= 0;
+    }).slice(0, 20);
+    if (!items.length) {
+      document.getElementById('audit-criticos-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin cambios cr&iacute;ticos recientes.</p></div>';
+      return;
+    }
+    var h = '<div class="card"><table class="tbl"><tr><th>Cu&aacute;ndo</th><th>Qui&eacute;n</th><th>Qu&eacute; cambi&oacute;</th><th>Motivo</th></tr>';
+    for (var i = 0; i < items.length; i++) {
+      var e = items[i];
+      h += '<tr><td>' + escHtml((e.creado_en||'').slice(0,19).replace('T',' ')) + '</td>';
+      h += '<td>' + escHtml(e.usuario_nombre || (e.usuario_id ? 'Usuario #' + e.usuario_id : '-')) + '</td>';
+      h += '<td>' + escHtml(auditDescripcion(e)) + '</td>';
+      h += '<td>' + escHtml(auditMotivo(e)) + '</td></tr>';
+    }
+    h += '</table></div>';
+    document.getElementById('audit-criticos-tbl').innerHTML = h;
+  }).catch(function() { document.getElementById('audit-criticos-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+}
+
 function cargarAudEventos() {
-  api('GET', '/auditoria/eventos').then(function(data) {
+  api('GET', '/auditoria/?limit=100').then(function(data) {
     var items = Array.isArray(data) ? data : (data.eventos||[]);
     if (!items.length) { document.getElementById('audit-eventos-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin eventos.</p></div>'; return; }
     var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Fecha</th><th>Acci&oacute;n</th><th>Usuario</th><th>Entidad</th><th>IP</th></tr>';
-    items.forEach(function(e) { h += '<tr><td style="padding:.35rem">' + (e.creado_en||'').slice(0,19).replace('T',' ') + '</td><td>' + (e.accion||'-') + '</td><td>' + (e.usuario_nombre||e.usuario_id||'-') + '</td><td>' + (e.entidad||'-') + '</td><td style="font-family:monospace;font-size:.75rem">' + (e.ip||'-') + '</td></tr>'; });
+    items.forEach(function(e) { h += '<tr><td style="padding:.35rem">' + escHtml((e.creado_en||'').slice(0,19).replace('T',' ')) + '</td><td>' + escHtml(e.accion||'-') + '</td><td>' + escHtml(e.usuario_nombre||e.usuario_id||'-') + '</td><td>' + escHtml(e.entidad||'-') + '</td><td style="font-family:monospace;font-size:.75rem">' + escHtml(e.ip_address||'-') + '</td></tr>'; });
     h += '</table></div>';
     document.getElementById('audit-eventos-tbl').innerHTML = h;
   }).catch(function() { document.getElementById('audit-eventos-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });

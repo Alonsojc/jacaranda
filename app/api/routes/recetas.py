@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import require_admin_or_override, require_permission
 from app.models.usuario import Usuario
+from app.services.auditoria_service import registrar_evento
 from app.schemas.receta import (
     RecetaCreate, RecetaUpdate, RecetaResponse, CostoRecetaResponse,
     OrdenProduccionCreate, OrdenProduccionResponse,
@@ -34,6 +35,14 @@ def listar_recetas(
     _user: Usuario = Depends(require_permission("prod", "ver")),
 ):
     return svc.listar_recetas(db)
+
+
+@router.get("/inactivas", response_model=list[RecetaResponse])
+def listar_recetas_inactivas(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("papelera", "ver")),
+):
+    return svc.listar_recetas(db, solo_activas=False, solo_inactivas=True)
 
 
 @router.get("/{id}", response_model=RecetaResponse)
@@ -107,6 +116,37 @@ def desactivar_receta(
     receta.activo = False
     db.commit()
     return {"ok": True}
+
+
+@router.post("/{id}/reactivar", response_model=RecetaResponse)
+def reactivar_receta(
+    id: int,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_admin_or_override("papelera", "reactivar receta")),
+):
+    from app.models.receta import Receta
+
+    receta = db.query(Receta).filter(Receta.id == id).first()
+    if not receta:
+        raise HTTPException(status_code=404, detail="Receta no encontrada")
+    if receta.activo:
+        raise HTTPException(status_code=400, detail="La receta ya está activa")
+    receta.activo = True
+    registrar_evento(
+        db,
+        usuario_id=user.id,
+        usuario_nombre=user.nombre,
+        accion="actualizar",
+        modulo="papelera",
+        entidad="receta",
+        entidad_id=id,
+        datos_anteriores={"activo": False},
+        datos_nuevos={"activo": True, "accion": "reactivar receta"},
+        commit=False,
+    )
+    db.commit()
+    db.refresh(receta)
+    return receta
 
 
 @router.get("/{id}/costo")

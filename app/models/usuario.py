@@ -22,7 +22,8 @@ class RolUsuario(str, enum.Enum):
 MODULOS_DISPONIBLES = [
     "dash", "pos", "ped", "inv", "corte", "rep", "listas", "prod", "conta",
     "iapg", "cofepris", "compras", "sucursales", "merma", "calidad", "crm",
-    "kpis", "fiscal", "auditoria", "ejecutivo", "deliveryp", "usuarios",
+    "kpis", "fiscal", "auditoria", "ejecutivo", "deliveryp", "papelera",
+    "usuarios",
 ]
 
 
