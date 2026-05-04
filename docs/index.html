@@ -44,6 +44,8 @@ nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1p
 /* Dashboard hero KPIs (bigger, with icon + delta + sparkline) */
 .khero{background:#fff;border-radius:14px;padding:1.1rem 1rem .7rem;border:1px solid var(--brd);box-shadow:0 1px 3px rgba(0,0,0,.04);position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:128px;transition:box-shadow .2s,transform .2s}
 .khero:hover{box-shadow:0 6px 18px rgba(196,152,138,.15);transform:translateY(-1px)}
+.khero.nav-card{cursor:pointer}
+.khero.nav-card:focus{outline:none;box-shadow:0 0 0 3px rgba(196,152,138,.22),0 6px 18px rgba(196,152,138,.15)}
 .khero::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#c4988a,#d4a99c);border-radius:14px 14px 0 0}
 .khero.g::before{background:linear-gradient(90deg,#10b981,#34d399)}
 .khero.p::before{background:linear-gradient(90deg,#ec4899,#f472b6)}
@@ -384,7 +386,7 @@ h2{font-size:1.1rem}
 
 <!-- HERO KPIs: 4 tarjetas con icono, delta, sparkline -->
 <div class="row r4 hero-grid">
-  <div class="khero g">
+  <div class="khero g nav-card" role="button" tabindex="0" aria-label="Ver ventas de hoy en corte de caja" onclick="irKpiDashboard('ventas-hoy')" onkeydown="activarConTeclado(event, function(){irKpiDashboard('ventas-hoy')})">
     <div class="kh-top">
       <div class="kh-icon">&#128184;</div>
       <span class="kh-delta flat" id="d-delta-ventas">&mdash;</span>
@@ -394,7 +396,7 @@ h2{font-size:1.1rem}
     <div class="kh-sub" id="d-sub-ventas">vs. ayer</div>
     <div class="kh-spark"><canvas id="spark-ventas"></canvas></div>
   </div>
-  <div class="khero b">
+  <div class="khero b nav-card" role="button" tabindex="0" aria-label="Ver tickets de hoy en corte de caja" onclick="irKpiDashboard('tickets-hoy')" onkeydown="activarConTeclado(event, function(){irKpiDashboard('tickets-hoy')})">
     <div class="kh-top">
       <div class="kh-icon">&#128203;</div>
       <span class="kh-delta flat" id="d-delta-tickets">&mdash;</span>
@@ -404,7 +406,7 @@ h2{font-size:1.1rem}
     <div class="kh-sub" id="d-sub-tickets">vs. ayer</div>
     <div class="kh-spark"><canvas id="spark-tickets"></canvas></div>
   </div>
-  <div class="khero p">
+  <div class="khero p nav-card" role="button" tabindex="0" aria-label="Ver reporte de ticket promedio" onclick="irKpiDashboard('ticket-promedio')" onkeydown="activarConTeclado(event, function(){irKpiDashboard('ticket-promedio')})">
     <div class="kh-top">
       <div class="kh-icon">&#127869;</div>
       <span class="kh-delta flat" id="d-delta-ticket-prom">&mdash;</span>
@@ -414,7 +416,7 @@ h2{font-size:1.1rem}
     <div class="kh-sub">&uacute;ltimos 7 d&iacute;as</div>
     <div class="kh-spark"><canvas id="spark-ticket-prom"></canvas></div>
   </div>
-  <div class="khero a">
+  <div class="khero a nav-card" role="button" tabindex="0" aria-label="Ver reporte de ventas del mes" onclick="irKpiDashboard('ventas-mes')" onkeydown="activarConTeclado(event, function(){irKpiDashboard('ventas-mes')})">
     <div class="kh-top">
       <div class="kh-icon">&#128197;</div>
       <span class="kh-delta flat" id="d-delta-mes">&mdash;</span>
@@ -2256,6 +2258,44 @@ function go(p) {
   if (p === 'deliveryp') initDelivery();
   if (p === 'usuarios') cargarUsuarios();
   window.scrollTo(0, 0);
+}
+
+function activarConTeclado(e, fn) {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    fn();
+  }
+}
+
+function irKpiDashboard(tipo) {
+  var hoy = new Date().toISOString().split('T')[0];
+  if (tipo === 'ventas-hoy' || tipo === 'tickets-hoy') {
+    go('corte');
+    setTimeout(function() {
+      var fecha = document.getElementById('c-fecha');
+      if (fecha) fecha.value = hoy;
+      cargarCorte();
+      var lista = document.getElementById('c-ventas-list');
+      if (lista) lista.scrollIntoView({behavior:'smooth', block:'center'});
+    }, 0);
+    return;
+  }
+
+  go('rep');
+  setTimeout(function() {
+    seleccionarRepTab('rep-ventas');
+    if (tipo === 'ticket-promedio') {
+      repSetRango(7);
+    } else {
+      var d = new Date();
+      var inicioMes = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+      document.getElementById('rep-fi').value = inicioMes;
+      document.getElementById('rep-ff').value = hoy;
+      cargarReporteVentas();
+    }
+    var rep = document.getElementById('rep-ventas');
+    if (rep) rep.scrollIntoView({behavior:'smooth', block:'start'});
+  }, 0);
 }
 
 // ─── POS ──────────────────────────────────────────────────────────
@@ -5506,19 +5546,24 @@ function iniciarPollPedidos() {
 }
 
 // ─── Reportes ────────────────────────────────────────────────────
-function repTab(tab) {
+function seleccionarRepTab(tab) {
   ['rep-ventas','rep-prod','rep-marg','rep-mermas','rep-abc','rep-horas','rep-pe','rep-yoy','rep-fiscal'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('#rep .tab').forEach(function(t) { t.classList.remove('active'); });
-  event.target.classList.add('active');
+  var active = document.querySelector('#rep .tab[onclick*="' + tab + '"]');
+  if (active) active.classList.add('active');
   if (tab === 'rep-marg') cargarMargenes();
   if (tab === 'rep-mermas') cargarReporteMermas();
   if (tab === 'rep-abc') cargarABC();
   if (tab === 'rep-horas') cargarVentasPorHora();
   if (tab === 'rep-pe') cargarPuntoEquilibrio();
   if (tab === 'rep-yoy') { cargarComparativoAnual(); cargarEstacionalidad(); }
+}
+
+function repTab(tab) {
+  seleccionarRepTab(tab);
 }
 
 function initReportes() {
