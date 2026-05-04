@@ -1,5 +1,5 @@
 // Jacaranda Service Worker — Offline support + sync queue
-const CACHE_NAME = 'jacaranda-v4';
+const CACHE_NAME = 'jacaranda-v5';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -58,6 +58,29 @@ self.addEventListener('fetch', function(event) {
             status: 503,
             headers: {'Content-Type': 'application/json'}
           });
+        });
+      })
+    );
+    return;
+  }
+
+  // HTML shell: network-first so UI changes do not get stuck behind old cache.
+  if (event.request.mode === 'navigate' ||
+      (event.request.headers.get('accept') || '').includes('text/html')) {
+    event.respondWith(
+      fetch(event.request).then(function(response) {
+        if (response.status === 200) {
+          var clone = response.clone();
+          var indexClone = response.clone();
+          caches.open(CACHE_NAME).then(function(cache) {
+            cache.put(event.request, clone);
+            cache.put('./index.html', indexClone);
+          });
+        }
+        return response;
+      }).catch(function() {
+        return caches.match(event.request).then(function(cached) {
+          return cached || caches.match('./index.html');
         });
       })
     );
