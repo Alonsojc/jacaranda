@@ -257,7 +257,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .nav-group>a.on{color:var(--v);background:#faf3f0}
 .nav-dd{display:none;position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--brd);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:55;min-width:170px;padding:.35rem 0;animation:ddIn .15s ease-out}
 .nav-dd::before{content:'';position:absolute;left:0;right:0;top:-10px;height:10px}
-.nav-group:hover .nav-dd,.nav-group.open .nav-dd{display:block}
+.nav-group:hover .nav-dd,.nav-group:focus-within .nav-dd,.nav-group.open .nav-dd{display:block}
 @keyframes ddIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 .nav-dd a{display:block;padding:.45rem .9rem;font-size:.82rem;color:var(--txt);text-decoration:none;cursor:pointer;transition:background .12s;white-space:nowrap;font-weight:500}
 .nav-dd a:hover{background:#faf3f0;color:var(--v)}
@@ -365,7 +365,7 @@ h2{font-size:1.1rem}
   </div>
 </div>
 <a onclick="toggleNotifPanel()" id="btn-notif" style="display:none;cursor:pointer;color:var(--mut);font-size:.95rem;padding:.5rem .4rem;position:relative" title="Notificaciones">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:2px;right:0;background:#ef4444;color:#fff;font-size:.55rem;font-weight:700;padding:.05rem .3rem;border-radius:8px;min-width:14px;text-align:center"></span></a>
-<a onclick="cerrarSesion()" id="btn-logout" style="display:none;cursor:pointer;color:var(--mut);font-size:.78rem;padding:.5rem .6rem" title="Cerrar sesi&oacute;n">&#9211;</a>
+<a onclick="confirmarCerrarSesion()" id="btn-logout" style="display:none;cursor:pointer;color:var(--mut);font-size:.78rem;padding:.5rem .6rem" title="Cerrar sesi&oacute;n">&#9211;</a>
 </div>
 </nav>
 <div class="notif-panel" id="notif-panel">
@@ -1573,7 +1573,7 @@ h2{font-size:1.1rem}
 <a onclick="go('ejecutivo');toggleMobileMenu()" class="mm-link">&#128188; Ejecutivo</a>
 <a onclick="go('deliveryp');toggleMobileMenu()" class="mm-link">&#128666; Delivery</a>
 <a onclick="go('usuarios');toggleMobileMenu()" class="mm-link">&#128101; Usuarios</a>
-<a onclick="cerrarSesion();toggleMobileMenu()" class="mm-link" style="color:#b91c1c">&#9211; Cerrar sesi&oacute;n</a>
+<a onclick="confirmarCerrarSesion();toggleMobileMenu()" class="mm-link" style="color:#b91c1c">&#9211; Cerrar sesi&oacute;n</a>
 </div>
 </div>
 </div>
@@ -2083,6 +2083,46 @@ function refreshAccessToken() {
   }).then(function(d) {
     TOKEN = d.access_token;
     localStorage.setItem('jacaranda_token', TOKEN);
+  });
+}
+
+function filenameFromDisposition(disposition, fallback) {
+  if (!disposition) return fallback;
+  var match = disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^"]+)"?/i);
+  return decodeURIComponent((match && (match[1] || match[2])) || fallback);
+}
+
+function descargarArchivoAutenticado(path, filename, successMsg, errorMsg, _retry) {
+  if (!API_URL) { toast('Servidor no disponible', true); return Promise.resolve(false); }
+  return fetch(API_URL + path, {
+    headers: {'Authorization': 'Bearer ' + TOKEN}
+  }).then(function(r) {
+    if (r.status === 401 && !_retry && REFRESH_TOKEN) {
+      return refreshAccessToken().then(function() {
+        return descargarArchivoAutenticado(path, filename, successMsg, errorMsg, true);
+      });
+    }
+    if (r.status === 401) {
+      cerrarSesion();
+      throw new Error('Sesión expirada');
+    }
+    if (!r.ok) {
+      return r.json().catch(function(){ return {}; }).then(function(body) {
+        throw new Error(body.detail || errorMsg || 'Error al descargar');
+      });
+    }
+    var resolvedName = filenameFromDisposition(r.headers.get('content-disposition'), filename);
+    return r.blob().then(function(blob) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = resolvedName;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      if (successMsg) toast(successMsg);
+    });
+  }).catch(function(e) {
+    toast(e.message || errorMsg || 'Error al descargar', true);
+    return false;
   });
 }
 
@@ -5710,7 +5750,7 @@ function calcularNominaBatch() {
       h += '<td style="color:#b91c1c">$' + fmt(n.isr_retenido) + '</td>';
       h += '<td>$' + fmt(n.imss_trabajador) + '</td>';
       h += '<td class="green" style="font-weight:600">$' + fmt(n.neto_a_pagar) + '</td>';
-      h += '<td><a href="' + API_URL + '/api/v1/empleados/nomina/' + n.id + '/recibo-pdf" target="_blank" style="font-size:.75rem">PDF</a></td>';
+      h += '<td><a href="#" onclick="descargarReciboNominaPDF(' + n.id + ');return false" style="font-size:.75rem">PDF</a></td>';
       h += '</tr>';
     }
     h += '</table></div>';
@@ -5729,7 +5769,7 @@ function cargarHistorialNominas() {
       h += '<td>' + n.periodo_inicio + ' a ' + n.periodo_fin + '</td>';
       h += '<td class="green">$' + fmt(n.neto_a_pagar) + '</td>';
       h += '<td>' + (n.pagado ? '<span class="badge bok">Pagado</span>' : '<span class="badge bpend">Pendiente</span>') + '</td>';
-      h += '<td><a href="' + API_URL + '/api/v1/empleados/nomina/' + n.id + '/recibo-pdf" target="_blank" style="font-size:.75rem">PDF</a></td>';
+      h += '<td><a href="#" onclick="descargarReciboNominaPDF(' + n.id + ');return false" style="font-size:.75rem">PDF</a></td>';
       h += '</tr>';
     }
     h += '</table></div>';
@@ -6746,18 +6786,18 @@ function descargarExcelER() {
   var fi = document.getElementById('conta-er-fi').value;
   var ff = document.getElementById('conta-er-ff').value;
   if (!validarFechas(fi, ff)) return;
-  window.open(API_URL + '/api/v1/contabilidad/estado-resultados/excel?fecha_inicio=' + fi + '&fecha_fin=' + ff, '_blank');
+  descargarArchivoAutenticado('/api/v1/contabilidad/estado-resultados/excel?fecha_inicio=' + encodeURIComponent(fi) + '&fecha_fin=' + encodeURIComponent(ff), 'estado_resultados_' + fi + '_' + ff + '.xlsx', 'Excel descargado', 'Error al descargar Excel');
 }
 function descargarExcelBG() {
   var fecha = document.getElementById('conta-bg-fecha').value;
-  var qs = fecha ? '?fecha_corte=' + fecha : '';
-  window.open(API_URL + '/api/v1/contabilidad/balance-general/excel' + qs, '_blank');
+  var qs = fecha ? '?fecha_corte=' + encodeURIComponent(fecha) : '';
+  descargarArchivoAutenticado('/api/v1/contabilidad/balance-general/excel' + qs, 'balance_general_' + (fecha || new Date().toISOString().split('T')[0]) + '.xlsx', 'Excel descargado', 'Error al descargar Excel');
 }
 function descargarExcelPol() {
   var fi = document.getElementById('conta-ld-fi').value;
   var ff = document.getElementById('conta-ld-ff').value;
   if (!validarFechas(fi, ff)) return;
-  window.open(API_URL + '/api/v1/contabilidad/libro-diario/excel?fecha_inicio=' + fi + '&fecha_fin=' + ff, '_blank');
+  descargarArchivoAutenticado('/api/v1/contabilidad/libro-diario/excel?fecha_inicio=' + encodeURIComponent(fi) + '&fecha_fin=' + encodeURIComponent(ff), 'libro_diario_' + fi + '_' + ff + '.xlsx', 'Excel descargado', 'Error al descargar Excel');
 }
 
 function cargarEdoResultados() {
@@ -7047,50 +7087,22 @@ function descargarReporteVentasPDF() {
   var fi = document.getElementById('rep-fi').value;
   var ff = document.getElementById('rep-ff').value;
   if (!fi || !ff) { toast('Selecciona fechas primero', true); return; }
-  var url = _apiURL + '/api/v1/reportes/ventas/pdf?fecha_inicio=' + fi + '&fecha_fin=' + ff;
-  fetch(url, { headers: {'Authorization': 'Bearer ' + TOKEN} }).then(function(r) {
-    if (!r.ok) throw new Error('Error');
-    return r.blob();
-  }).then(function(blob) {
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'ventas_' + fi + '_' + ff + '.pdf';
-    a.click();
-    URL.revokeObjectURL(a.href);
-    toast('PDF descargado');
-  }).catch(function() { toast('Error al descargar PDF', true); });
+  descargarArchivoAutenticado('/api/v1/reportes/ventas/pdf?fecha_inicio=' + encodeURIComponent(fi) + '&fecha_fin=' + encodeURIComponent(ff), 'ventas_' + fi + '_' + ff + '.pdf', 'PDF descargado', 'Error al descargar PDF');
 }
 
 function descargarReporteFiscalPDF(tipo) {
   var mes = document.getElementById('rep-fmes').value;
   var anio = document.getElementById('rep-fanio').value;
   var endpoint = tipo === 'iva' ? '/reportes/impuestos/iva-mensual/pdf' : '/reportes/impuestos/isr-provisional/pdf';
-  var url = _apiURL + '/api/v1' + endpoint + '?mes=' + mes + '&anio=' + anio;
-  fetch(url, { headers: {'Authorization': 'Bearer ' + TOKEN} }).then(function(r) {
-    if (!r.ok) throw new Error('Error');
-    return r.blob();
-  }).then(function(blob) {
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = tipo + '_' + anio + '_' + mes + '.pdf';
-    a.click();
-    URL.revokeObjectURL(a.href);
-    toast('PDF descargado');
-  }).catch(function() { toast('Error al descargar PDF', true); });
+  descargarArchivoAutenticado('/api/v1' + endpoint + '?mes=' + encodeURIComponent(mes) + '&anio=' + encodeURIComponent(anio), tipo + '_' + anio + '_' + mes + '.pdf', 'PDF descargado', 'Error al descargar PDF');
 }
 
 function descargarTicketPDF(ventaId, folio) {
-  var url = _apiURL + '/api/v1/punto-de-venta/ventas/' + ventaId + '/ticket/pdf';
-  fetch(url, { headers: {'Authorization': 'Bearer ' + TOKEN} }).then(function(r) {
-    if (!r.ok) throw new Error('Error');
-    return r.blob();
-  }).then(function(blob) {
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'ticket_' + (folio || ventaId) + '.pdf';
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }).catch(function() { toast('Error al descargar ticket PDF', true); });
+  descargarArchivoAutenticado('/api/v1/punto-de-venta/ventas/' + encodeURIComponent(ventaId) + '/ticket/pdf', 'ticket_' + (folio || ventaId) + '.pdf', null, 'Error al descargar ticket PDF');
+}
+
+function descargarReciboNominaPDF(nominaId) {
+  descargarArchivoAutenticado('/api/v1/empleados/nomina/' + encodeURIComponent(nominaId) + '/recibo-pdf', 'recibo_nomina_' + nominaId + '.pdf', 'PDF descargado', 'Error al descargar recibo PDF');
 }
 
 // ─── Login / Logout / Sesión ──────────────────────────────────────
@@ -7102,7 +7114,7 @@ function hacerLogin() {
   var errEl = document.getElementById('login-error');
   if (!email || !pass) { errEl.textContent = 'Ingresa email y contraseña'; errEl.style.display = 'block'; return; }
   errEl.style.display = 'none';
-  if (!API_URL) { errEl.textContent = 'Configura la URL del servidor primero'; errEl.style.display = 'block'; return; }
+  if (!API_URL) { errEl.textContent = 'Servidor no disponible'; errEl.style.display = 'block'; return; }
   login(email, pass).then(function() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('btn-logout').style.display = '';
@@ -7167,6 +7179,10 @@ function cerrarSesion() {
   setConnected(false);
 }
 
+function confirmarCerrarSesion() {
+  if (confirm('¿Cerrar sesión?')) cerrarSesion();
+}
+
 // ─── Gestión de usuarios (admin) ─────────────────────────────────
 var _editPermsUserId = null;
 var _moduloNombres = {
@@ -7179,25 +7195,7 @@ var _moduloNombres = {
 };
 
 function descargarBackup() {
-  if (!_apiURL) { toast('Conecta al servidor primero', true); return; }
-  var token = localStorage.getItem('j_token');
-  var a = document.createElement('a');
-  a.href = _apiURL + '/api/v1/reportes/backup';
-  // Use fetch to add auth header
-  fetch(_apiURL + '/api/v1/reportes/backup', {
-    headers: {'Authorization': 'Bearer ' + token}
-  }).then(function(r) {
-    if (!r.ok) throw new Error('Error ' + r.status);
-    return r.blob();
-  }).then(function(blob) {
-    var url = URL.createObjectURL(blob);
-    var link = document.createElement('a');
-    link.href = url;
-    link.download = 'jacaranda_backup_' + new Date().toISOString().split('T')[0] + '.db';
-    link.click();
-    URL.revokeObjectURL(url);
-    toast('Backup descargado');
-  }).catch(function(e) { toast(e.message || 'Error al descargar backup', true); });
+  descargarArchivoAutenticado('/api/v1/backup/descargar', 'jacaranda_backup_' + new Date().toISOString().split('T')[0] + '.sql', 'Backup descargado', 'Error al descargar backup');
 }
 
 function cargarUsuarios() {
