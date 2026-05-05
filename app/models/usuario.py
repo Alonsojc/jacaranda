@@ -27,6 +27,38 @@ MODULOS_DISPONIBLES = [
 ]
 
 
+def permisos_default_por_rol(rol: RolUsuario) -> dict:
+    """Permisos base por rol. Valores explícitos del usuario siempre ganan."""
+    if rol == RolUsuario.ADMINISTRADOR:
+        return {m: "editar" for m in MODULOS_DISPONIBLES}
+    elif rol in (RolUsuario.GERENTE,):
+        ocultos = {"usuarios", "conta", "fiscal", "auditoria"}
+        return {m: "editar" for m in MODULOS_DISPONIBLES if m not in ocultos}
+    elif rol == RolUsuario.CAJERO:
+        return {
+            "dash": "ver", "pos": "editar", "ped": "editar",
+            "corte": "ver", "listas": "ver",
+        }
+    elif rol == RolUsuario.CONTADOR:
+        return {
+            "dash": "ver", "rep": "editar", "corte": "ver",
+            "compras": "ver", "conta": "editar",
+            "fiscal": "editar", "kpis": "ver",
+        }
+    elif rol == RolUsuario.PANADERO:
+        return {
+            "dash": "ver", "inv": "editar", "ped": "ver",
+            "prod": "editar", "merma": "editar", "calidad": "editar",
+        }
+    elif rol == RolUsuario.ALMACENISTA:
+        return {
+            "dash": "ver", "inv": "editar", "listas": "ver",
+            "compras": "ver", "sucursales": "ver", "merma": "editar",
+            "calidad": "editar",
+        }
+    return {"dash": "ver", "pos": "ver"}
+
+
 class Usuario(Base):
     __tablename__ = "usuarios"
 
@@ -49,40 +81,15 @@ class Usuario(Base):
 
     @property
     def permisos_modulos(self) -> dict:
+        defaults = permisos_default_por_rol(self.rol)
         if self._permisos_modulos:
             try:
-                return json.loads(self._permisos_modulos)
+                permisos = json.loads(self._permisos_modulos)
             except json.JSONDecodeError:
                 return {}
-        # Defaults por rol
-        if self.rol == RolUsuario.ADMINISTRADOR:
-            return {m: "editar" for m in MODULOS_DISPONIBLES}
-        elif self.rol in (RolUsuario.GERENTE,):
-            ocultos = {"usuarios", "conta", "fiscal", "auditoria"}
-            return {m: "editar" for m in MODULOS_DISPONIBLES if m not in ocultos}
-        elif self.rol == RolUsuario.CAJERO:
-            return {
-                "dash": "ver", "pos": "editar", "ped": "editar",
-                "corte": "ver", "listas": "ver",
-            }
-        elif self.rol == RolUsuario.CONTADOR:
-            return {
-                "dash": "ver", "rep": "editar", "corte": "ver",
-                "compras": "ver", "conta": "editar",
-                "fiscal": "editar", "kpis": "ver",
-            }
-        elif self.rol == RolUsuario.PANADERO:
-            return {
-                "dash": "ver", "inv": "editar", "ped": "ver",
-                "prod": "editar", "merma": "editar", "calidad": "editar",
-            }
-        elif self.rol == RolUsuario.ALMACENISTA:
-            return {
-                "dash": "ver", "inv": "editar", "listas": "ver",
-                "compras": "ver", "sucursales": "ver", "merma": "editar",
-                "calidad": "editar",
-            }
-        return {"dash": "ver", "pos": "ver"}
+            # Backfill modules added after a user's permissions were customized.
+            return {**defaults, **permisos}
+        return defaults
 
     @permisos_modulos.setter
     def permisos_modulos(self, value: dict | None):

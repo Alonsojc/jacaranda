@@ -120,6 +120,44 @@ def test_cashier_can_use_pos_but_not_inventory_or_fiscal_reports(client, db):
     assert resp_fiscal.status_code == 403
 
 
+def test_legacy_admin_permissions_get_new_modules_backfilled(client, db):
+    admin = _crear_usuario(db, RolUsuario.ADMINISTRADOR, "admin-legacy-perms@test.com")
+    admin.permisos_modulos = {
+        "dash": "editar",
+        "rep": "editar",
+        "listas": "editar",
+    }
+    db.commit()
+    db.refresh(admin)
+
+    headers = _login(client, admin.email)
+    me = client.get("/api/v1/auth/me", headers=headers)
+
+    assert me.status_code == 200
+    permisos = me.json()["permisos_modulos"]
+    assert permisos["papelera"] == "editar"
+    assert permisos["usuarios"] == "editar"
+    assert permisos["dash"] == "editar"
+
+
+def test_explicit_hidden_permission_is_preserved(client, db):
+    gerente = _crear_usuario(db, RolUsuario.GERENTE, "gerente-hidden-perms@test.com")
+    gerente.permisos_modulos = {
+        "dash": "editar",
+        "papelera": "oculto",
+    }
+    db.commit()
+    db.refresh(gerente)
+
+    headers = _login(client, gerente.email)
+    me = client.get("/api/v1/auth/me", headers=headers)
+
+    assert me.status_code == 200
+    permisos = me.json()["permisos_modulos"]
+    assert permisos["papelera"] == "oculto"
+    assert permisos["compras"] == "editar"
+
+
 def test_sensitive_edit_allows_admin_without_override(client, db, admin_user):
     producto = _crear_producto(db)
     headers = _login(client, admin_user.email)
