@@ -8,11 +8,12 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 FROM python:3.11-slim
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl postgresql-client \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 1000 app
 
 RUN mkdir -p /app && chown app:app /app
+RUN mkdir -p /data/backups && chown -R app:app /data
 WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1 \
