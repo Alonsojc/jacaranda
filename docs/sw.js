@@ -1,8 +1,9 @@
 // Jacaranda Service Worker — Offline support + sync queue
-const CACHE_NAME = 'jacaranda-v10';
+const CACHE_NAME = 'jacaranda-v11';
 const STATIC_ASSETS = [
   './',
   './index.html',
+  './favicon.svg',
   './js/jacaranda-core.js',
   './manifest.json',
   'https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap',
