@@ -61,7 +61,7 @@ def _is_sqlite() -> bool:
 
 
 def _timestamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
 
 
 def _backup_files() -> list[Path]:
@@ -74,13 +74,35 @@ def _backup_files() -> list[Path]:
     ]
 
 
+def _sorted_backup_files() -> list[Path]:
+    return sorted(_backup_files(), key=lambda x: x.stat().st_mtime, reverse=True)
+
+
+def _max_backup_files() -> int:
+    return max(_setting_int("BACKUP_MAX_FILES", 20), 1)
+
+
+def _backup_info(path: Path) -> dict:
+    stat = path.stat()
+    return {
+        "filename": path.name,
+        "path": str(path),
+        "size_bytes": stat.st_size,
+        "created_at": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+    }
+
+
 def limpiar_backups_antiguos() -> int:
-    """Elimina respaldos fuera de la ventana de retención."""
+    """Elimina respaldos fuera de retención y por arriba del máximo permitido."""
     retention_days = max(_setting_int("BACKUP_RETENTION_DAYS", 7), 1)
     cutoff = datetime.now(timezone.utc).timestamp() - (retention_days * 86400)
     removed = 0
-    for f in _backup_files():
-        if f.stat().st_mtime < cutoff:
+    for f in list(_backup_files()):
+        if f.exists() and f.stat().st_mtime < cutoff:
+            f.unlink()
+            removed += 1
+    for f in _sorted_backup_files()[_max_backup_files():]:
+        if f.exists():
             f.unlink()
             removed += 1
     return removed
@@ -103,7 +125,8 @@ def crear_backup() -> dict:
             raise FileNotFoundError("Base de datos SQLite no encontrada")
         filename = f"jacaranda_{ts}.db"
         dest = backup_dir / filename
-        shutil.copy2(str(src), str(dest))
+        shutil.copyfile(str(src), str(dest))
+        os.utime(dest, None)
     else:
         parsed = urlparse(settings.DATABASE_URL)
         filename = f"jacaranda_{ts}.sql"
@@ -119,16 +142,54 @@ def crear_backup() -> dict:
         ]
         result = subprocess.run(cmd, env=env, capture_output=True, text=True)
         if result.returncode != 0:
+            dest.unlink(missing_ok=True)
             raise RuntimeError(f"pg_dump failed: {result.stderr}")
 
     size = dest.stat().st_size
+    removed = limpiar_backups_antiguos()
     return {
         "filename": filename,
         "path": str(dest),
         "size_bytes": size,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "db_type": "sqlite" if _is_sqlite() else "postgresql",
+        "removed_old_backups": removed,
     }
+
+
+def obtener_ultimo_backup() -> dict:
+    """Regresa el respaldo más reciente sin crear uno nuevo."""
+    _ensure_backup_dir()
+    backups = _sorted_backup_files()
+    if not backups:
+        raise FileNotFoundError("No hay backups guardados. Cree un backup primero.")
+    info = _backup_info(backups[0])
+    info["db_type"] = "sqlite" if _is_sqlite() else "postgresql"
+    return info
+
+
+def eliminar_backup(filename: str) -> dict:
+    """Elimina un respaldo manual, excepto el más reciente."""
+    _ensure_backup_dir()
+    clean_name = Path(filename).name
+    if clean_name != filename or not clean_name.startswith("jacaranda_"):
+        raise ValueError("Nombre de backup inválido")
+    if Path(clean_name).suffix not in (".db", ".sql"):
+        raise ValueError("Extensión de backup inválida")
+
+    backups = _sorted_backup_files()
+    if not backups:
+        raise FileNotFoundError("No hay backups guardados")
+    if backups[0].name == clean_name:
+        raise ValueError("No se puede borrar el backup más reciente")
+
+    target = next((f for f in backups if f.name == clean_name), None)
+    if target is None:
+        raise FileNotFoundError("Backup no encontrado")
+
+    info = _backup_info(target)
+    target.unlink()
+    return info
 
 
 def restaurar_backup(file_content: bytes, filename: str) -> dict:
@@ -179,13 +240,11 @@ def listar_backups() -> list[dict]:
     """Lista backups disponibles."""
     _ensure_backup_dir()
     backups = []
-    for f in sorted(_backup_files(), key=lambda x: x.stat().st_mtime, reverse=True):
-        stat = f.stat()
-        backups.append({
-            "filename": f.name,
-            "size_bytes": stat.st_size,
-            "created_at": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
-        })
+    for index, f in enumerate(_sorted_backup_files()):
+        info = _backup_info(f)
+        info.pop("path", None)
+        info["is_latest"] = index == 0
+        backups.append(info)
     return backups
 
 
@@ -207,6 +266,7 @@ def estado_backup() -> dict:
         "backup_count": len(backups),
         "last_backup": backups[0] if backups else None,
         "retention_days": max(_setting_int("BACKUP_RETENTION_DAYS", 7), 1),
+        "max_backups": _max_backup_files(),
         "restore_enabled": (not _is_production()) or _setting_bool("ALLOW_DB_RESTORE", False),
         "pg_dump_available": shutil.which("pg_dump") is not None if db_type == "postgresql" else None,
         "psql_available": shutil.which("psql") is not None if db_type == "postgresql" else None,

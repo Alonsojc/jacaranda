@@ -7546,7 +7546,7 @@ var _moduloNombres = {
 };
 
 function descargarBackup() {
-  descargarArchivoAutenticado('/api/v1/backup/descargar', 'jacaranda_backup_' + new Date().toISOString().split('T')[0] + '.sql', 'Backup descargado', 'Error al descargar backup');
+  descargarArchivoAutenticado('/api/v1/backup/descargar', 'jacaranda_backup_' + new Date().toISOString().split('T')[0] + '.sql', 'Último backup descargado', 'Error al descargar backup');
 }
 
 function crearBackupManual() {
@@ -7567,6 +7567,7 @@ function cargarBackup() {
       h += '<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;padding:.45rem .6rem;margin:.4rem 0;font-size:.78rem">' + escHtml(s.backup_dir_error) + '</div>';
     }
     h += '<div class="srow"><span>Retenci&oacute;n</span><span>' + s.retention_days + ' d&iacute;as</span></div>';
+    h += '<div class="srow"><span>M&aacute;ximo</span><span>' + (s.max_backups || 20) + ' backups</span></div>';
     h += '<div class="srow"><span>&Uacute;ltimo backup</span><span style="font-size:.75rem">' + last + '</span></div>';
     h += '<div class="srow"><span>Restauraci&oacute;n</span><span class="badge ' + (s.restore_enabled ? 'blow' : 'bok') + '">' + restore + '</span></div>';
     if (s.db_type === 'postgresql') {
@@ -7582,17 +7583,36 @@ function cargarBackup() {
       document.getElementById('backup-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem">A&uacute;n no hay backups guardados.</p>';
       return;
     }
-    var h = '<table class="tbl"><tr><th>Archivo</th><th>Tama&ntilde;o</th><th>Fecha</th></tr>';
-    for (var i = 0; i < Math.min(items.length, 10); i++) {
+    var h = '<table class="tbl"><tr><th>Archivo</th><th>Tama&ntilde;o</th><th>Fecha</th><th style="width:70px"></th></tr>';
+    for (var i = 0; i < Math.min(items.length, 20); i++) {
       var b = items[i];
       var mb = (b.size_bytes / 1024 / 1024).toFixed(2);
       var f = b.created_at ? new Date(b.created_at).toLocaleString('es-MX', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
-      h += '<tr><td style="font-size:.75rem">' + b.filename + '</td><td>' + mb + ' MB</td><td>' + f + '</td></tr>';
+      h += '<tr><td style="font-size:.75rem">' + escHtml(b.filename) + (b.is_latest ? '<br><span class="badge bok">Último</span>' : '') + '</td><td>' + mb + ' MB</td><td>' + f + '</td><td>';
+      if (b.is_latest) {
+        h += '<span style="font-size:.72rem;color:var(--mut)">Protegido</span>';
+      } else if (!esAdminActual()) {
+        h += '<span style="font-size:.72rem;color:var(--mut)">Solo admin</span>';
+      } else {
+        h += '<button class="limpiar" style="padding:.25rem .45rem;font-size:.72rem;margin:0;color:#b91c1c" onclick="eliminarBackup(\'' + encodeURIComponent(b.filename).replace(/'/g, '%27') + '\')">Borrar</button>';
+      }
+      h += '</td></tr>';
     }
     h += '</table>';
     document.getElementById('backup-list').innerHTML = h;
   }).catch(function(e) {
     document.getElementById('backup-list').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">' + escHtml(e.message || 'Error al cargar backups') + '</p>';
+  });
+}
+
+function eliminarBackup(encodedFilename) {
+  var filename = decodeURIComponent(encodedFilename);
+  if (!confirm('¿Seguro que quieres borrar este respaldo?\\n\\n' + filename)) return;
+  api('DELETE', '/backup/' + encodedFilename).then(function() {
+    toast('Backup borrado');
+    cargarBackup();
+  }).catch(function(e) {
+    toast(e.message || 'Error al borrar backup', true);
   });
 }
 
