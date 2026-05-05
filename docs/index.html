@@ -7563,6 +7563,9 @@ function cargarBackup() {
     var h = '';
     h += '<div class="srow"><span>Base de datos</span><span style="font-weight:600">' + s.db_type + '</span></div>';
     h += '<div class="srow"><span>Carpeta</span><span style="font-size:.72rem;color:var(--mut);text-align:right">' + s.backup_dir + '</span></div>';
+    if (s.backup_dir_error) {
+      h += '<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;padding:.45rem .6rem;margin:.4rem 0;font-size:.78rem">' + escHtml(s.backup_dir_error) + '</div>';
+    }
     h += '<div class="srow"><span>Retenci&oacute;n</span><span>' + s.retention_days + ' d&iacute;as</span></div>';
     h += '<div class="srow"><span>&Uacute;ltimo backup</span><span style="font-size:.75rem">' + last + '</span></div>';
     h += '<div class="srow"><span>Restauraci&oacute;n</span><span class="badge ' + (s.restore_enabled ? 'blow' : 'bok') + '">' + restore + '</span></div>';
@@ -7571,7 +7574,7 @@ function cargarBackup() {
     }
     document.getElementById('backup-status').innerHTML = h;
   }).catch(function(e) {
-    document.getElementById('backup-status').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">Error al cargar estado</p>';
+    document.getElementById('backup-status').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">' + escHtml(e.message || 'Error al cargar estado') + '</p>';
   });
 
   api('GET', '/backup/listar').then(function(items) {
@@ -7588,8 +7591,8 @@ function cargarBackup() {
     }
     h += '</table>';
     document.getElementById('backup-list').innerHTML = h;
-  }).catch(function() {
-    document.getElementById('backup-list').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">Error al cargar backups</p>';
+  }).catch(function(e) {
+    document.getElementById('backup-list').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">' + escHtml(e.message || 'Error al cargar backups') + '</p>';
   });
 }
 

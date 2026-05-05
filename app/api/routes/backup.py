@@ -30,7 +30,7 @@ def crear_backup(
             datos_nuevos={"filename": info["filename"], "size_bytes": info["size_bytes"]},
         )
         return info
-    except (FileNotFoundError, RuntimeError) as e:
+    except (FileNotFoundError, OSError, RuntimeError) as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -55,7 +55,7 @@ def descargar_backup(
             filename=info["filename"],
             media_type="application/octet-stream",
         )
-    except (FileNotFoundError, RuntimeError) as e:
+    except (FileNotFoundError, OSError, RuntimeError) as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -88,7 +88,10 @@ async def restaurar_backup(
 def listar_backups(
     _user: Usuario = Depends(require_permission("backup", "editar")),
 ):
-    return backup_service.listar_backups()
+    try:
+        return backup_service.listar_backups()
+    except (OSError, RuntimeError) as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/estado")

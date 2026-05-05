@@ -42,7 +42,18 @@ def _backup_dir() -> Path:
 
 
 def _ensure_backup_dir():
-    _backup_dir().mkdir(parents=True, exist_ok=True)
+    backup_dir = _backup_dir()
+    try:
+        backup_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise RuntimeError(
+            f"No se pudo crear BACKUP_DIR={backup_dir}. "
+            "Verifique que el volume esté montado y tenga permisos de escritura."
+        ) from exc
+    if not os.access(backup_dir, os.W_OK):
+        raise RuntimeError(
+            f"BACKUP_DIR={backup_dir} no tiene permisos de escritura."
+        )
 
 
 def _is_sqlite() -> bool:
@@ -180,12 +191,19 @@ def listar_backups() -> list[dict]:
 
 def estado_backup() -> dict:
     """Estado operativo de respaldos para que el admin sepa si está protegido."""
-    backups = listar_backups()
+    backup_dir_error = None
+    backups = []
+    try:
+        backups = listar_backups()
+    except (OSError, RuntimeError) as exc:
+        backup_dir_error = str(exc)
     db_type = "sqlite" if _is_sqlite() else "postgresql"
     return {
         "db_type": db_type,
         "backup_dir": str(_backup_dir()),
         "backup_dir_exists": _backup_dir().exists(),
+        "backup_dir_writable": backup_dir_error is None,
+        "backup_dir_error": backup_dir_error,
         "backup_count": len(backups),
         "last_backup": backups[0] if backups else None,
         "retention_days": max(_setting_int("BACKUP_RETENTION_DAYS", 7), 1),
