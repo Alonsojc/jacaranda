@@ -10,12 +10,13 @@ from sqlalchemy import desc
 
 from app.core.database import get_db
 from app.core.dependencies import require_admin_or_override, require_permission
-from app.models.usuario import Usuario
+from app.models.usuario import RolUsuario, Usuario
 from app.models.venta import CorteCaja
 from app.models.gasto_fijo import GastoFijo
 from app.services.auditoria_service import registrar_evento
 from app.schemas.venta import (
     VentaCreate, VentaResponse, TicketResponse, CorteCajaCreate, CorteCajaResponse,
+    CorteCajaResumen,
 )
 from app.services import venta_service as svc
 
@@ -128,7 +129,21 @@ def realizar_corte(
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_permission("corte", "editar")),
 ):
-    return svc.realizar_corte_caja(db, data, user.id)
+    if data.permitir_repetir and user.rol != RolUsuario.ADMINISTRADOR:
+        raise HTTPException(status_code=403, detail="Solo administrador puede repetir un corte")
+    try:
+        return svc.realizar_corte_caja(db, data, user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/corte-caja/resumen", response_model=CorteCajaResumen)
+def resumen_corte(
+    fecha: date | None = None,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("corte", "ver")),
+):
+    return svc.resumen_corte_caja(db, fecha)
 
 
 @router.get("/cortes-caja", response_model=list[CorteCajaResponse])

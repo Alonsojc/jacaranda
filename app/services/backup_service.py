@@ -9,11 +9,40 @@ from urllib.parse import urlparse
 
 from app.core.config import settings
 
-BACKUP_DIR = Path("/tmp/jacaranda_backups")
+
+def _setting_int(name: str, default: int) -> int:
+    value = getattr(settings, name, default)
+    if isinstance(value, int):
+        return value
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _setting_bool(name: str, default: bool = False) -> bool:
+    value = getattr(settings, name, default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in {"1", "true", "yes", "on"}
+    return default
+
+
+def _is_production() -> bool:
+    value = getattr(settings, "is_production", False)
+    return value if isinstance(value, bool) else False
+
+
+def _backup_dir() -> Path:
+    value = getattr(settings, "BACKUP_DIR", "/tmp/jacaranda_backups")
+    if not isinstance(value, str):
+        value = "/tmp/jacaranda_backups"
+    return Path(value)
 
 
 def _ensure_backup_dir():
-    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    _backup_dir().mkdir(parents=True, exist_ok=True)
 
 
 def _is_sqlite() -> bool:
@@ -24,10 +53,34 @@ def _timestamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
 
+def _backup_files() -> list[Path]:
+    backup_dir = _backup_dir()
+    if not backup_dir.exists():
+        return []
+    return [
+        f for f in backup_dir.iterdir()
+        if f.name.startswith("jacaranda_") and f.suffix in (".db", ".sql")
+    ]
+
+
+def limpiar_backups_antiguos() -> int:
+    """Elimina respaldos fuera de la ventana de retención."""
+    retention_days = max(_setting_int("BACKUP_RETENTION_DAYS", 7), 1)
+    cutoff = datetime.now(timezone.utc).timestamp() - (retention_days * 86400)
+    removed = 0
+    for f in _backup_files():
+        if f.stat().st_mtime < cutoff:
+            f.unlink()
+            removed += 1
+    return removed
+
+
 def crear_backup() -> dict:
     """Crea backup de la base de datos."""
     _ensure_backup_dir()
+    limpiar_backups_antiguos()
     ts = _timestamp()
+    backup_dir = _backup_dir()
 
     if _is_sqlite():
         db_url = settings.DATABASE_URL
@@ -38,12 +91,12 @@ def crear_backup() -> dict:
         if not src.exists() or src.stat().st_size == 0:
             raise FileNotFoundError("Base de datos SQLite no encontrada")
         filename = f"jacaranda_{ts}.db"
-        dest = BACKUP_DIR / filename
+        dest = backup_dir / filename
         shutil.copy2(str(src), str(dest))
     else:
         parsed = urlparse(settings.DATABASE_URL)
         filename = f"jacaranda_{ts}.sql"
-        dest = BACKUP_DIR / filename
+        dest = backup_dir / filename
         env = {**os.environ, "PGPASSWORD": parsed.password or ""}
         cmd = [
             "pg_dump",
@@ -69,6 +122,12 @@ def crear_backup() -> dict:
 
 def restaurar_backup(file_content: bytes, filename: str) -> dict:
     """Restaura backup desde archivo subido."""
+    if _is_production() and not _setting_bool("ALLOW_DB_RESTORE", False):
+        raise ValueError(
+            "Restauración de base de datos deshabilitada en producción. "
+            "Active ALLOW_DB_RESTORE=true solo durante una ventana controlada."
+        )
+
     if _is_sqlite():
         if not filename.endswith(".db"):
             raise ValueError("Para SQLite, suba un archivo .db")
@@ -85,8 +144,8 @@ def restaurar_backup(file_content: bytes, filename: str) -> dict:
         if not filename.endswith(".sql"):
             raise ValueError("Para PostgreSQL, suba un archivo .sql")
         parsed = urlparse(settings.DATABASE_URL)
-        tmp_file = BACKUP_DIR / f"restore_{_timestamp()}.sql"
         _ensure_backup_dir()
+        tmp_file = _backup_dir() / f"restore_{_timestamp()}.sql"
         with open(tmp_file, "wb") as f:
             f.write(file_content)
         env = {**os.environ, "PGPASSWORD": parsed.password or ""}
@@ -109,23 +168,35 @@ def listar_backups() -> list[dict]:
     """Lista backups disponibles."""
     _ensure_backup_dir()
     backups = []
-    for f in sorted(BACKUP_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-        if f.name.startswith("jacaranda_") and f.suffix in (".db", ".sql"):
-            stat = f.stat()
-            backups.append({
-                "filename": f.name,
-                "size_bytes": stat.st_size,
-                "created_at": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
-            })
+    for f in sorted(_backup_files(), key=lambda x: x.stat().st_mtime, reverse=True):
+        stat = f.stat()
+        backups.append({
+            "filename": f.name,
+            "size_bytes": stat.st_size,
+            "created_at": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+        })
     return backups
 
 
+def estado_backup() -> dict:
+    """Estado operativo de respaldos para que el admin sepa si está protegido."""
+    backups = listar_backups()
+    db_type = "sqlite" if _is_sqlite() else "postgresql"
+    return {
+        "db_type": db_type,
+        "backup_dir": str(_backup_dir()),
+        "backup_dir_exists": _backup_dir().exists(),
+        "backup_count": len(backups),
+        "last_backup": backups[0] if backups else None,
+        "retention_days": max(_setting_int("BACKUP_RETENTION_DAYS", 7), 1),
+        "restore_enabled": (not _is_production()) or _setting_bool("ALLOW_DB_RESTORE", False),
+        "pg_dump_available": shutil.which("pg_dump") is not None if db_type == "postgresql" else None,
+        "psql_available": shutil.which("psql") is not None if db_type == "postgresql" else None,
+    }
+
+
 def backup_programado() -> dict:
-    """Backup con auto-limpieza de archivos > 7 días."""
+    """Backup con auto-limpieza según BACKUP_RETENTION_DAYS."""
     _ensure_backup_dir()
-    # Cleanup old backups
-    cutoff = datetime.now(timezone.utc).timestamp() - (7 * 86400)
-    for f in BACKUP_DIR.iterdir():
-        if f.name.startswith("jacaranda_") and f.stat().st_mtime < cutoff:
-            f.unlink()
+    limpiar_backups_antiguos()
     return crear_backup()

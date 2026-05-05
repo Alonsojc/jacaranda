@@ -499,15 +499,20 @@ def generar_ticket(db: Session, venta_id: int) -> dict:
 
 # --- Corte de caja ---
 
-def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> CorteCaja:
-    """Realiza corte de caja del día."""
-    hoy_inicio = datetime.combine(date.today(), datetime.min.time())
-    hoy_fin = datetime.combine(date.today(), datetime.max.time())
+def _rango_dia_corte(fecha: date) -> tuple[datetime, datetime]:
+    return (
+        datetime.combine(fecha, datetime.min.time()),
+        datetime.combine(fecha, datetime.max.time()),
+    )
 
-    ventas_hoy = db.query(Venta).filter(
+
+def _totales_corte(db: Session, fecha: date) -> dict:
+    inicio, fin = _rango_dia_corte(fecha)
+
+    ventas = db.query(Venta).filter(
         and_(
-            Venta.fecha >= hoy_inicio,
-            Venta.fecha <= hoy_fin,
+            Venta.fecha >= inicio,
+            Venta.fecha <= fin,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
     ).all()
@@ -516,7 +521,7 @@ def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> 
     total_efectivo = Decimal("0")
     total_tarjeta = Decimal("0")
     total_transferencia = Decimal("0")
-    for v in ventas_hoy:
+    for v in ventas:
         if v.pagos:
             # Split payment: sum each method's portion
             for p in v.pagos:
@@ -538,31 +543,102 @@ def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> 
 
     cancelaciones = db.query(func.count(Venta.id)).filter(
         and_(
-            Venta.fecha >= hoy_inicio,
-            Venta.fecha <= hoy_fin,
+            Venta.fecha >= inicio,
+            Venta.fecha <= fin,
             Venta.estado == EstadoVenta.CANCELADA,
         )
     ).scalar() or 0
 
-    efectivo_esperado = data.fondo_inicial + total_efectivo
+    corte_existente = db.query(CorteCaja).filter(
+        CorteCaja.fecha >= inicio,
+        CorteCaja.fecha <= fin,
+    ).order_by(CorteCaja.fecha.desc()).first()
+
+    return {
+        "fecha": fecha,
+        "inicio": inicio,
+        "fin": fin,
+        "ventas": ventas,
+        "total_efectivo": total_efectivo,
+        "total_tarjeta": total_tarjeta,
+        "total_transferencia": total_transferencia,
+        "total_ventas": total_ventas,
+        "numero_ventas": len(ventas),
+        "numero_cancelaciones": int(cancelaciones),
+        "corte_existente": corte_existente,
+    }
+
+
+def resumen_corte_caja(db: Session, fecha: date | None = None) -> dict:
+    """Resumen calculado antes de registrar el corte."""
+    dia = fecha or date.today()
+    totales = _totales_corte(db, dia)
+    corte_existente = totales["corte_existente"]
+    return {
+        "fecha": dia.isoformat(),
+        "total_ventas_efectivo": totales["total_efectivo"],
+        "total_ventas_tarjeta": totales["total_tarjeta"],
+        "total_ventas_transferencia": totales["total_transferencia"],
+        "total_ventas": totales["total_ventas"],
+        "efectivo_esperado_base": totales["total_efectivo"],
+        "numero_ventas": totales["numero_ventas"],
+        "numero_cancelaciones": totales["numero_cancelaciones"],
+        "corte_existente": corte_existente is not None,
+        "corte_id": corte_existente.id if corte_existente else None,
+    }
+
+
+def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> CorteCaja:
+    """Realiza corte de caja del día."""
+    totales = _totales_corte(db, date.today())
+    if totales["corte_existente"] and not data.permitir_repetir:
+        raise ValueError("Ya existe un corte de caja registrado para hoy")
+
+    efectivo_esperado = data.fondo_inicial + totales["total_efectivo"]
     diferencia = data.efectivo_real - efectivo_esperado
+    if abs(diferencia) >= Decimal("1") and not (data.notas or "").strip():
+        raise ValueError("Agrega una nota explicando la diferencia de caja")
 
     corte = CorteCaja(
         usuario_id=usuario_id,
         fecha=datetime.now(timezone.utc),
         fondo_inicial=data.fondo_inicial,
-        total_ventas_efectivo=total_efectivo,
-        total_ventas_tarjeta=total_tarjeta,
-        total_ventas_transferencia=total_transferencia,
-        total_ventas=total_ventas,
+        total_ventas_efectivo=totales["total_efectivo"],
+        total_ventas_tarjeta=totales["total_tarjeta"],
+        total_ventas_transferencia=totales["total_transferencia"],
+        total_ventas=totales["total_ventas"],
         efectivo_esperado=efectivo_esperado,
         efectivo_real=data.efectivo_real,
         diferencia=diferencia,
-        numero_ventas=len(ventas_hoy),
-        numero_cancelaciones=cancelaciones,
+        numero_ventas=totales["numero_ventas"],
+        numero_cancelaciones=totales["numero_cancelaciones"],
         notas=data.notas,
     )
     db.add(corte)
+    db.flush()
+    registrar_evento(
+        db,
+        usuario_id=usuario_id,
+        usuario_nombre=None,
+        accion="crear",
+        modulo="corte",
+        entidad="corte_caja",
+        entidad_id=corte.id,
+        datos_nuevos={
+            "fondo_inicial": data.fondo_inicial,
+            "total_ventas_efectivo": totales["total_efectivo"],
+            "total_ventas_tarjeta": totales["total_tarjeta"],
+            "total_ventas_transferencia": totales["total_transferencia"],
+            "total_ventas": totales["total_ventas"],
+            "efectivo_esperado": efectivo_esperado,
+            "efectivo_real": data.efectivo_real,
+            "diferencia": diferencia,
+            "numero_ventas": totales["numero_ventas"],
+            "numero_cancelaciones": totales["numero_cancelaciones"],
+            "notas": data.notas,
+        },
+        commit=False,
+    )
     db.commit()
     db.refresh(corte)
     return corte

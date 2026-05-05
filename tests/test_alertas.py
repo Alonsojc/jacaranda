@@ -12,6 +12,9 @@ class TestAlertas:
         data = resp.json()
         assert "stock_bajo" in data
         assert "caducidades" in data
+        assert "productos_sin_receta" in data
+        assert "productos_sin_costo" in data
+        assert "recetas_sin_ingredientes" in data
         assert "pedidos_pendientes" in data
         assert "merma_hoy" in data
         assert "resumen" in data
@@ -64,3 +67,17 @@ class TestAlertas:
         assert resumen["total_alertas"] >= 0
         assert resumen["criticas"] >= 0
         assert resumen["altas"] >= 0
+
+    def test_alertas_producto_sin_receta_y_sin_costo(self, client, auth_headers):
+        resp = client.post("/api/v1/inventario/productos", json={
+            "codigo": "ALRT-SIN-REC",
+            "nombre": "Producto incompleto",
+            "precio_unitario": "25.00",
+            "costo_produccion": "0",
+            "tasa_iva": "0.00",
+        }, headers=auth_headers)
+        assert resp.status_code == 201
+
+        data = client.get("/api/v1/reportes/alertas", headers=auth_headers).json()
+        assert "Producto incompleto" in [a["nombre"] for a in data["productos_sin_receta"]]
+        assert "Producto incompleto" in [a["nombre"] for a in data["productos_sin_costo"]]

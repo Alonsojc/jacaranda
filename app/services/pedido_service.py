@@ -4,7 +4,10 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 
+from app.core.config import settings
+from app.models.inventario import Producto
 from app.models.pedido import Pedido, DetallePedido, EstadoPedido, OrigenPedido
 from app.schemas.pedido import PedidoCreate, PedidoUpdate
 from app.services.auditoria_service import registrar_evento
@@ -24,11 +27,91 @@ _TRANSICIONES_ESTADO: dict[EstadoPedido, set[EstadoPedido]] = {
     EstadoPedido.CANCELADO: set(),
 }
 
+_ESTADOS_QUE_RESERVAN = (
+    EstadoPedido.RECIBIDO,
+    EstadoPedido.CONFIRMADO,
+    EstadoPedido.EN_PREPARACION,
+    EstadoPedido.LISTO,
+    EstadoPedido.EN_RUTA,
+)
+
+
+def _capacidad_diaria() -> int:
+    value = getattr(settings, "PEDIDOS_CAPACIDAD_DIARIA", 0)
+    if isinstance(value, int):
+        return max(value, 0)
+    try:
+        return max(int(value), 0)
+    except (TypeError, ValueError):
+        return 0
+
 
 def _generar_folio_pedido(db: Session) -> str:
     ultimo = db.query(Pedido).order_by(Pedido.id.desc()).with_for_update().first()
     numero = (int(ultimo.folio.replace("P-", "")) + 1) if ultimo else 1
     return f"P-{numero:05d}"
+
+
+def stock_reservado_producto(
+    db: Session,
+    producto_id: int,
+    exclude_pedido_id: int | None = None,
+) -> int:
+    """Cantidad comprometida en pedidos activos."""
+    query = (
+        db.query(func.coalesce(func.sum(DetallePedido.cantidad), 0))
+        .join(Pedido, Pedido.id == DetallePedido.pedido_id)
+        .filter(
+            DetallePedido.producto_id == producto_id,
+            Pedido.estado.in_(_ESTADOS_QUE_RESERVAN),
+            Pedido.fecha_entrega >= date.today(),
+        )
+    )
+    if exclude_pedido_id:
+        query = query.filter(Pedido.id != exclude_pedido_id)
+    return int(query.scalar() or 0)
+
+
+def _validar_capacidad_diaria(db: Session, fecha_entrega: date) -> None:
+    capacidad = _capacidad_diaria()
+    if capacidad <= 0:
+        return
+    activos = db.query(func.count(Pedido.id)).filter(
+        Pedido.fecha_entrega == fecha_entrega,
+        Pedido.estado.in_(_ESTADOS_QUE_RESERVAN),
+    ).scalar() or 0
+    if activos >= capacidad:
+        raise ValueError(
+            f"Capacidad diaria llena para {fecha_entrega.isoformat()} "
+            f"({activos}/{capacidad} pedidos activos)"
+        )
+
+
+def _validar_stock_reservado(db: Session, data: PedidoCreate) -> None:
+    cantidades: dict[int, int] = {}
+    for detalle in data.detalles:
+        if detalle.producto_id:
+            cantidades[detalle.producto_id] = (
+                cantidades.get(detalle.producto_id, 0) + detalle.cantidad
+            )
+
+    for producto_id, cantidad in cantidades.items():
+        producto = (
+            db.query(Producto)
+            .filter(Producto.id == producto_id)
+            .with_for_update()
+            .first()
+        )
+        if not producto or not producto.activo:
+            raise ValueError(f"Producto {producto_id} no encontrado o inactivo")
+
+        reservado = Decimal(stock_reservado_producto(db, producto_id))
+        disponible = Decimal(producto.stock_actual or 0) - reservado
+        if Decimal(cantidad) > disponible:
+            raise ValueError(
+                f"Stock reservado insuficiente para {producto.nombre}: "
+                f"disponible {max(disponible, Decimal('0'))}, pedido {cantidad}"
+            )
 
 
 def crear_pedido(db: Session, data: PedidoCreate) -> Pedido:
@@ -38,6 +121,9 @@ def crear_pedido(db: Session, data: PedidoCreate) -> Pedido:
         ).first()
         if pedido_existente:
             return pedido_existente
+
+    _validar_capacidad_diaria(db, data.fecha_entrega)
+    _validar_stock_reservado(db, data)
 
     total = sum(d.precio_unitario * d.cantidad for d in data.detalles)
 
@@ -244,3 +330,46 @@ def obtener_pedido(db: Session, pedido_id: int) -> Pedido:
     if not pedido:
         raise ValueError("Pedido no encontrado")
     return pedido
+
+
+def resumen_reservas(db: Session, fecha: date | None = None) -> dict:
+    """Resumen de stock/capacidad comprometidos por pedidos activos."""
+    dia = fecha or date.today()
+    capacidad = _capacidad_diaria()
+    activos = db.query(Pedido).filter(
+        Pedido.fecha_entrega == dia,
+        Pedido.estado.in_(_ESTADOS_QUE_RESERVAN),
+    ).all()
+    reservas = (
+        db.query(
+            DetallePedido.producto_id,
+            Producto.nombre,
+            Producto.stock_actual,
+            func.sum(DetallePedido.cantidad).label("reservado"),
+        )
+        .join(Pedido, Pedido.id == DetallePedido.pedido_id)
+        .join(Producto, Producto.id == DetallePedido.producto_id)
+        .filter(
+            Pedido.estado.in_(_ESTADOS_QUE_RESERVAN),
+            Pedido.fecha_entrega >= date.today(),
+            DetallePedido.producto_id.isnot(None),
+        )
+        .group_by(DetallePedido.producto_id, Producto.nombre, Producto.stock_actual)
+        .all()
+    )
+    return {
+        "fecha": dia.isoformat(),
+        "capacidad_diaria": capacidad,
+        "pedidos_activos_dia": len(activos),
+        "capacidad_disponible": None if capacidad <= 0 else max(capacidad - len(activos), 0),
+        "productos": [
+            {
+                "producto_id": r.producto_id,
+                "nombre": r.nombre,
+                "stock_actual": float(r.stock_actual or 0),
+                "reservado": int(r.reservado or 0),
+                "disponible": float(Decimal(r.stock_actual or 0) - Decimal(r.reservado or 0)),
+            }
+            for r in reservas
+        ],
+    }

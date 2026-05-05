@@ -412,6 +412,7 @@ def pronostico_produccion(db: Session) -> list[dict]:
     """Sugiere cuánto hornear hoy basado en ventas históricas del mismo día de la semana."""
     from datetime import timedelta
     from collections import defaultdict
+    from app.models.pedido import DetallePedido, EstadoPedido, Pedido
 
     hoy = date.today()
 
@@ -438,22 +439,51 @@ def pronostico_produccion(db: Session) -> list[dict]:
         for d in detalles:
             ventas_por_producto[d.producto_id].append(float(d.total))
 
+    reservas = {
+        row.producto_id: int(row.total or 0)
+        for row in db.query(
+            DetallePedido.producto_id,
+            func.sum(DetallePedido.cantidad).label("total"),
+        ).join(Pedido, Pedido.id == DetallePedido.pedido_id).filter(
+            and_(
+                Pedido.fecha_entrega == hoy,
+                Pedido.estado.in_([
+                    EstadoPedido.RECIBIDO,
+                    EstadoPedido.CONFIRMADO,
+                    EstadoPedido.EN_PREPARACION,
+                    EstadoPedido.LISTO,
+                    EstadoPedido.EN_RUTA,
+                ]),
+                DetallePedido.producto_id.isnot(None),
+            )
+        ).group_by(DetallePedido.producto_id).all()
+    }
+
     from app.models.inventario import Producto
     result = []
-    for prod_id, cantidades in ventas_por_producto.items():
-        promedio = sum(cantidades) / len(cantidades)
+    for prod_id in set(ventas_por_producto.keys()) | set(reservas.keys()):
+        cantidades = ventas_por_producto.get(prod_id, [])
+        promedio = sum(cantidades) / len(cantidades) if cantidades else 0
         producto = db.query(Producto).filter(Producto.id == prod_id).first()
         if not producto or not producto.activo:
             continue
         stock = float(producto.stock_actual)
-        sugerido = max(round(promedio * 1.1) - stock, 0)  # 10% extra margen
+        reservado = reservas.get(prod_id, 0)
+        demanda_total = round(promedio * 1.1) + reservado
+        sugerido = max(demanda_total - stock, 0)  # 10% extra margen + pedidos de hoy
+        receta = producto.receta
         result.append({
             "producto_id": prod_id,
             "nombre": producto.nombre,
             "stock_actual": stock,
             "promedio_venta_dia": round(promedio, 1),
+            "reservado_pedidos": reservado,
+            "demanda_total": demanda_total,
             "sugerido_hornear": sugerido,
             "semanas_analizadas": len(cantidades),
+            "tiene_receta": bool(receta and receta.activo),
+            "receta_completa": bool(receta and receta.activo and receta.ingredientes),
+            "costo_ok": producto.costo_produccion > 0,
         })
 
     result.sort(key=lambda x: x["sugerido_hornear"], reverse=True)

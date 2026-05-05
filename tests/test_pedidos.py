@@ -7,6 +7,26 @@ import pytest
 class TestPedidos:
     """Tests del flujo de pedidos especiales."""
 
+    def _crear_producto(self, client, auth_headers, codigo="PED-001", stock=0):
+        resp = client.post("/api/v1/inventario/productos", json={
+            "codigo": codigo,
+            "nombre": f"Producto {codigo}",
+            "precio_unitario": "100.00",
+            "costo_produccion": "40.00",
+            "tasa_iva": "0.00",
+        }, headers=auth_headers)
+        assert resp.status_code == 201, resp.text
+        pid = resp.json()["id"]
+        if stock:
+            mov = client.post("/api/v1/inventario/movimientos", json={
+                "tipo": "entrada_ajuste",
+                "producto_id": pid,
+                "cantidad": str(stock),
+                "referencia": "Stock inicial pedidos",
+            }, headers=auth_headers)
+            assert mov.status_code == 201, mov.text
+        return pid
+
     def _crear_pedido(self, client, auth_headers, **kwargs):
         payload = {
             "cliente_nombre": "María López",
@@ -112,3 +132,47 @@ class TestPedidos:
         assert resp.status_code == 200
         data = resp.json()
         assert data["notas"] == "Sin azúcar"
+
+    def test_pedido_reserva_stock_y_evita_sobreventa(self, client, auth_headers):
+        pid = self._crear_producto(client, auth_headers, "PED-RES", stock=2)
+        resp = self._crear_pedido(
+            client,
+            auth_headers,
+            detalles=[{
+                "producto_id": pid,
+                "descripcion": "Pastel reservado",
+                "cantidad": 2,
+                "precio_unitario": "100.00",
+            }],
+        )
+        assert resp.status_code == 200, resp.text
+
+        resp2 = self._crear_pedido(
+            client,
+            auth_headers,
+            cliente_nombre="Otro cliente",
+            detalles=[{
+                "producto_id": pid,
+                "descripcion": "Pastel reservado",
+                "cantidad": 1,
+                "precio_unitario": "100.00",
+            }],
+        )
+        assert resp2.status_code == 400
+        assert "stock reservado insuficiente" in resp2.json()["detail"].lower()
+
+    def test_capacidad_diaria_de_pedidos(self, client, auth_headers, monkeypatch):
+        monkeypatch.setattr(
+            "app.services.pedido_service.settings.PEDIDOS_CAPACIDAD_DIARIA", 1
+        )
+        fecha = (date.today() + timedelta(days=3)).isoformat()
+        primero = self._crear_pedido(client, auth_headers, fecha_entrega=fecha)
+        segundo = self._crear_pedido(
+            client,
+            auth_headers,
+            fecha_entrega=fecha,
+            cliente_nombre="Cliente excedente",
+        )
+        assert primero.status_code == 200
+        assert segundo.status_code == 400
+        assert "capacidad diaria llena" in segundo.json()["detail"].lower()

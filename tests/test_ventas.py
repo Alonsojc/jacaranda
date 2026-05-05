@@ -242,6 +242,57 @@ class TestVentas:
         ).json()
         assert puntos["puntos"] == 10
 
+    def test_corte_resumen_y_no_permite_duplicado(self, client, auth_headers):
+        pid = self._crear_producto(client, auth_headers, "CORTE-001", "30.00")
+        self._agregar_stock(client, auth_headers, pid, 5)
+        venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "100.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert venta.status_code == 201
+
+        resumen = client.get("/api/v1/punto-de-venta/corte-caja/resumen", headers=auth_headers)
+        assert resumen.status_code == 200
+        assert resumen.json()["total_ventas_efectivo"] == "30.00"
+        assert resumen.json()["corte_existente"] is False
+
+        corte = client.post("/api/v1/punto-de-venta/corte-caja", json={
+            "fondo_inicial": "2000.00",
+            "efectivo_real": "2030.00",
+        }, headers=auth_headers)
+        assert corte.status_code == 201, corte.text
+
+        duplicado = client.post("/api/v1/punto-de-venta/corte-caja", json={
+            "fondo_inicial": "2000.00",
+            "efectivo_real": "2030.00",
+        }, headers=auth_headers)
+        assert duplicado.status_code == 400
+        assert "ya existe" in duplicado.json()["detail"].lower()
+
+    def test_corte_con_diferencia_requiere_nota(self, client, auth_headers):
+        pid = self._crear_producto(client, auth_headers, "CORTE-DIF", "30.00")
+        self._agregar_stock(client, auth_headers, pid, 5)
+        client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "100.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+
+        sin_nota = client.post("/api/v1/punto-de-venta/corte-caja", json={
+            "fondo_inicial": "2000.00",
+            "efectivo_real": "2020.00",
+        }, headers=auth_headers)
+        assert sin_nota.status_code == 400
+        assert "nota" in sin_nota.json()["detail"].lower()
+
+        con_nota = client.post("/api/v1/punto-de-venta/corte-caja", json={
+            "fondo_inicial": "2000.00",
+            "efectivo_real": "2020.00",
+            "notas": "Faltante revisado en caja",
+        }, headers=auth_headers)
+        assert con_nota.status_code == 201, con_nota.text
+
 
 class TestInventarioMovimientos:
     """Tests para movimientos de inventario."""

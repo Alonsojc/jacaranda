@@ -20,6 +20,9 @@ def alertas_consolidadas(db: Session) -> dict:
     """Genera todas las alertas activas del sistema."""
     return {
         "stock_bajo": _alertas_stock_bajo(db),
+        "productos_sin_receta": _alertas_productos_sin_receta(db),
+        "productos_sin_costo": _alertas_productos_sin_costo(db),
+        "recetas_sin_ingredientes": _alertas_recetas_sin_ingredientes(db),
         "caducidades": _alertas_caducidades(db),
         "pedidos_pendientes": _alertas_pedidos(db),
         "merma_hoy": _alertas_merma(db),
@@ -79,6 +82,66 @@ def _alertas_stock_bajo(db: Session) -> list[dict]:
         })
 
     return sorted(alertas, key=lambda a: a["porcentaje"])
+
+
+def _alertas_productos_sin_receta(db: Session) -> list[dict]:
+    """Productos activos que no pueden producirse/costearse por falta de receta."""
+    from app.models.receta import Receta
+
+    recetas_activas = {
+        r.producto_id for r in db.query(Receta.producto_id).filter(Receta.activo.is_(True)).all()
+    }
+    productos = db.query(Producto).filter(Producto.activo.is_(True)).all()
+    return [
+        {
+            "tipo": "producto_sin_receta",
+            "id": p.id,
+            "nombre": p.nombre,
+            "severidad": "alta",
+            "razon": "No tiene receta activa",
+        }
+        for p in productos
+        if p.id not in recetas_activas
+    ]
+
+
+def _alertas_productos_sin_costo(db: Session) -> list[dict]:
+    """Productos activos con costo cero, negativo o sin precio."""
+    productos = db.query(Producto).filter(Producto.activo.is_(True)).all()
+    alertas = []
+    for p in productos:
+        costo = Decimal(p.costo_produccion or 0)
+        precio = Decimal(p.precio_unitario or 0)
+        if costo <= 0 or precio <= 0:
+            alertas.append({
+                "tipo": "producto_sin_costo",
+                "id": p.id,
+                "nombre": p.nombre,
+                "precio_unitario": float(precio),
+                "costo_produccion": float(costo),
+                "severidad": "alta" if precio <= 0 else "media",
+                "razon": "Sin precio" if precio <= 0 else "Costo de producción en cero",
+            })
+    return alertas
+
+
+def _alertas_recetas_sin_ingredientes(db: Session) -> list[dict]:
+    """Recetas activas que no descuentan ingredientes."""
+    from app.models.receta import Receta
+
+    recetas = db.query(Receta).filter(Receta.activo.is_(True)).all()
+    return [
+        {
+            "tipo": "receta_sin_ingredientes",
+            "id": r.id,
+            "producto_id": r.producto_id,
+            "nombre": r.nombre,
+            "severidad": "alta",
+            "razon": "Receta sin ingredientes",
+        }
+        for r in recetas
+        if not r.ingredientes
+    ]
 
 
 def _alertas_caducidades(db: Session, dias_aviso: int = 3) -> list[dict]:

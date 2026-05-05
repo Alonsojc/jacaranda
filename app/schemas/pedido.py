@@ -63,6 +63,7 @@ class PedidoPagoUpdate(BaseModel):
 
 class DetallePedidoResponse(BaseModel):
     id: int
+    producto_id: int | None
     descripcion: str
     cantidad: int
     precio_unitario: Decimal

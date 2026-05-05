@@ -54,6 +54,15 @@ def pedidos_de_hoy(
     return pedido_service.pedidos_del_dia(db)
 
 
+@router.get("/reservas")
+def reservas_pedidos(
+    fecha: date | None = Query(None),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_permission("ped", "ver")),
+):
+    return pedido_service.resumen_reservas(db, fecha)
+
+
 @router.get("/{pedido_id}", response_model=PedidoResponse)
 def obtener_pedido(
     pedido_id: int,

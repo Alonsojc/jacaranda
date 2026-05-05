@@ -351,6 +351,7 @@ h2{font-size:1.1rem}
     <div class="nav-dd-sep"></div>
     <a data-pg="papelera" onclick="go('papelera')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#9851; Papelera</a>
     <a data-pg="auditoria" onclick="go('auditoria')" class="nav-role" data-roles="ADMINISTRADOR">&#128274; Auditor&iacute;a</a>
+    <a data-pg="backup" onclick="go('backup')" class="nav-role" data-roles="ADMINISTRADOR">&#128190; Respaldos</a>
   </div>
 </div>
 <div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,PANADERO">
@@ -567,6 +568,7 @@ h2{font-size:1.1rem}
 <div class="card kpi a"><div class="n" id="ped-man">0</div><div class="l">Ma&ntilde;ana</div></div>
 <div class="card kpi p"><div class="n" id="ped-sem">0</div><div class="l">Esta semana</div></div>
 </div>
+<div class="card" id="ped-reservas" style="display:none;margin-bottom:.7rem"></div>
 <div style="display:flex;gap:.3rem;margin-bottom:.7rem;flex-wrap:wrap">
 <span class="tab active" onclick="filtroEstadoPed(this,'')" id="ped-f-all">Todos</span>
 <span class="tab" onclick="filtroEstadoPed(this,'recibido')">Recibido</span>
@@ -710,6 +712,7 @@ h2{font-size:1.1rem}
 <div class="row r2">
 <div class="card" style="min-width:0;overflow:hidden">
 <h3>Cuadre de caja</h3>
+<div id="c-cerrado-msg" style="display:none;background:#ecfdf5;border:1px solid #bbf7d0;color:#166534;border-radius:8px;padding:.45rem .6rem;margin-bottom:.6rem;font-size:.8rem;font-weight:600"></div>
 <div class="srow"><span>Total ventas del d&iacute;a</span><span class="green" id="c-total">$0.00</span></div>
 <div class="srow"><span>Tickets</span><span id="c-tickets">0</span></div>
 <div style="border-top:2px solid var(--brd);margin:.8rem 0;padding-top:.8rem">
@@ -717,12 +720,13 @@ h2{font-size:1.1rem}
 <div class="fg"><label>Fondo inicial</label><input type="number" id="c-fondo" value="2000" style="font-weight:700"></div>
 <div class="fg"><label>Efectivo contado</label><input type="number" id="c-real" placeholder="Cuenta el efectivo..." style="font-weight:700" oninput="calcularDiferencia()"></div>
 </div>
+<div class="fg" style="margin-bottom:.6rem"><label>Notas del corte</label><input id="c-notas" placeholder="Obligatorio si hay diferencia"></div>
 <div class="srow"><span>Esperado (fondo + ventas ef.)</span><span id="c-esperado" style="font-weight:700">$2,000.00</span></div>
 <div class="srow"><span>Efectivo real</span><span id="c-contado" style="font-weight:700">--</span></div>
 <div class="srow" style="font-weight:700"><span>Diferencia</span><span id="c-dif">--</span></div>
 </div>
 <div style="display:flex;flex-direction:column;gap:.4rem;margin-top:.6rem">
-<button class="cobrar" style="margin:0" onclick="realizarCorte()">Registrar Corte</button>
+<button class="cobrar" style="margin:0" id="btn-corte" onclick="realizarCorte()">Registrar Corte</button>
 <div style="display:flex;gap:.4rem">
 <button class="limpiar" style="margin:0;flex:1" onclick="exportarCorte()">&#128203; Copiar</button>
 <button class="limpiar" style="margin:0;flex:1" onclick="exportarCorteCSV()">&#128229; CSV</button>
@@ -1551,6 +1555,24 @@ h2{font-size:1.1rem}
 <div id="a-dashboard" style="display:none"><div id="audit-dash-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
 </div>
 
+<!-- RESPALDOS -->
+<div class="page" id="backup">
+<div class="page-header">
+<div class="page-title">
+<h2>Respaldos</h2>
+<p style="font-size:.83rem;color:var(--mut);margin:0">Crea y descarga copias de seguridad de la base de datos.</p>
+</div>
+<div class="page-actions">
+<button class="limpiar" style="padding:.4rem .8rem;font-size:.78rem;margin:0" onclick="descargarBackup()">&#128229; Descargar backup</button>
+<button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="crearBackupManual()">Crear backup</button>
+</div>
+</div>
+<div class="row r2" style="margin-bottom:1rem">
+<div class="card"><h3>Estado</h3><div id="backup-status"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div class="card"><h3>&Uacute;ltimos backups</h3><div id="backup-list"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+</div>
+</div>
+
 <!-- DASHBOARD EJECUTIVO -->
 <div class="page" id="ejecutivo">
 <h2>Dashboard Ejecutivo</h2>
@@ -1602,6 +1624,7 @@ h2{font-size:1.1rem}
 <a onclick="go('fiscal');toggleMobileMenu()" class="mm-link">&#128176; Fiscal</a>
 <a onclick="go('papelera');toggleMobileMenu()" class="mm-link">&#9851; Papelera</a>
 <a onclick="go('auditoria');toggleMobileMenu()" class="mm-link">&#128274; Auditor&iacute;a</a>
+<a onclick="go('backup');toggleMobileMenu()" class="mm-link">&#128190; Respaldos</a>
 <a onclick="go('ejecutivo');toggleMobileMenu()" class="mm-link">&#128188; Ejecutivo</a>
 <a onclick="go('deliveryp');toggleMobileMenu()" class="mm-link">&#128666; Delivery</a>
 <a onclick="go('usuarios');toggleMobileMenu()" class="mm-link">&#128101; Usuarios</a>
@@ -2306,6 +2329,7 @@ function go(p) {
   if (p === 'kpis') initKPIs();
   if (p === 'fiscal') initFiscal();
   if (p === 'auditoria') initAuditoria();
+  if (p === 'backup') cargarBackup();
   if (p === 'ejecutivo') initEjecutivo();
   if (p === 'deliveryp') initDelivery();
   if (p === 'papelera') initPapelera();
@@ -3026,6 +3050,7 @@ function cargarPedidos() {
   api('GET', '/pedidos/').then(function(pedidos) {
     _pedidosCache = pedidos;
     renderPedidos();
+    cargarReservasPedidos();
     if (_calPedVisible) renderCalPed();
     // Update badge
     var pendientes = 0;
@@ -3036,6 +3061,28 @@ function cargarPedidos() {
     if (pendientes > 0) { badge.textContent = pendientes; badge.style.display = 'inline-block'; }
     else { badge.style.display = 'none'; }
   }).catch(function() { /* modo offline */ });
+}
+
+function cargarReservasPedidos() {
+  api('GET', '/pedidos/reservas').then(function(r) {
+    var el = document.getElementById('ped-reservas');
+    if (!el) return;
+    var h = '';
+    if (r.capacidad_diaria && r.capacidad_diaria > 0) {
+      h += '<div class="srow"><span>Capacidad de pedidos hoy</span><span class="badge ' + (r.capacidad_disponible > 0 ? 'bok' : 'bout') + '">' + r.pedidos_activos_dia + '/' + r.capacidad_diaria + '</span></div>';
+    }
+    var productos = (r.productos || []).filter(function(p) { return p.reservado > 0; });
+    if (productos.length) {
+      h += '<div style="font-size:.78rem;font-weight:700;color:var(--mut);margin:.2rem 0 .3rem;text-transform:uppercase">Stock reservado</div>';
+      for (var i = 0; i < Math.min(productos.length, 5); i++) {
+        var p = productos[i];
+        var disp = parseFloat(p.disponible) || 0;
+        h += '<div class="srow"><span>' + p.nombre + '</span><span class="badge ' + (disp <= 0 ? 'bout' : 'blow') + '">' + p.reservado + ' reservado</span></div>';
+      }
+    }
+    el.innerHTML = h;
+    el.style.display = h ? 'block' : 'none';
+  }).catch(function(){});
 }
 
 function renderPedidos() {
@@ -4710,6 +4757,7 @@ var _efTotal = 0;
 var _corteVentas = [];
 var _totalVentasDia = 0;
 var _histVentas = [];
+var _corteYaCerrado = false;
 
 function corteFechaHoy() {
   document.getElementById('c-fecha').value = new Date().toISOString().split('T')[0];
@@ -4775,6 +4823,7 @@ function cargarCorte() {
   });
   // Load expenses for selected date
   cargarGastos(hoy);
+  cargarResumenCorte(hoy);
   cargarGastosFijos();
   cargarPuntoEquilibrio();
   cargarHistorialCortes();
@@ -4786,6 +4835,26 @@ function cargarCorte() {
     var d7 = new Date(); d7.setDate(d7.getDate() - 7);
     hvfi.value = d7.toISOString().split('T')[0];
   }
+}
+
+function cargarResumenCorte(fecha) {
+  api('GET', '/punto-de-venta/corte-caja/resumen?fecha=' + fecha).then(function(r) {
+    _corteYaCerrado = !!r.corte_existente;
+    var msg = document.getElementById('c-cerrado-msg');
+    var btn = document.getElementById('btn-corte');
+    if (r.corte_existente) {
+      msg.style.display = 'block';
+      msg.textContent = 'Corte ya registrado para esta fecha. No se puede duplicar desde caja.';
+      btn.disabled = true;
+      btn.style.opacity = '.55';
+      btn.textContent = 'Corte ya registrado';
+    } else {
+      msg.style.display = 'none';
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.textContent = 'Registrar Corte';
+    }
+  }).catch(function(){ _corteYaCerrado = false; });
 }
 
 function cargarGastos(fecha) {
@@ -4837,14 +4906,19 @@ function calcularDiferencia() {
 }
 
 function realizarCorte() {
+  if (_corteYaCerrado) { toast('Ya existe corte registrado para hoy', true); return; }
   var fondo = parseFloat(document.getElementById('c-fondo').value) || 0;
   var real = parseFloat(document.getElementById('c-real').value);
   if (isNaN(real)) { toast('Ingresa el efectivo contado', true); return; }
   api('POST', '/punto-de-venta/corte-caja', {
-    fondo_inicial: fondo, efectivo_real: real
+    fondo_inicial: fondo,
+    efectivo_real: real,
+    notas: document.getElementById('c-notas').value.trim() || null
   }).then(function(corte) {
     var dif = parseFloat(corte.diferencia) || 0;
     toast('Corte registrado \u2014 Diferencia: $' + fmt(dif));
+    cargarResumenCorte(document.getElementById('c-fecha').value || new Date().toISOString().split('T')[0]);
+    cargarHistorialCortes();
   }).catch(function(e) { toast(e.message || 'Error al registrar corte', true); });
 }
 
@@ -5372,6 +5446,15 @@ function cargarDashboard() {
     if (data.merma_hoy && data.merma_hoy.porcentaje_merma > 5) {
       a += '<div class="srow"><span>Merma del d\u00eda</span><span class="badge blow">' + data.merma_hoy.porcentaje_merma + '% (' + data.merma_hoy.total_unidades + ' uds)</span></div>';
     }
+    (data.productos_sin_receta || []).slice(0, 5).forEach(function(p) {
+      a += '<div class="srow"><span>' + dashAction('Producto sin receta: ' + p.nombre, "go('prod')") + '</span><span class="badge blow">Receta</span></div>';
+    });
+    (data.productos_sin_costo || []).slice(0, 5).forEach(function(p) {
+      a += '<div class="srow"><span>' + dashAction('Producto sin costo: ' + p.nombre, "go('listas')") + '</span><span class="badge blow">Costo</span></div>';
+    });
+    (data.recetas_sin_ingredientes || []).slice(0, 5).forEach(function(r) {
+      a += '<div class="srow"><span>' + dashAction('Receta sin ingredientes: ' + r.nombre, "go('prod')") + '</span><span class="badge blow">Completar</span></div>';
+    });
     if (a) renderDashAlertas(a);
     // Badge en nav
     var res = data.resumen || {};
@@ -5411,21 +5494,11 @@ function cargarAlertasPracticas() {
 
     for (var r = 0; r < recetas.length; r++) {
       if (recetas[r].producto_id) recetaPorProducto[recetas[r].producto_id] = true;
-      if (!recetas[r].ingredientes || recetas[r].ingredientes.length === 0) {
-        a += '<div class="srow"><span>' + dashAction('Receta sin ingredientes: ' + recetas[r].nombre, "go('prod')") + '</span><span class="badge blow">Completar</span></div>';
-      }
     }
 
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
-      var costo = parseFloat(p.costo_produccion) || 0;
       var stock = parseFloat(p.stock_actual) || 0;
-      if (!recetaPorProducto[p.id]) {
-        a += '<div class="srow"><span>' + dashAction('Producto sin receta: ' + p.nombre, "go('prod')") + '</span><span class="badge blow">Costeo incompleto</span></div>';
-      }
-      if (costo <= 0) {
-        a += '<div class="srow"><span>' + dashAction('Producto sin costo: ' + p.nombre, "go('listas')") + '</span><span class="badge blow">Precio/costo</span></div>';
-      }
       if (stock < 0 || stock > 10000) {
         a += '<div class="srow"><span>' + dashAction('Stock raro: ' + p.nombre, "go('inv')") + '</span><span class="badge bout">' + fmt(stock) + '</span></div>';
       }
@@ -7469,11 +7542,55 @@ var _moduloNombres = {
   conta:'Contabilidad', iapg:'IA', cofepris:'COFEPRIS', compras:'Compras',
   sucursales:'Sucursales', merma:'Merma', calidad:'Calidad', crm:'CRM',
   kpis:'KPIs', fiscal:'Fiscal', auditoria:'Auditoría', ejecutivo:'Ejecutivo',
-  deliveryp:'Delivery', papelera:'Papelera', usuarios:'Usuarios'
+  deliveryp:'Delivery', papelera:'Papelera', backup:'Respaldos', usuarios:'Usuarios'
 };
 
 function descargarBackup() {
   descargarArchivoAutenticado('/api/v1/backup/descargar', 'jacaranda_backup_' + new Date().toISOString().split('T')[0] + '.sql', 'Backup descargado', 'Error al descargar backup');
+}
+
+function crearBackupManual() {
+  api('POST', '/backup/crear').then(function(info) {
+    toast('Backup creado: ' + info.filename);
+    cargarBackup();
+  }).catch(function(e) { toast(e.message || 'Error al crear backup', true); });
+}
+
+function cargarBackup() {
+  api('GET', '/backup/estado').then(function(s) {
+    var last = s.last_backup ? s.last_backup.filename : 'Sin backups';
+    var restore = s.restore_enabled ? 'Habilitada' : 'Deshabilitada';
+    var h = '';
+    h += '<div class="srow"><span>Base de datos</span><span style="font-weight:600">' + s.db_type + '</span></div>';
+    h += '<div class="srow"><span>Carpeta</span><span style="font-size:.72rem;color:var(--mut);text-align:right">' + s.backup_dir + '</span></div>';
+    h += '<div class="srow"><span>Retenci&oacute;n</span><span>' + s.retention_days + ' d&iacute;as</span></div>';
+    h += '<div class="srow"><span>&Uacute;ltimo backup</span><span style="font-size:.75rem">' + last + '</span></div>';
+    h += '<div class="srow"><span>Restauraci&oacute;n</span><span class="badge ' + (s.restore_enabled ? 'blow' : 'bok') + '">' + restore + '</span></div>';
+    if (s.db_type === 'postgresql') {
+      h += '<div class="srow"><span>pg_dump</span><span class="badge ' + (s.pg_dump_available ? 'bok' : 'bout') + '">' + (s.pg_dump_available ? 'OK' : 'No disponible') + '</span></div>';
+    }
+    document.getElementById('backup-status').innerHTML = h;
+  }).catch(function(e) {
+    document.getElementById('backup-status').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">Error al cargar estado</p>';
+  });
+
+  api('GET', '/backup/listar').then(function(items) {
+    if (!items.length) {
+      document.getElementById('backup-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem">A&uacute;n no hay backups guardados.</p>';
+      return;
+    }
+    var h = '<table class="tbl"><tr><th>Archivo</th><th>Tama&ntilde;o</th><th>Fecha</th></tr>';
+    for (var i = 0; i < Math.min(items.length, 10); i++) {
+      var b = items[i];
+      var mb = (b.size_bytes / 1024 / 1024).toFixed(2);
+      var f = b.created_at ? new Date(b.created_at).toLocaleString('es-MX', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+      h += '<tr><td style="font-size:.75rem">' + b.filename + '</td><td>' + mb + ' MB</td><td>' + f + '</td></tr>';
+    }
+    h += '</table>';
+    document.getElementById('backup-list').innerHTML = h;
+  }).catch(function() {
+    document.getElementById('backup-list').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">Error al cargar backups</p>';
+  });
 }
 
 function cargarUsuarios() {
@@ -7531,7 +7648,7 @@ function editarPermisos(userId, nombre, rol) {
     var user = users.find(function(u) { return u.id === userId; });
     if (!user) return;
     var perms = user.permisos_modulos || {};
-    var mods = ['dash','pos','ped','inv','corte','rep','listas','prod','conta','iapg','cofepris','compras','sucursales','merma','calidad','crm','kpis','fiscal','auditoria','ejecutivo','deliveryp','papelera','usuarios'];
+    var mods = ['dash','pos','ped','inv','corte','rep','listas','prod','conta','iapg','cofepris','compras','sucursales','merma','calidad','crm','kpis','fiscal','auditoria','ejecutivo','deliveryp','papelera','backup','usuarios'];
     var h = '';
     for (var i = 0; i < mods.length; i++) {
       var m = mods[i];

@@ -28,6 +28,14 @@ class TestBackup:
         data = resp.json()
         assert isinstance(data, list)
 
+    def test_estado_backup(self, client, auth_headers):
+        resp = client.get("/api/v1/backup/estado", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "db_type" in data
+        assert "backup_dir" in data
+        assert "restore_enabled" in data
+
     def test_sin_autenticacion(self, client):
         resp = client.post("/api/v1/backup/crear")
         assert resp.status_code in (401, 403)

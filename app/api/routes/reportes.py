@@ -249,11 +249,20 @@ def alertas_consolidadas_endpoint(
         1 for a in data["caducidades"] if a["severidad"] == "alta"
     ) + sum(
         1 for a in data["pedidos_pendientes"] if a["severidad"] == "alta"
+    ) + sum(
+        1 for a in data["productos_sin_receta"] if a["severidad"] == "alta"
+    ) + sum(
+        1 for a in data["productos_sin_costo"] if a["severidad"] == "alta"
+    ) + sum(
+        1 for a in data["recetas_sin_ingredientes"] if a["severidad"] == "alta"
     )
     data["resumen"] = {
         "total_alertas": (
             len(data["stock_bajo"]) + len(data["caducidades"])
             + len(data["pedidos_pendientes"])
+            + len(data["productos_sin_receta"])
+            + len(data["productos_sin_costo"])
+            + len(data["recetas_sin_ingredientes"])
         ),
         "criticas": total_criticas,
         "altas": total_altas,

@@ -100,6 +100,7 @@ class CorteCajaCreate(BaseModel):
     fondo_inicial: Decimal = Field(..., ge=0)
     efectivo_real: Decimal = Field(..., ge=0)
     notas: str | None = None
+    permitir_repetir: bool = False
 
 
 class CorteCajaResponse(BaseModel):
@@ -117,3 +118,16 @@ class CorteCajaResponse(BaseModel):
     numero_cancelaciones: int
 
     model_config = {"from_attributes": True}
+
+
+class CorteCajaResumen(BaseModel):
+    fecha: str
+    total_ventas_efectivo: Decimal
+    total_ventas_tarjeta: Decimal
+    total_ventas_transferencia: Decimal
+    total_ventas: Decimal
+    efectivo_esperado_base: Decimal
+    numero_ventas: int
+    numero_cancelaciones: int
+    corte_existente: bool
+    corte_id: int | None = None

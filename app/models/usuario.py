@@ -23,7 +23,7 @@ MODULOS_DISPONIBLES = [
     "dash", "pos", "ped", "inv", "corte", "rep", "listas", "prod", "conta",
     "iapg", "cofepris", "compras", "sucursales", "merma", "calidad", "crm",
     "kpis", "fiscal", "auditoria", "ejecutivo", "deliveryp", "papelera",
-    "usuarios",
+    "backup", "usuarios",
 ]
 
 
@@ -32,7 +32,7 @@ def permisos_default_por_rol(rol: RolUsuario) -> dict:
     if rol == RolUsuario.ADMINISTRADOR:
         return {m: "editar" for m in MODULOS_DISPONIBLES}
     elif rol in (RolUsuario.GERENTE,):
-        ocultos = {"usuarios", "conta", "fiscal", "auditoria"}
+        ocultos = {"usuarios", "conta", "fiscal", "auditoria", "backup"}
         return {m: "editar" for m in MODULOS_DISPONIBLES if m not in ocultos}
     elif rol == RolUsuario.CAJERO:
         return {
