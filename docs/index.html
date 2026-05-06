@@ -208,6 +208,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .fg input,.fg select,.fg textarea{width:100%;padding:.5rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.85rem;font-family:inherit;transition:border-color .2s,box-shadow .2s}
 .fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--v);box-shadow:0 0 0 3px rgba(196,152,138,.15)}
 .fg textarea{resize:vertical;height:60px}
+.form-error{display:none;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;padding:.55rem .7rem;margin:.2rem 0 .7rem;font-size:.82rem;font-weight:600;line-height:1.35}
 .password-wrap{position:relative}
 .password-wrap input{padding-right:2.45rem}
 .password-toggle{position:absolute;right:.35rem;top:50%;transform:translateY(-50%);width:2rem;height:2rem;border:0;background:transparent;color:var(--mut);cursor:pointer;border-radius:8px;font-size:1rem;line-height:2rem}
@@ -603,7 +604,7 @@ h2{font-size:1.1rem}
 <div style="display:flex;gap:.4rem;align-items:center">
 <input type="text" id="ped-buscar" placeholder="Buscar cliente/folio..." oninput="filtrarPedidos()" style="padding:.4rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;width:180px;font-family:inherit">
 <button class="limpiar" style="display:inline;width:auto;padding:.4rem .7rem;font-size:.78rem;margin:0;background:var(--v);color:#fff" onclick="toggleCalPed()" id="btn-cal-ped" aria-pressed="true">&#128197; Calendario</button>
-<button class="cobrar" style="display:inline;width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="document.getElementById('modal-ped').classList.add('on')">+ Nuevo</button>
+<button class="cobrar" style="display:inline;width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="abrirNuevoPedido()">+ Nuevo</button>
 </div>
 </div>
 <div class="row r3" style="margin-bottom:.5rem">
@@ -1906,9 +1907,10 @@ h2{font-size:1.1rem}
 <div class="fg"><label>Origen</label><select><option>WhatsApp</option><option>Tienda</option><option>Instagram</option><option>Tel&eacute;fono</option></select></div>
 </div>
 <div class="fg"><label>Notas internas</label><input id="np-notas" placeholder="Sin fresas, alergia a nuez..."></div>
+<div id="np-error" class="form-error"></div>
 <div style="display:flex;gap:.5rem;margin-top:.5rem">
-<button class="cobrar" style="flex:1" onclick="guardarPed()">Guardar Pedido</button>
-<button class="limpiar" style="flex:1;padding:.5rem 1.2rem" onclick="document.getElementById('modal-ped').classList.remove('on')">Cancelar</button>
+<button class="cobrar" id="btn-guardar-ped" style="flex:1" onclick="guardarPed()">Guardar Pedido</button>
+<button class="limpiar" style="flex:1;padding:.5rem 1.2rem" onclick="cerrarNuevoPedido()">Cancelar</button>
 </div>
 </div>
 </div>
@@ -3555,40 +3557,179 @@ function abrirVariantes(key) {
 }
 
 // ─── Pedidos ──────────────────────────────────────────────────────
+function fechaHoyISO() {
+  var d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+}
+
+function limpiarNuevoPedido() {
+  ['np-nom', 'np-tel', 'np-hora', 'np-lugar', 'np-prod', 'np-ant', 'np-notas'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  var fecha = document.getElementById('np-fecha');
+  if (fecha) {
+    fecha.min = fechaHoyISO();
+    fecha.value = fechaHoyISO();
+  }
+  var origen = document.querySelector('#modal-ped select');
+  if (origen) origen.value = 'WhatsApp';
+  mostrarErrorPedido('');
+}
+
+function abrirNuevoPedido() {
+  _pedidoEnProceso = false;
+  _pedidoIdempotencyKey = null;
+  limpiarNuevoPedido();
+  document.getElementById('modal-ped').classList.add('on');
+  setTimeout(function() {
+    var nombre = document.getElementById('np-nom');
+    if (nombre) nombre.focus();
+  }, 50);
+}
+
+function cerrarNuevoPedido() {
+  document.getElementById('modal-ped').classList.remove('on');
+  _pedidoEnProceso = false;
+  _pedidoIdempotencyKey = null;
+  setPedidoGuardando(false);
+  mostrarErrorPedido('');
+}
+
+function setPedidoGuardando(guardando) {
+  var btn = document.getElementById('btn-guardar-ped');
+  if (!btn) return;
+  btn.disabled = !!guardando;
+  btn.textContent = guardando ? 'Guardando...' : 'Guardar Pedido';
+  btn.style.opacity = guardando ? '.65' : '';
+  btn.style.cursor = guardando ? 'wait' : '';
+}
+
+function mostrarErrorPedido(msg) {
+  var el = document.getElementById('np-error');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.display = msg ? 'block' : 'none';
+}
+
+function normalizarOrigenPedido(valor) {
+  return (valor || 'whatsapp')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function detallesPedidoDesdeTexto(texto) {
+  return texto.split(/\n+/).map(function(linea) {
+    var limpio = linea.trim();
+    if (!limpio) return null;
+    var cantidad = 1;
+    var descripcion = limpio;
+    var match = limpio.match(/^(\d+)\s*x\s+(.+)$/i);
+    if (match) {
+      cantidad = parseInt(match[1], 10) || 1;
+      descripcion = match[2].trim();
+    }
+    return {descripcion: descripcion, cantidad: cantidad, precio_unitario: 0};
+  }).filter(Boolean);
+}
+
+function mensajeErrorPedido(e) {
+  if (typeof e === 'string') {
+    return e === 'offline'
+      ? 'No se pudo conectar al servidor. El pedido no se guardó.'
+      : e;
+  }
+  var detalle = e && (e.detail || (e.body && e.body.detail));
+  if (Array.isArray(detalle) && detalle.length) {
+    return detalle.map(function(d) {
+      var campo = Array.isArray(d.loc) ? d.loc[d.loc.length - 1] : '';
+      var nombres = {
+        cliente_nombre: 'Nombre',
+        fecha_entrega: 'Fecha de entrega',
+        detalles: 'Productos',
+        descripcion: 'Producto',
+        cantidad: 'Cantidad',
+        anticipo: 'Anticipo'
+      };
+      var msg = d.msg || 'dato inválido';
+      if (/field required/i.test(msg)) msg = 'obligatorio';
+      if (/valid date/i.test(msg)) msg = 'fecha inválida';
+      return (nombres[campo] || campo || 'Dato') + ': ' + msg;
+    }).join(' · ');
+  }
+  if (e && e.message && e.message !== '422') return e.message;
+  return 'No se pudo guardar el pedido. Revisa fecha, productos y conexión.';
+}
+
 function guardarPed() {
   if (_pedidoEnProceso) {
     toast('Pedido en proceso, espera un momento');
     return;
   }
-  var nom = document.getElementById('np-nom').value;
-  if (!nom) { alert('Escribe el nombre del cliente'); return; }
+  mostrarErrorPedido('');
+  var nom = document.getElementById('np-nom').value.trim();
+  var fechaEntrega = document.getElementById('np-fecha').value;
+  var productosTxt = document.getElementById('np-prod').value.trim();
+  var anticipo = parseFloat(document.getElementById('np-ant').value);
+  if (!nom) {
+    mostrarErrorPedido('Escribe el nombre del cliente.');
+    toast('Falta el nombre del cliente', true);
+    return;
+  }
+  if (!fechaEntrega) {
+    mostrarErrorPedido('Elige la fecha de entrega.');
+    toast('Falta la fecha de entrega', true);
+    return;
+  }
+  if (fechaEntrega < fechaHoyISO()) {
+    mostrarErrorPedido('La fecha de entrega no puede ser anterior a hoy.');
+    toast('Fecha de entrega inválida', true);
+    return;
+  }
+  if (!productosTxt) {
+    mostrarErrorPedido('Agrega al menos un producto al pedido.');
+    toast('Faltan productos', true);
+    return;
+  }
+  if (isNaN(anticipo)) anticipo = 0;
+  if (anticipo < 0) {
+    mostrarErrorPedido('El anticipo no puede ser negativo.');
+    toast('Anticipo inválido', true);
+    return;
+  }
   _pedidoEnProceso = true;
+  setPedidoGuardando(true);
   if (!_pedidoIdempotencyKey) _pedidoIdempotencyKey = nuevaClaveIdempotencia('pedido');
 
   var pedido = {
     idempotency_key: _pedidoIdempotencyKey,
     cliente_nombre: nom,
-    cliente_telefono: document.getElementById('np-tel').value,
-    fecha_entrega: document.getElementById('np-fecha').value,
-    hora_entrega: document.getElementById('np-hora').value,
-    lugar_entrega: document.getElementById('np-lugar').value,
-    origen: document.querySelector('#modal-ped select').value.toLowerCase(),
-    anticipo: parseFloat(document.getElementById('np-ant').value) || 0,
-    notas_internas: document.getElementById('np-notas').value,
-    detalles: [{descripcion: document.getElementById('np-prod').value, cantidad: 1}]
+    cliente_telefono: document.getElementById('np-tel').value.trim() || null,
+    fecha_entrega: fechaEntrega,
+    hora_entrega: document.getElementById('np-hora').value.trim() || null,
+    lugar_entrega: document.getElementById('np-lugar').value.trim() || null,
+    origen: normalizarOrigenPedido(document.querySelector('#modal-ped select').value),
+    anticipo: anticipo,
+    notas_internas: document.getElementById('np-notas').value.trim() || null,
+    detalles: detallesPedidoDesdeTexto(productosTxt)
   };
 
   api('POST', '/pedidos/', pedido).then(function(p) {
     toast('Pedido ' + p.folio + ' guardado para ' + nom);
     document.getElementById('modal-ped').classList.remove('on');
     _pedidoEnProceso = false;
+    setPedidoGuardando(false);
     _pedidoIdempotencyKey = null;
+    limpiarNuevoPedido();
     cargarPedidos();
-  }).catch(function() {
-    toast('Pedido guardado (local) para ' + nom);
-    document.getElementById('modal-ped').classList.remove('on');
+  }).catch(function(e) {
+    var msg = mensajeErrorPedido(e);
+    mostrarErrorPedido(msg);
+    toast(msg, true);
     _pedidoEnProceso = false;
-    _pedidoIdempotencyKey = null;
+    setPedidoGuardando(false);
   });
 }
 
