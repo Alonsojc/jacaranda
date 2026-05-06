@@ -2,12 +2,13 @@
 
 from datetime import date
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_permission, require_role
 from app.models.pedido import Pedido
-from app.models.usuario import Usuario
+from app.models.usuario import RolUsuario, Usuario
 from app.schemas.pedido import (
     PedidoCreate,
     PedidoEstadoUpdate,
@@ -86,6 +87,59 @@ def reservas_pedidos(
     user: Usuario = Depends(require_permission("ped", "ver")),
 ):
     return pedido_service.resumen_reservas(db, fecha)
+
+
+@router.get("/diagnostico/esquema")
+def diagnostico_esquema_pedidos(
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
+):
+    """Diagnóstico admin temporal para reparar tablas heredadas de pedidos."""
+    bind = db.get_bind()
+    inspector = inspect(bind)
+    tables = set(inspector.get_table_names())
+
+    def table_info(table_name: str) -> dict:
+        if table_name not in tables:
+            return {"exists": False, "columns": [], "count": None}
+        try:
+            count = db.execute(text(f'SELECT COUNT(*) FROM "{table_name}"')).scalar()
+        except Exception as exc:  # pragma: no cover - diagnostic only
+            count = f"{type(exc).__name__}: {exc}"
+        return {
+            "exists": True,
+            "count": count,
+            "columns": [
+                {
+                    "name": col["name"],
+                    "type": str(col["type"]),
+                    "nullable": col.get("nullable"),
+                    "default": str(col.get("default")),
+                    "primary_key": col.get("primary_key"),
+                }
+                for col in inspector.get_columns(table_name)
+            ],
+        }
+
+    try:
+        alembic_version = db.execute(text("SELECT version_num FROM alembic_version")).scalar()
+    except Exception as exc:  # pragma: no cover - diagnostic only
+        alembic_version = f"{type(exc).__name__}: {exc}"
+
+    try:
+        pedido_service.resumen_reservas(db)
+        reservas_error = None
+    except Exception as exc:  # pragma: no cover - diagnostic only
+        reservas_error = f"{type(exc).__name__}: {exc}"
+        db.rollback()
+
+    return {
+        "dialect": bind.dialect.name,
+        "alembic_version": alembic_version,
+        "pedidos": table_info("pedidos"),
+        "detalles_pedido": table_info("detalles_pedido"),
+        "reservas_error": reservas_error,
+    }
 
 
 @router.get("/{pedido_id}", response_model=PedidoResponse)
