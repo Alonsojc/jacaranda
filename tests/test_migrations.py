@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "c1d2e3f4a5b6 (head)"
+ALEMBIC_HEAD = "d2e3f4a5b6c7 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:
@@ -194,3 +194,57 @@ def test_alembic_repairs_existing_pedido_detail_table(tmp_path):
         "precio_unitario",
         "notas",
     }.issubset(detalle_columns)
+
+
+def test_alembic_recreates_empty_legacy_pedido_detail_table(tmp_path):
+    db_path = tmp_path / "legacy_empty_bad_details.db"
+    database_url = f"sqlite:///{db_path}"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE alembic_version (
+                version_num VARCHAR(32) NOT NULL,
+                CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+            );
+            INSERT INTO alembic_version (version_num) VALUES ('c1d2e3f4a5b6');
+            CREATE TABLE productos (id INTEGER PRIMARY KEY);
+            CREATE TABLE pedidos (
+                id INTEGER PRIMARY KEY,
+                folio VARCHAR(20) NOT NULL,
+                cliente_nombre VARCHAR(200) NOT NULL,
+                cliente_telefono VARCHAR(20) NOT NULL,
+                fecha_entrega DATE NOT NULL,
+                estado VARCHAR(30) NOT NULL,
+                origen VARCHAR(30) NOT NULL,
+                productos TEXT NOT NULL
+            );
+            CREATE TABLE detalles_pedido (
+                pedido INTEGER NOT NULL,
+                producto TEXT NOT NULL,
+                subtotal TEXT NOT NULL
+            );
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    _run([sys.executable, "-m", "alembic", "upgrade", "head"], database_url)
+
+    conn = sqlite3.connect(db_path)
+    try:
+        detalle_info = {
+            row[1]: row for row in conn.execute("PRAGMA table_info(detalles_pedido)")
+        }
+        pedido_info = {
+            row[1]: row for row in conn.execute("PRAGMA table_info(pedidos)")
+        }
+    finally:
+        conn.close()
+
+    assert {"id", "pedido_id", "producto_id", "descripcion"}.issubset(detalle_info)
+    assert detalle_info["id"][5] == 1  # primary key
+    assert pedido_info["cliente_telefono"][3] == 0
+    assert pedido_info["productos"][3] == 0

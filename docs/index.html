@@ -1933,7 +1933,7 @@ h2{font-size:1.1rem}
 </div>
 <div class="frow">
 <div class="fg"><label>Anticipo</label><input type="number" id="np-ant" placeholder="0"></div>
-<div class="fg"><label>Origen</label><select><option>WhatsApp</option><option>Tienda</option><option>Instagram</option><option>Tel&eacute;fono</option></select></div>
+<div class="fg"><label>Origen</label><select id="np-origen"><option>WhatsApp</option><option>Tienda</option><option>Instagram</option><option>Tel&eacute;fono</option></select></div>
 </div>
 <div class="fg"><label>Notas internas</label><input id="np-notas" placeholder="Sin fresas, alergia a nuez..."></div>
 <div id="np-error" class="form-error"></div>
@@ -2196,7 +2196,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v44';
+var APP_BUILD = 'jacaranda-v45';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
@@ -3890,7 +3890,7 @@ function limpiarNuevoPedido() {
     fecha.min = fechaHoyISO();
     fecha.value = fechaHoyISO();
   }
-  var origen = document.querySelector('#modal-ped select');
+  var origen = document.getElementById('np-origen');
   if (origen) origen.value = 'WhatsApp';
   mostrarErrorPedido('');
 }
@@ -4110,7 +4110,7 @@ function guardarPed() {
     fecha_entrega: fechaEntrega,
     hora_entrega: document.getElementById('np-hora').value.trim() || null,
     lugar_entrega: document.getElementById('np-lugar').value.trim() || null,
-    origen: normalizarOrigenPedido(document.querySelector('#modal-ped select').value),
+    origen: normalizarOrigenPedido(document.getElementById('np-origen').value),
     anticipo: anticipo,
     notas_internas: document.getElementById('np-notas').value.trim() || null,
     detalles: detallesPedido

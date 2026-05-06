@@ -14,6 +14,20 @@ def _sql_type(engine: Engine, column_type) -> str:
     return column_type.compile(dialect=engine.dialect)
 
 
+def _quote_ident(name: str) -> str:
+    return '"' + name.replace('"', '""') + '"'
+
+
+def _table_count(conn, table_name: str) -> int:
+    try:
+        return int(
+            conn.execute(text(f"SELECT COUNT(*) FROM {_quote_ident(table_name)}")).scalar()
+            or 0
+        )
+    except Exception:
+        return 0
+
+
 def _add_column_if_missing(
     conn,
     engine: Engine,
@@ -37,6 +51,60 @@ def _add_column_if_missing(
         ddl += " NOT NULL"
     conn.execute(text(ddl))
     existing_columns.add(column_name)
+
+
+def _relax_not_nulls(
+    conn,
+    engine: Engine,
+    table_name: str,
+    *,
+    required_columns: set[str],
+) -> None:
+    if engine.dialect.name == "sqlite":
+        return
+    inspector = inspect(conn)
+    for column in inspector.get_columns(table_name):
+        column_name = column["name"]
+        if column_name in required_columns or column.get("nullable", True):
+            continue
+        conn.execute(text(
+            f"ALTER TABLE {_quote_ident(table_name)} "
+            f"ALTER COLUMN {_quote_ident(column_name)} DROP NOT NULL"
+        ))
+
+
+def _normalize_detalle_types_postgres(conn, engine: Engine) -> None:
+    if engine.dialect.name != "postgresql":
+        return
+    columns = {col["name"] for col in inspect(conn).get_columns("detalles_pedido")}
+    casts = {
+        "pedido_id": (
+            "INTEGER",
+            "CASE WHEN {c}::text ~ '^\\d+$' THEN {c}::integer ELSE NULL END",
+        ),
+        "producto_id": (
+            "INTEGER",
+            "CASE WHEN {c} IS NULL OR {c}::text = '' THEN NULL "
+            "WHEN {c}::text ~ '^\\d+$' THEN {c}::integer ELSE NULL END",
+        ),
+        "cantidad": (
+            "INTEGER",
+            "CASE WHEN {c}::text ~ '^\\d+$' THEN {c}::integer ELSE 1 END",
+        ),
+        "precio_unitario": (
+            "NUMERIC(12, 2)",
+            "CASE WHEN {c}::text ~ '^-?\\d+(\\.\\d+)?$' THEN {c}::numeric ELSE 0 END",
+        ),
+    }
+    for column_name, (target_type, expression) in casts.items():
+        if column_name not in columns:
+            continue
+        quoted = _quote_ident(column_name)
+        conn.execute(text(
+            f"ALTER TABLE {_quote_ident('detalles_pedido')} "
+            f"ALTER COLUMN {quoted} TYPE {target_type} "
+            f"USING {expression.format(c=quoted)}"
+        ))
 
 
 def ensure_runtime_schema(engine: Engine) -> None:
@@ -99,6 +167,19 @@ def ensure_runtime_schema(engine: Engine) -> None:
                     nullable=nullable,
                 )
 
+    with engine.begin() as conn:
+        inspector = inspect(conn)
+        tables = set(inspector.get_table_names())
+        if (
+            "pedidos" in tables
+            and "detalles_pedido" in tables
+            and _table_count(conn, "pedidos") == 0
+            and _table_count(conn, "detalles_pedido") == 0
+        ):
+            # If an empty legacy details table has the wrong shape, the safest
+            # repair is to recreate it before the app starts accepting orders.
+            conn.execute(text("DROP TABLE detalles_pedido"))
+
     ConektaWebhookEvent.__table__.create(bind=engine, checkfirst=True)
     DetallePedido.__table__.create(bind=engine, checkfirst=True)
     RecepcionOrdenCompra.__table__.create(bind=engine, checkfirst=True)
@@ -130,3 +211,31 @@ def ensure_runtime_schema(engine: Engine) -> None:
                     server_default=default,
                     nullable=nullable,
                 )
+            _normalize_detalle_types_postgres(conn, engine)
+            _relax_not_nulls(
+                conn,
+                engine,
+                "detalles_pedido",
+                required_columns={
+                    "id",
+                    "pedido_id",
+                    "descripcion",
+                    "cantidad",
+                    "precio_unitario",
+                },
+            )
+
+        if "pedidos" in tables:
+            _relax_not_nulls(
+                conn,
+                engine,
+                "pedidos",
+                required_columns={
+                    "id",
+                    "folio",
+                    "cliente_nombre",
+                    "fecha_entrega",
+                    "estado",
+                    "origen",
+                },
+            )
