@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "f1a2b3c4d5e6 (head)"
+ALEMBIC_HEAD = "a7b8c9d0e1f2 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:
@@ -91,6 +91,7 @@ def test_alembic_adds_pedido_delivery_columns_to_legacy_schema(tmp_path):
         "anticipo",
         "total",
         "pagado",
+        "creado_en",
         "repartidor_nombre",
         "direccion_entrega",
         "costo_envio",
@@ -98,3 +99,55 @@ def test_alembic_adds_pedido_delivery_columns_to_legacy_schema(tmp_path):
         "entregado_en",
         "actualizado_en",
     }.issubset(columns)
+
+
+def test_alembic_creates_missing_pedido_detail_table(tmp_path):
+    db_path = tmp_path / "legacy_pedidos_without_details.db"
+    database_url = f"sqlite:///{db_path}"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE alembic_version (
+                version_num VARCHAR(32) NOT NULL,
+                CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+            );
+            INSERT INTO alembic_version (version_num) VALUES ('f1a2b3c4d5e6');
+            CREATE TABLE productos (id INTEGER PRIMARY KEY);
+            CREATE TABLE pedidos (
+                id INTEGER PRIMARY KEY,
+                folio VARCHAR(20) NOT NULL,
+                cliente_nombre VARCHAR(200) NOT NULL,
+                fecha_entrega DATE NOT NULL,
+                estado VARCHAR(30) NOT NULL,
+                origen VARCHAR(30) NOT NULL
+            );
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    _run([sys.executable, "-m", "alembic", "upgrade", "head"], database_url)
+
+    conn = sqlite3.connect(db_path)
+    try:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        detalle_columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(detalles_pedido)")
+        }
+        pedido_columns = {row[1] for row in conn.execute("PRAGMA table_info(pedidos)")}
+    finally:
+        conn.close()
+
+    assert "detalles_pedido" in tables
+    assert {"pedido_id", "descripcion", "cantidad", "precio_unitario"}.issubset(
+        detalle_columns
+    )
+    assert "creado_en" in pedido_columns

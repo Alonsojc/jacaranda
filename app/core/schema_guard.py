@@ -6,6 +6,7 @@ from sqlalchemy.engine import Engine
 from app.models.compras import RecepcionOrdenCompra
 from app.models.notificacion import FCMToken
 from app.models.pago_online import ConektaWebhookEvent
+from app.models.pedido import DetallePedido
 from app.models.whatsapp import WhatsAppWebhookEvent
 
 
@@ -84,6 +85,7 @@ def ensure_runtime_schema(engine: Engine) -> None:
                 ("costo_envio", Numeric(10, 2), "0", False),
                 ("en_ruta_en", DateTime(timezone=True), None, True),
                 ("entregado_en", DateTime(timezone=True), None, True),
+                ("creado_en", DateTime(timezone=True), None, True),
                 ("actualizado_en", DateTime(timezone=True), None, True),
             ):
                 _add_column_if_missing(
@@ -98,6 +100,7 @@ def ensure_runtime_schema(engine: Engine) -> None:
                 )
 
     ConektaWebhookEvent.__table__.create(bind=engine, checkfirst=True)
+    DetallePedido.__table__.create(bind=engine, checkfirst=True)
     RecepcionOrdenCompra.__table__.create(bind=engine, checkfirst=True)
     WhatsAppWebhookEvent.__table__.create(bind=engine, checkfirst=True)
     FCMToken.__table__.create(bind=engine, checkfirst=True)
