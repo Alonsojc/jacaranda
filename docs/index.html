@@ -145,6 +145,8 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .quote-actions{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin-top:.4rem}
 .wa-btn{display:block;width:100%;padding:.5rem;border:none;border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;background:#25d366;color:#fff;transition:all .15s}
 .wa-btn:hover{filter:brightness(.96)}
+.quick-pay{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin:-.25rem 0 .55rem}
+.quick-pay .limpiar{margin:0;font-size:.78rem;padding:.45rem .55rem}
 /* Tabla */
 .tbl{width:100%;border-collapse:collapse;font-size:.82rem;table-layout:fixed;word-break:break-word}
 .tbl th{text-align:left;padding:.5rem .5rem;background:linear-gradient(135deg,#faf3f0,#fdf7f5);color:var(--v);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;cursor:pointer;user-select:none;white-space:nowrap}
@@ -2009,6 +2011,10 @@ h2{font-size:1.1rem}
 <div id="mc-single">
 <div id="mc-efectivo">
 <div class="fg"><label>Monto recibido</label><input type="number" id="mc-recibido" step="0.01" oninput="calcCambio()" style="font-size:1.2rem;font-weight:700;text-align:center"></div>
+<div class="quick-pay">
+<button class="limpiar" type="button" onclick="pagarExacto()">Monto exacto</button>
+<button class="limpiar" type="button" onclick="limpiarMontoRecibido()">Borrar monto</button>
+</div>
 <div style="text-align:center;font-size:1.1rem;font-weight:600;margin:.5rem 0">Cambio: <span id="mc-cambio" style="color:var(--grn)">$0.00</span></div>
 </div>
 <button class="limpiar" style="width:100%;margin-bottom:.5rem;font-size:.78rem" onclick="toggleSplit()">Dividir pago (efectivo + tarjeta)</button>
@@ -2757,6 +2763,22 @@ function calcCambio() {
   var el = document.getElementById('mc-cambio');
   el.textContent = '$' + fmt(Math.max(0, cambio));
   el.style.color = cambio >= 0 ? 'var(--grn)' : '#b91c1c';
+}
+
+function pagarExacto() {
+  var input = document.getElementById('mc-recibido');
+  var total = parseFloat(document.getElementById('mc-total').textContent.replace(/[^0-9.-]/g,'')) || 0;
+  input.value = total.toFixed(2);
+  calcCambio();
+  input.focus();
+  input.select();
+}
+
+function limpiarMontoRecibido() {
+  var input = document.getElementById('mc-recibido');
+  input.value = '';
+  calcCambio();
+  input.focus();
 }
 
 function calcSplit() {
