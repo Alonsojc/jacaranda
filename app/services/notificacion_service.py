@@ -267,6 +267,37 @@ def revocar_fcm_token(db: Session, usuario_id: int, token: str) -> bool:
     return True
 
 
+def estado_fcm_usuario(db: Session, usuario_id: int) -> dict:
+    """Diagnóstico simple para saber si este dispositivo ya puede recibir push."""
+    tokens_usuario = (
+        db.query(FCMToken)
+        .filter(FCMToken.usuario_id == usuario_id)
+        .order_by(FCMToken.actualizado_en.desc())
+        .limit(20)
+        .all()
+    )
+    activos = [item for item in tokens_usuario if item.activo]
+    ultimos_errores = [
+        {
+            "plataforma": item.plataforma,
+            "error": item.ultimo_error,
+            "actualizado_en": item.actualizado_en.isoformat() if item.actualizado_en else None,
+        }
+        for item in tokens_usuario
+        if item.ultimo_error
+    ][:5]
+    cfg = generar_push_config()
+    return {
+        "enabled": cfg["enabled"],
+        "server_enabled": cfg["server_enabled"],
+        "tokens_usuario": len(tokens_usuario),
+        "tokens_activos_usuario": len(activos),
+        "tokens_activos_total": db.query(FCMToken).filter(FCMToken.activo.is_(True)).count(),
+        "ultimos_errores": ultimos_errores,
+        "nota": cfg["nota"],
+    }
+
+
 def _credencial_firebase():
     if not (settings.FIREBASE_SERVICE_ACCOUNT_JSON or settings.FIREBASE_SERVICE_ACCOUNT_FILE):
         return None
@@ -408,6 +439,66 @@ def enviar_fcm_pedido_nuevo(pedido_data: dict) -> dict:
         return {"enabled": True, "sent": sent, "failed": failed}
     except Exception:
         logger.exception("Error enviando FCM nuevo_pedido")
+        return {"enabled": True, "sent": 0, "failed": 0}
+    finally:
+        db.close()
+
+
+def enviar_fcm_prueba(usuario_id: int | None = None) -> dict:
+    """Envía una notificación FCM de prueba a tokens activos."""
+    messaging = _firebase_messaging()
+    if messaging is None:
+        return {"enabled": False, "sent": 0, "failed": 0}
+
+    db = SessionLocal()
+    try:
+        query = db.query(FCMToken).filter(FCMToken.activo.is_(True))
+        if usuario_id is not None:
+            query = query.filter(FCMToken.usuario_id == usuario_id)
+        tokens = query.order_by(FCMToken.actualizado_en.desc()).all()
+        if not tokens:
+            return {"enabled": True, "sent": 0, "failed": 0}
+
+        target = settings.FRONTEND_URL.rstrip("/") + "/#ped"
+        sent = 0
+        failed = 0
+        now = datetime.now(timezone.utc)
+        for token_group in _chunks(tokens):
+            multicast = messaging.MulticastMessage(
+                tokens=[item.token for item in token_group],
+                notification=messaging.Notification(
+                    title="Prueba Jacaranda",
+                    body="Las notificaciones push ya llegan a este dispositivo.",
+                ),
+                data={"tipo": "test", "url": target},
+                webpush=messaging.WebpushConfig(
+                    fcm_options=messaging.WebpushFCMOptions(link=target),
+                    notification=messaging.WebpushNotification(
+                        icon=settings.FRONTEND_URL.rstrip("/") + "/favicon.svg",
+                        badge=settings.FRONTEND_URL.rstrip("/") + "/favicon.svg",
+                        tag="jacaranda-test-push",
+                        require_interaction=True,
+                    ),
+                ),
+            )
+            sender = getattr(messaging, "send_each_for_multicast", None) or messaging.send_multicast
+            response = sender(multicast)
+            for idx, resp in enumerate(response.responses):
+                item = token_group[idx]
+                item.ultimo_envio_en = now
+                if resp.success:
+                    sent += 1
+                    item.ultimo_error = None
+                else:
+                    failed += 1
+                    err = str(resp.exception or "Error FCM")
+                    item.ultimo_error = err[:1000]
+                    if _token_error_es_permanente(err):
+                        item.activo = False
+        db.commit()
+        return {"enabled": True, "sent": sent, "failed": failed}
+    except Exception:
+        logger.exception("Error enviando FCM de prueba")
         return {"enabled": True, "sent": 0, "failed": 0}
     finally:
         db.close()

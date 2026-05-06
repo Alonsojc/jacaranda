@@ -17,6 +17,8 @@ from app.services.notificacion_service import (
     obtener_notificaciones_pendientes,
     notificar_alerta,
     generar_push_config,
+    estado_fcm_usuario,
+    enviar_fcm_prueba,
     registrar_fcm_token,
     revocar_fcm_token,
 )
@@ -138,6 +140,23 @@ def revocar_token_fcm(
     return {"ok": True, "revocado": removed}
 
 
+@router.get("/fcm-status")
+def estado_fcm(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Diagnóstico del registro push del usuario/dispositivo."""
+    return estado_fcm_usuario(db, current_user.id)
+
+
+@router.post("/fcm-test")
+def probar_fcm(
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Envía una notificación push de prueba al usuario actual."""
+    return enviar_fcm_prueba(current_user.id)
+
+
 @router.post("/test")
 async def enviar_notificacion_test(
     current_user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
@@ -151,9 +170,11 @@ async def enviar_notificacion_test(
         mensaje_texto="Notificación de prueba desde el panel de administración",
         severidad="baja",
     )
+    fcm = enviar_fcm_prueba()
     conexiones_activas = sum(len(conns) for conns in manager.active_connections.values())
     return {
         "mensaje": "Notificación de prueba enviada",
         "conexiones_activas": conexiones_activas,
         "usuarios_conectados": len(manager.active_connections),
+        "fcm": fcm,
     }

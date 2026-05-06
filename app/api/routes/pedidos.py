@@ -1,11 +1,13 @@
 """Rutas de pedidos especiales."""
 
 from datetime import date
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from urllib.parse import unquote
+
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_admin_or_override, require_permission
 from app.models.pedido import Pedido
 from app.models.usuario import Usuario
 from app.schemas.pedido import (
@@ -136,6 +138,25 @@ def marcar_pago_pedido(
     try:
         return pedido_service.marcar_pago_manual(
             db, pedido_id, data.pagado, user.id, data.motivo
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=_status_from_pedido_error(e), detail=str(e))
+
+
+@router.delete("/{pedido_id}", response_model=PedidoResponse)
+def borrar_pedido(
+    pedido_id: int,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_admin_or_override("ped", "borrar pedido")),
+    motivo: str | None = Header(default=None, alias="X-Admin-Override-Motivo"),
+):
+    """Anula un pedido de forma auditada; no elimina el histórico de la base."""
+    try:
+        return pedido_service.cancelar_pedido(
+            db,
+            pedido_id,
+            usuario_id=user.id,
+            motivo=unquote(motivo or "").strip() or None,
         )
     except ValueError as e:
         raise HTTPException(status_code=_status_from_pedido_error(e), detail=str(e))

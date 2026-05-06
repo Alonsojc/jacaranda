@@ -61,12 +61,30 @@ class TestNotificaciones:
         result = enviar_fcm_pedido_nuevo({"folio": "P-1", "cliente": "Test"})
         assert result["enabled"] is False
 
+    def test_fcm_status(self, client, auth_headers):
+        resp = client.get("/api/v1/notificaciones/fcm-status", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "tokens_activos_usuario" in data
+        assert "server_enabled" in data
+
+    def test_fcm_test_sin_credenciales_no_falla(self, client, auth_headers, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "FIREBASE_SERVICE_ACCOUNT_JSON", "")
+        monkeypatch.setattr(settings, "FIREBASE_SERVICE_ACCOUNT_FILE", "")
+
+        resp = client.post("/api/v1/notificaciones/fcm-test", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["enabled"] is False
+
     def test_test_notificacion_admin(self, client, auth_headers):
         resp = client.post("/api/v1/notificaciones/test", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert "conexiones_activas" in data
         assert "usuarios_conectados" in data
+        assert "fcm" in data
 
     def test_websocket_sin_token(self, client):
         from starlette.websockets import WebSocketDisconnect

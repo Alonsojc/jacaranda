@@ -254,6 +254,39 @@ def cambiar_estado_pedido(
     return pedido
 
 
+def cancelar_pedido(
+    db: Session,
+    pedido_id: int,
+    usuario_id: int | None = None,
+    motivo: str | None = None,
+) -> Pedido:
+    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).with_for_update().first()
+    if not pedido:
+        raise ValueError("Pedido no encontrado")
+    if pedido.estado == EstadoPedido.CANCELADO:
+        return pedido
+    if pedido.estado == EstadoPedido.ENTREGADO:
+        raise ValueError("No se puede borrar un pedido entregado; revise el flujo de devolución")
+
+    estado_anterior = pedido.estado
+    pedido.estado = EstadoPedido.CANCELADO
+    registrar_evento(
+        db,
+        usuario_id=usuario_id,
+        usuario_nombre=None,
+        accion="cancelar",
+        modulo="pedidos",
+        entidad="pedidos",
+        entidad_id=pedido.id,
+        datos_anteriores={"estado": estado_anterior.value},
+        datos_nuevos={"estado": EstadoPedido.CANCELADO.value, "motivo": motivo},
+        commit=False,
+    )
+    db.commit()
+    db.refresh(pedido)
+    return pedido
+
+
 def marcar_pago_manual(
     db: Session,
     pedido_id: int,

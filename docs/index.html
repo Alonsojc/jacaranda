@@ -437,6 +437,11 @@ h2{font-size:1.1rem}
 <strong style="font-size:.85rem">Notificaciones</strong>
 <a onclick="toggleNotifPanel()" style="cursor:pointer;font-size:1rem;color:var(--mut)">&times;</a>
 </div>
+<div style="padding:.7rem .8rem;border-bottom:1px solid var(--brd);display:grid;gap:.45rem">
+<button type="button" class="limpiar" style="padding:.45rem .7rem;font-size:.78rem" onclick="activarPushManual()">Activar en este dispositivo</button>
+<button type="button" class="limpiar" style="padding:.45rem .7rem;font-size:.78rem" onclick="probarPushManual()">Probar push</button>
+<div id="notif-push-status" style="font-size:.72rem;color:var(--mut);line-height:1.35"></div>
+</div>
 <div id="notif-list"><div class="notif-item"><div class="ni-body" style="text-align:center;color:var(--mut)">Sin alertas</div></div></div>
 </div>
 <div class="wrap">
@@ -1693,6 +1698,7 @@ h2{font-size:1.1rem}
 <a onclick="go('ejecutivo');toggleMobileMenu()" class="mm-link">&#128188; Ejecutivo</a>
 <a onclick="go('deliveryp');toggleMobileMenu()" class="mm-link">&#128666; Delivery</a>
 <a onclick="go('usuarios');toggleMobileMenu()" class="mm-link">&#128101; Usuarios</a>
+<a onclick="toggleNotifPanel();toggleMobileMenu()" class="mm-link">&#128276; Notificaciones</a>
 <a onclick="confirmarCerrarSesion();toggleMobileMenu()" class="mm-link" style="color:#b91c1c">&#9211; Cerrar sesi&oacute;n</a>
 </div>
 </div>
@@ -2196,7 +2202,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v45';
+var APP_BUILD = 'jacaranda-v46';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
@@ -3622,13 +3628,14 @@ function llenarHorasPedido() {
   var sel = document.getElementById('np-hora');
   if (!sel || sel.options.length > 1) return;
   var h = '<option value="">Sin hora</option>';
-  for (var mins = 0; mins < 24 * 60; mins += 30) {
+  for (var mins = 8 * 60; mins <= 19 * 60; mins += 30) {
     var hh = String(Math.floor(mins / 60)).padStart(2, '0');
     var mm = String(mins % 60).padStart(2, '0');
     var val = hh + ':' + mm;
     h += '<option value="' + val + '">' + val + '</option>';
   }
   sel.innerHTML = h;
+  sel.value = '12:00';
 }
 
 function telefonoSoloDigitos(v) {
@@ -3878,7 +3885,7 @@ function limpiarNuevoPedido() {
     if (el) el.value = '';
   });
   var hora = document.getElementById('np-hora');
-  if (hora) hora.value = '';
+  if (hora) hora.value = '12:00';
   var prod = document.getElementById('np-prod-select');
   if (prod) prod.value = '';
   var cant = document.getElementById('np-prod-cant');
@@ -4292,6 +4299,11 @@ function renderPedidos() {
     if (!p.local_pendiente && siguiente[p.estado]) {
       h += '<button onclick="avanzarPedido(' + p.id + ',\'' + siguiente[p.estado] + '\')" style="padding:.25rem .6rem;border:1px solid var(--v);border-radius:6px;background:#fff;color:var(--v);font-size:.75rem;font-weight:600;cursor:pointer">' + sigNombre[p.estado] + ' &rarr;</button>';
     }
+    if (p.local_pendiente) {
+      h += '<button onclick="borrarPedidoLocal(' + jsArg(p.id) + ')" style="padding:.25rem .6rem;border:1px solid #ef4444;border-radius:6px;background:#fff;color:#b91c1c;font-size:.75rem;font-weight:600;cursor:pointer">&#10005; Borrar</button>';
+    } else if (p.estado !== 'entregado' && p.estado !== 'cancelado') {
+      h += '<button onclick="borrarPedido(' + p.id + ',' + jsArg(p.folio || 'pedido') + ')" style="padding:.25rem .6rem;border:1px solid #ef4444;border-radius:6px;background:#fff;color:#b91c1c;font-size:.75rem;font-weight:600;cursor:pointer">&#10005; Borrar</button>';
+    }
     h += '</span>';
     h += '</div></div>';
   }
@@ -4311,6 +4323,29 @@ function avanzarPedido(id, nuevoEstado) {
     cargarPedidos();
   }).catch(function(e) { toast(e.message || 'Error', true); });
 }
+
+function borrarPedido(id, folio) {
+  var msg = '¿Seguro que quieres borrar/anular ' + (folio || 'este pedido') + '?\\n\\nNo se elimina el histórico; quedará como cancelado.';
+  if (!confirm(msg)) return;
+  apiProtegida('DELETE', '/pedidos/' + id, null, 'borrar pedido').then(function() {
+    toast('Pedido cancelado');
+    cargarPedidos();
+  }).catch(function(e) {
+    toast(e.message || 'Error al borrar pedido', true);
+  });
+}
+
+function borrarPedidoLocal(localId) {
+  if (!confirm('¿Borrar este pedido pendiente solo de este dispositivo?')) return;
+  var idx = parseInt(String(localId || '').replace('local-', ''), 10);
+  if (isNaN(idx) || idx < 0 || idx >= _pedidosPendientes.length) return;
+  _pedidosPendientes.splice(idx, 1);
+  guardarPedidosPendientes();
+  renderPedidos();
+  if (_calPedVisible) renderCalPed();
+  toast('Pedido pendiente borrado');
+}
+
 function playNotif() {
   try {
     var ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -4464,7 +4499,10 @@ var _notifCache = [];
 function toggleNotifPanel() {
   var panel = document.getElementById('notif-panel');
   panel.classList.toggle('on');
-  if (panel.classList.contains('on')) cargarNotificaciones();
+  if (panel.classList.contains('on')) {
+    cargarNotificaciones();
+    cargarEstadoPush();
+  }
 }
 
 function cargarNotificaciones() {
@@ -4492,6 +4530,35 @@ function renderNotificaciones(alertas) {
     }
   }
   document.getElementById('notif-list').innerHTML = h;
+}
+
+function setPushStatus(msg, isErr) {
+  var el = document.getElementById('notif-push-status');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.color = isErr ? '#b91c1c' : 'var(--mut)';
+}
+
+function mensajeEstadoPush(st) {
+  if (!soportaPushWeb()) {
+    return 'Este navegador no soporta push web. En iPhone instálalo como PWA desde Safari para recibir notificaciones con la app cerrada.';
+  }
+  if (!st || !st.enabled) {
+    if (st && st.server_enabled) return 'Falta FIREBASE_WEB_CONFIG_JSON en Railway. El servidor ya tiene credencial, pero este celular no puede registrar push todavía.';
+    return 'Firebase push no está configurado completo en Railway.';
+  }
+  if (!st.tokens_activos_usuario) return 'Push configurado, pero este dispositivo todavía no está activado.';
+  return 'Push activo en este dispositivo.';
+}
+
+function cargarEstadoPush() {
+  if (!TOKEN) return Promise.resolve();
+  return api('GET', '/notificaciones/fcm-status').then(function(st) {
+    setPushStatus(mensajeEstadoPush(st), !st.enabled || !st.tokens_activos_usuario);
+    return st;
+  }).catch(function() {
+    setPushStatus('No se pudo revisar el estado de push.', true);
+  });
 }
 
 // PWA Push Notification permission
@@ -4559,13 +4626,27 @@ function firebaseAppInstancia(config) {
 }
 
 var _fcmRegistroIntentado = false;
-function registrarFCMPush() {
+function registrarFCMPush(manual) {
   if (_fcmRegistroIntentado || !TOKEN || !soportaPushWeb()) return Promise.resolve(false);
   _fcmRegistroIntentado = true;
   return api('GET', '/notificaciones/fcm-config').then(function(cfg) {
-    if (!cfg || !cfg.enabled || !cfg.firebase_config || !cfg.vapid_public_key) return false;
+    if (!cfg || !cfg.enabled || !cfg.firebase_config || !cfg.vapid_public_key) {
+      if (manual) {
+        setPushStatus(
+          cfg && cfg.server_enabled
+            ? 'Falta FIREBASE_WEB_CONFIG_JSON en Railway para registrar este dispositivo.'
+            : 'Falta completar Firebase Cloud Messaging en Railway.',
+          true
+        );
+        toast('Push no está configurado completo', true);
+      }
+      return false;
+    }
     return solicitarPermisoNotif().then(function(perm) {
-      if (perm !== 'granted') return false;
+      if (perm !== 'granted') {
+        if (manual) setPushStatus('Permiso de notificaciones no concedido en este dispositivo.', true);
+        return false;
+      }
       return cargarFirebaseMessaging().then(function() {
         return navigator.serviceWorker.ready;
       }).then(function(reg) {
@@ -4598,6 +4679,7 @@ function registrarFCMPush() {
           plataforma: plataforma
         }).then(function() {
           if (previo !== token) toast('Notificaciones push listas');
+          setPushStatus('Push activo en este dispositivo.', false);
           return true;
         });
       });
@@ -4605,7 +4687,38 @@ function registrarFCMPush() {
   }).catch(function(e) {
     console.warn('FCM no disponible:', e);
     _fcmRegistroIntentado = false;
+    if (manual) setPushStatus(e.message || 'No se pudo activar push en este dispositivo.', true);
     return false;
+  });
+}
+
+function activarPushManual() {
+  _fcmRegistroIntentado = false;
+  setPushStatus('Activando push...', false);
+  registrarFCMPush(true).then(function(ok) {
+    if (ok) return cargarEstadoPush();
+    return cargarEstadoPush();
+  });
+}
+
+function probarPushManual() {
+  setPushStatus('Enviando prueba...', false);
+  api('POST', '/notificaciones/fcm-test').then(function(r) {
+    if (!r.enabled) {
+      setPushStatus('Firebase del servidor no está activo. Revisa variables de Railway.', true);
+      toast('Firebase servidor no activo', true);
+      return;
+    }
+    if (!r.sent) {
+      setPushStatus('No hay token activo para este dispositivo. Primero toca Activar.', true);
+      toast('No hay dispositivo registrado para push', true);
+      return;
+    }
+    setPushStatus('Prueba enviada. Revisa el celular.', false);
+    toast('Push de prueba enviado');
+  }).catch(function(e) {
+    setPushStatus(e.message || 'Error al probar push', true);
+    toast(e.message || 'Error al probar push', true);
   });
 }
 
