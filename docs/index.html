@@ -2167,7 +2167,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v41';
+var APP_BUILD = 'jacaranda-v42';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
@@ -3575,6 +3575,15 @@ function fechaHoyISO() {
   return d.toISOString().slice(0, 10);
 }
 
+function fechaLocalDesdeISO(value) {
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    var p = value.split('-').map(function(n) { return parseInt(n, 10); });
+    return new Date(p[0], p[1] - 1, p[2]);
+  }
+  return new Date(value);
+}
+
 function limpiarNuevoPedido() {
   ['np-nom', 'np-tel', 'np-hora', 'np-lugar', 'np-prod', 'np-ant', 'np-notas'].forEach(function(id) {
     var el = document.getElementById(id);
@@ -3955,7 +3964,7 @@ function renderPedidos() {
       if (texto.indexOf(buscar) < 0) continue;
     }
     count++;
-    var fe = p.fecha_entrega ? new Date(p.fecha_entrega) : null;
+    var fe = fechaLocalDesdeISO(p.fecha_entrega);
     if (fe) {
       if (fe.toDateString() === ahora.toDateString()) hoy++;
       if (fe.toDateString() === manana.toDateString()) man++;
@@ -4049,7 +4058,7 @@ function compartirPedidoWA(pedidoId) {
   if (det) msg += '*Productos:*\n' + det + '\n\n';
   if (p.total) msg += '*Total:* $' + p.total + '\n';
   if (p.anticipo) msg += '*Anticipo:* $' + p.anticipo + '\n';
-  if (p.fecha_entrega) msg += '*Entrega:* ' + new Date(p.fecha_entrega).toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'}) + '\n';
+  if (p.fecha_entrega) msg += '*Entrega:* ' + fechaLocalDesdeISO(p.fecha_entrega).toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'}) + '\n';
   if (p.hora_entrega) msg += '*Hora:* ' + p.hora_entrega + '\n';
   if (p.lugar_entrega) msg += '*Lugar:* ' + p.lugar_entrega + '\n';
   msg += '*Estado:* ' + (estadoNombre[p.estado]||p.estado) + '\n\n';
@@ -4104,7 +4113,7 @@ function renderCalPed() {
     var p = pedidos[i];
     if (p.estado === 'entregado' || p.estado === 'cancelado') continue;
     if (!p.fecha_entrega) { sinFecha.push(p); continue; }
-    var fe = new Date(p.fecha_entrega); fe.setHours(0,0,0,0);
+    var fe = fechaLocalDesdeISO(p.fecha_entrega); fe.setHours(0,0,0,0);
     var key = fe.toDateString();
     if (porDia[key]) porDia[key].push(p);
   }
