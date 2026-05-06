@@ -68,6 +68,15 @@ class CostoRecetaResponse(BaseModel):
     desglose: list[dict]
 
 
+class HorneadoMasivoItem(BaseModel):
+    receta_id: int
+    cantidad: int = Field(..., gt=0, le=500)
+
+
+class HorneadoMasivoCreate(BaseModel):
+    items: list[HorneadoMasivoItem] = Field(..., min_length=1, max_length=200)
+
+
 # --- Ordenes de producción ---
 
 class OrdenProduccionCreate(BaseModel):

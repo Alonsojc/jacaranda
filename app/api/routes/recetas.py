@@ -10,7 +10,7 @@ from app.models.usuario import Usuario
 from app.services.auditoria_service import registrar_evento
 from app.schemas.receta import (
     RecetaCreate, RecetaUpdate, RecetaResponse, CostoRecetaResponse,
-    OrdenProduccionCreate, OrdenProduccionResponse,
+    HorneadoMasivoCreate, OrdenProduccionCreate, OrdenProduccionResponse,
 )
 from app.services import receta_service as svc
 from app.services import produccion_service
@@ -229,6 +229,166 @@ def completar_produccion(
         return svc.completar_produccion(db, id, cantidad_producida, cantidad_merma)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/hornear-masivo")
+def hornear_masivo(
+    data: HorneadoMasivoCreate,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_permission("prod", "editar")),
+):
+    """
+    Registra varias tandas horneadas en una sola transacción.
+    Primero valida ingredientes agregados para evitar producciones parciales.
+    """
+    from app.models.receta import Receta
+    from app.models.inventario import Ingrediente, Producto, TipoMovimiento
+    from app.schemas.inventario import MovimientoCreate
+    from app.services.inventario_service import registrar_movimiento
+
+    cantidades_por_receta: dict[int, int] = {}
+    for item in data.items:
+        cantidades_por_receta[item.receta_id] = (
+            cantidades_por_receta.get(item.receta_id, 0) + item.cantidad
+        )
+
+    recetas = db.query(Receta).filter(
+        Receta.id.in_(list(cantidades_por_receta.keys())),
+        Receta.activo.is_(True),
+    ).all()
+    recetas_por_id = {receta.id: receta for receta in recetas}
+    faltan_recetas = [
+        rid for rid in cantidades_por_receta
+        if rid not in recetas_por_id
+    ]
+    if faltan_recetas:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Recetas no encontradas o inactivas: {', '.join(map(str, faltan_recetas))}",
+        )
+
+    producto_ids = {receta.producto_id for receta in recetas if receta.producto_id}
+    productos = db.query(Producto).filter(Producto.id.in_(list(producto_ids))).with_for_update().all()
+    productos_por_id = {producto.id: producto for producto in productos}
+    recetas_sin_producto = [
+        receta.nombre for receta in recetas
+        if receta.producto_id not in productos_por_id
+    ]
+    if recetas_sin_producto:
+        raise HTTPException(
+            status_code=400,
+            detail="Recetas sin producto terminado: " + ", ".join(recetas_sin_producto),
+        )
+
+    requeridos_por_ingrediente: dict[int, Decimal] = {}
+    for receta in recetas:
+        cantidad = cantidades_por_receta[receta.id]
+        for ri in receta.ingredientes:
+            requeridos_por_ingrediente[ri.ingrediente_id] = (
+                requeridos_por_ingrediente.get(ri.ingrediente_id, Decimal("0"))
+                + (ri.cantidad * cantidad)
+            )
+
+    ingredientes_por_id: dict[int, Ingrediente] = {}
+    if requeridos_por_ingrediente:
+        ingredientes = db.query(Ingrediente).filter(
+            Ingrediente.id.in_(list(requeridos_por_ingrediente.keys()))
+        ).with_for_update().all()
+        ingredientes_por_id = {ingrediente.id: ingrediente for ingrediente in ingredientes}
+
+    faltantes = []
+    for ingrediente_id, necesario in requeridos_por_ingrediente.items():
+        ingrediente = ingredientes_por_id.get(ingrediente_id)
+        if not ingrediente:
+            faltantes.append({
+                "ingrediente": f"ID {ingrediente_id}",
+                "necesario": float(necesario),
+                "disponible": 0,
+            })
+        elif ingrediente.stock_actual < necesario:
+            faltantes.append({
+                "ingrediente": ingrediente.nombre,
+                "necesario": float(necesario),
+                "disponible": float(ingrediente.stock_actual),
+            })
+
+    if faltantes:
+        raise HTTPException(status_code=400, detail={
+            "mensaje": "No hay suficientes ingredientes para el horneado del día",
+            "faltantes": faltantes,
+        })
+
+    resultados = []
+    try:
+        for receta in recetas:
+            cantidad = cantidades_por_receta[receta.id]
+            for ri in receta.ingredientes:
+                registrar_movimiento(
+                    db,
+                    MovimientoCreate(
+                        tipo=TipoMovimiento.SALIDA_PRODUCCION,
+                        ingrediente_id=ri.ingrediente_id,
+                        cantidad=ri.cantidad * cantidad,
+                        referencia=f"Horneado del día receta #{receta.id}",
+                    ),
+                    usuario_id=user.id,
+                    commit=False,
+                )
+
+            piezas = int(receta.rendimiento or 1) * cantidad
+            producto = productos_por_id[receta.producto_id]
+            registrar_movimiento(
+                db,
+                MovimientoCreate(
+                    tipo=TipoMovimiento.ENTRADA_PRODUCCION,
+                    producto_id=producto.id,
+                    cantidad=Decimal(str(piezas)),
+                    referencia=f"Horneado del día receta #{receta.id}",
+                ),
+                usuario_id=user.id,
+                commit=False,
+            )
+            resultados.append({
+                "receta_id": receta.id,
+                "receta": receta.nombre,
+                "cantidad": cantidad,
+                "piezas_producidas": piezas,
+                "producto_id": producto.id,
+                "producto": producto.nombre,
+            })
+
+        total_piezas = sum(r["piezas_producidas"] for r in resultados)
+        registrar_evento(
+            db,
+            usuario_id=user.id,
+            usuario_nombre=user.nombre,
+            accion="crear",
+            modulo="produccion",
+            entidad="horneado_masivo",
+            datos_nuevos={
+                "total_recetas": len(resultados),
+                "total_tandas": sum(cantidades_por_receta.values()),
+                "total_piezas": total_piezas,
+                "resultados": resultados,
+            },
+            commit=False,
+        )
+        db.commit()
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+    for resultado in resultados:
+        producto = productos_por_id[resultado["producto_id"]]
+        resultado["stock_producto"] = float(producto.stock_actual)
+
+    return {
+        "mensaje": "Horneado del día registrado",
+        "total_recetas": len(resultados),
+        "total_tandas": sum(cantidades_por_receta.values()),
+        "total_piezas": sum(r["piezas_producidas"] for r in resultados),
+        "resultados": resultados,
+    }
 
 
 @router.post("/{receta_id}/hornear")

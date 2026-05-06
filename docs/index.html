@@ -175,6 +175,16 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .product-actions-table td{vertical-align:middle}
 .product-actions-table .action-buttons{flex-wrap:nowrap;gap:.28rem}
 .product-actions-table .action-btn{padding:.46rem .55rem;font-size:.74rem}
+.batch-bake-table{min-width:760px}
+.batch-bake-table .col-recipe{width:auto}
+.batch-bake-table .col-yield{width:120px}
+.batch-bake-table .col-time{width:130px}
+.batch-bake-table .col-qty{width:130px}
+.batch-bake-table .col-pieces{width:120px}
+.batch-bake-input{width:86px;min-height:44px;padding:.45rem .55rem;border:1px solid var(--brd);border-radius:8px;font-size:.9rem;font-weight:700;text-align:center}
+.batch-bake-input:focus{outline:none;border-color:var(--v);box-shadow:0 0 0 3px rgba(196,152,138,.15)}
+.batch-bake-total{display:flex;justify-content:space-between;align-items:center;gap:.8rem;margin-top:.8rem;padding:.7rem .8rem;border-radius:10px;background:#faf3f0;font-size:.86rem}
+.batch-bake-total strong{color:var(--v);font-size:1rem}
 @media(max-width:900px){.tbl th.actions-th,.tbl td.actions-cell{width:390px}.product-actions-table th.actions-th,.product-actions-table td.actions-cell{width:470px}.action-btn{padding:.55rem .7rem;font-size:.78rem}.product-actions-table .action-btn{padding:.46rem .55rem;font-size:.74rem}.action-icon{font-size:1rem}}
 /* Pedidos */
 .ped{background:#fff;border-radius:12px;padding:1rem;border:1px solid var(--brd);margin-bottom:.7rem;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.04)}
@@ -687,12 +697,16 @@ h2{font-size:1.1rem}
 <div id="inv-hornear" style="display:none">
 <p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Selecciona qu&eacute; vas a hornear. Se descuentan los ingredientes y se suman los productos.</p>
 <div class="card">
-<h3>Hornear</h3>
-<div class="frow">
-<div class="fg"><label>Receta</label><select id="horn-receta"><option value="">Cargando...</option></select></div>
-<div class="fg"><label>Tandas</label><input type="number" id="horn-cant" value="1" min="1"></div>
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem;margin-bottom:.65rem;flex-wrap:wrap">
+<div>
+<h3 style="margin-bottom:.25rem">Horneado del d&iacute;a</h3>
+<p style="font-size:.78rem;color:var(--mut);margin:0">Captura solo las recetas que sí horneaste. Todo se registra junto para evitar ir una por una.</p>
 </div>
-<button class="cobrar" onclick="hornear()">Hornear</button>
+<button class="limpiar" style="width:auto;margin:0;padding:.45rem .7rem" onclick="limpiarHorneadoMasivo()">Limpiar cantidades</button>
+</div>
+<div id="horn-batch-list"><p style="color:var(--mut);font-size:.83rem">Cargando recetas...</p></div>
+<div class="batch-bake-total"><span>Resumen por registrar</span><strong id="horn-batch-total">0 recetas &bull; 0 tandas &bull; 0 pzas</strong></div>
+<button class="cobrar" onclick="hornearMasivo()">Registrar horneado del d&iacute;a</button>
 </div>
 <div class="card" style="margin-top:1rem">
 <h3>Recetas <span style="font-size:.75rem;color:var(--mut);font-weight:400">— click &#9998; para editar ingredientes y rendimiento</span></h3>
@@ -2272,7 +2286,17 @@ function api(method, path, body, _retry, extraHeaders) {
       authErr.status = 401;
       return Promise.reject(authErr);
     }
-    if (!r.ok) return r.json().catch(function(){return {};}).then(function(body){var e=new Error(typeof body.detail==='string'?body.detail:r.status);e.status=r.status;throw e;});
+    if (!r.ok) return r.json().catch(function(){return {};}).then(function(body){
+      var msg = r.status;
+      if (typeof body.detail === 'string') msg = body.detail;
+      else if (body.detail && body.detail.mensaje) msg = body.detail.mensaje;
+      else if (body.message) msg = body.message;
+      var e = new Error(msg);
+      e.status = r.status;
+      e.body = body;
+      e.detail = body.detail;
+      throw e;
+    });
     return r.json();
   }).catch(function(e) {
     if (timeoutId) clearTimeout(timeoutId);
@@ -4307,6 +4331,7 @@ function registrarTodoOCR() {
 
 function hornear() {
   var rec = document.getElementById('horn-receta');
+  if (!rec) { hornearMasivo(); return; }
   var cant = document.getElementById('horn-cant').value || 1;
   if (!rec.value) { toast('Selecciona una receta', true); return; }
 
@@ -4318,6 +4343,99 @@ function hornear() {
   })
   .catch(function(e) {
     toast('Error al hornear. Verifica ingredientes disponibles.', true);
+  });
+}
+
+function renderHorneadoMasivo(recs) {
+  var box = document.getElementById('horn-batch-list');
+  if (!box) return;
+  if (!recs || !recs.length) {
+    box.innerHTML = '<p style="color:var(--mut);font-size:.83rem">No hay recetas activas para hornear.</p>';
+    calcHorneadoMasivo();
+    return;
+  }
+
+  var h = '<table class="tbl batch-bake-table"><colgroup><col class="col-recipe"><col class="col-yield"><col class="col-time"><col class="col-qty"><col class="col-pieces"></colgroup>';
+  h += '<tr><th>Receta / producto</th><th>Rinde</th><th>Horno</th><th>Tandas</th><th>Piezas</th></tr>';
+  for (var i = 0; i < recs.length; i++) {
+    var r = recs[i];
+    var rend = Math.max(1, Math.round(parseFloat(r.rendimiento) || 1));
+    var horno = r.tiempo_horneado_min ? (r.tiempo_horneado_min + 'min/' + (r.temperatura_horneado_c || '?') + '\u00b0C') : '-';
+    h += '<tr>';
+    h += '<td><strong>' + escHtml(r.nombre) + '</strong></td>';
+    h += '<td>' + rend + ' pzas</td>';
+    h += '<td style="color:var(--mut)">' + escHtml(horno) + '</td>';
+    h += '<td><input class="batch-bake-input" id="hb-cant-' + r.id + '" data-rid="' + r.id + '" data-rend="' + rend + '" type="number" min="0" step="1" inputmode="numeric" placeholder="0" oninput="calcHorneadoMasivo()"></td>';
+    h += '<td id="hb-piezas-' + r.id + '" style="font-weight:700;color:var(--v)">0</td>';
+    h += '</tr>';
+  }
+  h += '</table>';
+  box.innerHTML = h;
+  calcHorneadoMasivo();
+}
+
+function calcHorneadoMasivo() {
+  var inputs = document.querySelectorAll('.batch-bake-input');
+  var recetas = 0;
+  var tandas = 0;
+  var piezas = 0;
+  for (var i = 0; i < inputs.length; i++) {
+    var cant = parseInt(inputs[i].value, 10) || 0;
+    if (cant < 0) cant = 0;
+    var rend = parseInt(inputs[i].getAttribute('data-rend'), 10) || 1;
+    var pzas = cant * rend;
+    var pzasEl = document.getElementById('hb-piezas-' + inputs[i].getAttribute('data-rid'));
+    if (pzasEl) pzasEl.textContent = pzas;
+    if (cant > 0) {
+      recetas++;
+      tandas += cant;
+      piezas += pzas;
+    }
+  }
+  var totalEl = document.getElementById('horn-batch-total');
+  if (totalEl) totalEl.textContent = recetas + ' recetas \u2022 ' + tandas + ' tandas \u2022 ' + piezas + ' pzas';
+}
+
+function limpiarHorneadoMasivo() {
+  document.querySelectorAll('.batch-bake-input').forEach(function(input) {
+    input.value = '';
+  });
+  calcHorneadoMasivo();
+}
+
+function mensajeFaltantesHorneado(e) {
+  var faltantes = e && e.detail && e.detail.faltantes ? e.detail.faltantes : [];
+  if (!faltantes.length) return e.message || 'Error al registrar horneado';
+  return 'Faltan ingredientes: ' + faltantes.slice(0, 3).map(function(f) {
+    return f.ingrediente + ' (' + fmt(f.disponible) + '/' + fmt(f.necesario) + ')';
+  }).join(', ') + (faltantes.length > 3 ? '...' : '');
+}
+
+function hornearMasivo() {
+  var inputs = document.querySelectorAll('.batch-bake-input');
+  var items = [];
+  var totalPiezas = 0;
+  for (var i = 0; i < inputs.length; i++) {
+    var cantidad = parseInt(inputs[i].value, 10) || 0;
+    if (cantidad <= 0) continue;
+    var recetaId = parseInt(inputs[i].getAttribute('data-rid'), 10);
+    var rend = parseInt(inputs[i].getAttribute('data-rend'), 10) || 1;
+    items.push({receta_id: recetaId, cantidad: cantidad});
+    totalPiezas += cantidad * rend;
+  }
+  if (!items.length) { toast('Captura al menos una tanda', true); return; }
+  if (!confirm('Registrar ' + items.length + ' recetas y ' + totalPiezas + ' piezas horneadas?')) return;
+
+  api('POST', '/recetas/hornear-masivo', {items: items})
+  .then(function(r) {
+    toast(r.mensaje + ': ' + r.total_piezas + ' pzas');
+    limpiarHorneadoMasivo();
+    cargarProductos();
+    cargarIngredientes();
+    cargarPOSProductos();
+  })
+  .catch(function(e) {
+    toast(mensajeFaltantesHorneado(e), true);
   });
 }
 
@@ -4540,6 +4658,7 @@ function verHistorialPrecio(productoId, nombre) {
 
 // ─── Dynamic inventory loading ───────────────────────────────────
 var _allIngs = []; // Cache for ingredient list (used in recipe edit)
+var _recetasCache = [];
 
 var _invProds = [];
 var _invProdPage = 0;
@@ -4675,15 +4794,20 @@ function renderInvIngredientes() {
 
 function cargarRecetas() {
   api('GET', '/recetas/').then(function(recs) {
+    _recetasCache = recs || [];
+    renderHorneadoMasivo(_recetasCache);
+
     // Hornear dropdown
     var sel = document.getElementById('horn-receta');
-    var opts = '';
-    for (var i = 0; i < recs.length; i++) {
-      var r = recs[i];
-      var rend = r.rendimiento ? ' (rinde ' + Math.round(parseFloat(r.rendimiento)) + ' pzas)' : '';
-      opts += '<option value="' + r.id + '">' + r.nombre + rend + '</option>';
+    if (sel) {
+      var opts = '';
+      for (var i = 0; i < recs.length; i++) {
+        var r = recs[i];
+        var rend = r.rendimiento ? ' (rinde ' + Math.round(parseFloat(r.rendimiento)) + ' pzas)' : '';
+        opts += '<option value="' + r.id + '">' + r.nombre + rend + '</option>';
+      }
+      sel.innerHTML = opts || '<option value="">Sin recetas</option>';
     }
-    sel.innerHTML = opts || '<option value="">Sin recetas</option>';
 
     // Recetas list in hornear tab — build basic table first, then load costs
     var list = document.getElementById('recetas-list');
@@ -4738,7 +4862,10 @@ function cargarRecetas() {
       document.getElementById('sin-receta-list').innerHTML = h;
     }).catch(function(e){ console.warn('Error cargando datos:', e); });
   }).catch(function() {
-    document.getElementById('horn-receta').innerHTML = '<option value="">Error al cargar</option>';
+    var sel = document.getElementById('horn-receta');
+    if (sel) sel.innerHTML = '<option value="">Error al cargar</option>';
+    var batch = document.getElementById('horn-batch-list');
+    if (batch) batch.innerHTML = '<p style="color:#b91c1c;font-size:.83rem">Error al cargar recetas</p>';
   });
 }
 
