@@ -147,6 +147,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .wa-btn:hover{filter:brightness(.96)}
 .quick-pay{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin:-.25rem 0 .55rem}
 .quick-pay .limpiar{margin:0;font-size:.78rem;padding:.45rem .55rem}
+#titems{margin-top:.7rem;max-height:340px;overflow-y:auto;padding-right:.1rem}
 /* Tabla */
 .tbl{width:100%;border-collapse:collapse;font-size:.82rem;table-layout:fixed;word-break:break-word}
 .tbl th{text-align:left;padding:.5rem .5rem;background:linear-gradient(135deg,#faf3f0,#fdf7f5);color:var(--v);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;cursor:pointer;user-select:none;white-space:nowrap}
@@ -555,8 +556,7 @@ h2{font-size:1.1rem}
 </div>
 <button class="limpiar" onclick="confirmarLimpiar()">Limpiar</button>
 <button class="limpiar" onclick="document.querySelector('.pos-prods').scrollIntoView({behavior:'smooth'})" id="pos-btn-prods" style="display:none;margin-top:.3rem">&uarr; Ver productos</button>
-</div>
-<div id="titems" style="margin-top:.7rem"></div>
+<div id="titems"></div>
 <div id="tsum" style="display:none">
 <div class="ti"><span>Subtotal</span><span id="tsub"></span></div>
 <div class="ti"><span>IVA 16%</span><span id="tiva"></span></div>
