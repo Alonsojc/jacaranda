@@ -142,7 +142,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .cobrar:active{transform:translateY(0);box-shadow:0 2px 6px rgba(196,152,138,.25)}
 .limpiar{display:block;width:100%;padding:.5rem;border:none;border-radius:8px;font-size:.82rem;cursor:pointer;margin-top:.4rem;background:#f5eeeb;color:var(--v);transition:all .15s}
 .limpiar:hover{background:#ede3df}
-.quote-actions{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin-top:.4rem}
+.quote-actions{display:grid;grid-template-columns:1fr;gap:.45rem;margin-top:.4rem}
 .wa-btn{display:block;width:100%;padding:.5rem;border:none;border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;background:#25d366;color:#fff;transition:all .15s}
 .wa-btn:hover{filter:brightness(.96)}
 .quick-pay{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin:-.25rem 0 .55rem}
@@ -551,8 +551,7 @@ h2{font-size:1.1rem}
 </div>
 <button class="cobrar" onclick="cobrar()">Cobrar</button>
 <div class="quote-actions">
-<button class="limpiar" style="margin:0" onclick="descargarCotizacionPDF()">Cotizar</button>
-<button class="wa-btn" onclick="enviarCotizacionWhatsApp()">WhatsApp</button>
+<button class="wa-btn" onclick="enviarCotizacionWhatsApp()">Enviar cotizaci&oacute;n por WhatsApp</button>
 </div>
 <button class="limpiar" onclick="confirmarLimpiar()">Limpiar</button>
 <button class="limpiar" onclick="document.querySelector('.pos-prods').scrollIntoView({behavior:'smooth'})" id="pos-btn-prods" style="display:none;margin-top:.3rem">&uarr; Ver productos</button>
