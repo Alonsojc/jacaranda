@@ -2123,6 +2123,7 @@ function escHtml(v) {
   });
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
+var APP_URL = 'https://alonsojc.github.io/jacaranda/';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
@@ -2146,6 +2147,21 @@ function toast(msg, isErr) {
   el.className = 'toast' + (isErr ? ' err' : '');
   setTimeout(function() { el.classList.add('show'); }, 10);
   setTimeout(function() { el.classList.remove('show'); }, 3000);
+}
+
+function esArchivoLocal() {
+  return window.location.protocol === 'file:';
+}
+
+function mensajeArchivoLocal() {
+  return 'Estás abriendo una copia local del archivo. Por seguridad el servidor no acepta conexiones desde file://. Abre la app desde ' + APP_URL;
+}
+
+function mostrarErrorLogin(msg) {
+  var errEl = document.getElementById('login-error');
+  if (!errEl) return;
+  errEl.textContent = msg;
+  errEl.style.display = 'block';
 }
 
 // ─── API helpers ──────────────────────────────────────────────────
@@ -7901,6 +7917,7 @@ function hacerLogin() {
   var email = document.getElementById('login-email').value.trim();
   var pass = document.getElementById('login-pass').value;
   var errEl = document.getElementById('login-error');
+  if (esArchivoLocal()) { mostrarErrorLogin(mensajeArchivoLocal()); return; }
   if (!email || !pass) { errEl.textContent = 'Ingresa email y contraseña'; errEl.style.display = 'block'; return; }
   errEl.style.display = 'none';
   if (!API_URL) { errEl.textContent = 'Servidor no disponible'; errEl.style.display = 'block'; return; }
@@ -8291,6 +8308,14 @@ _sortObserver.observe(document.body, {childList: true, subtree: true});
 var _reconectar = 0;
 
 function autoConectar() {
+  if (esArchivoLocal()) {
+    TOKEN = '';
+    REFRESH_TOKEN = '';
+    setConnected(false);
+    document.getElementById('login-screen').style.display = 'flex';
+    mostrarErrorLogin(mensajeArchivoLocal());
+    return;
+  }
   if (!API_URL) { document.getElementById('login-screen').style.display = 'flex'; return; }
   var savedToken = localStorage.getItem('jacaranda_token');
   var savedRefresh = localStorage.getItem('jacaranda_refresh_token');
