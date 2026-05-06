@@ -2167,6 +2167,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
+var APP_BUILD = 'jacaranda-v41';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
@@ -2218,8 +2219,9 @@ function esSesionExpirada(e) {
 function esErrorTemporal(e) {
   if (!e) return false;
   if (e.name === 'TypeError' || e.name === 'AbortError') return true;
+  if (e.status === 0) return true;
   if (e.status === 502 || e.status === 503 || e.status === 504 || e.status === 429) return true;
-  return /failed to fetch|network|servidor tardó|application failed|demasiadas peticiones/i.test(e.message || '');
+  return /failed to fetch|network|no se pudo conectar|servidor tardó|application failed|demasiadas peticiones/i.test(e.message || '');
 }
 
 // ─── API helpers ──────────────────────────────────────────────────
@@ -9945,8 +9947,16 @@ adaptiveNav();
 
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').then(function(reg) {
+  var _swReloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function() {
+    if (_swReloading) return;
+    _swReloading = true;
+    window.location.reload();
+  });
+  navigator.serviceWorker.register('sw.js?v=' + encodeURIComponent(APP_BUILD), {updateViaCache: 'none'}).then(function(reg) {
     console.log('SW registered', reg.scope);
+    if (reg.waiting) reg.waiting.postMessage({type: 'SKIP_WAITING'});
+    reg.update().catch(function() {});
   }).catch(function(e) { console.log('SW error', e); });
 }
 </script>

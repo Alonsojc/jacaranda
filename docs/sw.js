@@ -1,5 +1,5 @@
 // Jacaranda Service Worker — Offline support + sync queue
-const CACHE_NAME = 'jacaranda-v40';
+const CACHE_NAME = 'jacaranda-v41';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -29,9 +29,27 @@ self.addEventListener('activate', function(event) {
         names.filter(function(n) { return n !== CACHE_NAME; })
              .map(function(n) { return caches.delete(n); })
       );
+    }).then(function() {
+      return self.clients.claim();
+    }).then(function() {
+      return clients.matchAll({type: 'window', includeUncontrolled: true});
+    }).then(function(clientList) {
+      return Promise.all(clientList.map(function(client) {
+        try {
+          var url = new URL(client.url);
+          if (url.origin === self.location.origin && url.pathname.indexOf('/jacaranda/') !== -1) {
+            return client.navigate(client.url);
+          }
+        } catch (e) {}
+      }));
     })
   );
-  self.clients.claim();
+});
+
+self.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // Fetch: network-first for API, cache-first for static
