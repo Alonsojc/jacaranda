@@ -439,8 +439,10 @@ def _crear_pedido_desde_mensaje(
 
     return {
         "tipo": "pedido_creado",
+        "pedido_id": pedido.id,
         "telefono": telefono,
         "pedido_folio": pedido.folio,
+        "fecha_entrega": pedido.fecha_entrega.isoformat() if pedido.fecha_entrega else None,
         "total": str(total),
         "items_no_encontrados": no_encontrados,
     }

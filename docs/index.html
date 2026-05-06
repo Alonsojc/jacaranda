@@ -2494,7 +2494,16 @@ function moduloInicioUsuario(u) {
   return puedeVerModuloUsuario(usuario, 'dash') ? 'dash' : 'pos';
 }
 
+function tabDesdeHash(u) {
+  var tab = (location.hash || '').replace('#', '').trim();
+  if (!tab || !document.getElementById(tab)) return '';
+  if (u && !puedeVerModuloUsuario(u, tab)) return '';
+  return tab;
+}
+
 function pantallaInicialUsuario(u) {
+  var hashTab = tabDesdeHash(u);
+  if (hashTab) return hashTab;
   if (String((u && u.rol) || '').toLowerCase() === 'cajero') {
     return moduloInicioUsuario(u);
   }
@@ -3565,6 +3574,42 @@ function guardarPed() {
 
 var _pedFiltroEstado = '';
 var _pedidosCache = [];
+var _pedidosConocidos = {};
+
+function pedidoActivoParaAlerta(p) {
+  return p && p.estado !== 'entregado' && p.estado !== 'cancelado';
+}
+
+function pedidoKeyAlerta(p) {
+  return String((p && (p.id || p.pedido_id || p.folio)) || '');
+}
+
+function alertarPedidoNuevo(pedido) {
+  var key = pedidoKeyAlerta(pedido);
+  if (key && _pedidosConocidos[key]) return;
+  if (key) _pedidosConocidos[key] = true;
+  var folio = pedido.folio ? ' ' + pedido.folio : (pedido.pedido_id ? ' #' + pedido.pedido_id : '');
+  var cliente = pedido.cliente_nombre || pedido.cliente || 'Cliente';
+  var total = pedido.total ? ' · $' + pedido.total : '';
+  toast('Nuevo pedido' + folio + ' de ' + cliente);
+  playPedidoNotif();
+  enviarNotifLocal(
+    'Nuevo pedido Jacaranda' + folio,
+    cliente + total,
+    { tag: key ? 'pedido-' + key : 'pedido-nuevo', requireInteraction: true, url: './index.html#ped' }
+  );
+}
+
+function registrarPedidosConocidos(pedidos, alertar) {
+  for (var i = 0; i < (pedidos || []).length; i++) {
+    var p = pedidos[i];
+    if (!pedidoActivoParaAlerta(p)) continue;
+    var key = pedidoKeyAlerta(p);
+    if (!key) continue;
+    if (!_pedidosConocidos[key] && alertar) alertarPedidoNuevo(p);
+    else _pedidosConocidos[key] = true;
+  }
+}
 
 function filtroEstadoPed(el, estado) {
   _pedFiltroEstado = estado;
@@ -3578,6 +3623,7 @@ function filtrarPedidos() { renderPedidos(); }
 function cargarPedidos() {
   api('GET', '/pedidos/').then(function(pedidos) {
     _pedidosCache = pedidos;
+    registrarPedidosConocidos(pedidos, false);
     renderPedidos();
     cargarReservasPedidos();
     if (_calPedVisible) renderCalPed();
@@ -3690,6 +3736,30 @@ function playNotif() {
     osc.frequency.value = 800; g.gain.value = 0.15;
     osc.start(); osc.stop(ctx.currentTime + 0.12);
   } catch(e) {}
+}
+
+function playPedidoNotif() {
+  try {
+    if (navigator.vibrate) navigator.vibrate([180, 80, 180]);
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var now = ctx.currentTime;
+    var notes = [880, 1175, 988];
+    for (var i = 0; i < notes.length; i++) {
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = notes[i];
+      gain.gain.setValueAtTime(0.0001, now + i * 0.18);
+      gain.gain.exponentialRampToValueAtTime(0.22, now + i * 0.18 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.18 + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.18);
+      osc.stop(now + i * 0.18 + 0.16);
+    }
+  } catch(e) {
+    playNotif();
+  }
 }
 
 function compartirPedidoWA(pedidoId) {
@@ -3850,10 +3920,28 @@ function solicitarPermisoNotif() {
   });
 }
 
-function enviarNotifLocal(titulo, cuerpo) {
+function enviarNotifLocal(titulo, cuerpo, opciones) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  var opts = opciones || {};
+  var notificationOptions = {
+    body: cuerpo,
+    icon: './favicon.svg',
+    badge: './favicon.svg',
+    tag: opts.tag || 'jacaranda-alerta',
+    renotify: true,
+    requireInteraction: !!opts.requireInteraction,
+    data: { url: opts.url || './index.html' },
+  };
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then(function(reg) {
+      reg.showNotification(titulo, notificationOptions);
+    }).catch(function() {
+      try { new Notification(titulo, notificationOptions); } catch(e) {}
+    });
+    return;
+  }
   try {
-    new Notification(titulo, { body: cuerpo, icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🌸</text></svg>' });
+    new Notification(titulo, notificationOptions);
   } catch(e) {}
 }
 
@@ -6450,14 +6538,16 @@ function iniciarPollPedidos() {
   if (_pedidoPollInterval) return;
   _pedidoPollInterval = setInterval(function() {
     api('GET', '/pedidos/').then(function(peds) {
-      var activos = peds.filter(function(p) { return p.estado !== 'entregado' && p.estado !== 'cancelado'; }).length;
-      if (activos > _pedidoCount && _pedidoCount > 0) {
-        toast('Nuevo pedido recibido');
-        playNotif();
+      registrarPedidosConocidos(peds, true);
+      if (document.getElementById('ped') && document.getElementById('ped').classList.contains('on')) {
+        _pedidosCache = peds;
+        renderPedidos();
+        if (_calPedVisible) renderCalPed();
       }
+      var activos = peds.filter(function(p) { return p.estado !== 'entregado' && p.estado !== 'cancelado'; }).length;
       _pedidoCount = activos;
     }).catch(function(e){ console.warn('Error cargando datos:', e); });
-  }, 30000);
+  }, 10000);
 }
 
 // ─── Reportes ────────────────────────────────────────────────────
@@ -8228,7 +8318,7 @@ function usuarioCacheado() {
 }
 
 function mostrarInicioGuardado(u) {
-  var tab = localStorage.getItem('jacaranda_tab') || (u ? pantallaInicialUsuario(u) : 'dash');
+  var tab = tabDesdeHash(u) || localStorage.getItem('jacaranda_tab') || (u ? pantallaInicialUsuario(u) : 'dash');
   if (u) {
     _currentUser = u;
     _userRole = u.rol || _userRole;
@@ -9374,7 +9464,10 @@ function initWebSocket() {
         var msg = JSON.parse(e.data);
         if (msg.tipo === 'nueva_venta') toast('Nueva venta: ' + (msg.datos.folio||''));
         if (msg.tipo === 'stock_bajo') toast('Stock bajo: ' + (msg.datos.producto||''), true);
-        if (msg.tipo === 'nuevo_pedido') toast('Nuevo pedido #' + (msg.datos.pedido_id||''));
+        if (msg.tipo === 'nuevo_pedido') {
+          alertarPedidoNuevo(msg.datos || {});
+          cargarPedidos();
+        }
         if (msg.tipo === 'alerta') toast(msg.datos.mensaje || 'Alerta');
       } catch(ex) {}
     };

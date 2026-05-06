@@ -1,5 +1,5 @@
 // Jacaranda Service Worker — Offline support + sync queue
-const CACHE_NAME = 'jacaranda-v35';
+const CACHE_NAME = 'jacaranda-v36';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -104,6 +104,23 @@ self.addEventListener('sync', function(event) {
   if (event.tag === 'sync-ventas') {
     event.waitUntil(syncOfflineVentas());
   }
+});
+
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+  var targetUrl = (event.notification.data && event.notification.data.url) || './index.html#ped';
+  event.waitUntil(
+    clients.matchAll({type: 'window', includeUncontrolled: true}).then(function(clientList) {
+      for (var i = 0; i < clientList.length; i++) {
+        var client = clientList[i];
+        if ('focus' in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(targetUrl);
+    })
+  );
 });
 
 // Sync offline sales queue from IndexedDB

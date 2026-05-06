@@ -1,11 +1,12 @@
 """Rutas de pedidos especiales."""
 
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import require_permission
+from app.models.pedido import Pedido
 from app.models.usuario import Usuario
 from app.schemas.pedido import (
     PedidoCreate,
@@ -15,6 +16,7 @@ from app.schemas.pedido import (
     PedidoUpdate,
 )
 from app.services import pedido_service
+from app.services.notificacion_service import notificar_pedido_nuevo
 
 router = APIRouter()
 
@@ -23,14 +25,37 @@ def _status_from_pedido_error(error: ValueError) -> int:
     return 404 if "no encontrado" in str(error).lower() else 400
 
 
+def _payload_notificacion_pedido(pedido: Pedido) -> dict:
+    return {
+        "pedido_id": pedido.id,
+        "folio": pedido.folio,
+        "cliente": pedido.cliente_nombre,
+        "fecha_entrega": pedido.fecha_entrega.isoformat() if pedido.fecha_entrega else None,
+        "total": str(pedido.total) if pedido.total is not None else None,
+        "origen": pedido.origen.value if pedido.origen else None,
+    }
+
+
 @router.post("/", response_model=PedidoResponse)
 def crear_pedido(
     data: PedidoCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_permission("ped", "editar")),
 ):
     try:
-        return pedido_service.crear_pedido(db, data)
+        pedido_preexistente = None
+        if data.idempotency_key:
+            pedido_preexistente = db.query(Pedido).filter(
+                Pedido.idempotency_key == data.idempotency_key
+            ).first()
+        pedido = pedido_service.crear_pedido(db, data)
+        if not pedido_preexistente:
+            background_tasks.add_task(
+                notificar_pedido_nuevo,
+                _payload_notificacion_pedido(pedido),
+            )
+        return pedido
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

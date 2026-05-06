@@ -107,9 +107,11 @@ async def notificar_pedido_nuevo(pedido_data: dict):
         "tipo": "nuevo_pedido",
         "datos": {
             "pedido_id": pedido_data.get("pedido_id"),
+            "folio": pedido_data.get("folio"),
             "cliente": pedido_data.get("cliente"),
             "fecha_entrega": pedido_data.get("fecha_entrega"),
             "total": pedido_data.get("total"),
+            "origen": pedido_data.get("origen"),
         },
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }

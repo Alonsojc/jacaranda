@@ -11,6 +11,7 @@ from app.core.dependencies import require_permission
 from app.models.pedido import Pedido
 from app.models.usuario import Usuario
 from app.services import whatsapp_service as svc
+from app.services.notificacion_service import notificar_pedido_nuevo
 
 router = APIRouter()
 
@@ -48,7 +49,18 @@ async def recibir_webhook(
         )
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="JSON inválido")
-    return svc.procesar_webhook(payload, db)
+    resultado = svc.procesar_webhook(payload, db)
+    for item in resultado.get("results", []):
+        if item.get("tipo") == "pedido_creado":
+            await notificar_pedido_nuevo({
+                "pedido_id": item.get("pedido_id"),
+                "folio": item.get("pedido_folio"),
+                "cliente": item.get("telefono"),
+                "fecha_entrega": item.get("fecha_entrega"),
+                "total": item.get("total"),
+                "origen": "whatsapp",
+            })
+    return resultado
 
 
 @router.get("/catalogo")
