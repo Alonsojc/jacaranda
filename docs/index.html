@@ -330,18 +330,19 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 /* Mobile bottom nav */
 .mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.97);backdrop-filter:blur(10px);border-top:1px solid var(--brd);z-index:60;padding:.3rem 0 env(safe-area-inset-bottom,.3rem);box-shadow:0 -2px 10px rgba(0,0,0,.06)}
 .mobile-nav{justify-content:space-around;align-items:center}
-.mn-item{display:flex;flex-direction:column;align-items:center;text-decoration:none;color:var(--mut);font-size:.65rem;padding:.2rem .5rem;cursor:pointer;transition:color .15s;-webkit-tap-highlight-color:transparent}
+.mn-item{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:56px;min-height:48px;text-decoration:none;color:var(--mut);font-size:.65rem;padding:.2rem .5rem;cursor:pointer;transition:color .15s;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none}
 .mn-item.on{color:var(--v)}
 .mn-icon{font-size:1.2rem;line-height:1.3}
 .mn-label{font-weight:500}
 .mobile-menu{display:none;position:fixed;inset:0;z-index:70}
 .mobile-menu.on{display:block}
-.mm-overlay{position:absolute;inset:0;background:rgba(0,0,0,.3)}
-.mm-sheet{position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:16px 16px 0 0;max-height:70vh;overflow-y:auto;animation:sheetUp .25s ease-out}
+.mm-overlay{position:absolute;inset:0;background:rgba(0,0,0,.3);touch-action:manipulation}
+.mm-sheet{position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:16px 16px 0 0;max-height:70vh;overflow-y:auto;overscroll-behavior:contain;animation:sheetUp .25s ease-out}
 @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
 .mm-items{padding:.5rem 0}
-.mm-link{display:block;padding:.7rem 1.2rem;font-size:.88rem;color:var(--dk);text-decoration:none;cursor:pointer;transition:background .15s}
+.mm-link{display:flex;align-items:center;min-height:52px;padding:.7rem 1.2rem;font-size:.88rem;color:var(--dk);text-decoration:none;cursor:pointer;transition:background .15s;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none}
 .mm-link:hover,.mm-link:active{background:#faf3f0}
+body.mobile-menu-open{overflow:hidden}
 @media(max-width:768px){
 .mobile-nav{display:flex}
 nav .nav-links a[data-pg]{display:none!important}
@@ -1670,36 +1671,36 @@ h2{font-size:1.1rem}
 <a onclick="go('pos')" data-pg="pos" class="mn-item"><span class="mn-icon">&#128179;</span><span class="mn-label">Venta</span></a>
 <a onclick="go('ped')" data-pg="ped" class="mn-item"><span class="mn-icon">&#128203;</span><span class="mn-label">Pedidos</span></a>
 <a onclick="go('inv')" data-pg="inv" class="mn-item"><span class="mn-icon">&#128230;</span><span class="mn-label">Inventario</span></a>
-<a onclick="toggleMobileMenu()" class="mn-item"><span class="mn-icon">&#9776;</span><span class="mn-label">M&aacute;s</span></a>
+<a onclick="abrirMobileMenu(event);return false" class="mn-item"><span class="mn-icon">&#9776;</span><span class="mn-label">M&aacute;s</span></a>
 </div>
 <div class="mobile-menu" id="mobile-menu">
-<div class="mm-overlay" onclick="toggleMobileMenu()"></div>
-<div class="mm-sheet">
+<div class="mm-overlay" onclick="cerrarMobileMenu(event);return false"></div>
+<div class="mm-sheet" onclick="detenerEvento(event)" ontouchstart="event.stopPropagation()">
 <div style="padding:.8rem 1rem;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;align-items:center">
 <strong style="font-size:.9rem;color:var(--dk)">M&aacute;s opciones</strong>
-<a onclick="toggleMobileMenu()" style="cursor:pointer;font-size:1.2rem;color:var(--mut)">&times;</a>
+<a onclick="cerrarMobileMenu(event);return false" style="cursor:pointer;font-size:1.2rem;color:var(--mut)">&times;</a>
 </div>
 <div class="mm-items">
-<a onclick="go('corte');toggleMobileMenu()" class="mm-link">&#128200; Corte de caja</a>
-<a onclick="go('prod');toggleMobileMenu()" class="mm-link">&#127838; Producci&oacute;n</a>
-<a onclick="go('rep');toggleMobileMenu()" class="mm-link">&#128202; Reportes</a>
-<a onclick="go('conta');toggleMobileMenu()" class="mm-link">&#128209; Contabilidad</a>
-<a onclick="go('iapg');toggleMobileMenu()" class="mm-link">&#129302; IA Pron&oacute;sticos</a>
-<a onclick="go('listas');toggleMobileMenu()" class="mm-link">&#128221; Listas</a>
-<a onclick="go('cofepris');toggleMobileMenu()" class="mm-link">&#9879; COFEPRIS</a>
-<a onclick="go('merma');toggleMobileMenu()" class="mm-link">&#128465; Merma</a>
-<a onclick="go('calidad');toggleMobileMenu()" class="mm-link">&#9989; Calidad</a>
-<a onclick="go('crm');toggleMobileMenu()" class="mm-link">&#128200; CRM</a>
-<a onclick="go('kpis');toggleMobileMenu()" class="mm-link">&#128202; KPIs</a>
-<a onclick="go('fiscal');toggleMobileMenu()" class="mm-link">&#128176; Fiscal</a>
-<a onclick="go('papelera');toggleMobileMenu()" class="mm-link">&#9851; Papelera</a>
-<a onclick="go('auditoria');toggleMobileMenu()" class="mm-link">&#128274; Auditor&iacute;a</a>
-<a onclick="go('backup');toggleMobileMenu()" class="mm-link">&#128190; Respaldos</a>
-<a onclick="go('ejecutivo');toggleMobileMenu()" class="mm-link">&#128188; Ejecutivo</a>
-<a onclick="go('deliveryp');toggleMobileMenu()" class="mm-link">&#128666; Delivery</a>
-<a onclick="go('usuarios');toggleMobileMenu()" class="mm-link">&#128101; Usuarios</a>
-<a onclick="toggleNotifPanel();toggleMobileMenu()" class="mm-link">&#128276; Notificaciones</a>
-<a onclick="confirmarCerrarSesion();toggleMobileMenu()" class="mm-link" style="color:#b91c1c">&#9211; Cerrar sesi&oacute;n</a>
+<a onclick="navegarMobile('corte', event);return false" class="mm-link">&#128200; Corte de caja</a>
+<a onclick="navegarMobile('prod', event);return false" class="mm-link">&#127838; Producci&oacute;n</a>
+<a onclick="navegarMobile('rep', event);return false" class="mm-link">&#128202; Reportes</a>
+<a onclick="navegarMobile('conta', event);return false" class="mm-link">&#128209; Contabilidad</a>
+<a onclick="navegarMobile('iapg', event);return false" class="mm-link">&#129302; IA Pron&oacute;sticos</a>
+<a onclick="navegarMobile('listas', event);return false" class="mm-link">&#128221; Listas</a>
+<a onclick="navegarMobile('cofepris', event);return false" class="mm-link">&#9879; COFEPRIS</a>
+<a onclick="navegarMobile('merma', event);return false" class="mm-link">&#128465; Merma</a>
+<a onclick="navegarMobile('calidad', event);return false" class="mm-link">&#9989; Calidad</a>
+<a onclick="navegarMobile('crm', event);return false" class="mm-link">&#128200; CRM</a>
+<a onclick="navegarMobile('kpis', event);return false" class="mm-link">&#128202; KPIs</a>
+<a onclick="navegarMobile('fiscal', event);return false" class="mm-link">&#128176; Fiscal</a>
+<a onclick="navegarMobile('papelera', event);return false" class="mm-link">&#9851; Papelera</a>
+<a onclick="navegarMobile('auditoria', event);return false" class="mm-link">&#128274; Auditor&iacute;a</a>
+<a onclick="navegarMobile('backup', event);return false" class="mm-link">&#128190; Respaldos</a>
+<a onclick="navegarMobile('ejecutivo', event);return false" class="mm-link">&#128188; Ejecutivo</a>
+<a onclick="navegarMobile('deliveryp', event);return false" class="mm-link">&#128666; Delivery</a>
+<a onclick="navegarMobile('usuarios', event);return false" class="mm-link">&#128101; Usuarios</a>
+<a onclick="accionMobile(function(){toggleNotifPanel();}, event);return false" class="mm-link">&#128276; Notificaciones</a>
+<a onclick="accionMobile(function(){confirmarCerrarSesion();}, event);return false" class="mm-link" style="color:#b91c1c">&#9211; Cerrar sesi&oacute;n</a>
 </div>
 </div>
 </div>
@@ -2202,7 +2203,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v48';
+var APP_BUILD = 'jacaranda-v49';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
@@ -9062,9 +9063,57 @@ function guardarMovBanco() {
 }
 
 // ─── Mobile menu ──────────────────────────────────────────────────
-function toggleMobileMenu() {
+var mobileMenuOpenedAt = 0;
+
+function detenerEvento(e) {
+  if (!e) { return; }
+  if (e.preventDefault) { e.preventDefault(); }
+  if (e.stopPropagation) { e.stopPropagation(); }
+}
+
+function abrirMobileMenu(e) {
+  detenerEvento(e);
   var menu = document.getElementById('mobile-menu');
-  menu.classList.toggle('on');
+  if (!menu) { return; }
+  mobileMenuOpenedAt = Date.now();
+  menu.classList.add('on');
+  document.body.classList.add('mobile-menu-open');
+}
+
+function cerrarMobileMenu(e) {
+  detenerEvento(e);
+  var menu = document.getElementById('mobile-menu');
+  if (!menu) { return; }
+  menu.classList.remove('on');
+  document.body.classList.remove('mobile-menu-open');
+}
+
+function toggleMobileMenu(e) {
+  detenerEvento(e);
+  var menu = document.getElementById('mobile-menu');
+  if (!menu) { return; }
+  if (menu.classList.contains('on')) {
+    cerrarMobileMenu();
+  } else {
+    abrirMobileMenu();
+  }
+}
+
+function mobileMenuPuedeTocar(e) {
+  detenerEvento(e);
+  return Date.now() - mobileMenuOpenedAt > 350;
+}
+
+function navegarMobile(pg, e) {
+  if (!mobileMenuPuedeTocar(e)) { return; }
+  cerrarMobileMenu();
+  go(pg);
+}
+
+function accionMobile(fn, e) {
+  if (!mobileMenuPuedeTocar(e)) { return; }
+  cerrarMobileMenu();
+  setTimeout(fn, 0);
 }
 
 // ─── PDF Downloads ────────────────────────────────────────────────
