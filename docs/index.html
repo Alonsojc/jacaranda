@@ -2174,6 +2174,7 @@ var _pedidoEnProceso = false, _pedidoIdempotencyKey = null;
 var _recepcionesCompraEnProceso = {};
 var _offline = false;
 var _ventasPendientes = JSON.parse(localStorage.getItem('jacaranda_ventas_pendientes') || '[]');
+var _pedidosPendientes = JSON.parse(localStorage.getItem('jacaranda_pedidos_pendientes') || '[]');
 
 function nuevaClaveIdempotencia(prefix) {
   if (window.JacarandaCore && JacarandaCore.nuevaClaveIdempotencia) {
@@ -2312,6 +2313,12 @@ function api(method, path, body, _retry, extraHeaders) {
   }).catch(function(e) {
     if (timeoutId) clearTimeout(timeoutId);
     if (e && e.name === 'AbortError') throw new Error('El servidor tardó demasiado en responder');
+    if (e && (e.name === 'TypeError' || /failed to fetch/i.test(e.message || ''))) {
+      var netErr = new Error('No se pudo conectar al servidor');
+      netErr.status = 0;
+      netErr.original = e;
+      throw netErr;
+    }
     throw e;
   });
   if (dedupeKey) {
@@ -3235,6 +3242,9 @@ window.addEventListener('online', function() {
     toast('Conexi\u00f3n restaurada. Sincronizando...');
     setTimeout(sincronizarVentas, 1000);
   }
+  if (_pedidosPendientes.length > 0) {
+    setTimeout(function() { sincronizarPedidosPendientes(false); }, 1200);
+  }
 });
 window.addEventListener('offline', function() {
   _offline = true;
@@ -3641,6 +3651,9 @@ function mensajeErrorPedido(e) {
       ? 'No se pudo conectar al servidor. El pedido no se guardó.'
       : e;
   }
+  if (esErrorTemporal(e)) {
+    return 'Servidor temporalmente no disponible. El pedido puede guardarse pendiente y se sincronizará al reconectar.';
+  }
   var detalle = e && (e.detail || (e.body && e.body.detail));
   if (Array.isArray(detalle) && detalle.length) {
     return detalle.map(function(d) {
@@ -3661,6 +3674,84 @@ function mensajeErrorPedido(e) {
   }
   if (e && e.message && e.message !== '422') return e.message;
   return 'No se pudo guardar el pedido. Revisa fecha, productos y conexión.';
+}
+
+function esperar(ms) {
+  return new Promise(function(resolve) { setTimeout(resolve, ms); });
+}
+
+function crearPedidoServidor(pedido) {
+  return api('POST', '/pedidos/', pedido).catch(function(e) {
+    if (!esErrorTemporal(e)) throw e;
+    return esperar(1200).then(function() {
+      return api('POST', '/pedidos/', pedido);
+    });
+  });
+}
+
+function guardarPedidosPendientes() {
+  localStorage.setItem('jacaranda_pedidos_pendientes', JSON.stringify(_pedidosPendientes));
+}
+
+function guardarPedidoPendiente(pedido) {
+  var key = pedido.idempotency_key || nuevaClaveIdempotencia('pedido');
+  pedido.idempotency_key = key;
+  for (var i = 0; i < _pedidosPendientes.length; i++) {
+    if (_pedidosPendientes[i].payload && _pedidosPendientes[i].payload.idempotency_key === key) return;
+  }
+  _pedidosPendientes.push({id: key, creado_en: new Date().toISOString(), payload: pedido});
+  guardarPedidosPendientes();
+}
+
+function pedidosPendientesComoCache() {
+  return _pedidosPendientes.map(function(item, idx) {
+    var p = item.payload || {};
+    return {
+      id: 'local-' + idx,
+      folio: 'Pendiente',
+      local_pendiente: true,
+      cliente_nombre: p.cliente_nombre,
+      cliente_telefono: p.cliente_telefono,
+      fecha_entrega: p.fecha_entrega,
+      hora_entrega: p.hora_entrega,
+      lugar_entrega: p.lugar_entrega,
+      estado: 'recibido',
+      origen: p.origen || 'whatsapp',
+      anticipo: p.anticipo || 0,
+      total: p.anticipo || 0,
+      detalles: p.detalles || [],
+      creado_en: item.creado_en
+    };
+  });
+}
+
+function pedidosVisibles() {
+  return (_pedidosCache || []).concat(pedidosPendientesComoCache());
+}
+
+function sincronizarPedidosPendientes(silencioso) {
+  if (!_pedidosPendientes.length || !TOKEN) return Promise.resolve();
+  var pending = _pedidosPendientes.slice();
+  var restantes = [];
+  var ok = 0;
+  var chain = Promise.resolve();
+  pending.forEach(function(item) {
+    chain = chain.then(function() {
+      return api('POST', '/pedidos/', item.payload).then(function() {
+        ok++;
+      }).catch(function() {
+        restantes.push(item);
+      });
+    });
+  });
+  return chain.then(function() {
+    _pedidosPendientes = restantes;
+    guardarPedidosPendientes();
+    if (ok && !silencioso) toast(ok + ' pedido(s) sincronizado(s)');
+    renderPedidos();
+    if (_calPedVisible) renderCalPed();
+    if (ok) cargarPedidos();
+  });
 }
 
 function guardarPed() {
@@ -3716,7 +3807,7 @@ function guardarPed() {
     detalles: detallesPedidoDesdeTexto(productosTxt)
   };
 
-  api('POST', '/pedidos/', pedido).then(function(p) {
+  crearPedidoServidor(pedido).then(function(p) {
     toast('Pedido ' + p.folio + ' guardado para ' + nom);
     document.getElementById('modal-ped').classList.remove('on');
     _pedidoEnProceso = false;
@@ -3725,6 +3816,18 @@ function guardarPed() {
     limpiarNuevoPedido();
     cargarPedidos();
   }).catch(function(e) {
+    if (esErrorTemporal(e)) {
+      guardarPedidoPendiente(pedido);
+      document.getElementById('modal-ped').classList.remove('on');
+      _pedidoEnProceso = false;
+      setPedidoGuardando(false);
+      _pedidoIdempotencyKey = null;
+      limpiarNuevoPedido();
+      renderPedidos();
+      if (_calPedVisible) renderCalPed();
+      toast('Pedido guardado pendiente de sincronizar para ' + nom, true);
+      return;
+    }
     var msg = mensajeErrorPedido(e);
     mostrarErrorPedido(msg);
     toast(msg, true);
@@ -3785,18 +3888,25 @@ function cargarPedidos() {
   api('GET', '/pedidos/').then(function(pedidos) {
     _pedidosCache = pedidos;
     registrarPedidosConocidos(pedidos, false);
+    if (_pedidosPendientes.length) sincronizarPedidosPendientes(true);
     renderPedidos();
     cargarReservasPedidos();
     if (_calPedVisible) renderCalPed();
     // Update badge
     var pendientes = 0;
-    for (var i = 0; i < pedidos.length; i++) {
-      if (pedidos[i].estado !== 'entregado' && pedidos[i].estado !== 'cancelado') pendientes++;
+    var visibles = pedidosVisibles();
+    for (var i = 0; i < visibles.length; i++) {
+      if (visibles[i].estado !== 'entregado' && visibles[i].estado !== 'cancelado') pendientes++;
     }
     var badge = document.getElementById('ped-badge');
     if (pendientes > 0) { badge.textContent = pendientes; badge.style.display = 'inline-block'; }
     else { badge.style.display = 'none'; }
-  }).catch(function() { /* modo offline */ });
+  }).catch(function() {
+    if (_pedidosPendientes.length) {
+      renderPedidos();
+      if (_calPedVisible) renderCalPed();
+    }
+  });
 }
 
 function cargarReservasPedidos() {
@@ -3822,7 +3932,7 @@ function cargarReservasPedidos() {
 }
 
 function renderPedidos() {
-  var pedidos = _pedidosCache;
+  var pedidos = pedidosVisibles();
   var buscar = (document.getElementById('ped-buscar').value || '').toLowerCase().trim();
   var estadoClase = {recibido:'bpend',confirmado:'bconf',en_preparacion:'bprep',listo:'blist',entregado:'bok',cancelado:'bout'};
   var estadoNombre = {recibido:'Recibido',confirmado:'Confirmado',en_preparacion:'Preparando',listo:'Listo',entregado:'Entregado',cancelado:'Cancelado'};
@@ -3849,8 +3959,8 @@ function renderPedidos() {
       if (fe.toDateString() === manana.toDateString()) man++;
       if (fe <= finSem) sem++;
     }
-    var cls = estadoClase[p.estado] || 'bpend';
-    var nom = estadoNombre[p.estado] || p.estado;
+    var cls = p.local_pendiente ? 'blow' : (estadoClase[p.estado] || 'bpend');
+    var nom = p.local_pendiente ? 'Pendiente de sincronizar' : (estadoNombre[p.estado] || p.estado);
     var det = (p.detalles || []).map(function(d) { return (d.cantidad||1) + 'x ' + d.descripcion; }).join(', ');
     var fechaTxt = fe ? fe.toLocaleDateString('es-MX',{day:'numeric',month:'short'}) : '';
     h += '<div class="ped"><div class="ph"><span class="pf">' + (p.folio||'') + (fechaTxt ? ' &bull; ' + fechaTxt : '') + '</span>';
@@ -3861,13 +3971,14 @@ function renderPedidos() {
     if (p.hora_entrega) h += ' &bull; ' + p.hora_entrega;
     h += '</div>';
     if (det) h += '<div class="pi2">' + det + '</div>';
+    if (p.local_pendiente) h += '<div class="pd" style="color:#92400e;font-weight:600">Guardado en este dispositivo. Se subirá cuando vuelva el servidor.</div>';
     h += '<div class="pd" style="display:flex;justify-content:space-between;align-items:center">';
     h += '<span>' + (p.origen||'') + (p.anticipo ? ' &bull; Anticipo $' + p.anticipo : '') + (p.total ? ' &bull; Total $' + p.total : '') + '</span>';
     h += '<span style="display:flex;gap:.3rem">';
-    if (p.cliente_telefono) {
+    if (!p.local_pendiente && p.cliente_telefono) {
       h += '<button onclick="compartirPedidoWA(' + p.id + ')" style="padding:.25rem .5rem;border:1px solid #25d366;border-radius:6px;background:#fff;color:#25d366;font-size:.75rem;cursor:pointer" title="Enviar por WhatsApp">&#128172; WA</button>';
     }
-    if (siguiente[p.estado]) {
+    if (!p.local_pendiente && siguiente[p.estado]) {
       h += '<button onclick="avanzarPedido(' + p.id + ',\'' + siguiente[p.estado] + '\')" style="padding:.25rem .6rem;border:1px solid var(--v);border-radius:6px;background:#fff;color:var(--v);font-size:.75rem;font-weight:600;cursor:pointer">' + sigNombre[p.estado] + ' &rarr;</button>';
     }
     h += '</span>';
@@ -3972,7 +4083,7 @@ function toggleCalPed() {
 }
 
 function renderCalPed() {
-  var pedidos = _pedidosCache;
+  var pedidos = pedidosVisibles();
   var hoy = new Date(); hoy.setHours(0,0,0,0);
   var dias = [];
   for (var d = 0; d < 7; d++) {
@@ -4013,8 +4124,8 @@ function renderCalPed() {
     } else {
       for (var j = 0; j < lista.length; j++) {
         var p = lista[j];
-        var cls = estadoClase[p.estado] || 'bpend';
-        var nom = estadoNombre[p.estado] || p.estado;
+        var cls = p.local_pendiente ? 'blow' : (estadoClase[p.estado] || 'bpend');
+        var nom = p.local_pendiente ? 'Pendiente' : (estadoNombre[p.estado] || p.estado);
         var det = (p.detalles || []).slice(0,2).map(function(d) { return (d.cantidad||1) + 'x ' + d.descripcion; }).join(', ');
         if ((p.detalles||[]).length > 2) det += '…';
         h += '<div style="background:var(--bg2);border-radius:6px;padding:.35rem .4rem;margin-bottom:.3rem;border-left:3px solid var(--v)">';
@@ -8604,6 +8715,7 @@ function aplicarPostLogin(u) {
     iniciarPollPedidos();
     if (tab !== 'ped') deferDashboard(function() { if (TOKEN) cargarPedidos(); }, 2500);
     if (_ventasPendientes.length) sincronizarVentas();
+    if (_pedidosPendientes.length) deferDashboard(function() { sincronizarPedidosPendientes(false); }, 1800);
     // Notifications
     document.getElementById('btn-notif').style.display = '';
     deferDashboard(function() { if (TOKEN) cargarNotificaciones(); }, 3000);
