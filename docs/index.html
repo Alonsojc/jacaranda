@@ -194,6 +194,23 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .ped .pc{font-size:.83rem;color:var(--dk)}
 .ped .pd{font-size:.78rem;color:var(--mut);margin-top:.3rem}
 .ped .pi2{font-size:.82rem;margin-top:.3rem}
+.pedido-product-picker{display:grid;grid-template-columns:minmax(0,1fr) 72px 100px;gap:.4rem;align-items:center}
+.pedido-product-picker select,.pedido-product-picker input{min-height:44px}
+.pedido-add-btn{min-height:44px;border:1px solid var(--v);border-radius:8px;background:#fff;color:var(--v);font:700 .82rem 'Inter',sans-serif;cursor:pointer;transition:background .15s,border-color .15s,transform .1s}
+.pedido-add-btn:hover{background:#faf3f0}
+.pedido-add-btn:active{transform:scale(.98)}
+.pedido-product-list{margin-top:.45rem;border:1px solid var(--brd);border-radius:10px;overflow:hidden;background:#fff}
+.pedido-product-list:empty{display:none}
+.pedido-product-row{display:grid;grid-template-columns:44px 44px minmax(0,1fr) auto 44px;gap:.25rem;align-items:center;padding:.45rem .5rem;border-bottom:1px solid #f0e8e5}
+.pedido-product-row:last-child{border-bottom:none}
+.pedido-product-row .ppr-name{font-size:.83rem;font-weight:600;color:var(--dk);line-height:1.2}
+.pedido-product-row .ppr-note{font-size:.72rem;color:var(--mut);margin-top:.1rem;line-height:1.2}
+.pedido-product-row .ppr-price{font-size:.82rem;font-weight:700;color:var(--v);white-space:nowrap}
+.pedido-product-row button{min-width:38px;min-height:38px;border:1px solid var(--brd);border-radius:8px;background:#fff;color:var(--v);font-weight:800;cursor:pointer}
+.pedido-product-row button:hover{background:#faf3f0;border-color:var(--v)}
+.pedido-product-row button.ppr-remove{color:#b91c1c;border-color:#fecaca}
+.pedido-product-empty{font-size:.8rem;color:var(--mut);padding:.5rem .65rem;background:#fdf9f7}
+@media(max-width:560px){.pedido-product-picker{grid-template-columns:1fr 70px}.pedido-add-btn{grid-column:1/-1}.pedido-product-row{grid-template-columns:38px 38px minmax(0,1fr) 38px}.pedido-product-row .ppr-price{grid-column:3/4;font-size:.76rem}.pedido-product-row button{min-width:36px;min-height:36px}}
 .modal-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:100;justify-content:center;align-items:center;padding:1rem}
 .modal-bg.on{display:flex}
 .modal{background:#fff;border-radius:16px;padding:1.5rem 1.5rem 2rem;width:90%;max-width:500px;max-height:calc(100vh - 6rem);overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:modalIn .25s ease-out}
@@ -1892,16 +1909,28 @@ h2{font-size:1.1rem}
 <div class="modal-bg" id="modal-ped">
 <div class="modal">
 <h3>Nuevo Pedido</h3>
+<datalist id="np-clientes-list"></datalist>
+<datalist id="np-telefonos-list"></datalist>
 <div class="frow">
-<div class="fg"><label>Nombre del cliente</label><input id="np-nom" placeholder="Jimena"></div>
-<div class="fg"><label>Tel&eacute;fono</label><input id="np-tel" placeholder="442 467 0397"></div>
+<div class="fg"><label>Nombre del cliente</label><input id="np-nom" list="np-clientes-list" placeholder="Jimena" oninput="autollenarContactoPedido('nombre')"></div>
+<div class="fg"><label>Tel&eacute;fono</label><input id="np-tel" list="np-telefonos-list" placeholder="442 467 0397" inputmode="tel" oninput="autollenarContactoPedido('telefono')"></div>
 </div>
 <div class="frow">
 <div class="fg"><label>Fecha de entrega</label><input type="date" id="np-fecha"></div>
-<div class="fg"><label>Hora</label><input id="np-hora" placeholder="14:00"></div>
+<div class="fg"><label>Hora</label><select id="np-hora"><option value="">Sin hora</option></select></div>
 </div>
 <div class="fg"><label>Lugar de entrega</label><input id="np-lugar" placeholder="Hotel La Grande / Recoger en tienda"></div>
-<div class="fg"><label>Productos</label><textarea id="np-prod" placeholder="1x Pastel Nutella 1.5kg con letrero&#10;2x Brownies"></textarea></div>
+<div class="fg">
+<label>Productos</label>
+<div class="pedido-product-picker">
+<select id="np-prod-select"><option value="">Cargando productos...</option></select>
+<input type="number" id="np-prod-cant" min="1" step="1" value="1" aria-label="Cantidad">
+<button type="button" class="pedido-add-btn" onclick="agregarProductoPedido()">Agregar</button>
+</div>
+<input id="np-prod-nota" placeholder="Nota del producto: sin fresas, con letrero..." style="margin-top:.35rem">
+<div id="np-prod-list" class="pedido-product-list"></div>
+<textarea id="np-prod" style="display:none"></textarea>
+</div>
 <div class="frow">
 <div class="fg"><label>Anticipo</label><input type="number" id="np-ant" placeholder="0"></div>
 <div class="fg"><label>Origen</label><select><option>WhatsApp</option><option>Tienda</option><option>Instagram</option><option>Tel&eacute;fono</option></select></div>
@@ -2167,7 +2196,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v42';
+var APP_BUILD = 'jacaranda-v43';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
@@ -2176,6 +2205,10 @@ var _recepcionesCompraEnProceso = {};
 var _offline = false;
 var _ventasPendientes = JSON.parse(localStorage.getItem('jacaranda_ventas_pendientes') || '[]');
 var _pedidosPendientes = JSON.parse(localStorage.getItem('jacaranda_pedidos_pendientes') || '[]');
+var _pedidoContactos = JSON.parse(localStorage.getItem('jacaranda_pedido_contactos') || '[]');
+var _pedidoCatalogo = [];
+var _pedidoItems = [];
+var _pedidoDatosCargados = false;
 
 function nuevaClaveIdempotencia(prefix) {
   if (window.JacarandaCore && JacarandaCore.nuevaClaveIdempotencia) {
@@ -2555,6 +2588,7 @@ function reportarErrorPagina(p, err) {
 function cargarPagina(p) {
   if (p === 'ped') {
     setCalPedVisible(true);
+    prepararDatosNuevoPedido();
     return cargarPedidos();
   }
   if (p === 'dash') return cargarDashboard();
@@ -3584,11 +3618,273 @@ function fechaLocalDesdeISO(value) {
   return new Date(value);
 }
 
+function llenarHorasPedido() {
+  var sel = document.getElementById('np-hora');
+  if (!sel || sel.options.length > 1) return;
+  var h = '<option value="">Sin hora</option>';
+  for (var mins = 0; mins < 24 * 60; mins += 30) {
+    var hh = String(Math.floor(mins / 60)).padStart(2, '0');
+    var mm = String(mins % 60).padStart(2, '0');
+    var val = hh + ':' + mm;
+    h += '<option value="' + val + '">' + val + '</option>';
+  }
+  sel.innerHTML = h;
+}
+
+function telefonoSoloDigitos(v) {
+  return String(v || '').replace(/\D/g, '');
+}
+
+function contactoKeyPedido(c) {
+  var tel = telefonoSoloDigitos(c && c.telefono);
+  if (tel) return 'tel:' + tel;
+  return 'nom:' + String((c && c.nombre) || '').trim().toLowerCase();
+}
+
+function ordenarContactosPedido(contactos) {
+  return contactos.sort(function(a, b) {
+    return String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es');
+  });
+}
+
+function guardarContactosPedidoLocal() {
+  try {
+    localStorage.setItem('jacaranda_pedido_contactos', JSON.stringify(_pedidoContactos.slice(0, 250)));
+  } catch(e) {}
+}
+
+function mezclarContactosPedido(contactos) {
+  var porKey = {};
+  for (var i = 0; i < _pedidoContactos.length; i++) {
+    var old = _pedidoContactos[i];
+    if (old && old.nombre) porKey[contactoKeyPedido(old)] = old;
+  }
+  for (var j = 0; j < (contactos || []).length; j++) {
+    var c = contactos[j] || {};
+    var nombre = String(c.nombre || '').trim();
+    if (!nombre) continue;
+    var item = {
+      nombre: nombre,
+      telefono: String(c.telefono || '').trim(),
+      cliente_id: c.id || c.cliente_id || null,
+      actualizado_en: c.actualizado_en || c.creado_en || new Date().toISOString()
+    };
+    porKey[contactoKeyPedido(item)] = Object.assign({}, porKey[contactoKeyPedido(item)] || {}, item);
+  }
+  _pedidoContactos = ordenarContactosPedido(Object.keys(porKey).map(function(k) { return porKey[k]; }));
+  renderContactosPedido();
+  guardarContactosPedidoLocal();
+}
+
+function guardarContactoPedido(nombre, telefono) {
+  nombre = String(nombre || '').trim();
+  telefono = String(telefono || '').trim();
+  if (!nombre && !telefono) return;
+  mezclarContactosPedido([{nombre: nombre || telefono, telefono: telefono}]);
+}
+
+function renderContactosPedido() {
+  var dlNom = document.getElementById('np-clientes-list');
+  var dlTel = document.getElementById('np-telefonos-list');
+  if (!dlNom || !dlTel) return;
+  var nom = '', tel = '';
+  for (var i = 0; i < _pedidoContactos.length; i++) {
+    var c = _pedidoContactos[i];
+    if (!c || !c.nombre) continue;
+    nom += '<option value="' + escHtml(c.nombre) + '"' + (c.telefono ? ' label="' + escHtml(c.telefono) + '"' : '') + '></option>';
+    if (c.telefono) tel += '<option value="' + escHtml(c.telefono) + '" label="' + escHtml(c.nombre) + '"></option>';
+  }
+  dlNom.innerHTML = nom;
+  dlTel.innerHTML = tel;
+}
+
+function autollenarContactoPedido(tipo) {
+  var nomEl = document.getElementById('np-nom');
+  var telEl = document.getElementById('np-tel');
+  if (!nomEl || !telEl) return;
+  var nom = nomEl.value.trim().toLowerCase();
+  var tel = telefonoSoloDigitos(telEl.value);
+  for (var i = 0; i < _pedidoContactos.length; i++) {
+    var c = _pedidoContactos[i];
+    if (!c) continue;
+    if (tipo === 'nombre' && nom && String(c.nombre || '').trim().toLowerCase() === nom) {
+      if (c.telefono && !telEl.value.trim()) telEl.value = c.telefono;
+      return;
+    }
+    if (tipo === 'telefono' && tel && telefonoSoloDigitos(c.telefono) === tel) {
+      if (c.nombre && !nomEl.value.trim()) nomEl.value = c.nombre;
+      return;
+    }
+  }
+}
+
+function cargarContactosPedido() {
+  renderContactosPedido();
+  return api('GET', '/clientes/?limit=500').then(function(clientes) {
+    mezclarContactosPedido(clientes || []);
+  }).catch(function() {});
+}
+
+function productoPedidoLabel(p) {
+  var precio = fmt(p.precio_unitario || 0);
+  var stock = parseFloat(p.stock_actual);
+  var stockTxt = isNaN(stock) ? '' : ' · ' + Math.round(stock) + ' pzas';
+  return p.nombre + ' · $' + precio + stockTxt;
+}
+
+function renderCatalogoPedido() {
+  var sel = document.getElementById('np-prod-select');
+  if (!sel) return;
+  var activos = (_pedidoCatalogo || []).filter(function(p) { return p && p.activo !== false; });
+  activos.sort(function(a, b) { return String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'); });
+  if (!activos.length) {
+    sel.innerHTML = '<option value="">Sin productos disponibles</option>';
+    sel.disabled = true;
+    return;
+  }
+  var h = '<option value="">Selecciona producto...</option>';
+  for (var i = 0; i < activos.length; i++) {
+    var p = activos[i];
+    h += '<option value="' + p.id + '">' + escHtml(productoPedidoLabel(p)) + '</option>';
+  }
+  sel.innerHTML = h;
+  sel.disabled = false;
+}
+
+function cargarCatalogoPedido() {
+  var cached = localStorage.getItem('jacaranda_prods_cache');
+  if (cached && !_pedidoCatalogo.length) {
+    try {
+      _pedidoCatalogo = JSON.parse(cached) || [];
+      renderCatalogoPedido();
+    } catch(e) {}
+  }
+  return api('GET', '/inventario/productos').then(function(prods) {
+    _pedidoCatalogo = prods || [];
+    localStorage.setItem('jacaranda_prods_cache', JSON.stringify(_pedidoCatalogo));
+    renderCatalogoPedido();
+  }).catch(function() {
+    renderCatalogoPedido();
+  });
+}
+
+function prepararDatosNuevoPedido() {
+  llenarHorasPedido();
+  renderContactosPedido();
+  renderCatalogoPedido();
+  if (_pedidoDatosCargados) return Promise.resolve();
+  _pedidoDatosCargados = true;
+  return Promise.all([cargarContactosPedido(), cargarCatalogoPedido()]).catch(function() {});
+}
+
+function productoCatalogoPorId(id) {
+  id = String(id || '');
+  for (var i = 0; i < _pedidoCatalogo.length; i++) {
+    if (String(_pedidoCatalogo[i].id) === id) return _pedidoCatalogo[i];
+  }
+  return null;
+}
+
+function renderProductosPedido() {
+  var list = document.getElementById('np-prod-list');
+  var hidden = document.getElementById('np-prod');
+  if (!list) return;
+  if (hidden) {
+    hidden.value = _pedidoItems.map(function(item) {
+      return item.cantidad + 'x ' + item.descripcion + (item.notas ? ' (' + item.notas + ')' : '');
+    }).join('\n');
+  }
+  if (!_pedidoItems.length) {
+    list.innerHTML = '<div class="pedido-product-empty">Todav&iacute;a no hay productos en este pedido.</div>';
+    return;
+  }
+  var h = '';
+  for (var i = 0; i < _pedidoItems.length; i++) {
+    var item = _pedidoItems[i];
+    var subtotal = (parseFloat(item.precio_unitario) || 0) * (parseInt(item.cantidad, 10) || 1);
+    h += '<div class="pedido-product-row">';
+    h += '<button type="button" onclick="cambiarCantidadProductoPedido(' + i + ',-1)" aria-label="Quitar una pieza">-</button>';
+    h += '<button type="button" onclick="cambiarCantidadProductoPedido(' + i + ',1)" aria-label="Agregar una pieza">+</button>';
+    h += '<div><div class="ppr-name">' + escHtml(item.cantidad + 'x ' + item.descripcion) + '</div>';
+    if (item.notas) h += '<div class="ppr-note">' + escHtml(item.notas) + '</div>';
+    h += '</div>';
+    h += '<div class="ppr-price">$' + fmt(subtotal) + '</div>';
+    h += '<button type="button" class="ppr-remove" onclick="quitarProductoPedido(' + i + ')" aria-label="Quitar producto">&times;</button>';
+    h += '</div>';
+  }
+  list.innerHTML = h;
+}
+
+function agregarProductoPedido() {
+  var sel = document.getElementById('np-prod-select');
+  var cantEl = document.getElementById('np-prod-cant');
+  var notaEl = document.getElementById('np-prod-nota');
+  var producto = productoCatalogoPorId(sel ? sel.value : '');
+  if (!producto) { toast('Selecciona un producto', true); return; }
+  var cantidad = parseInt(cantEl.value, 10);
+  if (!cantidad || cantidad < 1) cantidad = 1;
+  var nota = (notaEl.value || '').trim();
+  var existing = -1;
+  for (var i = 0; i < _pedidoItems.length; i++) {
+    if (String(_pedidoItems[i].producto_id) === String(producto.id) && (_pedidoItems[i].notas || '') === nota) {
+      existing = i;
+      break;
+    }
+  }
+  if (existing >= 0) {
+    _pedidoItems[existing].cantidad += cantidad;
+  } else {
+    _pedidoItems.push({
+      producto_id: producto.id,
+      descripcion: producto.nombre,
+      cantidad: cantidad,
+      precio_unitario: parseFloat(producto.precio_unitario) || 0,
+      notas: nota || null
+    });
+  }
+  if (sel) sel.value = '';
+  if (cantEl) cantEl.value = 1;
+  if (notaEl) notaEl.value = '';
+  renderProductosPedido();
+}
+
+function cambiarCantidadProductoPedido(index, delta) {
+  if (!_pedidoItems[index]) return;
+  _pedidoItems[index].cantidad = Math.max(1, (parseInt(_pedidoItems[index].cantidad, 10) || 1) + delta);
+  renderProductosPedido();
+}
+
+function quitarProductoPedido(index) {
+  _pedidoItems.splice(index, 1);
+  renderProductosPedido();
+}
+
+function detallesPedidoSeleccionados() {
+  return _pedidoItems.map(function(item) {
+    return {
+      producto_id: item.producto_id || null,
+      descripcion: item.descripcion,
+      cantidad: item.cantidad,
+      precio_unitario: item.precio_unitario || 0,
+      notas: item.notas || null
+    };
+  });
+}
+
 function limpiarNuevoPedido() {
-  ['np-nom', 'np-tel', 'np-hora', 'np-lugar', 'np-prod', 'np-ant', 'np-notas'].forEach(function(id) {
+  llenarHorasPedido();
+  ['np-nom', 'np-tel', 'np-lugar', 'np-prod', 'np-ant', 'np-notas', 'np-prod-nota'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
   });
+  var hora = document.getElementById('np-hora');
+  if (hora) hora.value = '';
+  var prod = document.getElementById('np-prod-select');
+  if (prod) prod.value = '';
+  var cant = document.getElementById('np-prod-cant');
+  if (cant) cant.value = 1;
+  _pedidoItems = [];
+  renderProductosPedido();
   var fecha = document.getElementById('np-fecha');
   if (fecha) {
     fecha.min = fechaHoyISO();
@@ -3603,6 +3899,7 @@ function abrirNuevoPedido() {
   _pedidoEnProceso = false;
   _pedidoIdempotencyKey = null;
   limpiarNuevoPedido();
+  prepararDatosNuevoPedido();
   document.getElementById('modal-ped').classList.add('on');
   setTimeout(function() {
     var nombre = document.getElementById('np-nom');
@@ -3772,8 +4069,9 @@ function guardarPed() {
   }
   mostrarErrorPedido('');
   var nom = document.getElementById('np-nom').value.trim();
+  var telPedido = document.getElementById('np-tel').value.trim();
   var fechaEntrega = document.getElementById('np-fecha').value;
-  var productosTxt = document.getElementById('np-prod').value.trim();
+  var detallesPedido = detallesPedidoSeleccionados();
   var anticipo = parseFloat(document.getElementById('np-ant').value);
   if (!nom) {
     mostrarErrorPedido('Escribe el nombre del cliente.');
@@ -3790,7 +4088,7 @@ function guardarPed() {
     toast('Fecha de entrega inválida', true);
     return;
   }
-  if (!productosTxt) {
+  if (!detallesPedido.length) {
     mostrarErrorPedido('Agrega al menos un producto al pedido.');
     toast('Faltan productos', true);
     return;
@@ -3808,17 +4106,18 @@ function guardarPed() {
   var pedido = {
     idempotency_key: _pedidoIdempotencyKey,
     cliente_nombre: nom,
-    cliente_telefono: document.getElementById('np-tel').value.trim() || null,
+    cliente_telefono: telPedido || null,
     fecha_entrega: fechaEntrega,
     hora_entrega: document.getElementById('np-hora').value.trim() || null,
     lugar_entrega: document.getElementById('np-lugar').value.trim() || null,
     origen: normalizarOrigenPedido(document.querySelector('#modal-ped select').value),
     anticipo: anticipo,
     notas_internas: document.getElementById('np-notas').value.trim() || null,
-    detalles: detallesPedidoDesdeTexto(productosTxt)
+    detalles: detallesPedido
   };
 
   crearPedidoServidor(pedido).then(function(p) {
+    guardarContactoPedido(nom, telPedido);
     toast('Pedido ' + p.folio + ' guardado para ' + nom);
     document.getElementById('modal-ped').classList.remove('on');
     _pedidoEnProceso = false;
@@ -3828,6 +4127,7 @@ function guardarPed() {
     cargarPedidos();
   }).catch(function(e) {
     if (esErrorTemporal(e)) {
+      guardarContactoPedido(nom, telPedido);
       guardarPedidoPendiente(pedido);
       document.getElementById('modal-ped').classList.remove('on');
       _pedidoEnProceso = false;

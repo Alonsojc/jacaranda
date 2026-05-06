@@ -88,30 +88,19 @@ def _validar_capacidad_diaria(db: Session, fecha_entrega: date) -> None:
 
 
 def _validar_stock_reservado(db: Session, data: PedidoCreate) -> None:
-    cantidades: dict[int, int] = {}
+    productos: set[int] = set()
     for detalle in data.detalles:
         if detalle.producto_id:
-            cantidades[detalle.producto_id] = (
-                cantidades.get(detalle.producto_id, 0) + detalle.cantidad
-            )
+            productos.add(detalle.producto_id)
 
-    for producto_id, cantidad in cantidades.items():
+    for producto_id in productos:
         producto = (
             db.query(Producto)
             .filter(Producto.id == producto_id)
-            .with_for_update()
             .first()
         )
         if not producto or not producto.activo:
             raise ValueError(f"Producto {producto_id} no encontrado o inactivo")
-
-        reservado = Decimal(stock_reservado_producto(db, producto_id))
-        disponible = Decimal(producto.stock_actual or 0) - reservado
-        if Decimal(cantidad) > disponible:
-            raise ValueError(
-                f"Stock reservado insuficiente para {producto.nombre}: "
-                f"disponible {max(disponible, Decimal('0'))}, pedido {cantidad}"
-            )
 
 
 def crear_pedido(db: Session, data: PedidoCreate) -> Pedido:

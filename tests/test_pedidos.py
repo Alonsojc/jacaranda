@@ -133,8 +133,8 @@ class TestPedidos:
         data = resp.json()
         assert data["notas"] == "Sin azúcar"
 
-    def test_pedido_reserva_stock_y_evita_sobreventa(self, client, auth_headers):
-        pid = self._crear_producto(client, auth_headers, "PED-RES", stock=2)
+    def test_pedido_permite_producto_agotado_para_producir_despues(self, client, auth_headers):
+        pid = self._crear_producto(client, auth_headers, "PED-RES", stock=0)
         resp = self._crear_pedido(
             client,
             auth_headers,
@@ -146,20 +146,9 @@ class TestPedidos:
             }],
         )
         assert resp.status_code == 200, resp.text
-
-        resp2 = self._crear_pedido(
-            client,
-            auth_headers,
-            cliente_nombre="Otro cliente",
-            detalles=[{
-                "producto_id": pid,
-                "descripcion": "Pastel reservado",
-                "cantidad": 1,
-                "precio_unitario": "100.00",
-            }],
-        )
-        assert resp2.status_code == 400
-        assert "stock reservado insuficiente" in resp2.json()["detail"].lower()
+        data = resp.json()
+        assert data["detalles"][0]["producto_id"] == pid
+        assert data["detalles"][0]["cantidad"] == 2
 
     def test_capacidad_diaria_de_pedidos(self, client, auth_headers, monkeypatch):
         monkeypatch.setattr(
