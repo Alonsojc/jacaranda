@@ -314,9 +314,9 @@ h2{font-size:1.1rem}
 }
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script src="js/jacaranda-core.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 </head>
 <body>
 <!-- LOGIN SCREEN -->
@@ -563,6 +563,7 @@ h2{font-size:1.1rem}
 </div>
 </div>
 </div>
+</div><!-- /pos -->
 
 <!-- PEDIDOS -->
 <div class="page" id="ped">
@@ -682,7 +683,6 @@ h2{font-size:1.1rem}
 <div id="sin-receta-list"></div>
 </div>
 </div>
-</div>
 
 <div id="inv-conteo" style="display:none">
 <p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Conteo nocturno: cuenta lo que queda en el mostrador y compara con lo esperado.</p>
@@ -690,6 +690,7 @@ h2{font-size:1.1rem}
 <h3>Conteo de productos</h3>
 <div id="conteo-list"><p style="color:var(--mut);font-size:.83rem">Cargando productos...</p></div>
 <button class="cobrar" style="margin-top:.8rem" onclick="guardarConteo()">Guardar Conteo</button>
+</div>
 </div>
 
 <div id="inv-pronostico" style="display:none">
@@ -699,7 +700,7 @@ h2{font-size:1.1rem}
 <div id="pronostico-list"><p style="color:var(--mut);font-size:.83rem">Cargando pron&oacute;stico...</p></div>
 </div>
 </div>
-</div>
+</div><!-- /inv -->
 
 <!-- CORTE DE CAJA -->
 <div class="page" id="corte">
@@ -2150,6 +2151,38 @@ function toast(msg, isErr) {
 // ─── API helpers ──────────────────────────────────────────────────
 var REFRESH_TOKEN = localStorage.getItem('jacaranda_refresh_token') || '';
 var API_TIMEOUT_MS = 25000;
+var CHART_JS_SRC = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js';
+var JSPDF_SRC = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js';
+var _scriptLoads = {};
+
+function loadScriptOnce(src, readyFn) {
+  if (readyFn && readyFn()) return Promise.resolve();
+  if (_scriptLoads[src]) return _scriptLoads[src];
+  _scriptLoads[src] = new Promise(function(resolve, reject) {
+    var existing = document.querySelector('script[src="' + src + '"]');
+    var script = existing || document.createElement('script');
+    script.onload = function() { resolve(); };
+    script.onerror = function() { reject(new Error('No se pudo cargar recurso externo')); };
+    if (!existing) {
+      script.src = src;
+      script.async = true;
+      document.head.appendChild(script);
+    }
+    if (readyFn && readyFn()) resolve();
+  }).then(function() {
+    if (!readyFn || readyFn()) return;
+    throw new Error('Recurso externo no disponible');
+  });
+  return _scriptLoads[src];
+}
+
+function ensureChart() {
+  return loadScriptOnce(CHART_JS_SRC, function() { return typeof Chart !== 'undefined'; });
+}
+
+function ensureJsPDF() {
+  return loadScriptOnce(JSPDF_SRC, function() { return !!(window.jspdf && window.jspdf.jsPDF); });
+}
 
 function api(method, path, body, _retry, extraHeaders) {
   if (!API_URL) return Promise.reject('offline');
@@ -2190,6 +2223,7 @@ function api(method, path, body, _retry, extraHeaders) {
 }
 
 var _dashGetCache = {};
+var _dashCacheAt = 0;
 function dashGet(path) {
   if (!_dashGetCache[path]) {
     _dashGetCache[path] = api('GET', path).catch(function(e) {
@@ -2402,13 +2436,13 @@ function cargarPagina(p) {
   return null;
 }
 
-function go(p) {
+function activarPagina(p) {
   var target = document.getElementById(p);
   if (!target) {
     console.warn('Pagina no encontrada:', p);
     p = moduloInicioUsuario();
     target = document.getElementById(p) || document.getElementById('dash');
-    if (!target) return;
+    if (!target) return '';
   }
   document.querySelectorAll('.page').forEach(function(e) { e.classList.remove('on'); });
   target.classList.add('on');
@@ -2421,6 +2455,12 @@ function go(p) {
   });
   localStorage.setItem('jacaranda_tab', p);
   window.scrollTo(0, 0);
+  return p;
+}
+
+function go(p) {
+  p = activarPagina(p);
+  if (!p) return;
   setTimeout(function() {
     try {
       var carga = cargarPagina(p);
@@ -2769,13 +2809,18 @@ function _descargarBlob(blob, filename) {
 }
 
 function descargarCotizacionPDF() {
-  try {
-    var q = _crearCotizacionPDF();
-    _descargarBlob(q.blob, q.filename);
-    toast('Cotización descargada');
-  } catch (e) {
-    toast(e.message || 'Error al cotizar', true);
-  }
+  toast('Preparando cotización...');
+  ensureJsPDF().then(function() {
+    try {
+      var q = _crearCotizacionPDF();
+      _descargarBlob(q.blob, q.filename);
+      toast('Cotización descargada');
+    } catch (e) {
+      toast(e.message || 'Error al cotizar', true);
+    }
+  }).catch(function(e) {
+    toast(e.message || 'No se pudo cargar el generador de PDF', true);
+  });
 }
 
 function _puedeCompartirArchivoNativo(file) {
@@ -2802,27 +2847,32 @@ function abrirWhatsAppConFallback(txt) {
 }
 
 function enviarCotizacionWhatsApp() {
-  try {
-    var q = _crearCotizacionPDF();
-    var txt = _textoCotizacion(q.folio, q.resumen);
-    var file = new File([q.blob], q.filename, {type: 'application/pdf'});
-    if (_puedeCompartirArchivoNativo(file)) {
-      navigator.share({
-        title: 'Cotización Jacaranda',
-        text: txt,
-        files: [file]
-      }).catch(function() {});
-      return;
+  toast('Preparando cotización...');
+  ensureJsPDF().then(function() {
+    try {
+      var q = _crearCotizacionPDF();
+      var txt = _textoCotizacion(q.folio, q.resumen);
+      var file = new File([q.blob], q.filename, {type: 'application/pdf'});
+      if (_puedeCompartirArchivoNativo(file)) {
+        navigator.share({
+          title: 'Cotización Jacaranda',
+          text: txt,
+          files: [file]
+        }).catch(function() {});
+        return;
+      }
+      _descargarBlob(q.blob, q.filename);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).catch(function() {});
+      }
+      toast('PDF descargado; adjúntalo en WhatsApp');
+      abrirWhatsAppConFallback(txt);
+    } catch (e) {
+      toast(e.message || 'Error al enviar cotización', true);
     }
-    _descargarBlob(q.blob, q.filename);
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(txt).catch(function() {});
-    }
-    toast('PDF descargado; adjúntalo en WhatsApp');
-    abrirWhatsAppConFallback(txt);
-  } catch (e) {
-    toast(e.message || 'Error al enviar cotización', true);
-  }
+  }).catch(function(e) {
+    toast(e.message || 'No se pudo cargar el generador de PDF', true);
+  });
 }
 
 function cobrar() {
@@ -3780,7 +3830,10 @@ function cargarDashAvanzado() {
 function renderChartMeses(meses) {
   var ctx = document.getElementById('chart-meses');
   if (!ctx) return;
-  if (typeof Chart === 'undefined') return;
+  if (typeof Chart === 'undefined') {
+    ensureChart().then(function() { renderChartMeses(meses); }).catch(function(){});
+    return;
+  }
 
   if (_chartMeses) _chartMeses.destroy();
 
@@ -3837,7 +3890,11 @@ function renderChartMeses(meses) {
 var _chartVentas = null;
 function renderChartVentas(dias) {
   var ctx = document.getElementById('rep-chart-canvas');
-  if (!ctx || typeof Chart === 'undefined') return;
+  if (!ctx) return;
+  if (typeof Chart === 'undefined') {
+    ensureChart().then(function() { renderChartVentas(dias); }).catch(function(){});
+    return;
+  }
   if (_chartVentas) _chartVentas.destroy();
 
   if (!dias || !dias.length) {
@@ -5667,7 +5724,10 @@ function cargarPronostico() {
 // ─── Dashboard data ───────────────────────────────────────────────
 
 function cargarDashboard() {
-  _dashGetCache = {};
+  if (Date.now() - _dashCacheAt > 30000) {
+    _dashGetCache = {};
+    _dashCacheAt = Date.now();
+  }
   _dashAlertas = '';
   // Fecha de hoy en el header
   try {
@@ -5933,7 +5993,11 @@ function cargarPronosticoHero() {
 var _sparkCharts = {};
 function _renderSpark(canvasId, data, color) {
   var el = document.getElementById(canvasId);
-  if (!el || typeof Chart === 'undefined') return;
+  if (!el) return;
+  if (typeof Chart === 'undefined') {
+    ensureChart().then(function() { _renderSpark(canvasId, data, color); }).catch(function(){});
+    return;
+  }
   if (_sparkCharts[canvasId]) { try { _sparkCharts[canvasId].destroy(); } catch(e){} }
   var ctx = el.getContext('2d');
   _sparkCharts[canvasId] = new Chart(ctx, {
@@ -6055,30 +6119,33 @@ function cargarComparativoSemanal() {
       dataAnt.push(semanaAnt[d] ? semanaAnt[d].total : 0);
     }
     var ctx = document.getElementById('chart-week-compare');
-    if (ctx && typeof Chart !== 'undefined') {
-      if (_chartWeek) try { _chartWeek.destroy(); } catch(e){}
-      _chartWeek = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [
-            { label: 'Esta semana', data: dataAct, backgroundColor: 'rgba(196,152,138,0.85)', borderRadius: 5, borderSkipped: false },
-            { label: 'Anterior', data: dataAnt, backgroundColor: 'rgba(196,152,138,0.25)', borderRadius: 5, borderSkipped: false }
-          ]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 }, padding: 12 } },
-            tooltip: { callbacks: { label: function(c) { return c.dataset.label + ': $' + c.parsed.y.toLocaleString('es-MX',{minimumFractionDigits:2}); } } }
-          },
-          scales: {
-            y: { beginAtZero: true, ticks: { callback: function(v){ return '$' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v); }, font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.04)' } },
-            x: { ticks: { font: { size: 11, weight: '600' } }, grid: { display: false } }
-          }
-        }
-      });
+    if (!ctx) return;
+    if (typeof Chart === 'undefined') {
+      ensureChart().then(function() { cargarComparativoSemanal(); }).catch(function(){});
+      return;
     }
+    if (_chartWeek) try { _chartWeek.destroy(); } catch(e){}
+    _chartWeek = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Esta semana', data: dataAct, backgroundColor: 'rgba(196,152,138,0.85)', borderRadius: 5, borderSkipped: false },
+          { label: 'Anterior', data: dataAnt, backgroundColor: 'rgba(196,152,138,0.25)', borderRadius: 5, borderSkipped: false }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 }, padding: 12 } },
+          tooltip: { callbacks: { label: function(c) { return c.dataset.label + ': $' + c.parsed.y.toLocaleString('es-MX',{minimumFractionDigits:2}); } } }
+        },
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: function(v){ return '$' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v); }, font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.04)' } },
+          x: { ticks: { font: { size: 11, weight: '600' } }, grid: { display: false } }
+        }
+      }
+    });
   }).catch(function() {
     document.getElementById('d-week-compare').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center;padding:1rem">Sin datos de ventas</p>';
   });
@@ -7848,9 +7915,43 @@ function hacerLogin() {
   });
 }
 
+function guardarUsuarioCache(u) {
+  try {
+    if (!u) return;
+    localStorage.setItem('jacaranda_user', JSON.stringify({
+      id: u.id,
+      email: u.email,
+      nombre: u.nombre,
+      rol: u.rol,
+      permisos_modulos: u.permisos_modulos || {}
+    }));
+  } catch(e) {}
+}
+
+function usuarioCacheado() {
+  try {
+    var raw = localStorage.getItem('jacaranda_user');
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) {
+    return null;
+  }
+}
+
+function mostrarInicioGuardado(u) {
+  var tab = localStorage.getItem('jacaranda_tab') || (u ? pantallaInicialUsuario(u) : 'dash');
+  if (u) {
+    _currentUser = u;
+    _userRole = u.rol || _userRole;
+    aplicarPermisosModulos(u.permisos_modulos || {});
+  }
+  if (!document.getElementById(tab)) tab = u ? moduloInicioUsuario(u) : 'dash';
+  activarPagina(tab);
+}
+
 function aplicarPostLogin(u) {
     _currentUser = u;
     _userRole = u.rol || 'CAJERO';
+    guardarUsuarioCache(u);
     aplicarPermisosModulos(u.permisos_modulos || {});
     var tab = pantallaInicialUsuario(u);
     go(tab);
@@ -7891,6 +7992,7 @@ function cerrarSesion() {
   REFRESH_TOKEN = '';
   localStorage.removeItem('jacaranda_token');
   localStorage.removeItem('jacaranda_refresh_token');
+  localStorage.removeItem('jacaranda_user');
   _currentUser = null;
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('btn-logout').style.display = 'none';
@@ -8198,6 +8300,7 @@ function autoConectar() {
   REFRESH_TOKEN = savedRefresh || '';
   setConnecting();
   document.getElementById('login-screen').style.display = 'none';
+  mostrarInicioGuardado(usuarioCacheado());
   api('GET', '/auth/me').then(function(u) {
     _reconectar = 0;
     setConnected(true);
@@ -8615,9 +8718,13 @@ function cargarKPIResumen() {
   }).catch(function() { document.getElementById('kpi-resumen-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
 }
 function _makeChart(id, cfg) {
-  if (_charts[id]) _charts[id].destroy();
   var ctx = document.getElementById(id);
   if (!ctx) return;
+  if (typeof Chart === 'undefined') {
+    ensureChart().then(function() { _makeChart(id, cfg); }).catch(function(){});
+    return;
+  }
+  if (_charts[id]) _charts[id].destroy();
   _charts[id] = new Chart(ctx.getContext('2d'), cfg);
 }
 function cargarKPIVentas() {
