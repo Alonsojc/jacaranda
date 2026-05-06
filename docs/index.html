@@ -2182,7 +2182,17 @@ function mostrarErrorLogin(msg) {
 }
 
 function esSesionExpirada(e) {
-  return e && (e.status === 401 || /sesión expirada|refresh falló/i.test(e.message || ''));
+  if (!e) return false;
+  if (e.status === 401 || e.status === 403) return true;
+  if (e.status) return false;
+  return /sesión expirada|refresh falló/i.test(e.message || '');
+}
+
+function esErrorTemporal(e) {
+  if (!e) return false;
+  if (e.name === 'TypeError' || e.name === 'AbortError') return true;
+  if (e.status === 502 || e.status === 503 || e.status === 504 || e.status === 429) return true;
+  return /failed to fetch|network|servidor tardó|application failed|demasiadas peticiones/i.test(e.message || '');
 }
 
 // ─── API helpers ──────────────────────────────────────────────────
@@ -2333,21 +2343,37 @@ function apiProtegida(method, path, body, accion) {
 }
 
 function refreshAccessToken() {
-  return fetch(API_URL + '/api/v1/auth/refresh', {
+  var controller = window.AbortController ? new AbortController() : null;
+  var timeoutId = null;
+  var opts = {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({refresh_token: REFRESH_TOKEN})
-  }).then(function(r) {
+  };
+  if (controller) {
+    opts.signal = controller.signal;
+    timeoutId = setTimeout(function() { controller.abort(); }, API_TIMEOUT_MS);
+  }
+  return fetch(API_URL + '/api/v1/auth/refresh', opts).then(function(r) {
+    if (timeoutId) clearTimeout(timeoutId);
     if (!r.ok) {
-      cerrarSesion();
-      var refreshErr = new Error('Refresh falló');
+      var refreshErr = new Error(r.status === 429 ? 'Demasiadas peticiones, reintentando sesión' : 'Refresh falló');
       refreshErr.status = r.status;
+      if (r.status === 401 || r.status === 403) cerrarSesion();
       return Promise.reject(refreshErr);
     }
     return r.json();
   }).then(function(d) {
     TOKEN = d.access_token;
     localStorage.setItem('jacaranda_token', TOKEN);
+  }).catch(function(e) {
+    if (timeoutId) clearTimeout(timeoutId);
+    if (e && e.name === 'AbortError') {
+      var timeoutErr = new Error('El servidor tardó demasiado en responder');
+      timeoutErr.status = 504;
+      throw timeoutErr;
+    }
+    throw e;
   });
 }
 
@@ -8406,6 +8432,16 @@ var _sortObserver = new MutationObserver(function(mutations) {
 _sortObserver.observe(document.body, {childList: true, subtree: true});
 
 var _reconectar = 0;
+var _autoReconnectTimer = null;
+
+function programarAutoReconnect() {
+  if (_autoReconnectTimer) clearTimeout(_autoReconnectTimer);
+  var espera = Math.min(30000, Math.max(4000, _reconectar * 5000));
+  _autoReconnectTimer = setTimeout(function() {
+    _autoReconnectTimer = null;
+    if (TOKEN || REFRESH_TOKEN) autoConectar();
+  }, espera);
+}
 
 function autoConectar() {
   if (esArchivoLocal()) {
@@ -8425,9 +8461,14 @@ function autoConectar() {
   REFRESH_TOKEN = savedRefresh || '';
   setConnecting();
   document.getElementById('login-screen').style.display = 'none';
-  mostrarInicioGuardado(usuarioCacheado());
+  var cachedUser = usuarioCacheado();
+  mostrarInicioGuardado(cachedUser);
   api('GET', '/auth/me').then(function(u) {
     _reconectar = 0;
+    if (_autoReconnectTimer) {
+      clearTimeout(_autoReconnectTimer);
+      _autoReconnectTimer = null;
+    }
     setConnected(true);
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('login-error').style.display = 'none';
@@ -8443,18 +8484,17 @@ function autoConectar() {
     }
     // Si el servidor está despertando/no disponible, no borrar la sesión guardada.
     _reconectar++;
-    if (_reconectar <= 2) {
-      // Railway puede tardar en despertar, reintentar
-      setTimeout(autoConectar, _reconectar * 3000);
-    } else {
-      setConnected(false);
-      _reconectar = 0;
-      document.getElementById('login-screen').style.display = 'flex';
-      var errEl = document.getElementById('login-error');
-      if (TOKEN || REFRESH_TOKEN) {
-        mostrarErrorLogin('No se pudo conectar al servidor. Tu sesión sigue guardada; vuelve a intentar en unos segundos.');
+    setConnected(false);
+    if (cachedUser || TOKEN || REFRESH_TOKEN) {
+      document.getElementById('login-screen').style.display = 'none';
+      if (_reconectar === 1) {
+        toast('Servidor temporalmente no disponible. Tu sesión sigue abierta; reintentando...', true);
       }
+      programarAutoReconnect();
+      return;
     }
+    document.getElementById('login-screen').style.display = 'flex';
+    mostrarErrorLogin('No se pudo conectar al servidor. Tu sesión sigue guardada; vuelve a intentar en unos segundos.');
   });
 }
 

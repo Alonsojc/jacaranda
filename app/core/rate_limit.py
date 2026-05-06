@@ -12,12 +12,13 @@ from starlette.middleware.base import BaseHTTPMiddleware
 _requests: dict[str, list[float]] = defaultdict(list)
 
 # Config
-RATE_LIMIT = 120  # requests per window
+RATE_LIMIT = 300  # requests per window
 RATE_WINDOW = 60  # seconds
 
 # Stricter limit for auth endpoints
 AUTH_RATE_LIMIT = 10
 AUTH_RATE_WINDOW = 60
+AUTH_SESSION_RATE_LIMIT = 120
 
 # Exempt paths (health checks, static, docs)
 EXEMPT_PATHS = {"/health", "/", "/docs", "/redoc", "/openapi.json"}
@@ -46,10 +47,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         ip = _get_client_ip(request)
 
         # Determine limits based on path
-        if "/auth/" in path:
+        if path.endswith("/auth/login"):
             max_requests = AUTH_RATE_LIMIT
             window = AUTH_RATE_WINDOW
             key = f"auth:{ip}"
+        elif path.endswith("/auth/me") or path.endswith("/auth/refresh"):
+            max_requests = AUTH_SESSION_RATE_LIMIT
+            window = AUTH_RATE_WINDOW
+            key = f"auth-session:{ip}"
         else:
             max_requests = RATE_LIMIT
             window = RATE_WINDOW
