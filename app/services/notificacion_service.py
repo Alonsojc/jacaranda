@@ -370,6 +370,18 @@ def _chunks(items: list[FCMToken], size: int = 500):
         yield items[i:i + size]
 
 
+def _enviar_multicast(messaging, multicast):
+    """Envía multicast usando la instancia Firebase inicializada por este servicio."""
+    sender = getattr(messaging, "send_each_for_multicast", None) or messaging.send_multicast
+    if _firebase_app is not None:
+        try:
+            return sender(multicast, app=_firebase_app)
+        except TypeError:
+            # Compatibilidad con versiones viejas del SDK que no aceptaban app=.
+            pass
+    return sender(multicast)
+
+
 def enviar_fcm_pedido_nuevo(pedido_data: dict) -> dict:
     """Envía push FCM a navegadores registrados para pedidos nuevos."""
     messaging = _firebase_messaging()
@@ -420,8 +432,7 @@ def enviar_fcm_pedido_nuevo(pedido_data: dict) -> dict:
                     ),
                 ),
             )
-            sender = getattr(messaging, "send_each_for_multicast", None) or messaging.send_multicast
-            response = sender(multicast)
+            response = _enviar_multicast(messaging, multicast)
             for idx, resp in enumerate(response.responses):
                 item = token_group[idx]
                 item.ultimo_envio_en = now
@@ -496,8 +507,7 @@ def enviar_fcm_prueba(usuario_id: int | None = None) -> dict:
                     ),
                 ),
             )
-            sender = getattr(messaging, "send_each_for_multicast", None) or messaging.send_multicast
-            response = sender(multicast)
+            response = _enviar_multicast(messaging, multicast)
             for idx, resp in enumerate(response.responses):
                 item = token_group[idx]
                 item.ultimo_envio_en = now

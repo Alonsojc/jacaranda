@@ -78,6 +78,27 @@ class TestNotificaciones:
         assert resp.status_code == 200
         assert resp.json()["enabled"] is False
 
+    def test_enviar_multicast_usa_app_inicializada(self, monkeypatch):
+        from app.services import notificacion_service
+
+        app = object()
+        calls = {}
+
+        class FakeMessaging:
+            @staticmethod
+            def send_each_for_multicast(message, app=None):
+                calls["message"] = message
+                calls["app"] = app
+                return "ok"
+
+        monkeypatch.setattr(notificacion_service, "_firebase_app", app)
+
+        result = notificacion_service._enviar_multicast(FakeMessaging, "mensaje")
+
+        assert result == "ok"
+        assert calls["message"] == "mensaje"
+        assert calls["app"] is app
+
     def test_test_notificacion_admin(self, client, auth_headers):
         resp = client.post("/api/v1/notificaciones/test", headers=auth_headers)
         assert resp.status_code == 200
