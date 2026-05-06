@@ -165,7 +165,17 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .action-btn.danger:hover{background:#fef2f2;border-color:#ef4444}
 .action-icon{font-size:.95rem;line-height:1}
 .action-label{white-space:nowrap}
-@media(max-width:900px){.tbl th.actions-th,.tbl td.actions-cell{width:390px}.action-btn{padding:.55rem .7rem;font-size:.78rem}.action-icon{font-size:1rem}}
+.product-actions-table{min-width:1220px}
+.product-actions-table .col-price,.product-actions-table .col-cost{width:105px}
+.product-actions-table .col-stock{width:120px}
+.product-actions-table .col-min,.product-actions-table .col-iva{width:72px}
+.product-actions-table .col-status{width:118px}
+.product-actions-table .col-actions{width:470px}
+.product-actions-table th.actions-th,.product-actions-table td.actions-cell{width:470px;white-space:nowrap}
+.product-actions-table td{vertical-align:middle}
+.product-actions-table .action-buttons{flex-wrap:nowrap;gap:.28rem}
+.product-actions-table .action-btn{padding:.46rem .55rem;font-size:.74rem}
+@media(max-width:900px){.tbl th.actions-th,.tbl td.actions-cell{width:390px}.product-actions-table th.actions-th,.product-actions-table td.actions-cell{width:470px}.action-btn{padding:.55rem .7rem;font-size:.78rem}.product-actions-table .action-btn{padding:.46rem .55rem;font-size:.74rem}.action-icon{font-size:1rem}}
 /* Pedidos */
 .ped{background:#fff;border-radius:12px;padding:1rem;border:1px solid var(--brd);margin-bottom:.7rem;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .ped:hover{box-shadow:0 4px 12px rgba(196,152,138,.12);border-color:#e2cec8}
@@ -4564,7 +4574,7 @@ function renderInvProductos() {
   var start = _invProdPage * _invProdPerPage;
   var page = filtered.slice(start, start + _invProdPerPage);
 
-  var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
+  var h = '<table class="tbl product-actions-table"><colgroup><col><col class="col-price"><col class="col-stock"><col class="col-min"><col class="col-status"><col class="col-actions"></colgroup><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
   for (var i = 0; i < page.length; i++) {
     var p = page[i];
     var stock = parseFloat(p.stock_actual) || 0;
@@ -5048,7 +5058,7 @@ function cargarListas() {
 
 function cargarListaProductos() {
   api('GET', '/inventario/productos').then(function(prods) {
-    var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th>IVA</th><th class="actions-th">Acciones</th></tr>';
+    var h = '<table class="tbl product-actions-table"><colgroup><col><col class="col-price"><col class="col-cost"><col class="col-stock"><col class="col-min"><col class="col-iva"><col class="col-actions"></colgroup><tr><th>Producto</th><th>Precio</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th>IVA</th><th class="actions-th">Acciones</th></tr>';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
       var stock = parseFloat(p.stock_actual) || 0;
