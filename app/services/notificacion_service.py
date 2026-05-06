@@ -374,7 +374,7 @@ def enviar_fcm_pedido_nuevo(pedido_data: dict) -> dict:
     """Envía push FCM a navegadores registrados para pedidos nuevos."""
     messaging = _firebase_messaging()
     if messaging is None:
-        return {"enabled": False, "sent": 0, "failed": 0}
+        return {"enabled": False, "tokens": 0, "sent": 0, "failed": 0}
 
     db = SessionLocal()
     try:
@@ -385,7 +385,7 @@ def enviar_fcm_pedido_nuevo(pedido_data: dict) -> dict:
             .all()
         )
         if not tokens:
-            return {"enabled": True, "sent": 0, "failed": 0}
+            return {"enabled": True, "tokens": 0, "sent": 0, "failed": 0}
 
         folio = str(pedido_data.get("folio") or "nuevo pedido")
         cliente = str(pedido_data.get("cliente") or "Cliente")
@@ -436,10 +436,25 @@ def enviar_fcm_pedido_nuevo(pedido_data: dict) -> dict:
                         item.activo = False
         db.commit()
         logger.info("FCM nuevo_pedido enviado: sent=%d failed=%d", sent, failed)
-        return {"enabled": True, "sent": sent, "failed": failed}
-    except Exception:
+        return {"enabled": True, "tokens": len(tokens), "sent": sent, "failed": failed}
+    except Exception as exc:
         logger.exception("Error enviando FCM nuevo_pedido")
-        return {"enabled": True, "sent": 0, "failed": 0}
+        err = str(exc) or exc.__class__.__name__
+        try:
+            for item in db.query(FCMToken).filter(FCMToken.activo.is_(True)).all():
+                item.ultimo_error = err[:1000]
+                item.ultimo_envio_en = datetime.now(timezone.utc)
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("No se pudo guardar error FCM")
+        return {
+            "enabled": True,
+            "tokens": 0,
+            "sent": 0,
+            "failed": 0,
+            "error": err[:500],
+        }
     finally:
         db.close()
 
@@ -448,7 +463,7 @@ def enviar_fcm_prueba(usuario_id: int | None = None) -> dict:
     """Envía una notificación FCM de prueba a tokens activos."""
     messaging = _firebase_messaging()
     if messaging is None:
-        return {"enabled": False, "sent": 0, "failed": 0}
+        return {"enabled": False, "tokens": 0, "sent": 0, "failed": 0}
 
     db = SessionLocal()
     try:
@@ -457,7 +472,7 @@ def enviar_fcm_prueba(usuario_id: int | None = None) -> dict:
             query = query.filter(FCMToken.usuario_id == usuario_id)
         tokens = query.order_by(FCMToken.actualizado_en.desc()).all()
         if not tokens:
-            return {"enabled": True, "sent": 0, "failed": 0}
+            return {"enabled": True, "tokens": 0, "sent": 0, "failed": 0}
 
         target = settings.FRONTEND_URL.rstrip("/") + "/#ped"
         sent = 0
@@ -496,9 +511,31 @@ def enviar_fcm_prueba(usuario_id: int | None = None) -> dict:
                     if _token_error_es_permanente(err):
                         item.activo = False
         db.commit()
-        return {"enabled": True, "sent": sent, "failed": failed}
-    except Exception:
+        return {"enabled": True, "tokens": len(tokens), "sent": sent, "failed": failed}
+    except Exception as exc:
         logger.exception("Error enviando FCM de prueba")
-        return {"enabled": True, "sent": 0, "failed": 0}
+        err = str(exc) or exc.__class__.__name__
+        try:
+            query = db.query(FCMToken).filter(FCMToken.activo.is_(True))
+            if usuario_id is not None:
+                query = query.filter(FCMToken.usuario_id == usuario_id)
+            tokens = query.all()
+            now = datetime.now(timezone.utc)
+            for item in tokens:
+                item.ultimo_error = err[:1000]
+                item.ultimo_envio_en = now
+            db.commit()
+            token_count = len(tokens)
+        except Exception:
+            db.rollback()
+            logger.exception("No se pudo guardar error FCM")
+            token_count = 0
+        return {
+            "enabled": True,
+            "tokens": token_count,
+            "sent": 0,
+            "failed": token_count,
+            "error": err[:500],
+        }
     finally:
         db.close()

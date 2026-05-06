@@ -2202,7 +2202,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v46';
+var APP_BUILD = 'jacaranda-v47';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
@@ -4707,6 +4707,17 @@ function probarPushManual() {
     if (!r.enabled) {
       setPushStatus('Firebase del servidor no está activo. Revisa variables de Railway.', true);
       toast('Firebase servidor no activo', true);
+      return;
+    }
+    if (r.error) {
+      setPushStatus('Firebase no pudo enviar: ' + r.error, true);
+      toast('Error de Firebase al enviar push', true);
+      return;
+    }
+    if (!r.sent && r.tokens) {
+      setPushStatus('Firebase intentó enviar, pero falló. Revisa detalles en el estado de push.', true);
+      toast('Push falló en Firebase', true);
+      cargarEstadoPush();
       return;
     }
     if (!r.sent) {
