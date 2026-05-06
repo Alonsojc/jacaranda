@@ -556,7 +556,7 @@ h2{font-size:1.1rem}
 <button class="cobrar" onclick="cobrar()">Cobrar</button>
 <div class="quote-actions">
 <button class="limpiar" style="margin:0" onclick="descargarCotizacionPDF()">Cotizar</button>
-<button class="wa-btn" onclick="enviarCotizacionWhatsApp()">WhatsApp</button>
+<button class="wa-btn" onclick="enviarCotizacionWhatsApp()">WhatsApp Web</button>
 </div>
 <button class="limpiar" onclick="confirmarLimpiar()">Limpiar</button>
 <button class="limpiar" onclick="document.querySelector('.pos-prods').scrollIntoView({behavior:'smooth'})" id="pos-btn-prods" style="display:none;margin-top:.3rem">&uarr; Ver productos</button>
@@ -2697,12 +2697,21 @@ function descargarCotizacionPDF() {
   }
 }
 
+function _puedeCompartirArchivoNativo(file) {
+  var ua = navigator.userAgent || '';
+  var esMovil = /Android|iPhone|iPad|iPod/i.test(ua);
+  return esMovil &&
+    navigator.share &&
+    navigator.canShare &&
+    navigator.canShare({files: [file]});
+}
+
 function enviarCotizacionWhatsApp() {
   try {
     var q = _crearCotizacionPDF();
     var txt = _textoCotizacion(q.folio, q.resumen);
     var file = new File([q.blob], q.filename, {type: 'application/pdf'});
-    if (navigator.canShare && navigator.canShare({files: [file]}) && navigator.share) {
+    if (_puedeCompartirArchivoNativo(file)) {
       navigator.share({
         title: 'Cotización Jacaranda',
         text: txt,
@@ -2714,8 +2723,8 @@ function enviarCotizacionWhatsApp() {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(txt).catch(function() {});
     }
-    toast('PDF descargado; adjúntalo en WhatsApp');
-    window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
+    toast('PDF descargado; adjúntalo en WhatsApp Web');
+    window.open('https://web.whatsapp.com/send?text=' + encodeURIComponent(txt), '_blank');
   } catch (e) {
     toast(e.message || 'Error al enviar cotización', true);
   }
