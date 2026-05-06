@@ -2202,7 +2202,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v47';
+var APP_BUILD = 'jacaranda-v48';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
@@ -4041,7 +4041,10 @@ function pedidosPendientesComoCache() {
 }
 
 function pedidosVisibles() {
-  return (_pedidosCache || []).concat(pedidosPendientesComoCache());
+  var pedidosServidor = (_pedidosCache || []).filter(function(p) {
+    return p.estado !== 'cancelado';
+  });
+  return pedidosServidor.concat(pedidosPendientesComoCache());
 }
 
 function sincronizarPedidosPendientes(silencioso) {
@@ -4300,9 +4303,9 @@ function renderPedidos() {
       h += '<button onclick="avanzarPedido(' + p.id + ',\'' + siguiente[p.estado] + '\')" style="padding:.25rem .6rem;border:1px solid var(--v);border-radius:6px;background:#fff;color:var(--v);font-size:.75rem;font-weight:600;cursor:pointer">' + sigNombre[p.estado] + ' &rarr;</button>';
     }
     if (p.local_pendiente) {
-      h += '<button onclick="borrarPedidoLocal(' + jsArg(p.id) + ')" style="padding:.25rem .6rem;border:1px solid #ef4444;border-radius:6px;background:#fff;color:#b91c1c;font-size:.75rem;font-weight:600;cursor:pointer">&#10005; Borrar</button>';
+      h += '<button onclick="' + escHtml('borrarPedidoLocal(' + jsArg(p.id) + ')') + '" style="padding:.25rem .6rem;border:1px solid #ef4444;border-radius:6px;background:#fff;color:#b91c1c;font-size:.75rem;font-weight:600;cursor:pointer">&#10005; Borrar</button>';
     } else if (p.estado !== 'entregado' && p.estado !== 'cancelado') {
-      h += '<button onclick="borrarPedido(' + p.id + ',' + jsArg(p.folio || 'pedido') + ')" style="padding:.25rem .6rem;border:1px solid #ef4444;border-radius:6px;background:#fff;color:#b91c1c;font-size:.75rem;font-weight:600;cursor:pointer">&#10005; Borrar</button>';
+      h += '<button onclick="' + escHtml('borrarPedido(' + p.id + ',' + jsArg(p.folio || 'pedido') + ')') + '" style="padding:.25rem .6rem;border:1px solid #ef4444;border-radius:6px;background:#fff;color:#b91c1c;font-size:.75rem;font-weight:600;cursor:pointer">&#10005; Borrar</button>';
     }
     h += '</span>';
     h += '</div></div>';
@@ -4328,7 +4331,11 @@ function borrarPedido(id, folio) {
   var msg = '¿Seguro que quieres borrar/anular ' + (folio || 'este pedido') + '?\\n\\nNo se elimina el histórico; quedará como cancelado.';
   if (!confirm(msg)) return;
   apiProtegida('DELETE', '/pedidos/' + id, null, 'borrar pedido').then(function() {
-    toast('Pedido cancelado');
+    _pedidosCache = (_pedidosCache || []).filter(function(p) { return p.id !== id; });
+    renderPedidos();
+    if (_calPedVisible) renderCalPed();
+    cargarReservasPedidos();
+    toast('Pedido borrado de la vista y anulado en historial');
     cargarPedidos();
   }).catch(function(e) {
     toast(e.message || 'Error al borrar pedido', true);
