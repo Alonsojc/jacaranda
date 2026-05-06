@@ -1,5 +1,5 @@
 // Jacaranda Service Worker — Offline support + sync queue
-const CACHE_NAME = 'jacaranda-v36';
+const CACHE_NAME = 'jacaranda-v37';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -121,6 +121,33 @@ self.addEventListener('notificationclick', function(event) {
       if (clients.openWindow) return clients.openWindow(targetUrl);
     })
   );
+});
+
+self.addEventListener('push', function(event) {
+  var payload = {};
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch (e) {
+      payload = {notification: {body: event.data.text()}};
+    }
+  }
+
+  var data = payload.data || {};
+  var notif = payload.notification || {};
+  var title = notif.title || data.title || 'Jacaranda';
+  var options = {
+    body: notif.body || data.body || 'Nuevo aviso de Jacaranda',
+    icon: notif.icon || './favicon.svg',
+    badge: notif.badge || './favicon.svg',
+    tag: notif.tag || data.tag || 'jacaranda-push',
+    renotify: true,
+    requireInteraction: data.tipo === 'nuevo_pedido' || data.requireInteraction === 'true',
+    data: {
+      url: data.url || './index.html#ped'
+    }
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 // Sync offline sales queue from IndexedDB

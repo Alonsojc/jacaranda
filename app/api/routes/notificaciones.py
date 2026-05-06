@@ -4,7 +4,8 @@ Rutas de notificaciones: WebSocket en tiempo real y alertas push.
 
 import logging
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException, status
+from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -16,11 +17,22 @@ from app.services.notificacion_service import (
     obtener_notificaciones_pendientes,
     notificar_alerta,
     generar_push_config,
+    registrar_fcm_token,
+    revocar_fcm_token,
 )
 
 logger = logging.getLogger("jacaranda.notificaciones")
 
 router = APIRouter()
+
+
+class FCMTokenIn(BaseModel):
+    token: str = Field(..., min_length=20, max_length=4096)
+    plataforma: str | None = Field(default=None, max_length=80)
+
+
+class FCMTokenRevokeIn(BaseModel):
+    token: str = Field(..., min_length=20, max_length=4096)
 
 
 @router.websocket("/ws")
@@ -84,6 +96,46 @@ def get_alertas_push(
         "alertas": alertas,
         "push_config": generar_push_config(),
     }
+
+
+@router.get("/fcm-config")
+def get_fcm_config(current_user: Usuario = Depends(get_current_user)):
+    """Devuelve configuración pública para registrar este navegador en FCM."""
+    return generar_push_config()
+
+
+@router.post("/fcm-token")
+def registrar_token_fcm(
+    payload: FCMTokenIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Registra o reactiva el token FCM del navegador actual."""
+    item = registrar_fcm_token(
+        db=db,
+        usuario_id=current_user.id,
+        token=payload.token,
+        plataforma=payload.plataforma,
+        user_agent=request.headers.get("user-agent"),
+    )
+    return {
+        "ok": True,
+        "id": item.id,
+        "activo": item.activo,
+        "push_config": generar_push_config(),
+    }
+
+
+@router.post("/fcm-token/revocar")
+def revocar_token_fcm(
+    payload: FCMTokenRevokeIn,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Desactiva el token FCM de este usuario/dispositivo."""
+    removed = revocar_fcm_token(db, current_user.id, payload.token)
+    return {"ok": True, "revocado": removed}
 
 
 @router.post("/test")

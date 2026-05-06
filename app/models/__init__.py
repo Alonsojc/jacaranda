@@ -60,3 +60,4 @@ from app.models.auditoria import (  # noqa: F401
 )
 from app.models.pago_online import PagoOnline, EstadoPago, ConektaWebhookEvent  # noqa: F401
 from app.models.whatsapp import WhatsAppWebhookEvent  # noqa: F401
+from app.models.notificacion import FCMToken  # noqa: F401

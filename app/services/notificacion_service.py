@@ -4,15 +4,21 @@ Gestiona conexiones activas y despacho de mensajes a usuarios.
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timezone
 
 from fastapi import WebSocket
+from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import SessionLocal
+from app.models.notificacion import FCMToken
 from app.services.alertas_service import alertas_consolidadas
 
 logger = logging.getLogger("jacaranda.notificaciones")
+_firebase_app = None
+_firebase_init_failed = False
 
 
 class ConnectionManager:
@@ -116,6 +122,7 @@ async def notificar_pedido_nuevo(pedido_data: dict):
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     await manager.broadcast(mensaje)
+    await asyncio.to_thread(enviar_fcm_pedido_nuevo, mensaje["datos"])
     logger.info("Notificación nuevo_pedido: id=%s", pedido_data.get("pedido_id"))
 
 
@@ -178,13 +185,229 @@ def obtener_notificaciones_pendientes(db, usuario_id: int) -> dict:
     return alertas
 
 
+def _parse_web_config() -> dict:
+    if not settings.FIREBASE_WEB_CONFIG_JSON:
+        return {}
+    try:
+        data = json.loads(settings.FIREBASE_WEB_CONFIG_JSON)
+    except json.JSONDecodeError:
+        logger.warning("FIREBASE_WEB_CONFIG_JSON no es JSON válido")
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def generar_push_config() -> dict:
     """
-    Retorna la configuración VAPID para push notifications del service worker.
-    Stub: las claves VAPID reales deben configurarse en producción.
+    Retorna la configuración pública para Firebase Cloud Messaging.
+    La configuración web y la VAPID public key no son secretos.
     """
+    web_config = _parse_web_config()
+    enabled = bool(web_config and settings.FIREBASE_VAPID_PUBLIC_KEY)
     return {
-        "vapid_public_key": "PLACEHOLDER_VAPID_PUBLIC_KEY_CONFIGURE_EN_PRODUCCION",
-        "enabled": False,
-        "nota": "Configure VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY en variables de entorno para habilitar push notifications.",
+        "enabled": enabled,
+        "provider": "firebase" if enabled else "local",
+        "vapid_public_key": settings.FIREBASE_VAPID_PUBLIC_KEY,
+        "firebase_config": web_config,
+        "server_enabled": bool(
+            settings.FIREBASE_SERVICE_ACCOUNT_JSON or settings.FIREBASE_SERVICE_ACCOUNT_FILE
+        ),
+        "nota": (
+            "FCM listo para registrar este navegador."
+            if enabled
+            else "Configure FIREBASE_WEB_CONFIG_JSON y FIREBASE_VAPID_PUBLIC_KEY para activar push real."
+        ),
     }
+
+
+def registrar_fcm_token(
+    db: Session,
+    usuario_id: int,
+    token: str,
+    plataforma: str | None = None,
+    user_agent: str | None = None,
+) -> FCMToken:
+    """Guarda o reactiva el token FCM del navegador actual."""
+    now = datetime.now(timezone.utc)
+    item = db.query(FCMToken).filter(FCMToken.token == token).first()
+    if item:
+        item.usuario_id = usuario_id
+        item.plataforma = plataforma
+        item.user_agent = user_agent
+        item.activo = True
+        item.ultimo_error = None
+        item.actualizado_en = now
+    else:
+        item = FCMToken(
+            usuario_id=usuario_id,
+            token=token,
+            plataforma=plataforma,
+            user_agent=user_agent,
+            activo=True,
+            registrado_en=now,
+            actualizado_en=now,
+        )
+        db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def revocar_fcm_token(db: Session, usuario_id: int, token: str) -> bool:
+    """Desactiva un token FCM del usuario actual."""
+    item = (
+        db.query(FCMToken)
+        .filter(FCMToken.usuario_id == usuario_id, FCMToken.token == token)
+        .first()
+    )
+    if not item:
+        return False
+    item.activo = False
+    item.actualizado_en = datetime.now(timezone.utc)
+    db.commit()
+    return True
+
+
+def _credencial_firebase():
+    if not (settings.FIREBASE_SERVICE_ACCOUNT_JSON or settings.FIREBASE_SERVICE_ACCOUNT_FILE):
+        return None
+    try:
+        from firebase_admin import credentials
+    except ImportError:
+        logger.warning("firebase-admin no está instalado; FCM backend deshabilitado")
+        return None
+
+    if settings.FIREBASE_SERVICE_ACCOUNT_JSON:
+        try:
+            data = json.loads(settings.FIREBASE_SERVICE_ACCOUNT_JSON)
+        except json.JSONDecodeError:
+            logger.warning("FIREBASE_SERVICE_ACCOUNT_JSON no es JSON válido")
+            return None
+        if isinstance(data, dict) and data.get("private_key"):
+            data["private_key"] = data["private_key"].replace("\\n", "\n")
+        return credentials.Certificate(data)
+    return credentials.Certificate(settings.FIREBASE_SERVICE_ACCOUNT_FILE)
+
+
+def _firebase_messaging():
+    """Inicializa Firebase Admin de forma perezosa."""
+    global _firebase_app, _firebase_init_failed
+    if _firebase_init_failed:
+        return None
+    try:
+        import firebase_admin
+        from firebase_admin import messaging
+    except ImportError:
+        _firebase_init_failed = True
+        logger.warning("firebase-admin no está instalado; FCM backend deshabilitado")
+        return None
+
+    if _firebase_app is None:
+        cred = _credencial_firebase()
+        if cred is None:
+            return None
+        try:
+            _firebase_app = firebase_admin.initialize_app(cred, name="jacaranda-fcm")
+        except ValueError:
+            try:
+                _firebase_app = firebase_admin.get_app("jacaranda-fcm")
+            except ValueError:
+                _firebase_init_failed = True
+                logger.exception("No se pudo inicializar Firebase Admin")
+                return None
+        except Exception:
+            _firebase_init_failed = True
+            logger.exception("No se pudo inicializar Firebase Admin")
+            return None
+    return messaging
+
+
+def _token_error_es_permanente(error_text: str) -> bool:
+    lowered = (error_text or "").lower()
+    return any(
+        marker in lowered
+        for marker in (
+            "registration-token-not-registered",
+            "requested entity was not found",
+            "invalid-registration-token",
+            "sender id mismatch",
+        )
+    )
+
+
+def _chunks(items: list[FCMToken], size: int = 500):
+    for i in range(0, len(items), size):
+        yield items[i:i + size]
+
+
+def enviar_fcm_pedido_nuevo(pedido_data: dict) -> dict:
+    """Envía push FCM a navegadores registrados para pedidos nuevos."""
+    messaging = _firebase_messaging()
+    if messaging is None:
+        return {"enabled": False, "sent": 0, "failed": 0}
+
+    db = SessionLocal()
+    try:
+        tokens = (
+            db.query(FCMToken)
+            .filter(FCMToken.activo.is_(True))
+            .order_by(FCMToken.actualizado_en.desc())
+            .all()
+        )
+        if not tokens:
+            return {"enabled": True, "sent": 0, "failed": 0}
+
+        folio = str(pedido_data.get("folio") or "nuevo pedido")
+        cliente = str(pedido_data.get("cliente") or "Cliente")
+        total = pedido_data.get("total")
+        total_txt = f" · ${total}" if total not in (None, "") else ""
+        body = f"{folio} · {cliente}{total_txt}"
+        target = settings.FRONTEND_URL.rstrip("/") + "/#ped"
+        sent = 0
+        failed = 0
+        now = datetime.now(timezone.utc)
+
+        for token_group in _chunks(tokens):
+            multicast = messaging.MulticastMessage(
+                tokens=[item.token for item in token_group],
+                notification=messaging.Notification(
+                    title="Nuevo pedido Jacaranda",
+                    body=body,
+                ),
+                data={
+                    "tipo": "nuevo_pedido",
+                    "pedido_id": str(pedido_data.get("pedido_id") or ""),
+                    "folio": folio,
+                    "url": target,
+                },
+                webpush=messaging.WebpushConfig(
+                    fcm_options=messaging.WebpushFCMOptions(link=target),
+                    notification=messaging.WebpushNotification(
+                        icon=settings.FRONTEND_URL.rstrip("/") + "/favicon.svg",
+                        badge=settings.FRONTEND_URL.rstrip("/") + "/favicon.svg",
+                        tag="jacaranda-nuevo-pedido",
+                        require_interaction=True,
+                    ),
+                ),
+            )
+            sender = getattr(messaging, "send_each_for_multicast", None) or messaging.send_multicast
+            response = sender(multicast)
+            for idx, resp in enumerate(response.responses):
+                item = token_group[idx]
+                item.ultimo_envio_en = now
+                if resp.success:
+                    sent += 1
+                    item.ultimo_error = None
+                else:
+                    failed += 1
+                    err = str(resp.exception or "Error FCM")
+                    item.ultimo_error = err[:1000]
+                    if _token_error_es_permanente(err):
+                        item.activo = False
+        db.commit()
+        logger.info("FCM nuevo_pedido enviado: sent=%d failed=%d", sent, failed)
+        return {"enabled": True, "sent": sent, "failed": failed}
+    except Exception:
+        logger.exception("Error enviando FCM nuevo_pedido")
+        return {"enabled": True, "sent": 0, "failed": 0}
+    finally:
+        db.close()

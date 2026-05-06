@@ -3,6 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+from app.models.notificacion import FCMToken
 from app.services.notificacion_service import ConnectionManager
 
 
@@ -16,6 +17,49 @@ class TestNotificaciones:
         assert "alertas" in data
         assert "push_config" in data
         assert "vapid_public_key" in data["push_config"]
+
+    def test_fcm_config_default_disabled(self, client, auth_headers):
+        resp = client.get("/api/v1/notificaciones/fcm-config", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["enabled"] is False
+        assert data["provider"] == "local"
+
+    def test_registrar_y_revocar_fcm_token(self, client, auth_headers, db, admin_user):
+        token = "fcm-token-" + ("x" * 80)
+
+        resp = client.post(
+            "/api/v1/notificaciones/fcm-token",
+            json={"token": token, "plataforma": "pytest"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["activo"] is True
+
+        stored = db.query(FCMToken).filter(FCMToken.token == token).one()
+        assert stored.usuario_id == admin_user.id
+        assert stored.activo is True
+        assert stored.plataforma == "pytest"
+
+        resp = client.post(
+            "/api/v1/notificaciones/fcm-token/revocar",
+            json={"token": token},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["revocado"] is True
+        db.refresh(stored)
+        assert stored.activo is False
+
+    def test_enviar_fcm_sin_credenciales_no_falla(self, monkeypatch):
+        from app.core.config import settings
+        from app.services.notificacion_service import enviar_fcm_pedido_nuevo
+
+        monkeypatch.setattr(settings, "FIREBASE_SERVICE_ACCOUNT_JSON", "")
+        monkeypatch.setattr(settings, "FIREBASE_SERVICE_ACCOUNT_FILE", "")
+
+        result = enviar_fcm_pedido_nuevo({"folio": "P-1", "cliente": "Test"})
+        assert result["enabled"] is False
 
     def test_test_notificacion_admin(self, client, auth_headers):
         resp = client.post("/api/v1/notificaciones/test", headers=auth_headers)

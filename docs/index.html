@@ -2224,6 +2224,9 @@ var REFRESH_TOKEN = localStorage.getItem('jacaranda_refresh_token') || '';
 var API_TIMEOUT_MS = 25000;
 var CHART_JS_SRC = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js';
 var JSPDF_SRC = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js';
+var FIREBASE_APP_SRC = 'https://www.gstatic.com/firebasejs/12.7.0/firebase-app-compat.js';
+var FIREBASE_MSG_SRC = 'https://www.gstatic.com/firebasejs/12.7.0/firebase-messaging-compat.js';
+var FCM_TOKEN_KEY = 'jacaranda_fcm_token';
 var _scriptLoads = {};
 
 function loadScriptOnce(src, readyFn) {
@@ -3913,10 +3916,14 @@ function renderNotificaciones(alertas) {
 
 // PWA Push Notification permission
 function solicitarPermisoNotif() {
-  if (!('Notification' in window)) return;
-  if (Notification.permission === 'granted') return;
-  Notification.requestPermission().then(function(perm) {
+  if (!('Notification' in window)) return Promise.resolve('unsupported');
+  if (Notification.permission === 'granted') return Promise.resolve('granted');
+  if (Notification.permission === 'denied') return Promise.resolve('denied');
+  return Notification.requestPermission().then(function(perm) {
     if (perm === 'granted') toast('Notificaciones activadas');
+    return perm;
+  }).catch(function() {
+    return 'default';
   });
 }
 
@@ -3943,6 +3950,95 @@ function enviarNotifLocal(titulo, cuerpo, opciones) {
   try {
     new Notification(titulo, notificationOptions);
   } catch(e) {}
+}
+
+function soportaPushWeb() {
+  return !!(
+    window.isSecureContext &&
+    !esArchivoLocal() &&
+    'serviceWorker' in navigator &&
+    'Notification' in window &&
+    'PushManager' in window
+  );
+}
+
+function cargarFirebaseMessaging() {
+  return loadScriptOnce(FIREBASE_APP_SRC, function() {
+    return !!(window.firebase && firebase.initializeApp);
+  }).then(function() {
+    return loadScriptOnce(FIREBASE_MSG_SRC, function() {
+      return !!(window.firebase && firebase.messaging);
+    });
+  });
+}
+
+function firebaseAppInstancia(config) {
+  if (!window.firebase) throw new Error('Firebase no disponible');
+  if (firebase.apps && firebase.apps.length) return firebase.apps[0];
+  return firebase.initializeApp(config);
+}
+
+var _fcmRegistroIntentado = false;
+function registrarFCMPush() {
+  if (_fcmRegistroIntentado || !TOKEN || !soportaPushWeb()) return Promise.resolve(false);
+  _fcmRegistroIntentado = true;
+  return api('GET', '/notificaciones/fcm-config').then(function(cfg) {
+    if (!cfg || !cfg.enabled || !cfg.firebase_config || !cfg.vapid_public_key) return false;
+    return solicitarPermisoNotif().then(function(perm) {
+      if (perm !== 'granted') return false;
+      return cargarFirebaseMessaging().then(function() {
+        return navigator.serviceWorker.ready;
+      }).then(function(reg) {
+        firebaseAppInstancia(cfg.firebase_config);
+        var messaging = firebase.messaging();
+        if (messaging.onMessage) {
+          messaging.onMessage(function(payload) {
+            var data = (payload && payload.data) || {};
+            if (data.tipo === 'nuevo_pedido') {
+              alertarPedidoNuevo({
+                pedido_id: data.pedido_id,
+                folio: data.folio,
+                cliente: data.cliente || ''
+              });
+              cargarPedidos();
+            }
+          });
+        }
+        return messaging.getToken({
+          vapidKey: cfg.vapid_public_key,
+          serviceWorkerRegistration: reg
+        });
+      }).then(function(token) {
+        if (!token) return false;
+        var previo = localStorage.getItem(FCM_TOKEN_KEY);
+        localStorage.setItem(FCM_TOKEN_KEY, token);
+        var plataforma = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || 'web';
+        return api('POST', '/notificaciones/fcm-token', {
+          token: token,
+          plataforma: plataforma
+        }).then(function() {
+          if (previo !== token) toast('Notificaciones push listas');
+          return true;
+        });
+      });
+    });
+  }).catch(function(e) {
+    console.warn('FCM no disponible:', e);
+    _fcmRegistroIntentado = false;
+    return false;
+  });
+}
+
+function revocarFCMPushActual() {
+  var token = localStorage.getItem(FCM_TOKEN_KEY);
+  if (!token || !TOKEN) return Promise.resolve(false);
+  return api('POST', '/notificaciones/fcm-token/revocar', {token: token}).catch(function() {
+    return false;
+  }).then(function() {
+    localStorage.removeItem(FCM_TOKEN_KEY);
+    _fcmRegistroIntentado = false;
+    return true;
+  });
 }
 
 // Periodic check for urgent alerts (every 5 min)
@@ -8343,6 +8439,7 @@ function aplicarPostLogin(u) {
     deferDashboard(function() { if (TOKEN) cargarNotificaciones(); }, 3000);
     iniciarNotifPeriodicas();
     solicitarPermisoNotif();
+    deferDashboard(registrarFCMPush, 1200);
     // WebSocket real-time
     initWebSocket();
 }
@@ -8368,6 +8465,7 @@ function aplicarPermisosModulos(permisos) {
 }
 
 function cerrarSesion() {
+  revocarFCMPushActual();
   TOKEN = '';
   REFRESH_TOKEN = '';
   localStorage.removeItem('jacaranda_token');

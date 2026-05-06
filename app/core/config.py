@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     SECRET_KEY: str = Field(default_factory=_default_secret)
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 horas
+    FRONTEND_URL: str = "https://alonsojc.github.io/jacaranda/"
 
     # --- Base de datos ---
     DATABASE_URL: str = "sqlite:///./jacaranda.db"
@@ -140,6 +141,12 @@ class Settings(BaseSettings):
     WA_VERIFY_TOKEN: str = "jacaranda_wa_verify"
     WA_APP_SECRET: str = ""
     WA_ALLOW_UNSIGNED_WEBHOOKS: bool = False
+
+    # --- Firebase Cloud Messaging (notificaciones push web) ---
+    FIREBASE_WEB_CONFIG_JSON: str = ""
+    FIREBASE_VAPID_PUBLIC_KEY: str = ""
+    FIREBASE_SERVICE_ACCOUNT_JSON: str = ""
+    FIREBASE_SERVICE_ACCOUNT_FILE: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
