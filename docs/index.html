@@ -314,9 +314,9 @@ h2{font-size:1.1rem}
 }
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-<script src="js/jacaranda-core.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script defer src="js/jacaranda-core.js"></script>
 </head>
 <body>
 <!-- LOGIN SCREEN -->
@@ -2150,10 +2150,17 @@ function toast(msg, isErr) {
 
 // ─── API helpers ──────────────────────────────────────────────────
 var REFRESH_TOKEN = localStorage.getItem('jacaranda_refresh_token') || '';
+var API_TIMEOUT_MS = 25000;
 
 function api(method, path, body, _retry, extraHeaders) {
   if (!API_URL) return Promise.reject('offline');
   var opts = {method: method, headers: {'Content-Type':'application/json'}};
+  var controller = window.AbortController ? new AbortController() : null;
+  var timeoutId = null;
+  if (controller) {
+    opts.signal = controller.signal;
+    timeoutId = setTimeout(function() { controller.abort(); }, API_TIMEOUT_MS);
+  }
   if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
   if (extraHeaders) {
     for (var hk in extraHeaders) {
@@ -2164,6 +2171,7 @@ function api(method, path, body, _retry, extraHeaders) {
   }
   if (body) opts.body = JSON.stringify(body);
   return fetch(API_URL + '/api/v1' + path, opts).then(function(r) {
+    if (timeoutId) clearTimeout(timeoutId);
     if (r.status === 401 && !_retry && REFRESH_TOKEN) {
       return refreshAccessToken().then(function() {
         return api(method, path, body, true, extraHeaders);
@@ -2175,7 +2183,28 @@ function api(method, path, body, _retry, extraHeaders) {
     }
     if (!r.ok) return r.json().catch(function(){return {};}).then(function(body){var e=new Error(typeof body.detail==='string'?body.detail:r.status);e.status=r.status;throw e;});
     return r.json();
+  }).catch(function(e) {
+    if (timeoutId) clearTimeout(timeoutId);
+    if (e && e.name === 'AbortError') throw new Error('El servidor tardó demasiado en responder');
+    throw e;
   });
+}
+
+var _dashGetCache = {};
+function dashGet(path) {
+  if (!_dashGetCache[path]) {
+    _dashGetCache[path] = api('GET', path).catch(function(e) {
+      delete _dashGetCache[path];
+      throw e;
+    });
+  }
+  return _dashGetCache[path];
+}
+
+function deferDashboard(fn, delay) {
+  setTimeout(function() {
+    try { fn(); } catch(e) { console.warn('Error dashboard diferido:', e); }
+  }, delay || 0);
 }
 
 function esAdminActual() {
@@ -2354,7 +2383,8 @@ function go(p) {
   localStorage.setItem('jacaranda_tab', p);
   if (p === 'ped') cargarPedidos();
   if (p === 'dash') cargarDashboard();
-  if (p === 'pos') cargarPOSProductos();
+  if (p === 'pos') { cargarPOSProductos(); cargarClientesPOS(); }
+  if (p === 'inv') cargarInventarioCompleto();
   if (p === 'corte') cargarCorte();
   if (p === 'listas') cargarListas();
   if (p === 'rep') initReportes();
@@ -5612,6 +5642,7 @@ function cargarPronostico() {
 // ─── Dashboard data ───────────────────────────────────────────────
 
 function cargarDashboard() {
+  _dashGetCache = {};
   _dashAlertas = '';
   // Fecha de hoy en el header
   try {
@@ -5624,7 +5655,7 @@ function cargarDashboard() {
     }
   } catch(e){}
   // Dashboard endpoint returns {ventas_hoy: {total, numero_ventas}, ventas_mes: {total}}
-  api('GET', '/reportes/dashboard').then(function(d) {
+  dashGet('/reportes/dashboard').then(function(d) {
     var vh = d.ventas_hoy || {};
     var vm = d.ventas_mes || {};
     document.getElementById('d-ventas').textContent = '$' + fmt(vh.total);
@@ -5635,22 +5666,22 @@ function cargarDashboard() {
     document.getElementById('d-ticket-prom').textContent = '$' + fmt(prom);
   }).catch(function(e){ console.warn('Error cargando datos:', e); });
   // Cargar serie de 14 días para sparklines + deltas
-  cargarSparklines();
+  deferDashboard(cargarSparklines, 80);
 
   // Week-over-week comparison
-  cargarComparativoSemanal();
+  deferDashboard(cargarComparativoSemanal, 120);
 
   // Employee dashboard
-  cargarDashEmpleados();
+  deferDashboard(cargarDashEmpleados, 1200);
 
   // Advanced dashboard (charts, projections, VIP)
-  cargarDashAvanzado();
+  deferDashboard(cargarDashAvanzado, 500);
 
   // Load top products
   var hoy = new Date();
   var inicio = hoy.getFullYear() + '-' + String(hoy.getMonth()+1).padStart(2,'0') + '-01';
   var fin = hoy.toISOString().split('T')[0];
-  api('GET', '/reportes/productos-mas-vendidos?fecha_inicio=' + inicio + '&fecha_fin=' + fin + '&limit=5').then(function(tops) {
+  deferDashboard(function() { api('GET', '/reportes/productos-mas-vendidos?fecha_inicio=' + inicio + '&fecha_fin=' + fin + '&limit=5').then(function(tops) {
     var h = '';
     for (var i = 0; i < tops.length; i++) {
       var t = tops[i];
@@ -5660,10 +5691,10 @@ function cargarDashboard() {
     else document.getElementById('d-top-prod').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Sin ventas este mes</span></div>';
   }).catch(function(){
     document.getElementById('d-top-prod').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Sin ventas este mes</span></div>';
-  });
+  }); }, 300);
 
   // Load today's pedidos for dashboard
-  api('GET', '/pedidos/hoy').then(function(peds) {
+  deferDashboard(function() { api('GET', '/pedidos/hoy').then(function(peds) {
     var h = '';
     var estadoClase = {recibido:'bpend',confirmado:'bconf',en_preparacion:'bprep',listo:'blist',entregado:'bok'};
     var estadoNombre = {recibido:'Recibido',confirmado:'Confirmado',en_preparacion:'Preparando',listo:'Listo',entregado:'Entregado'};
@@ -5673,11 +5704,11 @@ function cargarDashboard() {
       h += '<span class="badge ' + (estadoClase[p.estado]||'bpend') + '">' + (estadoNombre[p.estado]||p.estado) + '</span></div>';
     }
     if (h) document.getElementById('d-ped-hoy').innerHTML = h;
-  }).catch(function(e){ console.warn('Error cargando datos:', e); });
+  }).catch(function(e){ console.warn('Error cargando datos:', e); }); }, 250);
 
   // Load inventory for dashboard
   var alertas = '';
-  api('GET', '/inventario/productos').then(function(prods) {
+  deferDashboard(function() { dashGet('/inventario/productos').then(function(prods) {
     // Sort: agotado first, then bajo, then OK
     prods.sort(function(a, b) {
       var sa = parseFloat(a.stock_actual) || 0, ma = parseFloat(a.stock_minimo) || 0;
@@ -5712,9 +5743,9 @@ function cargarDashboard() {
     var invBadge = document.getElementById('inv-badge');
     if (lowCount > 0) { invBadge.textContent = lowCount; invBadge.style.display = ''; }
     else { invBadge.style.display = 'none'; }
-  }).catch(function(e){ console.warn('Error cargando datos:', e); });
+  }).catch(function(e){ console.warn('Error cargando datos:', e); }); }, 450);
   // Also check ingredients
-  api('GET', '/inventario/ingredientes').then(function(ings) {
+  deferDashboard(function() { dashGet('/inventario/ingredientes').then(function(ings) {
     var a = '';
     for (var i = 0; i < ings.length; i++) {
       var ing = ings[i];
@@ -5727,10 +5758,10 @@ function cargarDashboard() {
       }
     }
     renderDashAlertas(a);
-  }).catch(function(e){ console.warn('Error cargando datos:', e); });
+  }).catch(function(e){ console.warn('Error cargando datos:', e); }); }, 650);
 
   // Alertas de caducidad (dentro del card de alertas)
-  api('GET', '/reportes/alertas-caducidad?dias=7').then(function(items) {
+  deferDashboard(function() { api('GET', '/reportes/alertas-caducidad?dias=7').then(function(items) {
     var section = document.getElementById('d-caducidad-section');
     var el = document.getElementById('d-caducidad');
     if (!items.length || !section || !el) return;
@@ -5743,10 +5774,10 @@ function cargarDashboard() {
       h += '<div class="srow"><span>' + it.ingrediente + ' (Lote: ' + it.numero_lote + ')</span><span class="badge ' + cls + '">' + txt + '</span></div>';
     }
     el.innerHTML = h;
-  }).catch(function(e){ console.warn('Error cargando datos:', e); });
+  }).catch(function(e){ console.warn('Error cargando datos:', e); }); }, 900);
 
   // Alertas consolidadas (pedidos pendientes + merma)
-  api('GET', '/reportes/alertas').then(function(data) {
+  deferDashboard(function() { api('GET', '/reportes/alertas').then(function(data) {
     var a = '';
     // Pedidos urgentes
     if (data.pedidos_pendientes) {
@@ -5781,12 +5812,12 @@ function cargarDashboard() {
         navItems[n].setAttribute('data-badge', total);
       }
     }
-  }).catch(function(e){ console.warn('Error cargando datos:', e); });
+  }).catch(function(e){ console.warn('Error cargando datos:', e); }); }, 1000);
 
-  cargarAlertasPracticas();
+  deferDashboard(cargarAlertasPracticas, 1400);
 
   // Pron&oacute;stico de producci&oacute;n (IA) → tarjeta hero
-  cargarPronosticoHero();
+  deferDashboard(cargarPronosticoHero, 350);
 }
 
 function dashAction(label, targetFn) {
@@ -5796,8 +5827,8 @@ function dashAction(label, targetFn) {
 function cargarAlertasPracticas() {
   var hoy = new Date().toISOString().split('T')[0];
   Promise.all([
-    api('GET', '/inventario/productos'),
-    api('GET', '/inventario/ingredientes'),
+    dashGet('/inventario/productos'),
+    dashGet('/inventario/ingredientes'),
     api('GET', '/recetas/'),
     api('GET', '/punto-de-venta/ventas?fecha_inicio=' + hoy + '&fecha_fin=' + hoy),
   ]).then(function(res) {
@@ -5924,7 +5955,7 @@ function _setDelta(elId, subId, current, previous, fmtFn) {
 }
 
 function cargarSparklines() {
-  api('GET', '/reportes/ventas-por-dia?dias=14').then(function(dias) {
+  dashGet('/reportes/ventas-por-dia?dias=14').then(function(dias) {
     if (!dias || !dias.length) return;
     var ventas = dias.map(function(d){ return parseFloat(d.total) || 0; });
     var tickets = dias.map(function(d){ return parseInt(d.tickets) || 0; });
@@ -5964,7 +5995,7 @@ function renderDashAlertas(extra) {
 }
 
 function cargarComparativoSemanal() {
-  api('GET', '/reportes/ventas-por-dia?dias=14').then(function(dias) {
+  dashGet('/reportes/ventas-por-dia?dias=14').then(function(dias) {
     var diasSemana = ['Dom','Lun','Mar','Mi\u00e9','Jue','Vie','S\u00e1b'];
     var semanaAct = dias.slice(-7);
     var semanaAnt = dias.slice(0, 7);
@@ -6035,8 +6066,10 @@ var _userRole = 'ADMINISTRADOR';
 
 // ─── Pedidos polling (nuevos pedidos) ────────────────────────────
 var _pedidoCount = 0;
+var _pedidoPollInterval = null;
 function iniciarPollPedidos() {
-  setInterval(function() {
+  if (_pedidoPollInterval) return;
+  _pedidoPollInterval = setInterval(function() {
     api('GET', '/pedidos/').then(function(peds) {
       var activos = peds.filter(function(p) { return p.estado !== 'entregado' && p.estado !== 'cancelado'; }).length;
       if (activos > _pedidoCount && _pedidoCount > 0) {
@@ -7790,26 +7823,30 @@ function hacerLogin() {
   });
 }
 
-function postLogin() {
-  api('GET', '/auth/me').then(function(u) {
+function aplicarPostLogin(u) {
     _currentUser = u;
     _userRole = u.rol || 'CAJERO';
     aplicarPermisosModulos(u.permisos_modulos || {});
     var tab = pantallaInicialUsuario(u);
     go(tab);
-    cargarInventarioCompleto();
-    cargarPedidos();
     iniciarPollPedidos();
-    cargarClientesPOS();
+    if (tab !== 'ped') deferDashboard(function() { if (TOKEN) cargarPedidos(); }, 2500);
     if (_ventasPendientes.length) sincronizarVentas();
     // Notifications
     document.getElementById('btn-notif').style.display = '';
-    cargarNotificaciones();
+    deferDashboard(function() { if (TOKEN) cargarNotificaciones(); }, 3000);
     iniciarNotifPeriodicas();
     solicitarPermisoNotif();
     // WebSocket real-time
     initWebSocket();
-  }).catch(function(e){ console.warn('Error cargando datos:', e); });
+}
+
+function postLogin(usuario) {
+  if (usuario) {
+    aplicarPostLogin(usuario);
+    return;
+  }
+  api('GET', '/auth/me').then(aplicarPostLogin).catch(function(e){ console.warn('Error cargando datos:', e); });
 }
 
 function aplicarPermisosModulos(permisos) {
@@ -7835,6 +7872,7 @@ function cerrarSesion() {
   document.getElementById('btn-notif').style.display = 'none';
   document.getElementById('notif-panel').classList.remove('on');
   if (_notifInterval) { clearInterval(_notifInterval); _notifInterval = null; }
+  if (_pedidoPollInterval) { clearInterval(_pedidoPollInterval); _pedidoPollInterval = null; }
   closeWebSocket();
   document.getElementById('login-pass').value = '';
   document.getElementById('login-error').style.display = 'none';
@@ -8141,7 +8179,7 @@ function autoConectar() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('login-error').style.display = 'none';
     document.getElementById('btn-logout').style.display = '';
-    postLogin();
+    postLogin(u);
   }).catch(function() {
     // Si el servidor está despertando/no disponible, no borrar la sesión guardada.
     _reconectar++;
