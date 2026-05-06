@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
@@ -189,10 +190,36 @@ app.include_router(api_router, prefix="/api/v1")
 # ─── Request logging middleware ─────────────────────────────────────
 import time as _time
 
+
+def _cors_headers_for_origin(origin: str | None) -> dict[str, str]:
+    allowed_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+    if origin and origin in allowed_origins:
+        return {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Vary": "Origin",
+        }
+    return {}
+
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start = _time.time()
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception:
+        ms = round((_time.time() - start) * 1000)
+        logger.exception(
+            "%s %s failed %dms",
+            request.method, request.url.path, ms,
+        )
+        if request.url.path.startswith("/api/"):
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Error interno del servidor"},
+                headers=_cors_headers_for_origin(request.headers.get("origin")),
+            )
+        raise
     ms = round((_time.time() - start) * 1000)
     if not request.url.path.startswith("/health"):
         logger.info(
