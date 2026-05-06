@@ -331,9 +331,9 @@ h2{font-size:1.1rem}
 </div>
 </div>
 <nav role="navigation" aria-label="Navegaci&oacute;n principal">
-<a class="logo" onclick="go('dash');return false" href="#dash" aria-label="Ir al dashboard">Jacaranda<span>sharing flavors</span></a>
+<a class="logo" onclick="irInicio();return false" href="#dash" aria-label="Ir al inicio">Jacaranda<span>sharing flavors</span></a>
 <div class="nav-links">
-<a class="on" data-pg="dash" onclick="go('dash')">Inicio</a>
+<a class="on" data-pg="dash" onclick="irInicio()">Inicio</a>
 <div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,PANADERO,CAJERO,CONTADOR">
   <a>Operaci&oacute;n</a>
   <div class="nav-dd">
@@ -1608,7 +1608,7 @@ h2{font-size:1.1rem}
 
 <!-- MOBILE BOTTOM NAV -->
 <div class="mobile-nav" id="mobile-nav" role="navigation" aria-label="Navegaci&oacute;n m&oacute;vil">
-<a onclick="go('dash')" data-pg="dash" class="mn-item on"><span class="mn-icon">&#127968;</span><span class="mn-label">Inicio</span></a>
+<a onclick="irInicio()" data-pg="dash" class="mn-item on"><span class="mn-icon">&#127968;</span><span class="mn-label">Inicio</span></a>
 <a onclick="go('pos')" data-pg="pos" class="mn-item"><span class="mn-icon">&#128179;</span><span class="mn-label">Venta</span></a>
 <a onclick="go('ped')" data-pg="ped" class="mn-item"><span class="mn-icon">&#128203;</span><span class="mn-label">Pedidos</span></a>
 <a onclick="go('inv')" data-pg="inv" class="mn-item"><span class="mn-icon">&#128230;</span><span class="mn-label">Inventario</span></a>
@@ -2316,6 +2316,31 @@ function togglePassword(inputId, btn) {
 }
 
 // ─── Navegación ───────────────────────────────────────────────────
+function puedeVerModuloUsuario(u, modulo) {
+  var permisos = (u && u.permisos_modulos) || window._permisos || {};
+  return !!permisos[modulo];
+}
+
+function moduloInicioUsuario(u) {
+  var usuario = u || _currentUser || {};
+  var rol = String(usuario.rol || '').toLowerCase();
+  if (rol === 'cajero' && puedeVerModuloUsuario(usuario, 'pos')) return 'pos';
+  return puedeVerModuloUsuario(usuario, 'dash') ? 'dash' : 'pos';
+}
+
+function pantallaInicialUsuario(u) {
+  if (String((u && u.rol) || '').toLowerCase() === 'cajero') {
+    return moduloInicioUsuario(u);
+  }
+  var tab = localStorage.getItem('jacaranda_tab') || moduloInicioUsuario(u);
+  if (!puedeVerModuloUsuario(u, tab)) return moduloInicioUsuario(u);
+  return tab;
+}
+
+function irInicio() {
+  go(moduloInicioUsuario());
+}
+
 function go(p) {
   document.querySelectorAll('.page').forEach(function(e) { e.classList.remove('on'); });
   document.getElementById(p).classList.add('on');
@@ -7770,9 +7795,7 @@ function postLogin() {
     _currentUser = u;
     _userRole = u.rol || 'CAJERO';
     aplicarPermisosModulos(u.permisos_modulos || {});
-    var tab = localStorage.getItem('jacaranda_tab') || 'dash';
-    // If user can't see saved tab, go to dash
-    if (u.permisos_modulos && !u.permisos_modulos[tab]) tab = 'dash';
+    var tab = pantallaInicialUsuario(u);
     go(tab);
     cargarInventarioCompleto();
     cargarPedidos();
