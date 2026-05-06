@@ -124,6 +124,10 @@ class DetalleVenta(Base):
     venta: Mapped["Venta"] = relationship(back_populates="detalles")
     producto: Mapped["Producto"] = relationship()  # noqa: F821
 
+    @property
+    def producto_nombre(self) -> str | None:
+        return self.producto.nombre if self.producto else None
+
 
 class PagoVenta(Base):
     """Pagos individuales de una venta (permite pagos divididos)."""

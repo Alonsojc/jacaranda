@@ -724,7 +724,7 @@ h2{font-size:1.1rem}
 </div>
 <div class="row r3" style="margin-bottom:.3rem">
 <div class="card kpi g"><div class="n" id="c-total-ef">$0</div><div class="l">Efectivo</div></div>
-<div class="card kpi"><div class="n" id="c-total-tar">$0</div><div class="l">Tarjeta</div></div>
+<div class="card kpi"><div class="n" id="c-total-tar">$0</div><div class="l">Otra tarjeta</div></div>
 <div class="card kpi a"><div class="n" id="c-total-trans">$0</div><div class="l">Transferencia</div></div>
 </div>
 <div class="row r3" style="margin-bottom:.5rem">
@@ -3028,12 +3028,14 @@ function procesarVenta() {
     body.monto_recibido = ef + tar + trans;
   } else {
     var metodos = {ef:'01', clip:'04', trans:'03', bbva:'03'};
+    var terminales = {ef:'efectivo', clip:'clip', trans:'efectivo', bbva:'bbva'};
     var monto = total;
     if (pm === 'ef') {
       monto = parseFloat(document.getElementById('mc-recibido').value) || 0;
       if (monto < total) { _ventaEnProceso = false; toast('El monto recibido es menor al total', true); return; }
     }
     body.metodo_pago = metodos[pm];
+    body.terminal = terminales[pm];
     body.monto_recibido = monto;
   }
 
@@ -3085,7 +3087,7 @@ function sincronizarVentas() {
   var chain = Promise.resolve();
   for (var i = 0; i < pending.length; i++) {
     (function(venta) {
-      var body = {detalles: venta.detalles, forma_pago: venta.forma_pago, metodo_pago: venta.metodo_pago, monto_recibido: venta.monto_recibido};
+      var body = {detalles: venta.detalles, forma_pago: venta.forma_pago, metodo_pago: venta.metodo_pago, terminal: venta.terminal, monto_recibido: venta.monto_recibido};
       if (venta.idempotency_key) body.idempotency_key = venta.idempotency_key;
       if (venta.cliente_id) body.cliente_id = venta.cliente_id;
       if (venta.pagos) body.pagos = venta.pagos;
@@ -3119,7 +3121,7 @@ function guardarVentaIndexedDB(body) {
     tx.objectStore('pending-sales').add({
       url: API_URL + '/api/v1/punto-de-venta/ventas',
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN},
-      body: JSON.stringify({detalles: body.detalles, forma_pago: body.forma_pago, metodo_pago: body.metodo_pago, monto_recibido: body.monto_recibido, pagos: body.pagos, cliente_id: body.cliente_id, idempotency_key: body.idempotency_key}),
+      body: JSON.stringify({detalles: body.detalles, forma_pago: body.forma_pago, metodo_pago: body.metodo_pago, terminal: body.terminal, monto_recibido: body.monto_recibido, pagos: body.pagos, cliente_id: body.cliente_id, idempotency_key: body.idempotency_key}),
       timestamp: new Date().toISOString(),
     });
     // Request background sync
@@ -3175,12 +3177,11 @@ function mostrarTicket(venta) {
   }).catch(function() {
     // Fallback: show basic info from venta response
     var cambio = parseFloat(venta.cambio) || 0;
-    var metodos = {'01':'Efectivo','04':'Tarjeta','28':'Tarjeta D\u00e9bito','03':'Transferencia'};
     var h = '';
     h += '<div class="srow"><span>Total</span><span class="green" style="font-size:1.2rem">$' + fmt(venta.total) + '</span></div>';
     h += '<div class="srow"><span>Subtotal</span><span>$' + fmt(venta.subtotal) + '</span></div>';
     h += '<div class="srow"><span>IVA</span><span>$' + fmt(venta.total_impuestos) + '</span></div>';
-    h += '<div class="srow"><span>M\u00e9todo</span><span>' + (metodos[venta.metodo_pago] || venta.metodo_pago) + '</span></div>';
+    h += '<div class="srow"><span>M\u00e9todo</span><span>' + escHtml(etiquetaPagoVenta(venta)) + '</span></div>';
     if (cambio > 0) h += '<div class="srow"><span>Cambio</span><span style="color:var(--grn);font-weight:700">$' + fmt(cambio) + '</span></div>';
     document.getElementById('mt-detalles').innerHTML = h;
     document.getElementById('mt-productos').innerHTML = '';
@@ -4342,6 +4343,8 @@ function exportarCorte() {
   var fecha = document.getElementById('c-fecha').value || new Date().toISOString().split('T')[0];
   var ef = document.getElementById('c-total-ef').textContent;
   var tar = document.getElementById('c-total-tar').textContent;
+  var clip = document.getElementById('c-total-clip').textContent;
+  var bbva = document.getElementById('c-total-bbva').textContent;
   var trans = document.getElementById('c-total-trans').textContent;
   var total = document.getElementById('c-total').textContent;
   var tickets = document.getElementById('c-tickets').textContent;
@@ -4358,7 +4361,9 @@ function exportarCorte() {
   txt += '\n';
   txt += '\ud83d\udcb0 *Ventas por m\u00e9todo:*\n';
   txt += '  \ud83d\udcb5 Efectivo: ' + ef + '\n';
-  txt += '  \ud83d\udcb3 Tarjeta: ' + tar + '\n';
+  txt += '  \ud83d\udcb3 Otra tarjeta: ' + tar + '\n';
+  txt += '  CLIP: ' + clip + '\n';
+  txt += '  BBVA: ' + bbva + '\n';
   txt += '  \ud83c\udfe6 Transferencia: ' + trans + '\n';
   txt += '\n';
   txt += '\ud83d\udcca *Resumen:*\n';
@@ -5242,6 +5247,52 @@ var _totalVentasDia = 0;
 var _histVentas = [];
 var _corteYaCerrado = false;
 
+function terminalVenta(v) {
+  return String((v && v.terminal) || '').toLowerCase();
+}
+
+function etiquetaPagoDetalle(p) {
+  var metodo = String((p && p.metodo_pago) || '');
+  if (metodo === '01') return 'Efectivo';
+  if (metodo === '04' || metodo === '28') return 'CLIP';
+  if (metodo === '03') return 'BBVA';
+  return 'Otro';
+}
+
+function etiquetaPagoVenta(v) {
+  if (v && v.pagos && v.pagos.length > 1) {
+    return v.pagos.map(etiquetaPagoDetalle).join(' + ');
+  }
+  var terminal = terminalVenta(v);
+  var metodo = String((v && v.metodo_pago) || '');
+  if (terminal === 'clip') return 'CLIP';
+  if (terminal === 'bbva') return 'BBVA';
+  if (metodo === '01') return 'Efectivo';
+  if (metodo === '04' || metodo === '28') return 'CLIP';
+  if (metodo === '03') return 'Transferencia';
+  return metodo || 'Otro';
+}
+
+function resumenProductosVenta(v) {
+  var detalles = (v && v.detalles) || [];
+  if (!detalles.length) return 'Sin productos';
+  var partes = detalles.slice(0, 4).map(function(d) {
+    var cantidad = parseFloat(d.cantidad) || 0;
+    var cantidadTxt = Math.abs(cantidad - Math.round(cantidad)) < 0.001 ? String(Math.round(cantidad)) : cantidad.toFixed(2);
+    return cantidadTxt + ' x ' + (d.producto_nombre || ('Producto #' + d.producto_id));
+  });
+  if (detalles.length > 4) partes.push('+' + (detalles.length - 4) + ' mas');
+  return partes.join(' · ');
+}
+
+function sumarPagoCorte(totales, metodo, monto, terminal) {
+  if (metodo === '01') totales.ef += monto;
+  else if (terminal === 'clip' || metodo === '04' || metodo === '28') totales.clip += monto;
+  else if (terminal === 'bbva') totales.bbva += monto;
+  else if (metodo === '03') totales.trans += monto;
+  else totales.tar += monto;
+}
+
 function corteFechaHoy() {
   document.getElementById('c-fecha').value = new Date().toISOString().split('T')[0];
   cargarCorte();
@@ -5256,12 +5307,10 @@ function cargarCorte() {
     var efTotal = 0, tarTotal = 0, transTotal = 0, clipTotal = 0, bbvaTotal = 0, totalGeneral = 0, tickets = 0;
     _corteVentas = ventas;
     var h = '';
-    var metodos = {'01':'Efectivo','04':'Tarjeta','28':'Tarjeta','03':'Transferencia'};
-    var terminales = {efectivo:'',clip:'CLIP',bbva:'BBVA'};
     for (var i = 0; i < ventas.length; i++) {
       var v = ventas[i];
       var tot = parseFloat(v.total) || 0;
-      var met = metodos[v.metodo_pago] || v.metodo_pago;
+      var met = etiquetaPagoVenta(v);
       var estado = v.estado === 'cancelada' ? ' <span class="badge bout">Cancelada</span>' : '';
       if (v.estado !== 'cancelada') {
         totalGeneral += tot; tickets++;
@@ -5269,20 +5318,28 @@ function cargarCorte() {
           for (var j = 0; j < v.pagos.length; j++) {
             var pm2 = v.pagos[j].metodo_pago;
             var pm2m = parseFloat(v.pagos[j].monto) || 0;
-            if (pm2 === '01') efTotal += pm2m;
-            else if (pm2 === '04' || pm2 === '28') tarTotal += pm2m;
-            else if (pm2 === '03') transTotal += pm2m;
+            var parciales = {ef:0, tar:0, trans:0, clip:0, bbva:0};
+            sumarPagoCorte(parciales, pm2, pm2m, pm2 === '03' ? 'bbva' : '');
+            efTotal += parciales.ef;
+            tarTotal += parciales.tar;
+            transTotal += parciales.trans;
+            clipTotal += parciales.clip;
+            bbvaTotal += parciales.bbva;
           }
-          met = 'Dividido';
         } else {
-          if (v.metodo_pago === '01') efTotal += tot;
-          else if (v.metodo_pago === '04' || v.metodo_pago === '28') tarTotal += tot;
-          else if (v.metodo_pago === '03') transTotal += tot;
+          var t = {ef:0, tar:0, trans:0, clip:0, bbva:0};
+          sumarPagoCorte(t, v.metodo_pago, tot, terminalVenta(v));
+          efTotal += t.ef;
+          tarTotal += t.tar;
+          transTotal += t.trans;
+          clipTotal += t.clip;
+          bbvaTotal += t.bbva;
         }
       }
       var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
       h += '<div class="srow" style="cursor:pointer" onclick="verTicket(' + v.id + ',' + (v.estado==='cancelada') + ')">';
-      h += '<span>' + v.folio + ' &bull; ' + hora + ' &bull; ' + met + estado + '</span>';
+      h += '<span style="min-width:0"><span>' + escHtml(v.folio) + ' &bull; ' + hora + ' &bull; ' + escHtml(met) + estado + '</span>';
+      h += '<br><small style="color:var(--mut);font-size:.75rem;line-height:1.25">' + escHtml(resumenProductosVenta(v)) + '</small></span>';
       h += '<span style="font-weight:600' + (v.estado==='cancelada'?';text-decoration:line-through;color:var(--mut)':'') + '">$' + fmt(tot) + '</span></div>';
     }
     if (!h) h = '<p style="color:var(--mut);text-align:center;padding:.5rem;font-size:.85rem">Sin ventas hoy</p>';
@@ -5669,20 +5726,20 @@ function renderHistVentas() {
   var q = (document.getElementById('hv-buscar').value || '').toLowerCase().trim();
   var ventas = _histVentas;
   if (q) ventas = ventas.filter(function(v) { return (v.folio||'').toLowerCase().indexOf(q) >= 0; });
-  var metodos = {'01':'Efectivo','04':'T.Crédito','28':'T.Débito','03':'Transf.','99':'Otro'};
   var total = 0, count = 0;
-  var h = '<table class="tbl"><tr><th>Folio</th><th>Fecha</th><th>M\u00e9todo</th><th>Total</th><th>Estado</th></tr>';
+  var h = '<table class="tbl"><tr><th>Folio</th><th>Fecha</th><th>M\u00e9todo</th><th>Productos</th><th>Total</th><th>Estado</th></tr>';
   for (var i = 0; i < ventas.length; i++) {
     var v = ventas[i];
     var tot = parseFloat(v.total) || 0;
     var f = v.fecha ? new Date(v.fecha).toLocaleDateString('es-MX', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
-    var met = metodos[v.metodo_pago] || v.metodo_pago;
+    var met = etiquetaPagoVenta(v);
     var cls = v.estado === 'cancelada' ? 'bout' : 'bok';
     var est = v.estado === 'cancelada' ? 'Cancelada' : 'OK';
     if (v.estado !== 'cancelada') { total += tot; count++; }
     h += '<tr style="cursor:pointer" onclick="verTicket(' + v.id + ',' + (v.estado==='cancelada') + ')">';
-    h += '<td>' + v.folio + '</td><td style="font-size:.78rem">' + f + '</td>';
-    h += '<td>' + met + '</td>';
+    h += '<td>' + escHtml(v.folio) + '</td><td style="font-size:.78rem">' + f + '</td>';
+    h += '<td>' + escHtml(met) + '</td>';
+    h += '<td style="font-size:.78rem;color:var(--mut)">' + escHtml(resumenProductosVenta(v)) + '</td>';
     h += '<td style="font-weight:600' + (v.estado==='cancelada'?';text-decoration:line-through;color:var(--mut)':'') + '">$' + fmt(tot) + '</td>';
     h += '<td><span class="badge ' + cls + '">' + est + '</span></td></tr>';
   }
@@ -5696,14 +5753,13 @@ function renderHistVentas() {
 
 function exportarHistVentasCSV() {
   if (!_histVentas.length) { toast('Busca ventas primero', true); return; }
-  var metodos = {'01':'Efectivo','04':'Tarjeta Credito','28':'Tarjeta Debito','03':'Transferencia','99':'Otro'};
-  var csv = 'Folio,Fecha,Hora,Metodo Pago,Subtotal,IVA,Total,Estado\n';
+  var csv = 'Folio,Fecha,Hora,Metodo Pago,Productos,Subtotal,IVA,Total,Estado\n';
   for (var i = 0; i < _histVentas.length; i++) {
     var v = _histVentas[i];
     var f = v.fecha ? new Date(v.fecha) : null;
     var fecha = f ? f.toLocaleDateString('es-MX') : '';
     var hora = f ? f.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
-    csv += v.folio + ',' + fecha + ',' + hora + ',' + (metodos[v.metodo_pago]||v.metodo_pago) + ',';
+    csv += v.folio + ',' + fecha + ',' + hora + ',"' + etiquetaPagoVenta(v).replace(/"/g,'""') + '","' + resumenProductosVenta(v).replace(/"/g,'""') + '",';
     csv += (parseFloat(v.subtotal)||0).toFixed(2) + ',' + (parseFloat(v.total_impuestos)||0).toFixed(2) + ',';
     csv += (parseFloat(v.total)||0).toFixed(2) + ',' + v.estado + '\n';
   }
@@ -5717,19 +5773,20 @@ function exportarCorteCSV() {
   var csv = 'Corte de Caja - ' + fecha + '\n\n';
   csv += 'Concepto,Monto\n';
   csv += 'Efectivo,' + (document.getElementById('c-total-ef').textContent.replace('$','').replace(/,/g,'')) + '\n';
-  csv += 'Tarjeta,' + (document.getElementById('c-total-tar').textContent.replace('$','').replace(/,/g,'')) + '\n';
+  csv += 'Otra tarjeta,' + (document.getElementById('c-total-tar').textContent.replace('$','').replace(/,/g,'')) + '\n';
+  csv += 'CLIP,' + (document.getElementById('c-total-clip').textContent.replace('$','').replace(/,/g,'')) + '\n';
+  csv += 'BBVA,' + (document.getElementById('c-total-bbva').textContent.replace('$','').replace(/,/g,'')) + '\n';
   csv += 'Transferencia,' + (document.getElementById('c-total-trans').textContent.replace('$','').replace(/,/g,'')) + '\n';
   csv += 'Total Ventas,' + (document.getElementById('c-total').textContent.replace('$','').replace(/,/g,'')) + '\n';
   csv += 'Tickets,' + document.getElementById('c-tickets').textContent + '\n';
   csv += 'Gastos,' + (document.getElementById('c-gastos-total').textContent.replace('$','').replace(/,/g,'')) + '\n';
   csv += 'Utilidad,' + (document.getElementById('c-util-neta').textContent.replace('$','').replace(/,/g,'')) + '\n';
   csv += '\nDetalle de ventas\n';
-  csv += 'Folio,Hora,Metodo,Total,Estado\n';
-  var metodos = {'01':'Efectivo','04':'Tarjeta','28':'Tarjeta','03':'Transferencia'};
+  csv += 'Folio,Hora,Metodo,Productos,Total,Estado\n';
   for (var i = 0; i < _corteVentas.length; i++) {
     var v = _corteVentas[i];
     var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
-    csv += v.folio + ',' + hora + ',' + (metodos[v.metodo_pago]||v.metodo_pago) + ',' + (parseFloat(v.total)||0).toFixed(2) + ',' + v.estado + '\n';
+    csv += v.folio + ',' + hora + ',"' + etiquetaPagoVenta(v).replace(/"/g,'""') + '","' + resumenProductosVenta(v).replace(/"/g,'""') + '",' + (parseFloat(v.total)||0).toFixed(2) + ',' + v.estado + '\n';
   }
   _descargarCSV('corte_' + fecha + '.csv', csv);
 }
@@ -5742,7 +5799,9 @@ function compartirCorteWhatsApp() {
   var txt = '\ud83c\udf5e *CORTE DE CAJA*\n*Jacaranda* \u2014 ' + dia + ' ' + fecha + '\n\n';
   txt += '\ud83d\udcb0 *Ventas:*\n';
   txt += '\ud83d\udcb5 Efectivo: ' + document.getElementById('c-total-ef').textContent + '\n';
-  txt += '\ud83d\udcb3 Tarjeta: ' + document.getElementById('c-total-tar').textContent + '\n';
+  txt += '\ud83d\udcb3 Otra tarjeta: ' + document.getElementById('c-total-tar').textContent + '\n';
+  txt += 'CLIP: ' + document.getElementById('c-total-clip').textContent + '\n';
+  txt += 'BBVA: ' + document.getElementById('c-total-bbva').textContent + '\n';
   txt += '\ud83c\udfe6 Transferencia: ' + document.getElementById('c-total-trans').textContent + '\n';
   txt += '*Total: ' + document.getElementById('c-total').textContent + '* (' + document.getElementById('c-tickets').textContent + ' tickets)\n\n';
   txt += '\ud83d\udcca *Resultado:*\n';

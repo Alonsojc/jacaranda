@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from decimal import Decimal
 from datetime import datetime
 
-from app.models.venta import MetodoPago, FormaPago, EstadoVenta
+from app.models.venta import MetodoPago, FormaPago, EstadoVenta, TerminalPago
 
 
 class DetalleVentaCreate(BaseModel):
@@ -23,6 +23,7 @@ class VentaCreate(BaseModel):
     idempotency_key: str | None = Field(default=None, max_length=80)
     cliente_id: int | None = None
     metodo_pago: MetodoPago = MetodoPago.EFECTIVO
+    terminal: TerminalPago = TerminalPago.EFECTIVO
     forma_pago: FormaPago = FormaPago.PUE
     monto_recibido: Decimal = Field(default=Decimal("0"), ge=0)
     puntos_canjeados: int = Field(default=0, ge=0)
@@ -34,6 +35,7 @@ class VentaCreate(BaseModel):
 class DetalleVentaResponse(BaseModel):
     id: int
     producto_id: int
+    producto_nombre: str | None = None
     cantidad: Decimal
     precio_unitario: Decimal
     descuento: Decimal
@@ -65,13 +67,15 @@ class VentaResponse(BaseModel):
     total_impuestos: Decimal
     total: Decimal
     metodo_pago: MetodoPago
+    terminal: TerminalPago
     forma_pago: FormaPago
     monto_recibido: Decimal
     cambio: Decimal
     estado: EstadoVenta
     facturada: bool
     fecha: datetime
-    pagos: list[PagoVentaResponse] = []
+    detalles: list[DetalleVentaResponse] = Field(default_factory=list)
+    pagos: list[PagoVentaResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 
@@ -110,6 +114,8 @@ class CorteCajaResponse(BaseModel):
     total_ventas_efectivo: Decimal
     total_ventas_tarjeta: Decimal
     total_ventas_transferencia: Decimal
+    total_ventas_clip: Decimal = Decimal("0")
+    total_ventas_bbva: Decimal = Decimal("0")
     total_ventas: Decimal
     efectivo_esperado: Decimal
     efectivo_real: Decimal
@@ -125,6 +131,8 @@ class CorteCajaResumen(BaseModel):
     total_ventas_efectivo: Decimal
     total_ventas_tarjeta: Decimal
     total_ventas_transferencia: Decimal
+    total_ventas_clip: Decimal = Decimal("0")
+    total_ventas_bbva: Decimal = Decimal("0")
     total_ventas: Decimal
     efectivo_esperado_base: Decimal
     numero_ventas: int

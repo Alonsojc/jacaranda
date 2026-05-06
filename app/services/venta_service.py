@@ -7,11 +7,13 @@ Genera tickets conforme a Ley Federal de Protección al Consumidor.
 from decimal import Decimal
 from datetime import datetime, timezone, date
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_
 from sqlalchemy.exc import IntegrityError
 
-from app.models.venta import Venta, DetalleVenta, PagoVenta, CorteCaja, MetodoPago, EstadoVenta
+from app.models.venta import (
+    Venta, DetalleVenta, PagoVenta, CorteCaja, MetodoPago, EstadoVenta, TerminalPago
+)
 from app.models.inventario import Producto, TasaIVA, TipoMovimiento
 from app.models.cliente import Cliente
 from app.schemas.venta import VentaCreate, CorteCajaCreate
@@ -269,6 +271,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             total_impuestos=total_impuestos,
             total=total,
             metodo_pago=metodo_principal,
+            terminal=data.terminal,
             forma_pago=data.forma_pago,
             monto_recibido=monto_recibido,
             cambio=cambio,
@@ -490,7 +493,15 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
 
 
 def obtener_venta(db: Session, venta_id: int) -> Venta:
-    venta = db.query(Venta).filter(Venta.id == venta_id).first()
+    venta = (
+        db.query(Venta)
+        .options(
+            joinedload(Venta.detalles).joinedload(DetalleVenta.producto),
+            joinedload(Venta.pagos),
+        )
+        .filter(Venta.id == venta_id)
+        .first()
+    )
     if not venta:
         raise ValueError("Venta no encontrada")
     return venta
@@ -502,7 +513,10 @@ def listar_ventas(
     fecha_fin: date | None = None,
     limit: int = 100,
 ):
-    query = db.query(Venta)
+    query = db.query(Venta).options(
+        joinedload(Venta.detalles).joinedload(DetalleVenta.producto),
+        joinedload(Venta.pagos),
+    )
     if fecha_inicio:
         query = query.filter(Venta.fecha >= datetime.combine(fecha_inicio, datetime.min.time()))
     if fecha_fin:
@@ -531,18 +545,27 @@ def generar_ticket(db: Session, venta_id: int) -> dict:
             "iva": float(d.monto_iva),
         })
 
-    metodo_pago_desc = {
-        "01": "Efectivo", "04": "Tarjeta de crédito",
-        "28": "Tarjeta de débito", "03": "Transferencia",
-    }
+    def etiqueta_pago(metodo: MetodoPago, terminal: TerminalPago | None = None) -> str:
+        if terminal == TerminalPago.CLIP:
+            return "CLIP"
+        if terminal == TerminalPago.BBVA:
+            return "BBVA"
+        if metodo == MetodoPago.EFECTIVO:
+            return "Efectivo"
+        if metodo in (MetodoPago.TARJETA_CREDITO, MetodoPago.TARJETA_DEBITO):
+            return "CLIP"
+        if metodo == MetodoPago.TRANSFERENCIA:
+            return "Transferencia"
+        return "Otro"
 
     # Build payment description
     pagos_info = []
     if venta.pagos:
         for p in venta.pagos:
-            desc = metodo_pago_desc.get(p.metodo_pago.value, "Otro")
+            terminal = TerminalPago.BBVA if p.metodo_pago == MetodoPago.TRANSFERENCIA else None
+            desc = etiqueta_pago(p.metodo_pago, terminal)
             pagos_info.append({"metodo": desc, "monto": float(p.monto)})
-    metodo_str = metodo_pago_desc.get(venta.metodo_pago.value, "Otro")
+    metodo_str = etiqueta_pago(venta.metodo_pago, venta.terminal)
     if pagos_info and len(pagos_info) > 1:
         metodo_str = " + ".join(f"{p['metodo']} ${p['monto']:,.2f}" for p in pagos_info)
 
@@ -593,6 +616,8 @@ def _totales_corte(db: Session, fecha: date) -> dict:
     total_efectivo = Decimal("0")
     total_tarjeta = Decimal("0")
     total_transferencia = Decimal("0")
+    total_clip = Decimal("0")
+    total_bbva = Decimal("0")
     for v in ventas:
         if v.pagos:
             # Split payment: sum each method's portion
@@ -600,18 +625,22 @@ def _totales_corte(db: Session, fecha: date) -> dict:
                 if p.metodo_pago == MetodoPago.EFECTIVO:
                     total_efectivo += p.monto
                 elif p.metodo_pago in (MetodoPago.TARJETA_CREDITO, MetodoPago.TARJETA_DEBITO):
-                    total_tarjeta += p.monto
+                    total_clip += p.monto
                 elif p.metodo_pago == MetodoPago.TRANSFERENCIA:
-                    total_transferencia += p.monto
+                    total_bbva += p.monto
         else:
             # Single payment
             if v.metodo_pago == MetodoPago.EFECTIVO:
                 total_efectivo += v.total
+            elif v.terminal == TerminalPago.CLIP:
+                total_clip += v.total
+            elif v.terminal == TerminalPago.BBVA:
+                total_bbva += v.total
             elif v.metodo_pago in (MetodoPago.TARJETA_CREDITO, MetodoPago.TARJETA_DEBITO):
-                total_tarjeta += v.total
+                total_clip += v.total
             elif v.metodo_pago == MetodoPago.TRANSFERENCIA:
                 total_transferencia += v.total
-    total_ventas = total_efectivo + total_tarjeta + total_transferencia
+    total_ventas = total_efectivo + total_tarjeta + total_transferencia + total_clip + total_bbva
 
     cancelaciones = db.query(func.count(Venta.id)).filter(
         and_(
@@ -634,6 +663,8 @@ def _totales_corte(db: Session, fecha: date) -> dict:
         "total_efectivo": total_efectivo,
         "total_tarjeta": total_tarjeta,
         "total_transferencia": total_transferencia,
+        "total_clip": total_clip,
+        "total_bbva": total_bbva,
         "total_ventas": total_ventas,
         "numero_ventas": len(ventas),
         "numero_cancelaciones": int(cancelaciones),
@@ -651,6 +682,8 @@ def resumen_corte_caja(db: Session, fecha: date | None = None) -> dict:
         "total_ventas_efectivo": totales["total_efectivo"],
         "total_ventas_tarjeta": totales["total_tarjeta"],
         "total_ventas_transferencia": totales["total_transferencia"],
+        "total_ventas_clip": totales["total_clip"],
+        "total_ventas_bbva": totales["total_bbva"],
         "total_ventas": totales["total_ventas"],
         "efectivo_esperado_base": totales["total_efectivo"],
         "numero_ventas": totales["numero_ventas"],
@@ -678,6 +711,8 @@ def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> 
         total_ventas_efectivo=totales["total_efectivo"],
         total_ventas_tarjeta=totales["total_tarjeta"],
         total_ventas_transferencia=totales["total_transferencia"],
+        total_ventas_clip=totales["total_clip"],
+        total_ventas_bbva=totales["total_bbva"],
         total_ventas=totales["total_ventas"],
         efectivo_esperado=efectivo_esperado,
         efectivo_real=data.efectivo_real,
@@ -701,6 +736,8 @@ def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> 
             "total_ventas_efectivo": totales["total_efectivo"],
             "total_ventas_tarjeta": totales["total_tarjeta"],
             "total_ventas_transferencia": totales["total_transferencia"],
+            "total_ventas_clip": totales["total_clip"],
+            "total_ventas_bbva": totales["total_bbva"],
             "total_ventas": totales["total_ventas"],
             "efectivo_esperado": efectivo_esperado,
             "efectivo_real": data.efectivo_real,
