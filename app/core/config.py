@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     BACKUP_MAX_FILES: int = 20
     ALLOW_DB_RESTORE: bool = False
     PEDIDOS_CAPACIDAD_DIARIA: int = 0  # 0 = sin límite duro
+    APP_TIMEZONE: str = "America/Mexico_City"
 
     # --- CORS (comma-separated origins) ---
     CORS_ORIGINS: str = "https://alonsojc.github.io"

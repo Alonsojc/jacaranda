@@ -70,7 +70,9 @@ class TestVentas:
         prod = client.get(f"/api/v1/inventario/productos/{pid}", headers=auth_headers)
         assert float(prod.json()["stock_actual"]) == 7.0
 
-    def test_venta_stock_insuficiente(self, client, auth_headers):
+    def test_venta_permite_stock_insuficiente_y_audita(self, client, auth_headers, db):
+        from app.models.auditoria import LogAuditoria
+
         pid = self._crear_producto(client, auth_headers, "PAN-003")
         self._agregar_stock(client, auth_headers, pid, 2)
         resp = client.post("/api/v1/punto-de-venta/ventas", json={
@@ -78,7 +80,20 @@ class TestVentas:
             "monto_recibido": "500.00",
             "detalles": [{"producto_id": pid, "cantidad": "5"}],
         }, headers=auth_headers)
-        assert resp.status_code == 400
+        assert resp.status_code == 201, resp.text
+        venta = resp.json()
+        assert venta["total"] == "75.00"
+
+        prod = client.get(f"/api/v1/inventario/productos/{pid}", headers=auth_headers)
+        assert float(prod.json()["stock_actual"]) == -3.0
+
+        evento = db.query(LogAuditoria).filter(
+            LogAuditoria.accion == "venta_stock_negativo",
+            LogAuditoria.modulo == "ventas",
+            LogAuditoria.entidad_id == venta["id"],
+        ).first()
+        assert evento is not None
+        assert "stock_despues" in evento.datos_nuevos
 
     def test_venta_producto_inexistente(self, client, auth_headers):
         resp = client.post("/api/v1/punto-de-venta/ventas", json={

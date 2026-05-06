@@ -124,7 +124,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .pi-stk-low{background:#fef3c7;color:#92400e}
 .pi-stk-out{background:#fee2e2;color:#b91c1c}
 .pi-multi{font-size:.6rem;color:var(--mut);font-style:italic}
-.pi.pi-out{opacity:.45;pointer-events:none}
+.pi.pi-out{opacity:.72}
 .tkt{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd)}
 .tkt h3{font-size:.9rem;margin-bottom:.6rem}
 .ti{display:flex;justify-content:space-between;font-size:.82rem;padding:.35rem 0;border-bottom:1px solid #f0e8e5}
@@ -3274,7 +3274,7 @@ function abrirVariantes(key) {
     var stkCls = agotado ? 'pi-stk-out' : (stock <= min ? 'pi-stk-low' : 'pi-stk-ok');
     var stkTxt = agotado ? 'Agotado' : Math.round(stock) + ' pzas';
     h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem .8rem;border:1px solid var(--brd);border-radius:10px;cursor:pointer;transition:all .15s'
-      + (agotado ? ';opacity:.4;pointer-events:none' : '') + '" '
+      + (agotado ? ';opacity:.72' : '') + '" '
       + 'onmouseover="this.style.borderColor=\'var(--v)\';this.style.background=\'#faf3f0\'" '
       + 'onmouseout="this.style.borderColor=\'\';this.style.background=\'\'" '
       + 'onclick="add(' + p.id + ',\'' + p.nombre.replace(/'/g,"\\'") + '\',' + precio + ',' + iv + ');cerrarModal(\'modal-variante\')">';

@@ -6,6 +6,7 @@ Genera tickets conforme a Ley Federal de Protección al Consumidor.
 
 from decimal import Decimal
 from datetime import datetime, timezone, date
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from sqlalchemy.exc import IntegrityError
@@ -23,6 +24,24 @@ from app.core.config import settings
 PUNTOS_POR_PESO = Decimal("0.1")  # 1 punto por $10
 VALOR_PUNTO = Decimal("0.5")      # cada punto vale $0.50
 CENTAVO = Decimal("0.01")
+
+
+def _zona_operacion() -> ZoneInfo:
+    try:
+        return ZoneInfo(settings.APP_TIMEZONE)
+    except ZoneInfoNotFoundError:
+        return ZoneInfo("America/Mexico_City")
+
+
+def _hoy_operacion() -> date:
+    return datetime.now(_zona_operacion()).date()
+
+
+def _normalizar_fecha_db(valor: datetime) -> datetime:
+    valor_utc = valor.astimezone(timezone.utc)
+    if settings.DATABASE_URL.startswith("sqlite"):
+        return valor_utc.replace(tzinfo=None)
+    return valor_utc
 
 
 def _generar_folio(db: Session, serie: str = "T") -> str:
@@ -105,7 +124,7 @@ def _recalcular_totales(
 def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     """
     Procesa una venta completa:
-    1. Valida productos y stock
+    1. Valida productos activos
     2. Calcula IVA por partida (0% o 16%)
     3. Descuenta inventario
     4. Genera ticket
@@ -139,6 +158,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     iva_16_total = Decimal("0")
 
     detalles = []
+    stock_por_producto: dict[int, dict] = {}
 
     for item in data.detalles:
         producto = db.query(Producto).filter(
@@ -148,11 +168,18 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             raise ValueError(f"Producto ID {item.producto_id} no encontrado")
         if not producto.activo:
             raise ValueError(f"Producto '{producto.nombre}' no está activo")
-        if producto.stock_actual < item.cantidad:
-            raise ValueError(
-                f"Stock insuficiente de '{producto.nombre}': "
-                f"disponible {producto.stock_actual}, solicitado {item.cantidad}"
-            )
+        stock_antes = Decimal(str(producto.stock_actual or 0))
+        cantidad_solicitada = Decimal(str(item.cantidad))
+        stock_info = stock_por_producto.setdefault(
+            producto.id,
+            {
+                "producto_id": producto.id,
+                "producto": producto.nombre,
+                "stock_antes": stock_antes,
+                "cantidad_vendida": Decimal("0"),
+            },
+        )
+        stock_info["cantidad_vendida"] += cantidad_solicitada
 
         precio = producto.precio_unitario
         subtotal_linea = (precio * item.cantidad) - item.descuento
@@ -262,6 +289,18 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     else:
         raise ValueError("No se pudo generar un folio único, intente de nuevo")
 
+    productos_sin_stock = []
+    for stock_info in stock_por_producto.values():
+        stock_despues = stock_info["stock_antes"] - stock_info["cantidad_vendida"]
+        if stock_despues < 0:
+            productos_sin_stock.append({
+                "producto_id": stock_info["producto_id"],
+                "producto": stock_info["producto"],
+                "stock_antes": str(stock_info["stock_antes"]),
+                "cantidad_vendida": str(stock_info["cantidad_vendida"]),
+                "stock_despues": str(stock_despues),
+            })
+
     # Agregar detalles
     for detalle in detalles:
         detalle.venta_id = venta.id
@@ -300,7 +339,39 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             cantidad=item.cantidad,
             referencia=f"Venta {folio}",
         )
-        registrar_movimiento(db, mov, usuario_id, commit=False)
+        registrar_movimiento(
+            db,
+            mov,
+            usuario_id,
+            commit=False,
+            permitir_stock_negativo=True,
+        )
+
+    if productos_sin_stock:
+        registrar_evento(
+            db,
+            usuario_id=usuario_id,
+            usuario_nombre=None,
+            accion="venta_stock_negativo",
+            modulo="ventas",
+            entidad="ventas",
+            entidad_id=venta.id,
+            datos_anteriores={
+                "productos": [
+                    {
+                        "producto_id": item["producto_id"],
+                        "producto": item["producto"],
+                        "stock": item["stock_antes"],
+                    }
+                    for item in productos_sin_stock
+                ],
+            },
+            datos_nuevos={
+                "folio": folio,
+                "productos": productos_sin_stock,
+            },
+            commit=False,
+        )
 
     # Acumular puntos de lealtad si hay cliente asociado
     if venta.cliente_id:
@@ -500,9 +571,10 @@ def generar_ticket(db: Session, venta_id: int) -> dict:
 # --- Corte de caja ---
 
 def _rango_dia_corte(fecha: date) -> tuple[datetime, datetime]:
+    zona = _zona_operacion()
     return (
-        datetime.combine(fecha, datetime.min.time()),
-        datetime.combine(fecha, datetime.max.time()),
+        _normalizar_fecha_db(datetime.combine(fecha, datetime.min.time(), tzinfo=zona)),
+        _normalizar_fecha_db(datetime.combine(fecha, datetime.max.time(), tzinfo=zona)),
     )
 
 
@@ -571,7 +643,7 @@ def _totales_corte(db: Session, fecha: date) -> dict:
 
 def resumen_corte_caja(db: Session, fecha: date | None = None) -> dict:
     """Resumen calculado antes de registrar el corte."""
-    dia = fecha or date.today()
+    dia = fecha or _hoy_operacion()
     totales = _totales_corte(db, dia)
     corte_existente = totales["corte_existente"]
     return {
@@ -590,7 +662,7 @@ def resumen_corte_caja(db: Session, fecha: date | None = None) -> dict:
 
 def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> CorteCaja:
     """Realiza corte de caja del día."""
-    totales = _totales_corte(db, date.today())
+    totales = _totales_corte(db, _hoy_operacion())
     if totales["corte_existente"] and not data.permitir_repetir:
         raise ValueError("Ya existe un corte de caja registrado para hoy")
 

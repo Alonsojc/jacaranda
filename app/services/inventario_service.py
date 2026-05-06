@@ -206,6 +206,7 @@ def registrar_movimiento(
     data: MovimientoCreate,
     usuario_id: int | None = None,
     commit: bool = True,
+    permitir_stock_negativo: bool = False,
 ) -> MovimientoInventario:
     """Registra un movimiento y actualiza el stock correspondiente."""
     targets = [data.ingrediente_id is not None, data.producto_id is not None]
@@ -223,7 +224,7 @@ def registrar_movimiento(
         if not ingrediente:
             raise ValueError("Ingrediente no encontrado")
         nuevo_stock = ingrediente.stock_actual + cantidad
-        if nuevo_stock < 0:
+        if nuevo_stock < 0 and not permitir_stock_negativo:
             raise ValueError("Stock insuficiente de ingrediente")
         ingrediente.stock_actual = nuevo_stock
         if es_entrada and data.costo_unitario:
@@ -236,7 +237,7 @@ def registrar_movimiento(
         if not producto:
             raise ValueError("Producto no encontrado")
         nuevo_stock = producto.stock_actual + cantidad
-        if nuevo_stock < 0:
+        if nuevo_stock < 0 and not permitir_stock_negativo:
             raise ValueError("Stock insuficiente de producto")
         producto.stock_actual = nuevo_stock
 
