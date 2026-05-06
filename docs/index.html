@@ -551,7 +551,7 @@ h2{font-size:1.1rem}
 <button class="cobrar" onclick="cobrar()">Cobrar</button>
 <div class="quote-actions">
 <button class="limpiar" style="margin:0" onclick="descargarCotizacionPDF()">Cotizar</button>
-<button class="wa-btn" onclick="enviarCotizacionWhatsApp()">WhatsApp Web</button>
+<button class="wa-btn" onclick="enviarCotizacionWhatsApp()">WhatsApp</button>
 </div>
 <button class="limpiar" onclick="confirmarLimpiar()">Limpiar</button>
 <button class="limpiar" onclick="document.querySelector('.pos-prods').scrollIntoView({behavior:'smooth'})" id="pos-btn-prods" style="display:none;margin-top:.3rem">&uarr; Ver productos</button>
@@ -2707,6 +2707,20 @@ function _puedeCompartirArchivoNativo(file) {
     navigator.canShare({files: [file]});
 }
 
+function abrirWhatsAppConFallback(txt) {
+  var encoded = encodeURIComponent(txt);
+  var appUrl = 'whatsapp://send?text=' + encoded;
+  var webUrl = 'https://web.whatsapp.com/send?text=' + encoded;
+  var openedAt = Date.now();
+
+  window.location.href = appUrl;
+  setTimeout(function() {
+    if (Date.now() - openedAt < 1800 && !document.hidden) {
+      window.open(webUrl, '_blank');
+    }
+  }, 1200);
+}
+
 function enviarCotizacionWhatsApp() {
   try {
     var q = _crearCotizacionPDF();
@@ -2724,8 +2738,8 @@ function enviarCotizacionWhatsApp() {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(txt).catch(function() {});
     }
-    toast('PDF descargado; adjúntalo en WhatsApp Web');
-    window.open('https://web.whatsapp.com/send?text=' + encodeURIComponent(txt), '_blank');
+    toast('PDF descargado; adjúntalo en WhatsApp');
+    abrirWhatsAppConFallback(txt);
   } catch (e) {
     toast(e.message || 'Error al enviar cotización', true);
   }
