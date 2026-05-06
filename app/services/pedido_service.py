@@ -15,8 +15,16 @@ from app.services.auditoria_service import registrar_evento
 
 _TRANSICIONES_ESTADO: dict[EstadoPedido, set[EstadoPedido]] = {
     EstadoPedido.RECIBIDO: {EstadoPedido.CONFIRMADO, EstadoPedido.CANCELADO},
-    EstadoPedido.CONFIRMADO: {EstadoPedido.EN_PREPARACION, EstadoPedido.CANCELADO},
-    EstadoPedido.EN_PREPARACION: {EstadoPedido.LISTO, EstadoPedido.CANCELADO},
+    EstadoPedido.CONFIRMADO: {
+        EstadoPedido.ENTREGADO,
+        EstadoPedido.EN_PREPARACION,
+        EstadoPedido.CANCELADO,
+    },
+    EstadoPedido.EN_PREPARACION: {
+        EstadoPedido.ENTREGADO,
+        EstadoPedido.LISTO,
+        EstadoPedido.CANCELADO,
+    },
     EstadoPedido.LISTO: {
         EstadoPedido.EN_RUTA,
         EstadoPedido.ENTREGADO,

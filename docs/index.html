@@ -640,8 +640,6 @@ h2{font-size:1.1rem}
 <span class="tab active" onclick="filtroEstadoPed(this,'')" id="ped-f-all">Todos</span>
 <span class="tab" onclick="filtroEstadoPed(this,'recibido')">Recibido</span>
 <span class="tab" onclick="filtroEstadoPed(this,'confirmado')">Confirmado</span>
-<span class="tab" onclick="filtroEstadoPed(this,'en_preparacion')">Preparando</span>
-<span class="tab" onclick="filtroEstadoPed(this,'listo')">Listo</span>
 <span class="tab" onclick="filtroEstadoPed(this,'entregado')">Entregado</span>
 </div>
 <div id="ped-cal" style="display:block;margin-bottom:1rem">
@@ -2203,7 +2201,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v50';
+var APP_BUILD = 'jacaranda-v51';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
@@ -4258,8 +4256,8 @@ function renderPedidos() {
   var buscar = (document.getElementById('ped-buscar').value || '').toLowerCase().trim();
   var estadoClase = {recibido:'bpend',confirmado:'bconf',en_preparacion:'bprep',listo:'blist',entregado:'bok',cancelado:'bout'};
   var estadoNombre = {recibido:'Recibido',confirmado:'Confirmado',en_preparacion:'Preparando',listo:'Listo',entregado:'Entregado',cancelado:'Cancelado'};
-  var siguiente = {recibido:'confirmado',confirmado:'en_preparacion',en_preparacion:'listo',listo:'entregado'};
-  var sigNombre = {recibido:'Confirmar',confirmado:'Preparar',en_preparacion:'Listo',listo:'Entregar'};
+  var siguiente = {recibido:'confirmado',confirmado:'entregado',en_preparacion:'entregado',listo:'entregado'};
+  var sigNombre = {recibido:'Confirmar',confirmado:'Entregar',en_preparacion:'Entregar',listo:'Entregar'};
   var h = '';
   var hoy = 0, man = 0, sem = 0;
   var ahora = new Date(); var manana = new Date(); manana.setDate(ahora.getDate()+1);

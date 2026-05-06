@@ -96,6 +96,25 @@ class TestPedidos:
         assert resp2.status_code == 200
         assert resp2.json()["estado"] == "confirmado"
 
+    def test_pedido_confirmado_puede_pasarse_a_entregado(self, client, auth_headers):
+        resp = self._crear_pedido(client, auth_headers)
+        pid = resp.json()["id"]
+        resp2 = client.patch(
+            f"/api/v1/pedidos/{pid}/estado",
+            json={"estado": "confirmado"},
+            headers=auth_headers,
+        )
+        assert resp2.status_code == 200
+        resp3 = client.patch(
+            f"/api/v1/pedidos/{pid}/estado",
+            json={"estado": "entregado"},
+            headers=auth_headers,
+        )
+        assert resp3.status_code == 200
+        data = resp3.json()
+        assert data["estado"] == "entregado"
+        assert data["entregado_en"] is not None
+
     def test_no_permite_saltar_estado_pedido(self, client, auth_headers):
         resp = self._crear_pedido(client, auth_headers)
         pid = resp.json()["id"]
