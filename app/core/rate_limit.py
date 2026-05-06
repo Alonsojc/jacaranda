@@ -12,13 +12,13 @@ from starlette.middleware.base import BaseHTTPMiddleware
 _requests: dict[str, list[float]] = defaultdict(list)
 
 # Config
-RATE_LIMIT = 300  # requests per window
+RATE_LIMIT = 900  # requests per window; dashboard opens several reads per device
 RATE_WINDOW = 60  # seconds
 
 # Stricter limit for auth endpoints
 AUTH_RATE_LIMIT = 10
 AUTH_RATE_WINDOW = 60
-AUTH_SESSION_RATE_LIMIT = 120
+AUTH_SESSION_RATE_LIMIT = 300
 
 # Exempt paths (health checks, static, docs)
 EXEMPT_PATHS = {"/health", "/", "/docs", "/redoc", "/openapi.json"}

@@ -2228,6 +2228,7 @@ var FIREBASE_APP_SRC = 'https://www.gstatic.com/firebasejs/12.7.0/firebase-app-c
 var FIREBASE_MSG_SRC = 'https://www.gstatic.com/firebasejs/12.7.0/firebase-messaging-compat.js';
 var FCM_TOKEN_KEY = 'jacaranda_fcm_token';
 var _scriptLoads = {};
+var _apiGetInFlight = {};
 
 function loadScriptOnce(src, readyFn) {
   if (readyFn && readyFn()) return Promise.resolve();
@@ -2260,6 +2261,11 @@ function ensureJsPDF() {
 
 function api(method, path, body, _retry, extraHeaders) {
   if (!API_URL) return Promise.reject('offline');
+  var dedupeKey = null;
+  if (!_retry && method === 'GET' && !body && !extraHeaders) {
+    dedupeKey = path;
+    if (_apiGetInFlight[dedupeKey]) return _apiGetInFlight[dedupeKey];
+  }
   var opts = {method: method, headers: {'Content-Type':'application/json'}};
   var controller = window.AbortController ? new AbortController() : null;
   var timeoutId = null;
@@ -2276,7 +2282,7 @@ function api(method, path, body, _retry, extraHeaders) {
     }
   }
   if (body) opts.body = JSON.stringify(body);
-  return fetch(API_URL + '/api/v1' + path, opts).then(function(r) {
+  var request = fetch(API_URL + '/api/v1' + path, opts).then(function(r) {
     if (timeoutId) clearTimeout(timeoutId);
     if (r.status === 401 && !_retry && REFRESH_TOKEN) {
       return refreshAccessToken().then(function() {
@@ -2306,6 +2312,17 @@ function api(method, path, body, _retry, extraHeaders) {
     if (e && e.name === 'AbortError') throw new Error('El servidor tardó demasiado en responder');
     throw e;
   });
+  if (dedupeKey) {
+    _apiGetInFlight[dedupeKey] = request.then(function(res) {
+      delete _apiGetInFlight[dedupeKey];
+      return res;
+    }, function(err) {
+      delete _apiGetInFlight[dedupeKey];
+      throw err;
+    });
+    return _apiGetInFlight[dedupeKey];
+  }
+  return request;
 }
 
 var _dashGetCache = {};
@@ -6630,10 +6647,19 @@ var _userRole = 'ADMINISTRADOR';
 // ─── Pedidos polling (nuevos pedidos) ────────────────────────────
 var _pedidoCount = 0;
 var _pedidoPollInterval = null;
+var _pedidoPollLast = 0;
+var _pedidoPollFailures = 0;
 function iniciarPollPedidos() {
   if (_pedidoPollInterval) return;
   _pedidoPollInterval = setInterval(function() {
+    if (!TOKEN || document.hidden) return;
+    var now = Date.now();
+    var wsAbierto = _ws && _ws.readyState === 1;
+    var minDelay = wsAbierto ? 60000 : Math.min(120000, 30000 + (_pedidoPollFailures * 15000));
+    if (now - _pedidoPollLast < minDelay) return;
+    _pedidoPollLast = now;
     api('GET', '/pedidos/').then(function(peds) {
+      _pedidoPollFailures = 0;
       registrarPedidosConocidos(peds, true);
       if (document.getElementById('ped') && document.getElementById('ped').classList.contains('on')) {
         _pedidosCache = peds;
@@ -6642,8 +6668,11 @@ function iniciarPollPedidos() {
       }
       var activos = peds.filter(function(p) { return p.estado !== 'entregado' && p.estado !== 'cancelado'; }).length;
       _pedidoCount = activos;
-    }).catch(function(e){ console.warn('Error cargando datos:', e); });
-  }, 10000);
+    }).catch(function(e){
+      _pedidoPollFailures = Math.min(_pedidoPollFailures + 1, 6);
+      console.warn('Error cargando pedidos en segundo plano:', e);
+    });
+  }, 15000);
 }
 
 // ─── Reportes ────────────────────────────────────────────────────
@@ -9551,12 +9580,45 @@ function cargarDeliveryDashboard() {
 
 // ─── WebSocket para notificaciones en tiempo real ─────────────────
 var _ws = null;
+var _wsReconnectTimer = null;
+var _wsPingTimer = null;
+var _wsReconnectAttempts = 0;
+
+function limpiarTimersWebSocket() {
+  if (_wsPingTimer) {
+    clearInterval(_wsPingTimer);
+    _wsPingTimer = null;
+  }
+}
+
+function programarReconnectWebSocket() {
+  if (_wsReconnectTimer || !TOKEN) return;
+  var delay = Math.min(60000, 3000 * Math.pow(1.6, _wsReconnectAttempts));
+  _wsReconnectAttempts = Math.min(_wsReconnectAttempts + 1, 8);
+  _wsReconnectTimer = setTimeout(function() {
+    _wsReconnectTimer = null;
+    if (TOKEN && !document.hidden) initWebSocket();
+  }, delay);
+}
+
 function initWebSocket() {
-  if (_ws) return;
+  if (_ws && (_ws.readyState === 0 || _ws.readyState === 1)) return;
+  if (_wsReconnectTimer) {
+    clearTimeout(_wsReconnectTimer);
+    _wsReconnectTimer = null;
+  }
+  limpiarTimersWebSocket();
   var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   var host = API_BASE.replace(/^https?:/, proto).replace(/\/api\/v1$/, '');
   try {
     _ws = new WebSocket(host + '/api/v1/notificaciones/ws?token=' + TOKEN);
+    _ws.onopen = function() {
+      _wsReconnectAttempts = 0;
+      limpiarTimersWebSocket();
+      _wsPingTimer = setInterval(function() {
+        if (_ws && _ws.readyState === 1) _ws.send('ping');
+      }, 30000);
+    };
     _ws.onmessage = function(e) {
       try {
         var msg = JSON.parse(e.data);
@@ -9569,13 +9631,33 @@ function initWebSocket() {
         if (msg.tipo === 'alerta') toast(msg.datos.mensaje || 'Alerta');
       } catch(ex) {}
     };
-    _ws.onclose = function() { _ws = null; setTimeout(function() { if (TOKEN) initWebSocket(); }, 5000); };
-    _ws.onerror = function() { _ws = null; };
-    // Keep-alive ping every 30s
-    setInterval(function() { if (_ws && _ws.readyState === 1) _ws.send('ping'); }, 30000);
+    _ws.onclose = function() {
+      limpiarTimersWebSocket();
+      _ws = null;
+      programarReconnectWebSocket();
+    };
+    _ws.onerror = function() {
+      try { if (_ws) _ws.close(); } catch(e) {}
+    };
   } catch(ex) { _ws = null; }
 }
-function closeWebSocket() { if (_ws) { _ws.close(); _ws = null; } }
+function closeWebSocket() {
+  if (_wsReconnectTimer) {
+    clearTimeout(_wsReconnectTimer);
+    _wsReconnectTimer = null;
+  }
+  limpiarTimersWebSocket();
+  if (_ws) { _ws.close(); _ws = null; }
+}
+
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden && TOKEN) {
+    initWebSocket();
+    if (document.getElementById('ped') && document.getElementById('ped').classList.contains('on')) {
+      cargarPedidos();
+    }
+  }
+});
 
 // Pull-to-refresh for mobile
 var _pullStart = 0;

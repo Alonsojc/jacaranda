@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./jacaranda.db"
     ALLOW_SQLITE_IN_PRODUCTION: bool = False
     ALLOW_CREATE_ALL_FALLBACK: bool = False
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 10
+    DB_POOL_RECYCLE_SECONDS: int = 1800
 
     # --- Operación ---
     BACKUP_DIR: str = "/tmp/jacaranda_backups"
