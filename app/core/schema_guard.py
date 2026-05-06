@@ -14,6 +14,19 @@ def _sql_type(engine: Engine, column_type) -> str:
     return column_type.compile(dialect=engine.dialect)
 
 
+def _ensure_postgres_enum_values(engine: Engine) -> None:
+    if engine.dialect.name != "postgresql":
+        return
+    try:
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            conn.execute(text(
+                "ALTER TYPE estadopedido ADD VALUE IF NOT EXISTS 'EN_RUTA'"
+            ))
+    except Exception:
+        # The enum may not exist on SQLite-created or manually shaped schemas.
+        return
+
+
 def _quote_ident(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
@@ -115,6 +128,7 @@ def ensure_runtime_schema(engine: Engine) -> None:
     which creates missing tables but does not add new columns to existing tables.
     Keep this guard narrow and additive only.
     """
+    _ensure_postgres_enum_values(engine)
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
 
