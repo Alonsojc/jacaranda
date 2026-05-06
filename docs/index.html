@@ -142,6 +142,9 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .cobrar:active{transform:translateY(0);box-shadow:0 2px 6px rgba(196,152,138,.25)}
 .limpiar{display:block;width:100%;padding:.5rem;border:none;border-radius:8px;font-size:.82rem;cursor:pointer;margin-top:.4rem;background:#f5eeeb;color:var(--v);transition:all .15s}
 .limpiar:hover{background:#ede3df}
+.quote-actions{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin-top:.4rem}
+.wa-btn{display:block;width:100%;padding:.5rem;border:none;border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;background:#25d366;color:#fff;transition:all .15s}
+.wa-btn:hover{filter:brightness(.96)}
 /* Tabla */
 .tbl{width:100%;border-collapse:collapse;font-size:.82rem;table-layout:fixed;word-break:break-word}
 .tbl th{text-align:left;padding:.5rem .5rem;background:linear-gradient(135deg,#faf3f0,#fdf7f5);color:var(--v);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;cursor:pointer;user-select:none;white-space:nowrap}
@@ -308,6 +311,7 @@ h2{font-size:1.1rem}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script src="js/jacaranda-core.js"></script>
 </head>
 <body>
@@ -541,12 +545,17 @@ h2{font-size:1.1rem}
 <span id="pos-puntos" style="font-size:.75rem;color:var(--mut);white-space:nowrap;display:none"></span>
 </div>
 <div style="font-size:.78rem;color:var(--mut);margin:.4rem 0 .3rem;font-weight:600">M&eacute;todo de pago:</div>
-<div class="pmt" style="grid-template-columns:1fr 1fr 1fr">
+<div class="pmt" style="grid-template-columns:1fr 1fr">
 <div class="pbtn sel" id="pm-ef" onclick="setPm('ef')">&#128181; Efectivo</div>
 <div class="pbtn" id="pm-clip" onclick="setPm('clip')">&#128179; CLIP</div>
+<div class="pbtn" id="pm-trans" onclick="setPm('trans')">&#127974; Transferencia</div>
 <div class="pbtn" id="pm-bbva" onclick="setPm('bbva')">&#127974; BBVA</div>
 </div>
 <button class="cobrar" onclick="cobrar()">Cobrar</button>
+<div class="quote-actions">
+<button class="limpiar" style="margin:0" onclick="descargarCotizacionPDF()">Cotizar</button>
+<button class="wa-btn" onclick="enviarCotizacionWhatsApp()">WhatsApp</button>
+</div>
 <button class="limpiar" onclick="confirmarLimpiar()">Limpiar</button>
 <button class="limpiar" onclick="document.querySelector('.pos-prods').scrollIntoView({behavior:'smooth'})" id="pos-btn-prods" style="display:none;margin-top:.3rem">&uarr; Ver productos</button>
 </div>
@@ -2456,6 +2465,7 @@ function setPm(m) {
   pm = m;
   document.getElementById('pm-ef').classList.toggle('sel', m === 'ef');
   document.getElementById('pm-clip').classList.toggle('sel', m === 'clip');
+  document.getElementById('pm-trans').classList.toggle('sel', m === 'trans');
   document.getElementById('pm-bbva').classList.toggle('sel', m === 'bbva');
 }
 
@@ -2470,12 +2480,247 @@ function _cartTotal() {
   return s + iv;
 }
 
+function _cartResumenCotizacion() {
+  var subtotal = 0, iva = 0, descuento = 0;
+  var items = cart.map(function(c) {
+    var bruto = c.p * c.q;
+    var desc = c.desc || 0;
+    var base = Math.max(0, bruto - desc);
+    var imp = base * c.iv;
+    subtotal += base;
+    iva += imp;
+    descuento += desc;
+    return {
+      nombre: c.n,
+      cantidad: c.q,
+      precio: c.p,
+      descuento: desc,
+      subtotal: base,
+      iva: imp,
+      total: base + imp
+    };
+  });
+  return {
+    items: items,
+    subtotal: subtotal,
+    iva: iva,
+    descuento: descuento,
+    total: subtotal + iva
+  };
+}
+
+function _clienteCotizacion() {
+  var sel = document.getElementById('pos-cliente');
+  if (!sel || !sel.value) return 'Público general';
+  return sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : 'Cliente';
+}
+
+function _folioCotizacion() {
+  var d = new Date();
+  var pad = function(n) { return String(n).padStart(2, '0'); };
+  return 'COT-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+}
+
+function _textoCotizacion(folio, resumen) {
+  var txt = '*Jacaranda - Cotización*\n';
+  txt += 'Folio: ' + folio + '\n';
+  txt += 'Cliente: ' + _clienteCotizacion() + '\n';
+  txt += '─────────────────\n';
+  for (var i = 0; i < resumen.items.length; i++) {
+    var it = resumen.items[i];
+    txt += it.cantidad + 'x ' + it.nombre + '  $' + fmt(it.total) + '\n';
+  }
+  txt += '─────────────────\n';
+  txt += '*Total estimado: $' + fmt(resumen.total) + '*\n';
+  txt += 'Vigencia: 7 días. Sujeto a disponibilidad.\n';
+  txt += '\nJacaranda - sharing flavors';
+  return txt;
+}
+
+function _crearCotizacionPDF() {
+  if (!cart.length) throw new Error('Agrega productos al carrito para cotizar');
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    throw new Error('No se pudo cargar el generador de PDF');
+  }
+
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({unit: 'pt', format: 'letter'});
+  var resumen = _cartResumenCotizacion();
+  var folio = _folioCotizacion();
+  var filename = 'jacaranda_' + folio.toLowerCase() + '.pdf';
+  var pageW = doc.internal.pageSize.getWidth();
+  var pageH = doc.internal.pageSize.getHeight();
+  var x = 54, y = 58;
+
+  function money(n) { return '$' + fmt(n); }
+  function line(yPos) {
+    doc.setDrawColor(237, 227, 223);
+    doc.line(x, yPos, pageW - x, yPos);
+  }
+  function addFooter() {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(160, 138, 132);
+    doc.text('Cotización informativa. Vigencia 7 días. Sujeta a disponibilidad y cambios de precio.', x, pageH - 42);
+    doc.text('Plaza Distrito Marques, Queretaro - @jacaranda.flavors - WhatsApp 442 467 0397', x, pageH - 28);
+  }
+  function ensureSpace(minY) {
+    if (y < minY) return;
+    addFooter();
+    doc.addPage();
+    y = 58;
+  }
+
+  doc.setFillColor(253, 249, 247);
+  doc.rect(0, 0, pageW, pageH, 'F');
+  doc.setTextColor(196, 152, 138);
+  doc.setFont('times', 'bold');
+  doc.setFontSize(28);
+  doc.text('Jacaranda', x, y);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setCharSpace(2);
+  doc.text('SHARING FLAVORS', x, y + 17);
+  doc.setCharSpace(0);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(74, 53, 48);
+  doc.text('Cotización', pageW - x, y, {align: 'right'});
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(160, 138, 132);
+  doc.text(folio, pageW - x, y + 18, {align: 'right'});
+  doc.text(new Date().toLocaleString('es-MX', {dateStyle: 'medium', timeStyle: 'short'}), pageW - x, y + 34, {align: 'right'});
+
+  y += 64;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(237, 227, 223);
+  doc.roundedRect(x, y, pageW - (x * 2), 62, 8, 8, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(74, 53, 48);
+  doc.text('Cliente', x + 16, y + 24);
+  doc.text('Total estimado', pageW - x - 16, y + 24, {align: 'right'});
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(92, 68, 64);
+  doc.text(_clienteCotizacion(), x + 16, y + 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(16, 185, 129);
+  doc.text(money(resumen.total), pageW - x - 16, y + 44, {align: 'right'});
+
+  y += 92;
+  doc.setFillColor(245, 238, 235);
+  doc.roundedRect(x, y, pageW - (x * 2), 28, 6, 6, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(196, 152, 138);
+  doc.text('Producto', x + 12, y + 18);
+  doc.text('Cant.', pageW - 228, y + 18, {align: 'right'});
+  doc.text('Precio', pageW - 164, y + 18, {align: 'right'});
+  doc.text('Total', pageW - x - 12, y + 18, {align: 'right'});
+  y += 40;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(74, 53, 48);
+  for (var i = 0; i < resumen.items.length; i++) {
+    ensureSpace(pageH - 90);
+    var it = resumen.items[i];
+    var nameLines = doc.splitTextToSize(it.nombre, 230);
+    doc.text(nameLines, x + 12, y);
+    doc.text(String(it.cantidad), pageW - 228, y, {align: 'right'});
+    doc.text(money(it.precio), pageW - 164, y, {align: 'right'});
+    doc.text(money(it.total), pageW - x - 12, y, {align: 'right'});
+    y += Math.max(22, nameLines.length * 12);
+    if (it.descuento > 0) {
+      doc.setFontSize(8);
+      doc.setTextColor(185, 28, 28);
+      doc.text('Descuento aplicado: -' + money(it.descuento), x + 12, y);
+      doc.setTextColor(74, 53, 48);
+      doc.setFontSize(9);
+      y += 14;
+    }
+    line(y - 8);
+  }
+
+  y += 14;
+  ensureSpace(pageH - 170);
+  var tx = pageW - 240;
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(tx, y, 186, resumen.descuento > 0 ? 100 : 78, 8, 8, 'FD');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(92, 68, 64);
+  doc.text('Subtotal', tx + 14, y + 24);
+  doc.text(money(resumen.subtotal), tx + 172, y + 24, {align: 'right'});
+  var totalY = y + 48;
+  if (resumen.descuento > 0) {
+    doc.text('Descuento', tx + 14, y + 48);
+    doc.text('-' + money(resumen.descuento), tx + 172, y + 48, {align: 'right'});
+    totalY = y + 72;
+  }
+  doc.text('IVA', tx + 14, totalY);
+  doc.text(money(resumen.iva), tx + 172, totalY, {align: 'right'});
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(196, 152, 138);
+  doc.text('TOTAL', tx + 14, totalY + 24);
+  doc.text(money(resumen.total), tx + 172, totalY + 24, {align: 'right'});
+
+  addFooter();
+  return {doc: doc, blob: doc.output('blob'), filename: filename, folio: folio, resumen: resumen};
+}
+
+function _descargarBlob(blob, filename) {
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function descargarCotizacionPDF() {
+  try {
+    var q = _crearCotizacionPDF();
+    _descargarBlob(q.blob, q.filename);
+    toast('Cotización descargada');
+  } catch (e) {
+    toast(e.message || 'Error al cotizar', true);
+  }
+}
+
+function enviarCotizacionWhatsApp() {
+  try {
+    var q = _crearCotizacionPDF();
+    var txt = _textoCotizacion(q.folio, q.resumen);
+    var file = new File([q.blob], q.filename, {type: 'application/pdf'});
+    if (navigator.canShare && navigator.canShare({files: [file]}) && navigator.share) {
+      navigator.share({
+        title: 'Cotización Jacaranda',
+        text: txt,
+        files: [file]
+      }).catch(function() {});
+      return;
+    }
+    _descargarBlob(q.blob, q.filename);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).catch(function() {});
+    }
+    toast('PDF descargado; adjúntalo en WhatsApp');
+    window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
+  } catch (e) {
+    toast(e.message || 'Error al enviar cotización', true);
+  }
+}
+
 function cobrar() {
   if (!cart.length) return;
   _splitMode = false;
   var total = _cartTotal();
   document.getElementById('mc-total').textContent = '$' + fmt(total);
-  var nombres = {ef:'Efectivo', clip:'Tarjeta (CLIP)', bbva:'Transferencia (BBVA)'};
+  var nombres = {ef:'Efectivo', clip:'Tarjeta (CLIP)', trans:'Transferencia', bbva:'Transferencia (BBVA)'};
   document.getElementById('mc-metodo').textContent = nombres[pm];
   document.getElementById('mc-single').style.display = 'block';
   document.getElementById('mc-split').style.display = 'none';
@@ -2496,7 +2741,7 @@ function toggleSplit() {
   _splitMode = !_splitMode;
   document.getElementById('mc-single').style.display = _splitMode ? 'none' : 'block';
   document.getElementById('mc-split').style.display = _splitMode ? 'block' : 'none';
-  document.getElementById('mc-metodo').textContent = _splitMode ? 'Pago dividido' : {ef:'Efectivo',clip:'Tarjeta (CLIP)',bbva:'Transferencia (BBVA)'}[pm];
+  document.getElementById('mc-metodo').textContent = _splitMode ? 'Pago dividido' : {ef:'Efectivo',clip:'Tarjeta (CLIP)',trans:'Transferencia',bbva:'Transferencia (BBVA)'}[pm];
   if (_splitMode) {
     document.getElementById('mc-sp-ef').value = '';
     document.getElementById('mc-sp-tar').value = '';
@@ -2562,7 +2807,7 @@ function procesarVenta() {
     body.metodo_pago = '01'; // fallback, backend picks largest
     body.monto_recibido = ef + tar + trans;
   } else {
-    var metodos = {ef:'01', clip:'04', bbva:'03'};
+    var metodos = {ef:'01', clip:'04', trans:'03', bbva:'03'};
     var monto = total;
     if (pm === 'ef') {
       monto = parseFloat(document.getElementById('mc-recibido').value) || 0;
