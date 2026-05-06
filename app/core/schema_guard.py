@@ -104,3 +104,29 @@ def ensure_runtime_schema(engine: Engine) -> None:
     RecepcionOrdenCompra.__table__.create(bind=engine, checkfirst=True)
     WhatsAppWebhookEvent.__table__.create(bind=engine, checkfirst=True)
     FCMToken.__table__.create(bind=engine, checkfirst=True)
+
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+    with engine.begin() as conn:
+        if "detalles_pedido" in tables:
+            detalle_columns = {
+                col["name"] for col in inspector.get_columns("detalles_pedido")
+            }
+            for column_name, column_type, default, nullable in (
+                ("pedido_id", Integer(), None, True),
+                ("producto_id", Integer(), None, True),
+                ("descripcion", String(300), "''", False),
+                ("cantidad", Integer(), "1", False),
+                ("precio_unitario", Numeric(12, 2), "0", False),
+                ("notas", Text(), None, True),
+            ):
+                _add_column_if_missing(
+                    conn,
+                    engine,
+                    "detalles_pedido",
+                    detalle_columns,
+                    column_name,
+                    column_type,
+                    server_default=default,
+                    nullable=nullable,
+                )

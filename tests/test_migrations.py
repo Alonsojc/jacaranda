@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "a7b8c9d0e1f2 (head)"
+ALEMBIC_HEAD = "c1d2e3f4a5b6 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:
@@ -151,3 +151,46 @@ def test_alembic_creates_missing_pedido_detail_table(tmp_path):
         detalle_columns
     )
     assert "creado_en" in pedido_columns
+
+
+def test_alembic_repairs_existing_pedido_detail_table(tmp_path):
+    db_path = tmp_path / "legacy_partial_details.db"
+    database_url = f"sqlite:///{db_path}"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE alembic_version (
+                version_num VARCHAR(32) NOT NULL,
+                CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+            );
+            INSERT INTO alembic_version (version_num) VALUES ('a7b8c9d0e1f2');
+            CREATE TABLE detalles_pedido (
+                id INTEGER PRIMARY KEY,
+                pedido_id INTEGER
+            );
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    _run([sys.executable, "-m", "alembic", "upgrade", "head"], database_url)
+
+    conn = sqlite3.connect(db_path)
+    try:
+        detalle_columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(detalles_pedido)")
+        }
+    finally:
+        conn.close()
+
+    assert {
+        "pedido_id",
+        "producto_id",
+        "descripcion",
+        "cantidad",
+        "precio_unitario",
+        "notas",
+    }.issubset(detalle_columns)
