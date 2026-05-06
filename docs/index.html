@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#c4988a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -328,11 +328,11 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .empty-state .es-icon{font-size:1.8rem;opacity:.35;margin-bottom:.3rem}
 .empty-state .es-text{font-size:.82rem}
 /* Mobile bottom nav */
-.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.97);backdrop-filter:blur(10px);border-top:1px solid var(--brd);z-index:60;padding:.3rem 0 env(safe-area-inset-bottom,.3rem);box-shadow:0 -2px 10px rgba(0,0,0,.06)}
+.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;min-height:calc(68px + env(safe-area-inset-bottom,0px));background:rgba(255,255,255,.97);backdrop-filter:blur(10px);border-top:1px solid var(--brd);z-index:60;padding:.35rem .3rem calc(env(safe-area-inset-bottom,0px) + .55rem);box-shadow:0 -2px 10px rgba(0,0,0,.06)}
 .mobile-nav{justify-content:space-around;align-items:center}
-.mn-item{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:56px;min-height:48px;text-decoration:none;color:var(--mut);font-size:.65rem;padding:.2rem .5rem;cursor:pointer;transition:color .15s;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none}
+.mn-item{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-width:58px;min-height:54px;text-decoration:none;color:var(--mut);font-size:.72rem;line-height:1.15;padding:.25rem .3rem;cursor:pointer;transition:color .15s;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none}
 .mn-item.on{color:var(--v)}
-.mn-icon{font-size:1.2rem;line-height:1.3}
+.mn-icon{font-size:1.38rem;line-height:1.25}
 .mn-label{font-weight:500}
 .mobile-menu{display:none;position:fixed;inset:0;z-index:70}
 .mobile-menu.on{display:block}
@@ -348,7 +348,7 @@ body.mobile-menu-open{overflow:hidden}
 nav .nav-links a[data-pg]{display:none!important}
 nav .nav-links .nav-group{display:none!important}
 nav .nav-links #btn-notif,nav .nav-links #btn-logout{display:none!important}
-body{padding-bottom:60px}
+body{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))}
 }
 @media(max-width:400px){
 .r4{grid-template-columns:1fr!important}
@@ -2203,7 +2203,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v49';
+var APP_BUILD = 'jacaranda-v50';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
