@@ -314,9 +314,9 @@ h2{font-size:1.1rem}
 }
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
-<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-<script defer src="js/jacaranda-core.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="js/jacaranda-core.js"></script>
 </head>
 <body>
 <!-- LOGIN SCREEN -->
@@ -2369,9 +2369,49 @@ function irInicio() {
   go(moduloInicioUsuario());
 }
 
+function reportarErrorPagina(p, err) {
+  console.warn('Error cargando pagina:', p, err);
+  if (typeof toast === 'function') toast('Error al abrir la pantalla. Intenta recargar.', true);
+}
+
+function cargarPagina(p) {
+  if (p === 'ped') return cargarPedidos();
+  if (p === 'dash') return cargarDashboard();
+  if (p === 'pos') return Promise.all([cargarPOSProductos(), cargarClientesPOS()]);
+  if (p === 'inv') return cargarInventarioCompleto();
+  if (p === 'corte') return cargarCorte();
+  if (p === 'listas') return cargarListas();
+  if (p === 'rep') return initReportes();
+  if (p === 'prod') return cargarProduccion();
+  if (p === 'conta') return initContabilidad();
+  if (p === 'iapg') return initIA();
+  if (p === 'cofepris') return cargarCofepris();
+  if (p === 'compras') return initCompras();
+  if (p === 'sucursales') return initSucursales();
+  if (p === 'merma') return initMerma();
+  if (p === 'calidad') return initCalidad();
+  if (p === 'crm') return initCRM();
+  if (p === 'kpis') return initKPIs();
+  if (p === 'fiscal') return initFiscal();
+  if (p === 'auditoria') return initAuditoria();
+  if (p === 'backup') return cargarBackup();
+  if (p === 'ejecutivo') return initEjecutivo();
+  if (p === 'deliveryp') return initDelivery();
+  if (p === 'papelera') return initPapelera();
+  if (p === 'usuarios') return cargarUsuarios();
+  return null;
+}
+
 function go(p) {
+  var target = document.getElementById(p);
+  if (!target) {
+    console.warn('Pagina no encontrada:', p);
+    p = moduloInicioUsuario();
+    target = document.getElementById(p) || document.getElementById('dash');
+    if (!target) return;
+  }
   document.querySelectorAll('.page').forEach(function(e) { e.classList.remove('on'); });
-  document.getElementById(p).classList.add('on');
+  target.classList.add('on');
   document.querySelectorAll('.nav-links a[data-pg]').forEach(function(a) {
     a.classList.toggle('on', a.getAttribute('data-pg') === p);
   });
@@ -2380,31 +2420,17 @@ function go(p) {
     a.classList.toggle('on', a.getAttribute('data-pg') === p);
   });
   localStorage.setItem('jacaranda_tab', p);
-  if (p === 'ped') cargarPedidos();
-  if (p === 'dash') cargarDashboard();
-  if (p === 'pos') { cargarPOSProductos(); cargarClientesPOS(); }
-  if (p === 'inv') cargarInventarioCompleto();
-  if (p === 'corte') cargarCorte();
-  if (p === 'listas') cargarListas();
-  if (p === 'rep') initReportes();
-  if (p === 'prod') cargarProduccion();
-  if (p === 'conta') initContabilidad();
-  if (p === 'iapg') initIA();
-  if (p === 'cofepris') cargarCofepris();
-  if (p === 'compras') initCompras();
-  if (p === 'sucursales') initSucursales();
-  if (p === 'merma') initMerma();
-  if (p === 'calidad') initCalidad();
-  if (p === 'crm') initCRM();
-  if (p === 'kpis') initKPIs();
-  if (p === 'fiscal') initFiscal();
-  if (p === 'auditoria') initAuditoria();
-  if (p === 'backup') cargarBackup();
-  if (p === 'ejecutivo') initEjecutivo();
-  if (p === 'deliveryp') initDelivery();
-  if (p === 'papelera') initPapelera();
-  if (p === 'usuarios') cargarUsuarios();
   window.scrollTo(0, 0);
+  setTimeout(function() {
+    try {
+      var carga = cargarPagina(p);
+      if (carga && typeof carga.catch === 'function') {
+        carga.catch(function(err) { reportarErrorPagina(p, err); });
+      }
+    } catch (err) {
+      reportarErrorPagina(p, err);
+    }
+  }, 0);
 }
 
 function activarConTeclado(e, fn) {
