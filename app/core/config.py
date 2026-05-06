@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     ALLOW_DB_RESTORE: bool = False
     PEDIDOS_CAPACIDAD_DIARIA: int = 0  # 0 = sin límite duro
     APP_TIMEZONE: str = "America/Mexico_City"
+    DISABLED_MODULES: str = ""  # comma-separated; defaults below are used only in production
 
     # --- CORS (comma-separated origins) ---
     CORS_ORIGINS: str = "https://alonsojc.github.io"

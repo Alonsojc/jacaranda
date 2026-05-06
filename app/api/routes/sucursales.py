@@ -6,8 +6,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission, require_role
-from app.models.usuario import Usuario, RolUsuario
+from app.core.dependencies import require_permission
+from app.models.usuario import Usuario
 from app.services import sucursal_service as svc
 
 router = APIRouter()
@@ -87,7 +87,7 @@ class TraspasoRecibirRequest(BaseModel):
 def crear_traspaso(
     data: TraspasoCreate,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    user: Usuario = Depends(require_permission("sucursales", "editar")),
 ):
     try:
         traspaso_data = data.model_dump()
@@ -115,7 +115,7 @@ def listar_traspasos(
 def enviar_traspaso(
     traspaso_id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("sucursales", "editar")),
 ):
     try:
         traspaso = svc.enviar_traspaso(db, traspaso_id)
@@ -129,7 +129,7 @@ def recibir_traspaso(
     traspaso_id: int,
     data: TraspasoRecibirRequest,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("sucursales", "editar")),
 ):
     try:
         items = [item.model_dump() for item in data.items_recibidos]
@@ -143,7 +143,7 @@ def recibir_traspaso(
 def cancelar_traspaso(
     traspaso_id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("sucursales", "editar")),
 ):
     try:
         traspaso = svc.cancelar_traspaso(db, traspaso_id)
@@ -173,7 +173,7 @@ def dashboard_sucursales(
 @router.get("/financiero")
 def reporte_financiero_consolidado(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("sucursales", "ver")),
 ):
     """Reporte financiero consolidado de todas las sucursales."""
     return svc.reporte_financiero_consolidado(db)
@@ -185,7 +185,7 @@ def reporte_financiero_consolidado(
 def crear_sucursal(
     data: SucursalCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
+    _user: Usuario = Depends(require_permission("sucursales", "editar")),
 ):
     try:
         return svc.crear_sucursal(db, data.model_dump())
@@ -221,7 +221,7 @@ def actualizar_sucursal(
     id: int,
     data: SucursalUpdate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
+    _user: Usuario = Depends(require_permission("sucursales", "editar")),
 ):
     try:
         return svc.actualizar_sucursal(db, id, data.model_dump(exclude_unset=True))
@@ -233,7 +233,7 @@ def actualizar_sucursal(
 def inicializar_inventario(
     id: int,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("sucursales", "editar")),
 ):
     try:
         nuevos = svc.inicializar_inventario_sucursal(db, id)
@@ -259,7 +259,7 @@ def ajustar_stock_sucursal(
     id: int,
     data: StockAjusteRequest,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE)),
+    _user: Usuario = Depends(require_permission("sucursales", "editar")),
 ):
     try:
         inv = svc.actualizar_stock_sucursal(db, id, data.producto_id, data.cantidad, data.operacion)

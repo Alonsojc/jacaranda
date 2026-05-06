@@ -6,6 +6,7 @@ from app.core.security import JWTError
 from sqlalchemy.orm import Session
 from urllib.parse import unquote
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import decode_access_token, verify_password
 from app.models.usuario import Usuario, RolUsuario
@@ -52,6 +53,28 @@ def require_role(*roles: RolUsuario):
 
 
 _PERMISSION_LEVELS = {"oculto": 0, "ver": 1, "editar": 2}
+_PRODUCTION_DISABLED_MODULES = {
+    "prod",
+    "compras",
+    "proveedores",
+    "sucursales",
+    "kpis",
+    "ejecutivo",
+    "fiscal",
+}
+
+
+def disabled_modules() -> set[str]:
+    configured = {
+        module.strip()
+        for module in (settings.DISABLED_MODULES or "").split(",")
+        if module.strip()
+    }
+    if configured:
+        return configured
+    if settings.is_production:
+        return set(_PRODUCTION_DISABLED_MODULES)
+    return set()
 
 
 def require_permission(module: str, level: str = "ver"):
@@ -63,6 +86,11 @@ def require_permission(module: str, level: str = "ver"):
     def permission_checker(
         current_user: Usuario = Depends(get_current_user),
     ) -> Usuario:
+        if module in disabled_modules():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Módulo '{module}' desactivado",
+            )
         permissions = current_user.permisos_modulos or {}
         current = _PERMISSION_LEVELS.get(permissions.get(module, "oculto"), 0)
         if current < required:

@@ -158,6 +158,18 @@ def test_explicit_hidden_permission_is_preserved(client, db):
     assert permisos["compras"] == "editar"
 
 
+def test_disabled_module_blocks_even_admin(client, admin_user, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "DISABLED_MODULES", "compras")
+    headers = _login(client, admin_user.email)
+
+    resp = client.get("/api/v1/compras/proveedores", headers=headers)
+
+    assert resp.status_code == 403
+    assert "desactivado" in resp.json()["detail"]
+
+
 def test_sensitive_edit_allows_admin_without_override(client, db, admin_user):
     producto = _crear_producto(db)
     headers = _login(client, admin_user.email)

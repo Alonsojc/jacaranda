@@ -5,8 +5,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_role
-from app.models.usuario import Usuario, RolUsuario
+from app.core.dependencies import require_permission
+from app.models.usuario import Usuario
 from app.services import fiscal_service as svc
 from app.services import excel_service
 from app.services import pdf_service
@@ -21,9 +21,7 @@ def diot(
     mes: int = Query(..., ge=1, le=12),
     anio: int = Query(..., ge=2000),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     """Declaracion Informativa de Operaciones con Terceros."""
     try:
@@ -39,9 +37,7 @@ def iva_mensual(
     mes: int = Query(..., ge=1, le=12),
     anio: int = Query(..., ge=2000),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     """Declaracion mensual de IVA: causado, acreditable, a pagar o saldo a favor."""
     try:
@@ -57,9 +53,7 @@ def isr_provisional(
     mes: int = Query(..., ge=1, le=12),
     anio: int = Query(..., ge=2000),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     """Pago provisional de ISR con ingresos acumulados y coeficiente de utilidad."""
     try:
@@ -73,9 +67,7 @@ def isr_provisional(
 @router.get("/contabilidad-electronica/catalogo")
 def catalogo_contabilidad_electronica(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     """Catalogo de cuentas en formato SAT para contabilidad electronica."""
     return svc.contabilidad_electronica_catalogo(db)
@@ -88,9 +80,7 @@ def balanza_contabilidad_electronica(
     mes: int = Query(..., ge=1, le=12),
     anio: int = Query(..., ge=2000),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     """Balanza de comprobacion mensual en formato SAT."""
     try:
@@ -106,9 +96,7 @@ def reporte_fiscal_completo(
     mes: int = Query(..., ge=1, le=12),
     anio: int = Query(..., ge=2000),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     """Reporte fiscal integral: DIOT + IVA + ISR + contabilidad electronica."""
     try:
@@ -124,9 +112,7 @@ def exportar_iva_excel(
     mes: int = Query(..., ge=1, le=12),
     anio: int = Query(..., ge=2000),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     """Descarga declaración mensual de IVA en Excel."""
     try:
@@ -147,9 +133,7 @@ def exportar_iva_pdf(
     mes: int = Query(..., ge=1, le=12),
     anio: int = Query(..., ge=2000),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("fiscal", "ver")),
 ):
     """Descarga declaración mensual de IVA en PDF."""
     try:

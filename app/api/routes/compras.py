@@ -7,8 +7,8 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_permission, require_role
-from app.models.usuario import Usuario, RolUsuario
+from app.core.dependencies import require_permission
+from app.models.usuario import Usuario
 from app.services import compras_service as svc
 
 router = APIRouter()
@@ -108,9 +108,7 @@ def obtener_proveedor(
 def crear_orden_compra(
     data: OrdenCompraCreate,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE
-    )),
+    user: Usuario = Depends(require_permission("compras", "editar")),
 ):
     """Crea una orden de compra con líneas de detalle."""
     try:
@@ -154,9 +152,7 @@ def recibir_orden(
     id: int,
     data: RecepcionOrden,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE, RolUsuario.ALMACENISTA
-    )),
+    user: Usuario = Depends(require_permission("compras", "editar")),
 ):
     """Recibe mercancía: actualiza stock de ingredientes y estado de la orden."""
     try:
@@ -173,9 +169,7 @@ def listar_cuentas_pagar(
     estado: str | None = Query(None),
     proveedor_id: int | None = Query(None),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("compras", "ver")),
 ):
     """Lista cuentas por pagar con filtros."""
     try:
@@ -188,9 +182,7 @@ def listar_cuentas_pagar(
 def crear_cuenta_pagar(
     data: CuentaPagarCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("compras", "editar")),
 ):
     """Crea una cuenta por pagar."""
     try:
@@ -204,9 +196,7 @@ def registrar_pago(
     id: int,
     data: PagoCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("compras", "editar")),
 ):
     """Registra un pago a una cuenta por pagar."""
     try:
@@ -221,9 +211,7 @@ def registrar_pago(
 def calendario_pagos(
     dias: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.CONTADOR, RolUsuario.GERENTE
-    )),
+    _user: Usuario = Depends(require_permission("compras", "ver")),
 ):
     """Cuentas por pagar que vencen en los próximos N días."""
     return svc.calendario_pagos(db, dias)
@@ -236,9 +224,7 @@ def evaluar_proveedor(
     id: int,
     data: EvaluacionInput,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE
-    )),
+    _user: Usuario = Depends(require_permission("compras", "editar")),
 ):
     """Evalúa automáticamente un proveedor en base a órdenes del periodo."""
     try:
@@ -252,9 +238,7 @@ def evaluar_proveedor(
 @router.get("/dashboard")
 def dashboard_compras(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(
-        RolUsuario.ADMINISTRADOR, RolUsuario.GERENTE, RolUsuario.CONTADOR
-    )),
+    _user: Usuario = Depends(require_permission("compras", "ver")),
 ):
     """Dashboard resumen del módulo de compras."""
     return svc.dashboard_compras(db)

@@ -497,7 +497,7 @@ h2{font-size:1.1rem}
 </div>
 
 <!-- AI hero card -->
-<div class="ai-hero" id="d-ai-card">
+<div class="ai-hero" id="d-ai-card" data-module="prod">
   <div class="ah-head">
     <div class="ah-title">&#129302; Producir hoy <span class="ah-tag">IA</span></div>
     <div class="ah-total" id="d-ai-total">Cargando sugerencia...</div>
@@ -656,10 +656,10 @@ h2{font-size:1.1rem}
 <div class="section-tabs" style="margin-bottom:1rem">
 <span class="tab active" onclick="invTab('productos')">Productos terminados</span>
 <span class="tab" onclick="invTab('ingredientes')">Ingredientes</span>
-<span class="tab" onclick="invTab('compras')">Registrar compra</span>
-<span class="tab" onclick="invTab('hornear')">Hornear</span>
+<span class="tab" data-module="compras" onclick="invTab('compras')">Registrar compra</span>
+<span class="tab" data-module="prod" onclick="invTab('hornear')">Hornear</span>
 <span class="tab" onclick="invTab('conteo')">Conteo nocturno</span>
-<span class="tab" onclick="invTab('pronostico')">Pron&oacute;stico</span>
+<span class="tab" data-module="prod" onclick="invTab('pronostico')">Pron&oacute;stico</span>
 </div>
 
 <div id="inv-productos">
@@ -1000,7 +1000,7 @@ h2{font-size:1.1rem}
 <div class="page-header">
 <div class="page-title">
 <h2>Reportes</h2>
-<p>Ventas, productos, mermas y fiscal en una sola vista.</p>
+<p>Ventas, productos y mermas en una sola vista.</p>
 </div>
 </div>
 <div class="page-toolbar">
@@ -1013,7 +1013,7 @@ h2{font-size:1.1rem}
 <span class="tab" onclick="repTab('rep-horas')">Por hora</span>
 <span class="tab" onclick="repTab('rep-pe')">Punto equilibrio</span>
 <span class="tab" onclick="repTab('rep-yoy')">Comparativo</span>
-<span class="tab" onclick="repTab('rep-fiscal')">Fiscal</span>
+<span class="tab" data-module="fiscal" onclick="repTab('rep-fiscal')">Fiscal</span>
 </div>
 <button onclick="exportarReporteCSV()" class="limpiar" style="padding:.35rem .7rem;font-size:.78rem;margin:0;white-space:nowrap">&#128190; Exportar CSV</button>
 </div>
@@ -1679,24 +1679,24 @@ h2{font-size:1.1rem}
 <a onclick="cerrarMobileMenu(event);return false" style="cursor:pointer;font-size:1.2rem;color:var(--mut)">&times;</a>
 </div>
 <div class="mm-items">
-<a onclick="navegarMobile('corte', event);return false" class="mm-link">&#128200; Corte de caja</a>
-<a onclick="navegarMobile('prod', event);return false" class="mm-link">&#127838; Producci&oacute;n</a>
-<a onclick="navegarMobile('rep', event);return false" class="mm-link">&#128202; Reportes</a>
-<a onclick="navegarMobile('conta', event);return false" class="mm-link">&#128209; Contabilidad</a>
-<a onclick="navegarMobile('iapg', event);return false" class="mm-link">&#129302; IA Pron&oacute;sticos</a>
-<a onclick="navegarMobile('listas', event);return false" class="mm-link">&#128221; Listas</a>
-<a onclick="navegarMobile('cofepris', event);return false" class="mm-link">&#9879; COFEPRIS</a>
-<a onclick="navegarMobile('merma', event);return false" class="mm-link">&#128465; Merma</a>
-<a onclick="navegarMobile('calidad', event);return false" class="mm-link">&#9989; Calidad</a>
-<a onclick="navegarMobile('crm', event);return false" class="mm-link">&#128200; CRM</a>
-<a onclick="navegarMobile('kpis', event);return false" class="mm-link">&#128202; KPIs</a>
-<a onclick="navegarMobile('fiscal', event);return false" class="mm-link">&#128176; Fiscal</a>
-<a onclick="navegarMobile('papelera', event);return false" class="mm-link">&#9851; Papelera</a>
-<a onclick="navegarMobile('auditoria', event);return false" class="mm-link">&#128274; Auditor&iacute;a</a>
-<a onclick="navegarMobile('backup', event);return false" class="mm-link">&#128190; Respaldos</a>
-<a onclick="navegarMobile('ejecutivo', event);return false" class="mm-link">&#128188; Ejecutivo</a>
-<a onclick="navegarMobile('deliveryp', event);return false" class="mm-link">&#128666; Delivery</a>
-<a onclick="navegarMobile('usuarios', event);return false" class="mm-link">&#128101; Usuarios</a>
+<a data-pg="corte" onclick="navegarMobile('corte', event);return false" class="mm-link">&#128200; Corte de caja</a>
+<a data-pg="prod" onclick="navegarMobile('prod', event);return false" class="mm-link">&#127838; Producci&oacute;n</a>
+<a data-pg="rep" onclick="navegarMobile('rep', event);return false" class="mm-link">&#128202; Reportes</a>
+<a data-pg="conta" onclick="navegarMobile('conta', event);return false" class="mm-link">&#128209; Contabilidad</a>
+<a data-pg="iapg" onclick="navegarMobile('iapg', event);return false" class="mm-link">&#129302; IA Pron&oacute;sticos</a>
+<a data-pg="listas" onclick="navegarMobile('listas', event);return false" class="mm-link">&#128221; Listas</a>
+<a data-pg="cofepris" onclick="navegarMobile('cofepris', event);return false" class="mm-link">&#9879; COFEPRIS</a>
+<a data-pg="merma" onclick="navegarMobile('merma', event);return false" class="mm-link">&#128465; Merma</a>
+<a data-pg="calidad" onclick="navegarMobile('calidad', event);return false" class="mm-link">&#9989; Calidad</a>
+<a data-pg="crm" onclick="navegarMobile('crm', event);return false" class="mm-link">&#128200; CRM</a>
+<a data-pg="kpis" onclick="navegarMobile('kpis', event);return false" class="mm-link">&#128202; KPIs</a>
+<a data-pg="fiscal" onclick="navegarMobile('fiscal', event);return false" class="mm-link">&#128176; Fiscal</a>
+<a data-pg="papelera" onclick="navegarMobile('papelera', event);return false" class="mm-link">&#9851; Papelera</a>
+<a data-pg="auditoria" onclick="navegarMobile('auditoria', event);return false" class="mm-link">&#128274; Auditor&iacute;a</a>
+<a data-pg="backup" onclick="navegarMobile('backup', event);return false" class="mm-link">&#128190; Respaldos</a>
+<a data-pg="ejecutivo" onclick="navegarMobile('ejecutivo', event);return false" class="mm-link">&#128188; Ejecutivo</a>
+<a data-pg="deliveryp" onclick="navegarMobile('deliveryp', event);return false" class="mm-link">&#128666; Delivery</a>
+<a data-pg="usuarios" onclick="navegarMobile('usuarios', event);return false" class="mm-link">&#128101; Usuarios</a>
 <a onclick="accionMobile(function(){toggleNotifPanel();}, event);return false" class="mm-link">&#128276; Notificaciones</a>
 <a onclick="accionMobile(function(){confirmarCerrarSesion();}, event);return false" class="mm-link" style="color:#b91c1c">&#9211; Cerrar sesi&oacute;n</a>
 </div>
@@ -2201,7 +2201,16 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v51';
+var APP_BUILD = 'jacaranda-v52';
+var MODULOS_DESACTIVADOS = {
+  prod: 'Producci\u00f3n',
+  compras: 'Compras',
+  proveedores: 'Proveedores',
+  sucursales: 'Sucursales',
+  kpis: 'KPIs',
+  ejecutivo: 'Dashboard ejecutivo',
+  fiscal: 'Fiscal'
+};
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
@@ -2214,6 +2223,50 @@ var _pedidoContactos = JSON.parse(localStorage.getItem('jacaranda_pedido_contact
 var _pedidoCatalogo = [];
 var _pedidoItems = [];
 var _pedidoDatosCargados = false;
+
+function moduloDesactivado(modulo) {
+  return !!MODULOS_DESACTIVADOS[modulo];
+}
+
+function nombreModuloDesactivado(modulo) {
+  return MODULOS_DESACTIVADOS[modulo] || modulo || 'M\u00f3dulo';
+}
+
+function moduloFallbackActivo(u) {
+  var orden = [
+    'pos', 'ped', 'inv', 'dash', 'corte', 'listas', 'rep',
+    'cofepris', 'calidad', 'merma', 'crm', 'iapg', 'papelera',
+    'auditoria', 'backup', 'deliveryp', 'usuarios'
+  ];
+  for (var i = 0; i < orden.length; i++) {
+    var mod = orden[i];
+    if (!moduloDesactivado(mod) && document.getElementById(mod) && puedeVerModuloUsuario(u, mod)) {
+      return mod;
+    }
+  }
+  return 'dash';
+}
+
+function actualizarVisibilidadModulos() {
+  var permisos = window._permisos || {};
+  document.querySelectorAll('.nav-links a[data-pg], .mobile-menu .mm-link[data-pg]').forEach(function(a) {
+    var mod = a.getAttribute('data-pg');
+    var visible = !moduloDesactivado(mod) && !!permisos[mod];
+    a.style.display = visible ? '' : 'none';
+  });
+  document.querySelectorAll('[data-module]').forEach(function(el) {
+    var mod = el.getAttribute('data-module');
+    el.style.display = moduloDesactivado(mod) ? 'none' : '';
+  });
+  document.querySelectorAll('.nav-group').forEach(function(group) {
+    var links = group.querySelectorAll('.nav-dd a[data-pg]');
+    if (!links.length) return;
+    var visible = Array.prototype.some.call(links, function(a) {
+      return a.style.display !== 'none';
+    });
+    group.style.display = visible ? '' : 'none';
+  });
+}
 
 function nuevaClaveIdempotencia(prefix) {
   if (window.JacarandaCore && JacarandaCore.nuevaClaveIdempotencia) {
@@ -2552,6 +2605,7 @@ function togglePassword(inputId, btn) {
 
 // ─── Navegación ───────────────────────────────────────────────────
 function puedeVerModuloUsuario(u, modulo) {
+  if (moduloDesactivado(modulo)) return false;
   var permisos = (u && u.permisos_modulos) || window._permisos || {};
   return !!permisos[modulo];
 }
@@ -2560,12 +2614,15 @@ function moduloInicioUsuario(u) {
   var usuario = u || _currentUser || {};
   var rol = String(usuario.rol || '').toLowerCase();
   if (rol === 'cajero' && puedeVerModuloUsuario(usuario, 'pos')) return 'pos';
-  return puedeVerModuloUsuario(usuario, 'dash') ? 'dash' : 'pos';
+  if (puedeVerModuloUsuario(usuario, 'dash')) return 'dash';
+  if (puedeVerModuloUsuario(usuario, 'pos')) return 'pos';
+  return moduloFallbackActivo(usuario);
 }
 
 function tabDesdeHash(u) {
   var tab = (location.hash || '').replace('#', '').trim();
   if (!tab || !document.getElementById(tab)) return '';
+  if (moduloDesactivado(tab)) return '';
   if (u && !puedeVerModuloUsuario(u, tab)) return '';
   return tab;
 }
@@ -2577,7 +2634,7 @@ function pantallaInicialUsuario(u) {
     return moduloInicioUsuario(u);
   }
   var tab = localStorage.getItem('jacaranda_tab') || moduloInicioUsuario(u);
-  if (!puedeVerModuloUsuario(u, tab)) return moduloInicioUsuario(u);
+  if (moduloDesactivado(tab) || !puedeVerModuloUsuario(u, tab)) return moduloInicioUsuario(u);
   return tab;
 }
 
@@ -2591,6 +2648,7 @@ function reportarErrorPagina(p, err) {
 }
 
 function cargarPagina(p) {
+  if (moduloDesactivado(p)) return null;
   if (p === 'ped') {
     setCalPedVisible(true);
     prepararDatosNuevoPedido();
@@ -2623,6 +2681,9 @@ function cargarPagina(p) {
 }
 
 function activarPagina(p) {
+  if (moduloDesactivado(p)) {
+    p = moduloFallbackActivo();
+  }
   var target = document.getElementById(p);
   if (!target) {
     console.warn('Pagina no encontrada:', p);
@@ -2645,6 +2706,10 @@ function activarPagina(p) {
 }
 
 function go(p) {
+  if (moduloDesactivado(p)) {
+    toast(nombreModuloDesactivado(p) + ' est\u00e1 desactivado', true);
+    p = moduloFallbackActivo();
+  }
   p = activarPagina(p);
   if (!p) return;
   setTimeout(function() {
@@ -4963,12 +5028,18 @@ function renderChartVentas(dias) {
 
 // ─── Inventario tabs ──────────────────────────────────────────────
 function invTab(tab) {
+  if ((tab === 'compras' && moduloDesactivado('compras')) || ((tab === 'hornear' || tab === 'pronostico') && moduloDesactivado('prod'))) {
+    toast('Este flujo est\u00e1 desactivado', true);
+    tab = 'productos';
+  }
   ['productos','ingredientes','compras','hornear','conteo','pronostico'].forEach(function(t) {
     var el = document.getElementById('inv-' + t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('#inv .tab').forEach(function(t) { t.classList.remove('active'); });
-  event.target.classList.add('active');
+  var active = document.querySelector('#inv .tab[onclick*="' + tab + '"]');
+  if (!active && typeof event !== 'undefined') active = event.target;
+  if (active && active.classList) active.classList.add('active');
   if (tab === 'productos') cargarProductos();
   if (tab === 'ingredientes') cargarIngredientes();
   if (tab === 'conteo') cargarConteo();
@@ -7059,15 +7130,19 @@ function cargarDashboard() {
     if (data.merma_hoy && data.merma_hoy.porcentaje_merma > 5) {
       a += '<div class="srow"><span>Merma del d\u00eda</span><span class="badge blow">' + data.merma_hoy.porcentaje_merma + '% (' + data.merma_hoy.total_unidades + ' uds)</span></div>';
     }
-    (data.productos_sin_receta || []).slice(0, 5).forEach(function(p) {
-      a += '<div class="srow"><span>' + dashAction('Producto sin receta: ' + p.nombre, "go('prod')") + '</span><span class="badge blow">Receta</span></div>';
-    });
+    if (!moduloDesactivado('prod')) {
+      (data.productos_sin_receta || []).slice(0, 5).forEach(function(p) {
+        a += '<div class="srow"><span>' + dashAction('Producto sin receta: ' + p.nombre, "go('prod')") + '</span><span class="badge blow">Receta</span></div>';
+      });
+    }
     (data.productos_sin_costo || []).slice(0, 5).forEach(function(p) {
       a += '<div class="srow"><span>' + dashAction('Producto sin costo: ' + p.nombre, "go('listas')") + '</span><span class="badge blow">Costo</span></div>';
     });
-    (data.recetas_sin_ingredientes || []).slice(0, 5).forEach(function(r) {
-      a += '<div class="srow"><span>' + dashAction('Receta sin ingredientes: ' + r.nombre, "go('prod')") + '</span><span class="badge blow">Completar</span></div>';
-    });
+    if (!moduloDesactivado('prod')) {
+      (data.recetas_sin_ingredientes || []).slice(0, 5).forEach(function(r) {
+        a += '<div class="srow"><span>' + dashAction('Receta sin ingredientes: ' + r.nombre, "go('prod')") + '</span><span class="badge blow">Completar</span></div>';
+      });
+    }
     if (a) renderDashAlertas(a);
     // Badge en nav
     var res = data.resumen || {};
@@ -7135,6 +7210,11 @@ function cargarAlertasPracticas() {
 }
 
 function cargarPronosticoHero() {
+  if (moduloDesactivado('prod')) {
+    var card = document.getElementById('d-ai-card');
+    if (card) card.style.display = 'none';
+    return;
+  }
   var totalEl = document.getElementById('d-ai-total');
   var itemsEl = document.getElementById('d-ai-items');
   if (!totalEl || !itemsEl) return;
@@ -7370,6 +7450,10 @@ function iniciarPollPedidos() {
 
 // ─── Reportes ────────────────────────────────────────────────────
 function seleccionarRepTab(tab) {
+  if (tab === 'rep-fiscal' && moduloDesactivado('fiscal')) {
+    toast('Fiscal est\u00e1 desactivado', true);
+    tab = 'rep-ventas';
+  }
   ['rep-ventas','rep-prod','rep-marg','rep-mermas','rep-abc','rep-horas','rep-pe','rep-yoy','rep-fiscal'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
@@ -9224,15 +9308,9 @@ function postLogin(usuario) {
 }
 
 function aplicarPermisosModulos(permisos) {
-  // Hide/show nav links based on module permissions
-  document.querySelectorAll('.nav-links a[data-pg]').forEach(function(a) {
-    var mod = a.getAttribute('data-pg');
-    if (!mod) return;
-    var perm = permisos[mod];
-    a.style.display = perm ? '' : 'none';
-  });
   // Store for checking edit vs view
   window._permisos = permisos;
+  actualizarVisibilidadModulos();
 }
 
 function cerrarSesion() {
@@ -9403,6 +9481,7 @@ function editarPermisos(userId, nombre, rol) {
     var h = '';
     for (var i = 0; i < mods.length; i++) {
       var m = mods[i];
+      if (moduloDesactivado(m)) continue;
       var cur = perms[m] || 'oculto';
       h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f0e8e5">';
       h += '<span style="font-weight:500;font-size:.85rem">' + (_moduloNombres[m]||m) + '</span>';
