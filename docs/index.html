@@ -155,6 +155,17 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .tbl th .sa{font-size:.6rem;margin-left:.2rem;opacity:.5}.tbl th[data-sort] .sa{opacity:1}
 .tbl td{padding:.45rem .5rem;border-bottom:1px solid #f0e8e5}
 .tbl tr:hover td{background:#fdf9f7}
+.tbl th.actions-th,.tbl td.actions-cell{width:330px}
+.action-buttons{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}
+.action-btn{min-height:44px;min-width:44px;padding:.5rem .66rem;border:1px solid var(--brd);border-radius:9px;background:#fff;color:var(--txt);font:600 .76rem 'Inter',sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:.28rem;cursor:pointer;text-decoration:none;line-height:1.1;transition:background .15s,border-color .15s,transform .1s,box-shadow .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.action-btn:hover{background:#faf3f0;border-color:var(--v);color:var(--v)}
+.action-btn:active{transform:scale(.97)}
+.action-btn:focus{outline:none;box-shadow:0 0 0 3px rgba(196,152,138,.2)}
+.action-btn.danger{color:#b91c1c;border-color:#fecaca;background:#fff}
+.action-btn.danger:hover{background:#fef2f2;border-color:#ef4444}
+.action-icon{font-size:.95rem;line-height:1}
+.action-label{white-space:nowrap}
+@media(max-width:900px){.tbl th.actions-th,.tbl td.actions-cell{width:390px}.action-btn{padding:.55rem .7rem;font-size:.78rem}.action-icon{font-size:1rem}}
 /* Pedidos */
 .ped{background:#fff;border-radius:12px;padding:1rem;border:1px solid var(--brd);margin-bottom:.7rem;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .ped:hover{box-shadow:0 4px 12px rgba(196,152,138,.12);border-color:#e2cec8}
@@ -2122,6 +2133,12 @@ function escHtml(v) {
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
   });
 }
+function jsArg(v) {
+  return JSON.stringify(String(v == null ? '' : v)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+}
+function actionBtn(label, icon, onclick, tone) {
+  return '<button type="button" class="action-btn ' + (tone || '') + '" onclick="' + escHtml(onclick) + ';return false" title="' + escHtml(label) + '" aria-label="' + escHtml(label) + '"><span class="action-icon">' + icon + '</span><span class="action-label">' + escHtml(label) + '</span></button>';
+}
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
@@ -2162,6 +2179,10 @@ function mostrarErrorLogin(msg) {
   if (!errEl) return;
   errEl.textContent = msg;
   errEl.style.display = 'block';
+}
+
+function esSesionExpirada(e) {
+  return e && (e.status === 401 || /sesión expirada|refresh falló/i.test(e.message || ''));
 }
 
 // ─── API helpers ──────────────────────────────────────────────────
@@ -2227,7 +2248,9 @@ function api(method, path, body, _retry, extraHeaders) {
     }
     if (r.status === 401) {
       cerrarSesion();
-      return Promise.reject(new Error('Sesión expirada'));
+      var authErr = new Error('Sesión expirada');
+      authErr.status = 401;
+      return Promise.reject(authErr);
     }
     if (!r.ok) return r.json().catch(function(){return {};}).then(function(body){var e=new Error(typeof body.detail==='string'?body.detail:r.status);e.status=r.status;throw e;});
     return r.json();
@@ -2315,7 +2338,12 @@ function refreshAccessToken() {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({refresh_token: REFRESH_TOKEN})
   }).then(function(r) {
-    if (!r.ok) { cerrarSesion(); return Promise.reject(new Error('Refresh falló')); }
+    if (!r.ok) {
+      cerrarSesion();
+      var refreshErr = new Error('Refresh falló');
+      refreshErr.status = r.status;
+      return Promise.reject(refreshErr);
+    }
     return r.json();
   }).then(function(d) {
     TOKEN = d.access_token;
@@ -4505,7 +4533,7 @@ function renderInvProductos() {
   var start = _invProdPage * _invProdPerPage;
   var page = filtered.slice(start, start + _invProdPerPage);
 
-  var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th style="width:150px"></th></tr>';
+  var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
   for (var i = 0; i < page.length; i++) {
     var p = page[i];
     var stock = parseFloat(p.stock_actual) || 0;
@@ -4514,16 +4542,18 @@ function renderInvProductos() {
     var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
     var txt = stock <= 0 ? 'Agotado' : stock <= min ? 'Bajo' : 'OK';
     var esc = p.nombre.replace(/'/g,"\\'");
+    var nombreArg = jsArg(p.nombre);
     h += '<tr><td>' + p.nombre + '</td>';
     h += '<td>$' + fmt(precio) + '</td>';
     h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline;cursor:pointer">' + Math.round(stock) + ' pzas</a></td>';
     h += '<td>' + Math.round(min) + '</td>';
     h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
-    h += '<td>';
-    h += '<a href="#" onclick="editarProducto(' + p.id + ');return false" style="font-size:.9rem;cursor:pointer;margin-right:.4rem" title="Editar">&#9998;</a>';
-    h += '<a href="#" onclick="abrirMerma(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="font-size:.9rem;cursor:pointer;margin-right:.4rem" title="Registrar merma">&#128465;</a>';
-    h += '<a href="#" onclick="verHistorialPrecio(' + p.id + ',\'' + esc + '\');return false" style="font-size:.8rem;cursor:pointer;margin-right:.4rem" title="Historial de precios">&#128200;</a>';
-    h += '<a href="#" onclick="eliminarProducto(' + p.id + ',\'' + esc + '\');return false" style="font-size:.9rem;cursor:pointer;color:#b91c1c" title="Desactivar producto">&#10005;</a>';
+    h += '<td class="actions-cell"><div class="action-buttons">';
+    h += actionBtn('Editar', '&#9998;', 'editarProducto(' + p.id + ')');
+    h += actionBtn('Merma', '&#128465;', 'abrirMerma(' + p.id + ',' + nombreArg + ',' + Math.round(stock) + ')');
+    h += actionBtn('Precios', '&#128200;', 'verHistorialPrecio(' + p.id + ',' + nombreArg + ')');
+    h += actionBtn('Desactivar', '&#10005;', 'eliminarProducto(' + p.id + ',' + nombreArg + ')', 'danger');
+    h += '</div>';
     h += '</td>';
     h += '</tr>';
   }
@@ -4580,7 +4610,7 @@ function renderInvIngredientes() {
       return g.nombre.toLowerCase().indexOf(q) >= 0;
     });
   }
-  var h = '<table class="tbl"><tr><th>Ingrediente</th><th>Stock</th><th>Unidad</th><th>Costo</th><th>M&iacute;n</th><th>Estado</th><th style="width:70px"></th></tr>';
+  var h = '<table class="tbl"><tr><th>Ingrediente</th><th>Stock</th><th>Unidad</th><th>Costo</th><th>M&iacute;n</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
   for (var i = 0; i < filtered.length; i++) {
     var g = filtered[i];
     var stock = parseFloat(g.stock_actual) || 0;
@@ -4591,9 +4621,11 @@ function renderInvIngredientes() {
     h += '<tr><td>' + g.nombre + '</td><td>' + stock.toFixed(1) + '</td><td>' + g.unidad_medida + '</td>';
     h += '<td>$' + fmt(costo) + '</td><td>' + min + '</td>';
     h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
-    var escIng = g.nombre.replace(/'/g,"\\'");
-    h += '<td><a href="#" onclick="editarIngrediente(' + g.id + ');return false" style="font-size:.9rem;cursor:pointer;margin-right:.4rem" title="Editar">&#9998;</a>';
-    h += '<a href="#" onclick="eliminarIngrediente(' + g.id + ',\'' + escIng + '\');return false" style="font-size:.9rem;cursor:pointer;color:#b91c1c" title="Desactivar ingrediente">&#10005;</a></td>';
+    var ingArg = jsArg(g.nombre);
+    h += '<td class="actions-cell"><div class="action-buttons">';
+    h += actionBtn('Editar', '&#9998;', 'editarIngrediente(' + g.id + ')');
+    h += actionBtn('Desactivar', '&#10005;', 'eliminarIngrediente(' + g.id + ',' + ingArg + ')', 'danger');
+    h += '</div></td>';
     h += '</tr>';
   }
   h += '</table>';
@@ -4615,7 +4647,7 @@ function cargarRecetas() {
     // Recetas list in hornear tab — build basic table first, then load costs
     var list = document.getElementById('recetas-list');
     if (list) {
-      var h = '<table class="tbl"><tr><th>Receta</th><th>Rinde</th><th>Costo</th><th>$/pza</th><th>Horno</th><th style="width:70px"></th></tr>';
+      var h = '<table class="tbl"><tr><th>Receta</th><th>Rinde</th><th>Costo</th><th>$/pza</th><th>Horno</th><th class="actions-th">Acciones</th></tr>';
       for (var j = 0; j < recs.length; j++) {
         var rc = recs[j];
         h += '<tr><td>' + rc.nombre + '</td>';
@@ -4623,8 +4655,10 @@ function cargarRecetas() {
         h += '<td id="rc-cost-' + rc.id + '" style="color:var(--mut)">...</td>';
         h += '<td id="rc-pza-' + rc.id + '" style="color:var(--mut)">...</td>';
         h += '<td>' + (rc.tiempo_horneado_min ? rc.tiempo_horneado_min + 'min/' + (rc.temperatura_horneado_c||'?') + '\u00b0C' : '-') + '</td>';
-        h += '<td><a href="#" onclick="editarReceta(' + rc.id + ');return false" style="font-size:.9rem;cursor:pointer;margin-right:.4rem" title="Editar">&#9998;</a>';
-        h += '<a href="#" onclick="eliminarReceta(' + rc.id + ',\'' + rc.nombre.replace(/'/g,"\\'") + '\');return false" style="font-size:.9rem;cursor:pointer;color:#b91c1c" title="Desactivar receta">&#10005;</a></td>';
+        h += '<td class="actions-cell"><div class="action-buttons">';
+        h += actionBtn('Editar', '&#9998;', 'editarReceta(' + rc.id + ')');
+        h += actionBtn('Desactivar', '&#10005;', 'eliminarReceta(' + rc.id + ',' + jsArg(rc.nombre) + ')', 'danger');
+        h += '</div></td>';
         h += '</tr>';
       }
       h += '</table>';
@@ -4896,7 +4930,7 @@ function renderRecIngs() {
     h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:.3rem 0;border-bottom:1px solid #f0e8e5">';
     h += '<span>' + ri.nombre + '</span>';
     h += '<span><input type="number" value="' + ri.cantidad + '" step="0.01" style="width:70px;padding:.2rem .4rem;border:1px solid var(--brd);border-radius:4px;font-size:.82rem;text-align:right" onchange="_recIng[' + i + '].cantidad=parseFloat(this.value)">';
-    h += ' <a href="#" onclick="_recIng.splice(' + i + ',1);renderRecIngs();return false" style="color:#b91c1c;font-size:.8rem;margin-left:.3rem">&#10005;</a></span>';
+    h += ' ' + actionBtn('Quitar', '&#10005;', '_recIng.splice(' + i + ',1);renderRecIngs()', 'danger') + '</span>';
     h += '</div>';
   }
   if (!h) h = '<p style="color:var(--mut);font-size:.82rem;padding:.3rem 0">Sin ingredientes</p>';
@@ -4983,7 +5017,7 @@ function cargarListas() {
 
 function cargarListaProductos() {
   api('GET', '/inventario/productos').then(function(prods) {
-    var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th>IVA</th><th style="width:115px"></th></tr>';
+    var h = '<table class="tbl"><tr><th>Producto</th><th>Precio</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th>IVA</th><th class="actions-th">Acciones</th></tr>';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
       var stock = parseFloat(p.stock_actual) || 0;
@@ -4992,6 +5026,7 @@ function cargarListaProductos() {
       var costo = parseFloat(p.costo_produccion) || 0;
       var iva = p.tasa_iva === '0.16' ? '16%' : p.tasa_iva === '0.00' ? '0%' : 'Ext';
       var esc = p.nombre.replace(/'/g,"\\'");
+      var nombreArg = jsArg(p.nombre);
       h += '<tr>';
       h += '<td><strong>' + p.nombre + '</strong></td>';
       h += '<td>$' + fmt(precio) + '</td>';
@@ -4999,12 +5034,12 @@ function cargarListaProductos() {
       h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline">' + Math.round(stock) + '</a></td>';
       h += '<td>' + Math.round(min) + '</td>';
       h += '<td>' + iva + '</td>';
-      h += '<td>';
-      h += '<a href="#" onclick="editarProducto(' + p.id + ');return false" title="Editar" style="font-size:.9rem;margin-right:.3rem">&#9998;</a>';
-      h += '<a href="#" onclick="abrirMerma(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" title="Merma" style="font-size:.9rem;margin-right:.3rem">&#128465;</a>';
-      h += '<a href="#" onclick="verHistorialPrecio(' + p.id + ',\'' + esc + '\');return false" title="Historial precios" style="font-size:.8rem;margin-right:.3rem">&#128200;</a>';
-      h += '<a href="#" onclick="eliminarProducto(' + p.id + ',\'' + esc + '\');return false" title="Desactivar producto" style="font-size:.9rem;color:#b91c1c">&#10005;</a>';
-      h += '</td>';
+      h += '<td class="actions-cell"><div class="action-buttons">';
+      h += actionBtn('Editar', '&#9998;', 'editarProducto(' + p.id + ')');
+      h += actionBtn('Merma', '&#128465;', 'abrirMerma(' + p.id + ',' + nombreArg + ',' + Math.round(stock) + ')');
+      h += actionBtn('Precios', '&#128200;', 'verHistorialPrecio(' + p.id + ',' + nombreArg + ')');
+      h += actionBtn('Desactivar', '&#10005;', 'eliminarProducto(' + p.id + ',' + nombreArg + ')', 'danger');
+      h += '</div></td>';
       h += '</tr>';
     }
     h += '</table>';
@@ -5017,7 +5052,7 @@ function cargarListaProductos() {
 function cargarListaIngredientes() {
   api('GET', '/inventario/ingredientes').then(function(ings) {
     _allIngs = ings;
-    var h = '<table class="tbl"><tr><th>Ingrediente</th><th>Stock</th><th>Unidad</th><th>Costo</th><th>M&iacute;n</th><th>Estado</th><th></th></tr>';
+    var h = '<table class="tbl"><tr><th>Ingrediente</th><th>Stock</th><th>Unidad</th><th>Costo</th><th>M&iacute;n</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
     for (var i = 0; i < ings.length; i++) {
       var g = ings[i];
       var stock = parseFloat(g.stock_actual) || 0;
@@ -5032,10 +5067,12 @@ function cargarListaIngredientes() {
       h += '<td>$' + fmt(costo) + '</td>';
       h += '<td>' + min + '</td>';
       h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
-      var escIng = g.nombre.replace(/'/g,"\\'");
-      h += '<td><a href="#" onclick="editarIngrediente(' + g.id + ');return false" title="Editar" style="font-size:.9rem;margin-right:.3rem">&#9998;</a>';
-      h += '<a href="#" onclick="verKardex(' + g.id + ',\'' + escIng + '\');return false" title="Kardex" style="font-size:.8rem;margin-right:.3rem">&#128209;</a>';
-      h += '<a href="#" onclick="eliminarIngrediente(' + g.id + ',\'' + escIng + '\');return false" title="Desactivar ingrediente" style="font-size:.9rem;color:#b91c1c">&#10005;</a></td>';
+      var ingArg = jsArg(g.nombre);
+      h += '<td class="actions-cell"><div class="action-buttons">';
+      h += actionBtn('Editar', '&#9998;', 'editarIngrediente(' + g.id + ')');
+      h += actionBtn('Kardex', '&#128209;', 'verKardex(' + g.id + ',' + ingArg + ')');
+      h += actionBtn('Desactivar', '&#10005;', 'eliminarIngrediente(' + g.id + ',' + ingArg + ')', 'danger');
+      h += '</div></td>';
       h += '</tr>';
     }
     h += '</table>';
@@ -5083,10 +5120,12 @@ function cargarListaRecetas() {
       if (r.tiempo_horneado_min) h += ' &bull; ' + r.tiempo_horneado_min + ' min';
       if (r.temperatura_horneado_c) h += ' &bull; ' + r.temperatura_horneado_c + '&deg;C';
       h += '</span></div>';
-      h += '<div style="display:flex;align-items:center;gap:.6rem">';
+      h += '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;justify-content:flex-end">';
       h += '<span id="lr-cost-' + r.id + '" style="font-size:.82rem;color:var(--mut)">...</span>';
-      h += '<a href="#" onclick="editarReceta(' + r.id + ');return false" style="font-size:.9rem;cursor:pointer" title="Editar">&#9998;</a>';
-      h += '<a href="#" onclick="eliminarReceta(' + r.id + ',\'' + r.nombre.replace(/'/g,"\\'") + '\');return false" style="font-size:.9rem;cursor:pointer;color:#b91c1c" title="Desactivar receta">&#10005;</a>';
+      h += '<span class="action-buttons">';
+      h += actionBtn('Editar', '&#9998;', 'editarReceta(' + r.id + ')');
+      h += actionBtn('Desactivar', '&#10005;', 'eliminarReceta(' + r.id + ',' + jsArg(r.nombre) + ')', 'danger');
+      h += '</span>';
       h += '</div></div>';
       if (r.ingredientes && r.ingredientes.length) {
         h += '<div style="margin-top:.4rem;display:flex;flex-wrap:wrap;gap:.3rem">';
@@ -5465,10 +5504,10 @@ function cargarGastosFijos() {
       total += m;
       h += '<div class="srow">';
       h += '<span>' + g.concepto + ' <span style="font-size:.72rem;color:var(--mut)">(' + g.periodicidad + ')</span></span>';
-      h += '<span style="display:flex;align-items:center;gap:.3rem">';
+      h += '<span style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;justify-content:flex-end">';
       h += '<span style="color:#b91c1c;font-weight:600">$' + fmt(g.monto) + '</span>';
-      h += '<a href="#" onclick="editarGasto(' + g.id + ',\'' + g.concepto.replace(/'/g,"\\'") + '\',' + g.monto + ',\'' + g.periodicidad + '\',\'' + (g.notas||'').replace(/'/g,"\\'") + '\');return false" style="font-size:.8rem">&#9998;</a>';
-      h += '<a href="#" onclick="eliminarGasto(' + g.id + ');return false" style="font-size:.8rem;color:#b91c1c">&times;</a>';
+      h += actionBtn('Editar', '&#9998;', 'editarGasto(' + g.id + ',' + jsArg(g.concepto) + ',' + g.monto + ',' + jsArg(g.periodicidad) + ',' + jsArg(g.notas || '') + ')');
+      h += actionBtn('Eliminar', '&times;', 'eliminarGasto(' + g.id + ')', 'danger');
       h += '</span></div>';
     }
     document.getElementById('c-gastos-fijos-list').innerHTML = h;
@@ -7926,8 +7965,10 @@ function hacerLogin() {
     document.getElementById('btn-logout').style.display = '';
     setConnected(true);
     postLogin();
-  }).catch(function() {
-    errEl.textContent = 'Email o contraseña incorrectos';
+  }).catch(function(e) {
+    errEl.textContent = e && (e.name === 'TypeError' || /failed to fetch|network|servidor/i.test(e.message || ''))
+      ? 'No se pudo conectar al servidor. Revisa internet o espera unos segundos.'
+      : 'Email o contraseña incorrectos';
     errEl.style.display = 'block';
   });
 }
@@ -8090,7 +8131,7 @@ function cargarBackup() {
       } else if (!esAdminActual()) {
         h += '<span style="font-size:.72rem;color:var(--mut)">Solo admin</span>';
       } else {
-        h += '<button class="limpiar" style="padding:.25rem .45rem;font-size:.72rem;margin:0;color:#b91c1c" onclick="eliminarBackup(\'' + encodeURIComponent(b.filename).replace(/'/g, '%27') + '\')">Borrar</button>';
+        h += actionBtn('Borrar', '&#10005;', 'eliminarBackup(' + jsArg(encodeURIComponent(b.filename).replace(/'/g, '%27')) + ')', 'danger');
       }
       h += '</td></tr>';
     }
@@ -8114,7 +8155,7 @@ function eliminarBackup(encodedFilename) {
 
 function cargarUsuarios() {
   api('GET', '/auth/usuarios').then(function(users) {
-    var h = '<table class="tbl"><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th style="width:120px"></th></tr>';
+    var h = '<table class="tbl"><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
     for (var i = 0; i < users.length; i++) {
       var u = users[i];
       var rolNombres = {administrador:'Admin',gerente:'Gerente',cajero:'Cajero',panadero:'Panadero',almacenista:'Almacenista',contador:'Contador'};
@@ -8124,11 +8165,11 @@ function cargarUsuarios() {
       h += '<td style="font-size:.78rem;color:var(--mut)">' + u.email + '</td>';
       h += '<td>' + (rolNombres[u.rol]||u.rol) + '</td>';
       h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
-      h += '<td>';
-      h += '<a href="#" onclick="editarPermisos(' + u.id + ',\'' + u.nombre.replace(/'/g,"\\'") + '\',\'' + u.rol + '\');return false" style="font-size:.8rem;cursor:pointer;margin-right:.4rem" title="Permisos">&#128274;</a>';
-      h += '<a href="#" onclick="toggleUsuario(' + u.id + ');return false" style="font-size:.8rem;cursor:pointer;margin-right:.4rem" title="Activar/Desactivar">&#9940;</a>';
-      h += '<a href="#" onclick="resetPassword(' + u.id + ',\'' + u.nombre.replace(/'/g,"\\'") + '\');return false" style="font-size:.8rem;cursor:pointer" title="Cambiar contraseña">&#128273;</a>';
-      h += '</td></tr>';
+      h += '<td class="actions-cell"><div class="action-buttons">';
+      h += actionBtn('Permisos', '&#128274;', 'editarPermisos(' + u.id + ',' + jsArg(u.nombre) + ',' + jsArg(u.rol) + ')');
+      h += actionBtn(u.activo ? 'Desactivar' : 'Activar', '&#9940;', 'toggleUsuario(' + u.id + ')', u.activo ? 'danger' : '');
+      h += actionBtn('Contraseña', '&#128273;', 'resetPassword(' + u.id + ',' + jsArg(u.nombre) + ')');
+      h += '</div></td></tr>';
     }
     h += '</table>';
     document.getElementById('usuarios-list').innerHTML = h;
@@ -8333,7 +8374,14 @@ function autoConectar() {
     document.getElementById('login-error').style.display = 'none';
     document.getElementById('btn-logout').style.display = '';
     postLogin(u);
-  }).catch(function() {
+  }).catch(function(e) {
+    if (esSesionExpirada(e)) {
+      _reconectar = 0;
+      setConnected(false);
+      document.getElementById('login-screen').style.display = 'flex';
+      mostrarErrorLogin('Tu sesión venció. Ingresa de nuevo.');
+      return;
+    }
     // Si el servidor está despertando/no disponible, no borrar la sesión guardada.
     _reconectar++;
     if (_reconectar <= 2) {
@@ -8345,8 +8393,7 @@ function autoConectar() {
       document.getElementById('login-screen').style.display = 'flex';
       var errEl = document.getElementById('login-error');
       if (TOKEN || REFRESH_TOKEN) {
-        errEl.textContent = 'No se pudo conectar al servidor. Tu sesión sigue guardada; vuelve a intentar en unos segundos.';
-        errEl.style.display = 'block';
+        mostrarErrorLogin('No se pudo conectar al servidor. Tu sesión sigue guardada; vuelve a intentar en unos segundos.');
       }
     }
   });
