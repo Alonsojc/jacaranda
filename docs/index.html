@@ -107,8 +107,8 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .page-toolbar .section-tabs{flex:1 1 420px;margin-bottom:0}
 .page-toolbar>.limpiar,.page-toolbar>.cobrar{flex:0 0 auto;margin:0;width:auto}
 /* POS */
-.pos-grid{display:grid;grid-template-columns:1fr 340px;gap:1rem;align-items:start}
-.pos-prods{max-height:calc(100vh - 180px);overflow-y:auto;padding-right:.3rem}
+.pos-grid{display:flex;flex-direction:column;gap:1rem;align-items:stretch}
+.pos-prods{padding-right:0}
 .prods{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;align-content:start}
 .pi{background:#fff;border-radius:14px;padding:0;text-align:center;border:1px solid var(--brd);cursor:pointer;transition:all .2s;user-select:none;overflow:hidden;display:flex;flex-direction:column;align-items:center}
 .pi:hover{border-color:var(--v);box-shadow:0 6px 20px rgba(196,152,138,.18);transform:translateY(-2px)}
@@ -125,7 +125,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .pi-stk-out{background:#fee2e2;color:#b91c1c}
 .pi-multi{font-size:.6rem;color:var(--mut);font-style:italic}
 .pi.pi-out{opacity:.45;pointer-events:none}
-.tkt{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd)}
+.tkt{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd);position:sticky;top:76px;z-index:12;max-height:calc(100vh - 92px);overflow:auto;box-shadow:0 4px 18px rgba(196,152,138,.08)}
 .tkt h3{font-size:.9rem;margin-bottom:.6rem}
 .ti{display:flex;justify-content:space-between;font-size:.82rem;padding:.35rem 0;border-bottom:1px solid #f0e8e5}
 .qty-btn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:#f5eeeb;color:var(--v);font-weight:700;font-size:.8rem;cursor:pointer;user-select:none;transition:all .15s;border:none;line-height:1}
@@ -199,7 +199,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 /* Discount inline */
 .desc-input{width:55px;padding:.2rem .3rem;border:1px solid var(--brd);border-radius:5px;font-size:.72rem;font-family:inherit;text-align:center}
 .desc-input:focus{outline:none;border-color:var(--v)}
-@media(max-width:900px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.pos-prods{max-height:none}.prods{grid-template-columns:repeat(3,1fr)}.nav-links{flex-wrap:wrap;gap:.15rem}.nav-links a{padding:.4rem .55rem;font-size:.73rem}.pmt{grid-template-columns:1fr!important}#pos-btn-prods{display:block!important}.tkt{position:sticky;bottom:0;z-index:10}table{font-size:.75rem}th,td{padding:.3rem .4rem!important}}
+@media(max-width:900px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.prods{grid-template-columns:repeat(3,1fr)}.nav-links{flex-wrap:wrap;gap:.15rem}.nav-links a{padding:.4rem .55rem;font-size:.73rem}.pmt{grid-template-columns:1fr!important}#pos-btn-prods{display:block!important}.tkt{position:relative;top:auto;max-height:none;z-index:10}table{font-size:.75rem}th,td{padding:.3rem .4rem!important}}
 @media(max-width:600px){.prods{grid-template-columns:repeat(2,1fr)}.qty-btn{width:36px;height:36px;font-size:1.1rem}.cobrar{padding:1rem;font-size:1rem}.pi-body{padding:.5rem}.pi-img,.pi-noimg{height:70px}.frow{grid-template-columns:1fr}.wrap{width:min(100% - 1.2rem,1240px);padding:.8rem 0 1rem}nav{padding:.5rem .8rem}.pbtn{padding:.9rem .5rem;font-size:.85rem}.ti{padding:.45rem 0;font-size:.85rem}.tkt h3{font-size:1rem}.card{padding:.8rem;border-radius:10px;overflow-x:auto;-webkit-overflow-scrolling:touch}.tab{padding:.5rem .8rem;font-size:.78rem;min-height:40px;white-space:nowrap}.kpi .n{font-size:1.3rem}.kpi .l{font-size:.7rem}h2{font-size:1.1rem;margin-bottom:.7rem}.page-header{gap:.6rem}.page-actions{width:100%;justify-content:flex-start}.page-actions .limpiar,.page-actions .cobrar{flex:1 1 auto}.page-toolbar{gap:.45rem}.page-toolbar .section-tabs{flex-basis:100%}.srow{padding:.5rem 0;font-size:.82rem;min-height:36px}.badge{padding:.25rem .5rem;font-size:.72rem}}
 @media(max-width:420px){.prods{grid-template-columns:1fr 1fr}.pi .pn{font-size:.78rem}.pi .pp{font-size:1rem}.nav-links a{padding:.35rem .4rem;font-size:.68rem}.r4{grid-template-columns:1fr}.card{margin-bottom:.6rem}}
 .notif-panel{position:fixed;top:50px;right:10px;width:360px;max-height:500px;background:#fff;border:1px solid var(--brd);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:100;overflow-y:auto;display:none}
@@ -264,11 +264,12 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .nav-group>a:hover{color:var(--v);background:#faf3f0}
 .nav-group>a::after{content:'\25BE';font-size:.6rem;opacity:.5}
 .nav-group>a.on{color:var(--v);background:#faf3f0}
-.nav-dd{display:none;position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--brd);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:55;min-width:170px;padding:.35rem 0;animation:ddIn .15s ease-out}
+.nav-dd{display:none;position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--brd);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:55;min-width:170px;width:max-content;max-width:min(340px,calc(100vw - 1.5rem));padding:.35rem 0;animation:ddIn .15s ease-out;box-sizing:border-box}
+.nav-group.nav-right .nav-dd{left:auto;right:0}
 .nav-dd::before{content:'';position:absolute;left:0;right:0;top:-10px;height:10px}
 .nav-group:hover .nav-dd,.nav-group:focus-within .nav-dd,.nav-group.open .nav-dd{display:block}
 @keyframes ddIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
-.nav-dd a{display:block;padding:.45rem .9rem;font-size:.82rem;color:var(--txt);text-decoration:none;cursor:pointer;transition:background .12s;white-space:nowrap;font-weight:500}
+.nav-dd a{display:block;padding:.45rem .9rem;font-size:.82rem;color:var(--txt);text-decoration:none;cursor:pointer;transition:background .12s;white-space:normal;font-weight:500;line-height:1.25;overflow-wrap:anywhere}
 .nav-dd a:hover{background:#faf3f0;color:var(--v)}
 .nav-dd a.on{color:var(--v);font-weight:600}
 .nav-dd-sep{height:1px;background:var(--brd);margin:.25rem .6rem}
@@ -368,7 +369,7 @@ h2{font-size:1.1rem}
     <a data-pg="merma" onclick="go('merma')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO">&#128465; Merma</a>
   </div>
 </div>
-<div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE">
+<div class="nav-group nav-right" data-roles-group="ADMINISTRADOR,GERENTE">
   <a class="nav-role" data-roles="ADMINISTRADOR,GERENTE">M&aacute;s</a>
   <div class="nav-dd">
     <a data-pg="crm" onclick="go('crm')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#128101; CRM / Clientes</a>
@@ -521,12 +522,6 @@ h2{font-size:1.1rem}
 <div class="page" id="pos">
 <h2>Punto de Venta</h2>
 <div class="pos-grid">
-<div class="pos-prods">
-<input type="text" id="pos-search" placeholder="Buscar producto..." oninput="filtrarPOS()" style="width:100%;padding:.55rem .8rem;border:1px solid var(--brd);border-radius:10px;font-size:.85rem;margin-bottom:.7rem;font-family:inherit;transition:border-color .2s;outline:none" onfocus="this.style.borderColor='var(--v)'" onblur="this.style.borderColor=''">
-<div id="pos-products">
-<p style="color:var(--mut);text-align:center;padding:2rem">Cargando productos...</p>
-</div>
-</div><!-- pos-prods -->
 <div class="tkt">
 <h3>Ticket</h3>
 <div id="pos-offline-banner" style="display:none;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:.5rem .7rem;margin-bottom:.5rem;font-size:.78rem;color:#92400e">
@@ -561,6 +556,12 @@ h2{font-size:1.1rem}
 <button class="limpiar" onclick="confirmarLimpiar()">Limpiar</button>
 <button class="limpiar" onclick="document.querySelector('.pos-prods').scrollIntoView({behavior:'smooth'})" id="pos-btn-prods" style="display:none;margin-top:.3rem">&uarr; Ver productos</button>
 </div>
+<div class="pos-prods">
+<input type="text" id="pos-search" placeholder="Buscar producto..." oninput="filtrarPOS()" style="width:100%;padding:.55rem .8rem;border:1px solid var(--brd);border-radius:10px;font-size:.85rem;margin-bottom:.7rem;font-family:inherit;transition:border-color .2s;outline:none" onfocus="this.style.borderColor='var(--v)'" onblur="this.style.borderColor=''">
+<div id="pos-products">
+<p style="color:var(--mut);text-align:center;padding:2rem">Cargando productos...</p>
+</div>
+</div><!-- pos-prods -->
 </div>
 </div>
 
