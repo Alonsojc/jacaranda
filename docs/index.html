@@ -602,7 +602,7 @@ h2{font-size:1.1rem}
 <h2 style="margin:0">Pedidos</h2>
 <div style="display:flex;gap:.4rem;align-items:center">
 <input type="text" id="ped-buscar" placeholder="Buscar cliente/folio..." oninput="filtrarPedidos()" style="padding:.4rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;width:180px;font-family:inherit">
-<button class="limpiar" style="display:inline;width:auto;padding:.4rem .7rem;font-size:.78rem;margin:0" onclick="toggleCalPed()" id="btn-cal-ped">&#128197; Calendario</button>
+<button class="limpiar" style="display:inline;width:auto;padding:.4rem .7rem;font-size:.78rem;margin:0;background:var(--v);color:#fff" onclick="toggleCalPed()" id="btn-cal-ped" aria-pressed="true">&#128197; Calendario</button>
 <button class="cobrar" style="display:inline;width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="document.getElementById('modal-ped').classList.add('on')">+ Nuevo</button>
 </div>
 </div>
@@ -620,7 +620,7 @@ h2{font-size:1.1rem}
 <span class="tab" onclick="filtroEstadoPed(this,'listo')">Listo</span>
 <span class="tab" onclick="filtroEstadoPed(this,'entregado')">Entregado</span>
 </div>
-<div id="ped-cal" style="display:none;margin-bottom:1rem">
+<div id="ped-cal" style="display:block;margin-bottom:1rem">
 <div class="card"><div id="ped-cal-content" style="overflow-x:auto"><p style="color:var(--mut)">Cargando calendario...</p></div></div>
 </div>
 <div id="ped-list">
@@ -2513,7 +2513,10 @@ function reportarErrorPagina(p, err) {
 }
 
 function cargarPagina(p) {
-  if (p === 'ped') return cargarPedidos();
+  if (p === 'ped') {
+    setCalPedVisible(true);
+    return cargarPedidos();
+  }
   if (p === 'dash') return cargarDashboard();
   if (p === 'pos') return Promise.all([cargarPOSProductos(), cargarClientesPOS()]);
   if (p === 'inv') return cargarInventarioCompleto();
@@ -3713,21 +3716,28 @@ function compartirPedidoWA(pedidoId) {
 }
 
 // ─── Pedidos Calendar ────────────────────────────────────────────
-var _calPedVisible = false;
-function toggleCalPed() {
-  _calPedVisible = !_calPedVisible;
+var _calPedVisible = true;
+function setCalPedVisible(visible) {
+  _calPedVisible = !!visible;
   var cal = document.getElementById('ped-cal');
   var btn = document.getElementById('btn-cal-ped');
+  if (!cal || !btn) return;
   if (_calPedVisible) {
     cal.style.display = 'block';
     btn.style.background = 'var(--v)';
     btn.style.color = '#fff';
+    btn.setAttribute('aria-pressed', 'true');
     renderCalPed();
   } else {
     cal.style.display = 'none';
     btn.style.background = '';
     btn.style.color = '';
+    btn.setAttribute('aria-pressed', 'false');
   }
+}
+
+function toggleCalPed() {
+  setCalPedVisible(!_calPedVisible);
 }
 
 function renderCalPed() {
