@@ -417,7 +417,7 @@ h2{font-size:1.1rem}
     <div class="nav-dd-sep"></div>
     <a data-pg="conta" onclick="go('conta')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">&#128209; Contabilidad</a>
     <a data-pg="fiscal" onclick="go('fiscal')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">&#127974; Fiscal</a>
-    <a data-pg="listas" onclick="go('listas')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#128203; Listas de precios</a>
+    <a data-pg="listas" onclick="go('listas')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#128203; Listas</a>
     <div class="nav-dd-sep"></div>
     <a data-pg="papelera" onclick="go('papelera')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#9851; Papelera</a>
     <a data-pg="auditoria" onclick="go('auditoria')" class="nav-role" data-roles="ADMINISTRADOR">&#128274; Auditor&iacute;a</a>
@@ -1913,7 +1913,7 @@ h2{font-size:1.1rem}
 <!-- MODAL: Nuevo Cliente -->
 <div class="modal-bg" id="modal-cliente">
 <div class="modal" style="max-width:420px">
-<h3>Nuevo cliente</h3>
+<h3 id="mc-title">Nuevo cliente</h3>
 <div class="fg"><label>Nombre *</label><input id="mc-nombre" placeholder="Mar&iacute;a Garc&iacute;a"></div>
 <div class="frow">
 <div class="fg"><label>Tel&eacute;fono</label><input id="mc-tel" placeholder="442 123 4567"></div>
@@ -1923,6 +1923,7 @@ h2{font-size:1.1rem}
 <div class="fg"><label>RFC (facturaci&oacute;n)</label><input id="mc-rfc" placeholder="XAXX010101000" maxlength="13" style="text-transform:uppercase"></div>
 <div class="fg"><label>R&eacute;gimen fiscal</label><input id="mc-regimen" placeholder="612"></div>
 </div>
+<div class="fg"><label>Fecha de nacimiento</label><input type="date" id="mc-cumple"></div>
 <label style="display:flex;align-items:center;gap:.5rem;margin:.2rem 0 .7rem;color:var(--txt);font-size:.84rem;font-weight:600">
 <input type="checkbox" id="mc-frecuente" style="width:18px;height:18px;accent-color:var(--v)"> Cliente frecuente
 </label>
@@ -2330,7 +2331,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v61';
+var APP_BUILD = 'jacaranda-v62';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -2348,6 +2349,7 @@ var _clienteRecompensaActual = null, _canjearRecompensaLealtad = false;
 var cafCart = [], cafPm = 'trans', _cafGroups = {}, _cafVentas = [], _cafEnProceso = false, _cafIdempotencyKey = null;
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
 var _pedidoEnProceso = false, _pedidoIdempotencyKey = null;
+var _clienteEditId = null;
 var _recepcionesCompraEnProceso = {};
 var _offline = false;
 var _ventasPendientes = JSON.parse(localStorage.getItem('jacaranda_ventas_pendientes') || '[]');
@@ -7572,17 +7574,22 @@ function realizarCorte() {
 function cargarListaClientes() {
   api('GET', '/clientes/').then(function(cls) {
     if (!cls.length) { document.getElementById('l-clientes-tbl').innerHTML = '<p style="color:var(--mut)">Sin clientes registrados</p>'; return; }
-    var h = '<table class="tbl"><tr><th>Nombre</th><th>Tel&eacute;fono</th><th>Email</th><th>RFC</th><th>Puntos</th><th>Frecuente</th><th>Tarjeta</th></tr>';
+    var h = '<table class="tbl"><tr><th>Nombre</th><th>Tel&eacute;fono</th><th>Email</th><th>RFC</th><th>Nacimiento</th><th>Puntos</th><th>Frecuente</th><th class="actions-th">Acciones</th></tr>';
     for (var i = 0; i < cls.length; i++) {
       var c = cls[i];
+      var cumple = c.fecha_cumpleanos ? new Date(c.fecha_cumpleanos + 'T12:00:00').toLocaleDateString('es-MX', {day:'2-digit', month:'short'}) : '-';
       h += '<tr style="cursor:pointer" onclick="verHistorialCliente(' + c.id + ')">';
-      h += '<td><strong>' + c.nombre + '</strong></td>';
-      h += '<td>' + (c.telefono || '-') + '</td>';
-      h += '<td style="font-size:.78rem">' + (c.email || '-') + '</td>';
-      h += '<td style="font-size:.78rem">' + (c.rfc || '-') + '</td>';
+      h += '<td><strong>' + escHtml(c.nombre) + '</strong></td>';
+      h += '<td>' + escHtml(c.telefono || '-') + '</td>';
+      h += '<td style="font-size:.78rem">' + escHtml(c.email || '-') + '</td>';
+      h += '<td style="font-size:.78rem">' + escHtml(c.rfc || '-') + '</td>';
+      h += '<td style="font-size:.78rem">' + escHtml(cumple) + '</td>';
       h += '<td>' + (c.puntos_acumulados || 0) + '</td>';
       h += '<td><span class="badge ' + (c.cliente_frecuente ? 'bok' : 'bpend') + '">' + (c.cliente_frecuente ? 'S&iacute;' : 'No') + '</span></td>';
-      h += '<td>' + actionBtn(c.cliente_frecuente ? 'Enviar tarjeta' : 'Activar y enviar', '&#128172;', 'enviarTarjetaCliente(' + c.id + ',event)', '') + '</td>';
+      h += '<td class="actions-cell"><div class="action-buttons">';
+      h += actionBtn('Editar', '&#9998;', 'editarCliente(' + c.id + ',event)', '');
+      h += actionBtn(c.cliente_frecuente ? 'Enviar tarjeta' : 'Activar y enviar', '&#128172;', 'enviarTarjetaCliente(' + c.id + ',event)', '');
+      h += '</div></td>';
       h += '</tr>';
     }
     h += '</table>';
@@ -7644,30 +7651,61 @@ function enviarTarjetaCliente(id, ev) {
   });
 }
 
-function nuevoCliente() {
+function limpiarModalCliente() {
   document.getElementById('mc-nombre').value = '';
   document.getElementById('mc-tel').value = '';
   document.getElementById('mc-email').value = '';
   document.getElementById('mc-rfc').value = '';
   document.getElementById('mc-regimen').value = '';
+  document.getElementById('mc-cumple').value = '';
   document.getElementById('mc-notas').value = '';
   document.getElementById('mc-frecuente').checked = false;
+}
+
+function nuevoCliente() {
+  _clienteEditId = null;
+  document.getElementById('mc-title').textContent = 'Nuevo cliente';
+  limpiarModalCliente();
   document.getElementById('modal-cliente').classList.add('on');
+}
+
+function editarCliente(id, ev) {
+  if (ev) ev.stopPropagation();
+  api('GET', '/clientes/' + id).then(function(c) {
+    _clienteEditId = id;
+    document.getElementById('mc-title').textContent = 'Editar cliente';
+    document.getElementById('mc-nombre').value = c.nombre || '';
+    document.getElementById('mc-tel').value = c.telefono || '';
+    document.getElementById('mc-email').value = c.email || '';
+    document.getElementById('mc-rfc').value = c.rfc || '';
+    document.getElementById('mc-regimen').value = c.regimen_fiscal || '';
+    document.getElementById('mc-cumple').value = c.fecha_cumpleanos || '';
+    document.getElementById('mc-notas').value = c.notas || '';
+    document.getElementById('mc-frecuente').checked = !!c.cliente_frecuente;
+    document.getElementById('modal-cliente').classList.add('on');
+  }).catch(function(e) {
+    toast(e.message || 'No se pudo cargar el cliente', true);
+  });
 }
 
 function guardarCliente() {
   var nombre = document.getElementById('mc-nombre').value.trim();
   if (!nombre) { toast('El nombre es obligatorio', true); return; }
-  api('POST', '/clientes/', {
+  var payload = {
     nombre: nombre,
     telefono: document.getElementById('mc-tel').value.trim() || null,
     email: document.getElementById('mc-email').value.trim() || null,
     rfc: document.getElementById('mc-rfc').value.trim().toUpperCase() || null,
     regimen_fiscal: document.getElementById('mc-regimen').value.trim() || null,
+    fecha_cumpleanos: document.getElementById('mc-cumple').value || null,
     notas: document.getElementById('mc-notas').value.trim() || null,
-    cliente_frecuente: document.getElementById('mc-frecuente').checked,
-  }).then(function() {
-    toast('Cliente creado');
+    cliente_frecuente: document.getElementById('mc-frecuente').checked
+  };
+  var method = _clienteEditId ? 'PUT' : 'POST';
+  var path = _clienteEditId ? '/clientes/' + _clienteEditId : '/clientes/';
+  api(method, path, payload).then(function() {
+    toast(_clienteEditId ? 'Cliente actualizado' : 'Cliente creado');
+    _clienteEditId = null;
     cerrarModal('modal-cliente');
     cargarListaClientes();
     cargarClientesPOS();

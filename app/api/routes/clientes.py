@@ -71,7 +71,8 @@ def actualizar_cliente(
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     _ALLOWED_FIELDS = {"nombre", "telefono", "email", "rfc", "razon_social",
                         "regimen_fiscal", "domicilio_fiscal_cp", "uso_cfdi",
-                        "cliente_frecuente", "activo"}
+                        "fecha_cumpleanos", "cliente_frecuente", "notas",
+                        "activo"}
     for key, value in data.model_dump(exclude_unset=True).items():
         if key not in _ALLOWED_FIELDS:
             continue

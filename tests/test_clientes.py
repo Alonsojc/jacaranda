@@ -53,6 +53,24 @@ class TestClientes:
         assert resp2.status_code == 200
         assert resp2.json()["nombre"] == "Juan Actualizado"
 
+    def test_actualizar_cliente_con_cumpleanos_y_notas(self, client, auth_headers):
+        resp = self._crear_cliente(client, auth_headers)
+        cid = resp.json()["id"]
+        resp2 = client.put(
+            f"/api/v1/clientes/{cid}",
+            json={
+                "fecha_cumpleanos": "1990-05-07",
+                "notas": "Prefiere pastel chico",
+                "cliente_frecuente": True,
+            },
+            headers=auth_headers,
+        )
+        assert resp2.status_code == 200
+        data = resp2.json()
+        assert data["fecha_cumpleanos"] == "1990-05-07"
+        assert data["notas"] == "Prefiere pastel chico"
+        assert data["cliente_frecuente"] is True
+
     def test_actualizar_no_permite_campos_prohibidos(self, client, auth_headers):
         """Verificar que el whitelist de setattr funciona."""
         resp = self._crear_cliente(client, auth_headers)

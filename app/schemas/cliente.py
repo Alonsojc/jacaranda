@@ -75,7 +75,9 @@ class ClienteUpdate(BaseModel):
     regimen_fiscal: str | None = None
     domicilio_fiscal_cp: str | None = None
     uso_cfdi: str | None = None
+    fecha_cumpleanos: date | None = None
     cliente_frecuente: bool | None = None
+    notas: str | None = None
     activo: bool | None = None
 
 
