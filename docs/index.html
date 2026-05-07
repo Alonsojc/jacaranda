@@ -161,14 +161,15 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .quick-pay .limpiar{margin:0;font-size:.78rem;padding:.45rem .55rem}
 #titems{margin-top:.7rem;max-height:340px;overflow-y:auto;padding-right:.1rem}
 /* Tabla */
+.card table th,.card table td{text-align:center;vertical-align:middle}
 .tbl{width:100%;border-collapse:collapse;font-size:.82rem;table-layout:fixed;word-break:break-word}
-.tbl th{text-align:left;padding:.5rem .5rem;background:linear-gradient(135deg,#faf3f0,#fdf7f5);color:var(--v);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;cursor:pointer;user-select:none;white-space:nowrap}
+.tbl th{text-align:center;padding:.5rem .5rem;background:linear-gradient(135deg,#faf3f0,#fdf7f5);color:var(--v);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;cursor:pointer;user-select:none;white-space:nowrap}
 .tbl th:empty{cursor:default}
 .tbl th .sa{font-size:.6rem;margin-left:.2rem;opacity:.5}.tbl th[data-sort] .sa{opacity:1}
-.tbl td{padding:.45rem .5rem;border-bottom:1px solid #f0e8e5}
+.tbl td{padding:.45rem .5rem;border-bottom:1px solid #f0e8e5;text-align:center;vertical-align:middle}
 .tbl tr:hover td{background:#fdf9f7}
 .tbl th.actions-th,.tbl td.actions-cell{width:330px}
-.action-buttons{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}
+.action-buttons{display:flex;gap:.35rem;align-items:center;justify-content:center;flex-wrap:wrap}
 .action-btn{min-height:44px;min-width:44px;padding:.5rem .66rem;border:1px solid var(--brd);border-radius:9px;background:#fff;color:var(--txt);font:600 .76rem 'Inter',sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:.28rem;cursor:pointer;text-decoration:none;line-height:1.1;transition:background .15s,border-color .15s,transform .1s,box-shadow .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .action-btn:hover{background:#faf3f0;border-color:var(--v);color:var(--v)}
 .action-btn:active{transform:scale(.97)}
@@ -938,6 +939,7 @@ h2{font-size:1.1rem}
     <p style="font-size:.83rem;color:var(--mut);margin:0">Registra gastos operativos del d&iacute;a sin entrar al m&oacute;dulo completo de compras.</p>
   </div>
   <div class="page-actions">
+    <button class="limpiar" style="width:auto;margin:0;padding:.45rem .8rem" onclick="abrirNuevoGasto()">Gasto mensual</button>
     <button class="limpiar" style="width:auto;margin:0;padding:.45rem .8rem" onclick="go('inv');setTimeout(function(){invTab('compras')},120)">Compra de ingredientes</button>
   </div>
 </div>
@@ -967,14 +969,32 @@ h2{font-size:1.1rem}
 </div>
 <div class="frow">
 <div class="fg"><label>Fecha</label><input type="date" id="eg-fecha"></div>
-<div class="fg"><label>Proveedor / persona</label><input id="eg-proveedor" placeholder="Nombre opcional"></div>
+<div class="fg"><label>Proveedor / persona</label><input id="eg-proveedor" list="eg-proveedores-list" placeholder="Nombre opcional"></div>
 </div>
 <div class="fg"><label>Notas</label><input id="eg-notas" placeholder="Motivo o referencia"></div>
+<datalist id="eg-proveedores-list"></datalist>
 <button class="cobrar" onclick="guardarEgreso()">Guardar egreso</button>
 </div>
 <div class="card">
 <h3>Resumen</h3>
 <div id="eg-resumen"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+</div>
+<div class="row r2">
+<div class="card">
+<h3>Escanear ticket</h3>
+<p style="color:var(--mut);font-size:.83rem;margin-bottom:.6rem">Lee una foto o PDF y llena el egreso autom&aacute;ticamente.</p>
+<input type="file" id="eg-ocr-file" accept="image/*,application/pdf" multiple onchange="escanearTicketEgreso()" style="font-size:.82rem;width:100%">
+<p id="eg-ocr-status" style="font-size:.78rem;color:var(--mut);margin-top:.45rem"></p>
+<div id="eg-ocr-result" style="display:none;margin-top:.6rem;border-top:1px solid #f0e8e5;padding-top:.6rem;font-size:.82rem"></div>
+</div>
+<div class="card">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem">
+<h3 style="margin:0">Gastos mensuales recurrentes</h3>
+<button class="limpiar" style="width:auto;margin:0;padding:.4rem .75rem;font-size:.78rem" onclick="abrirNuevoGasto()">+ Agregar</button>
+</div>
+<div id="eg-gastos-fijos-resumen" style="margin-bottom:.45rem"></div>
+<div id="eg-gastos-fijos-list"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
 </div>
 </div>
 <div class="card">
@@ -2336,7 +2356,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v64';
+var APP_BUILD = 'jacaranda-v65';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -2650,6 +2670,8 @@ function dibujarQR(canvasId, texto, size) {
   });
 }
 
+var _clientePublicoActual = null;
+
 function mostrarTarjetaClientePublica() {
   var code = codigoClientePublico();
   document.getElementById('login-screen').style.display = 'none';
@@ -2663,6 +2685,7 @@ function mostrarTarjetaClientePublica() {
     return;
   }
   apiPublic('GET', '/lealtad/publico/' + encodeURIComponent(code)).then(function(t) {
+    _clientePublicoActual = t;
     var r = t.recompensa || {};
     var progreso = Math.max(0, Math.min(100, parseFloat(r.progreso_porcentaje) || 0));
     var link = t.url_publica || (APP_URL + '#cliente/' + t.tarjeta_qr);
@@ -2686,7 +2709,7 @@ function mostrarTarjetaClientePublica() {
     h += '<div style="height:10px;background:#f5eeeb;border-radius:999px;overflow:hidden"><div style="height:100%;width:' + progreso + '%;background:var(--grn);border-radius:999px"></div></div>';
     h += '<div style="font-size:.78rem;color:' + (disponible ? 'var(--grn)' : 'var(--mut)') + ';margin-top:.45rem;font-weight:700">' + (disponible ? disponible + ' recompensa disponible' : 'Faltan $' + fmt(r.monto_restante || 0) + ' para tu siguiente recompensa') + '</div>';
     h += '</div></div>';
-    h += '<button class="cobrar" style="width:100%;margin-top:.4rem" onclick="descargarQRClientePublico()">Descargar QR</button>';
+    h += '<button class="cobrar" style="width:100%;margin-top:.4rem" onclick="descargarQRClientePublico()">Descargar tarjeta QR</button>';
     h += '<div id="cliente-publico-wallet" style="display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin-top:.45rem"><button class="limpiar" disabled style="margin:0;padding:.55rem;font-size:.78rem">Apple Wallet</button><button class="limpiar" disabled style="margin:0;padding:.55rem;font-size:.78rem">Google Wallet</button></div>';
     h += '<p style="font-size:.72rem;color:var(--mut);margin-top:.7rem;line-height:1.35">Presenta este QR en Jacaranda para acumular compras. La recompensa se valida en caja.</p>';
     box.innerHTML = h;
@@ -2719,21 +2742,129 @@ function cargarWalletClientePublico(code) {
   });
 }
 
-function descargarQRClientePublico() {
-  var canvas = document.getElementById('cliente-publico-qr');
-  var img = document.getElementById('cliente-publico-qr-img');
-  var a = document.createElement('a');
-  if (canvas && canvas.style.display !== 'none') {
-    a.href = canvas.toDataURL('image/png');
-    a.download = 'jacaranda-cliente-frecuente.png';
-  } else if (img && img.src) {
-    a.href = img.src;
-    a.download = 'jacaranda-cliente-frecuente.svg';
-    a.target = '_blank';
-  } else {
-    return;
+function _cardRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function descargarTarjetaClientePublicoCanvas(t, qrCanvas) {
+  var r = (t && t.recompensa) || {};
+  var progreso = Math.max(0, Math.min(100, parseFloat(r.progreso_porcentaje) || 0));
+  var w = 900, h = 1280;
+  var canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  var ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fdf9f7';
+  ctx.fillRect(0, 0, w, h);
+
+  var grad = ctx.createLinearGradient(80, 150, 820, 1120);
+  grad.addColorStop(0, '#fff7f4');
+  grad.addColorStop(0.55, '#ffffff');
+  grad.addColorStop(1, '#faf0ed');
+  ctx.fillStyle = grad;
+  _cardRoundRect(ctx, 70, 80, 760, 1120, 34);
+  ctx.fill();
+  ctx.strokeStyle = '#eadcd7';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#c4988a';
+  ctx.font = '700 56px "DM Serif Display", Georgia, serif';
+  ctx.fillText('Jacaranda', w / 2, 170);
+  ctx.fillStyle = '#a08a84';
+  ctx.font = '500 22px Inter, Arial, sans-serif';
+  ctx.letterSpacing = '6px';
+  ctx.fillText('sharing flavors', w / 2, 210);
+  ctx.letterSpacing = '0px';
+
+  ctx.fillStyle = '#a08a84';
+  ctx.font = '700 22px Inter, Arial, sans-serif';
+  ctx.fillText('CLIENTE FRECUENTE', w / 2, 292);
+  ctx.fillStyle = '#4a3530';
+  ctx.font = '700 48px "DM Serif Display", Georgia, serif';
+  ctx.fillText((t && t.nombre) || 'Cliente Jacaranda', w / 2, 352);
+
+  ctx.fillStyle = '#ffffff';
+  _cardRoundRect(ctx, 235, 405, 430, 430, 24);
+  ctx.fill();
+  ctx.strokeStyle = '#eadcd7';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  if (qrCanvas) {
+    ctx.drawImage(qrCanvas, 265, 435, 370, 370);
   }
+
+  var points = String((t && t.puntos_acumulados) || 0);
+  var amount = '$' + fmt((t && t.monto_lealtad_acumulado) || 0);
+  var boxY = 880;
+  ctx.fillStyle = '#ffffff';
+  _cardRoundRect(ctx, 115, boxY, 310, 110, 18);
+  ctx.fill();
+  ctx.strokeStyle = '#eadcd7';
+  ctx.stroke();
+  _cardRoundRect(ctx, 475, boxY, 310, 110, 18);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#c4988a';
+  ctx.font = '800 46px Inter, Arial, sans-serif';
+  ctx.fillText(points, 270, boxY + 48);
+  ctx.fillStyle = '#a08a84';
+  ctx.font = '500 22px Inter, Arial, sans-serif';
+  ctx.fillText('puntos', 270, boxY + 82);
+  ctx.fillStyle = '#10b981';
+  ctx.font = '800 42px Inter, Arial, sans-serif';
+  ctx.fillText(amount, 630, boxY + 48);
+  ctx.fillStyle = '#a08a84';
+  ctx.font = '500 22px Inter, Arial, sans-serif';
+  ctx.fillText('acumulado', 630, boxY + 82);
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#a08a84';
+  ctx.font = '700 24px Inter, Arial, sans-serif';
+  ctx.fillText(r.nombre || 'Pastel chico gratis', 115, 1056);
+  ctx.textAlign = 'right';
+  ctx.fillText(progreso.toFixed(0) + '%', 785, 1056);
+  ctx.fillStyle = '#f5eeeb';
+  _cardRoundRect(ctx, 115, 1080, 670, 18, 9);
+  ctx.fill();
+  ctx.fillStyle = '#10b981';
+  _cardRoundRect(ctx, 115, 1080, Math.max(18, 670 * (progreso / 100)), 18, 9);
+  ctx.fill();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#a08a84';
+  ctx.font = '700 22px Inter, Arial, sans-serif';
+  var rewardText = parseInt(r.disponibles || 0, 10) ? (r.disponibles + ' recompensa disponible') : ('Faltan $' + fmt(r.monto_restante || 0));
+  ctx.fillText(rewardText, w / 2, 1135);
+
+  var a = document.createElement('a');
+  var slug = ((t && t.nombre) || 'cliente').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'cliente';
+  a.href = canvas.toDataURL('image/png');
+  a.download = 'jacaranda-tarjeta-' + slug + '.png';
   a.click();
+}
+
+function descargarQRClientePublico() {
+  var t = _clientePublicoActual || {};
+  var code = t.tarjeta_qr || codigoClientePublico();
+  var link = t.url_publica || (APP_URL + '#cliente/' + code);
+  var qrCanvas = document.getElementById('cliente-publico-qr');
+  if (!qrCanvas || !code) return;
+  dibujarQR('cliente-publico-qr', link, 420).then(function() {
+    descargarTarjetaClientePublicoCanvas(t, qrCanvas);
+  }).catch(function() {
+    toast('No se pudo generar la tarjeta QR', true);
+  });
 }
 
 var _dashGetCache = {};
@@ -7491,7 +7622,7 @@ function cargarGastos(fecha) {
 function initEgresos() {
   var fecha = document.getElementById('eg-fecha');
   if (fecha && !fecha.value) fecha.value = fechaHoyISO();
-  return cargarEgresos();
+  return Promise.all([cargarEgresos(), cargarProveedoresEgresos(), cargarGastosFijosEgresos()]);
 }
 
 function limpiarEgresoForm() {
@@ -7502,6 +7633,10 @@ function limpiarEgresoForm() {
   document.getElementById('eg-fecha').value = fechaHoyISO();
   document.getElementById('eg-proveedor').value = '';
   document.getElementById('eg-notas').value = '';
+  var status = document.getElementById('eg-ocr-status');
+  var result = document.getElementById('eg-ocr-result');
+  if (status) status.textContent = '';
+  if (result) { result.style.display = 'none'; result.innerHTML = ''; }
 }
 
 function guardarEgreso() {
@@ -7522,6 +7657,7 @@ function guardarEgreso() {
     toast('Egreso guardado');
     limpiarEgresoForm();
     cargarEgresos();
+    cargarProveedoresEgresos();
   }).catch(function(e) { toast(e.message || 'Error al guardar egreso', true); });
 }
 
@@ -7533,6 +7669,111 @@ function cargarEgresos() {
     document.getElementById('eg-list').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">' + escHtml(e.message || 'Error al cargar egresos') + '</p>';
     document.getElementById('eg-resumen').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">No se pudo cargar resumen</p>';
   });
+}
+
+function cargarProveedoresEgresos() {
+  var dl = document.getElementById('eg-proveedores-list');
+  if (!dl) return Promise.resolve();
+  return Promise.all([
+    api('GET', '/inventario/proveedores?limit=500').catch(function() { return []; }),
+    api('GET', '/compras/proveedores').catch(function() { return []; }),
+    api('GET', '/egresos/?limit=200').catch(function() { return []; })
+  ]).then(function(res) {
+    var nombres = {};
+    (res[0] || []).concat(res[1] || []).forEach(function(p) {
+      if (p && p.nombre) nombres[p.nombre.trim()] = true;
+    });
+    (res[2] || []).forEach(function(e) {
+      if (e && e.proveedor) nombres[e.proveedor.trim()] = true;
+    });
+    dl.innerHTML = Object.keys(nombres).sort(function(a, b) { return a.localeCompare(b, 'es'); }).map(function(n) {
+      return '<option value="' + escHtml(n) + '"></option>';
+    }).join('');
+  }).catch(function() { return null; });
+}
+
+function _totalTicketOCR(data) {
+  var total = parseFloat(data && data.total);
+  if (total) return total;
+  return ((data && data.items) || []).reduce(function(sum, item) {
+    return sum + (parseFloat(item.total || 0) || 0);
+  }, 0);
+}
+
+function _resumenItemsOCR(items) {
+  return (items || []).slice(0, 8).map(function(item) {
+    var cant = item.cantidad || 1;
+    var unidad = item.unidad || 'pz';
+    return cant + ' ' + unidad + ' ' + (item.nombre || 'item') + ' ($' + fmt(item.total || 0) + ')';
+  }).join('; ');
+}
+
+function _categoriaDesdeTicketOCR(data) {
+  var txt = [data.proveedor || ''].concat((data.items || []).map(function(i) { return i.nombre || ''; })).join(' ').toLowerCase();
+  if (/caja|bolsa|empaque|charola|domo|etiqueta|kraft|list[oó]n|mo[nñ]o/.test(txt)) return 'empaque';
+  if (/gas|luz|agua|internet|renta|servicio/.test(txt)) return 'servicio';
+  if (/flete|env[ií]o|uber|didi|paqueter[ií]a|mensajer/.test(txt)) return 'flete';
+  if (/reparaci[oó]n|mantenimiento|herramienta/.test(txt)) return 'mantenimiento';
+  return 'operativo';
+}
+
+function _llenarEgresoDesdeOCR(tickets) {
+  var total = 0;
+  var proveedores = {};
+  var fechas = [];
+  var notas = [];
+  var categoria = 'operativo';
+  tickets.forEach(function(data) {
+    total += _totalTicketOCR(data);
+    if (data.proveedor) proveedores[data.proveedor.trim()] = true;
+    if (data.fecha) fechas.push(data.fecha);
+    var cat = _categoriaDesdeTicketOCR(data);
+    if (cat !== 'operativo') categoria = cat;
+    notas.push((data.proveedor || 'Ticket') + ': ' + _resumenItemsOCR(data.items || []));
+  });
+  var provs = Object.keys(proveedores);
+  document.getElementById('eg-concepto').value = tickets.length > 1 ? 'Tickets escaneados' : ('Ticket ' + (provs[0] || 'escaneado'));
+  document.getElementById('eg-monto').value = total ? total.toFixed(2) : '';
+  document.getElementById('eg-categoria').value = categoria;
+  if (fechas[0]) document.getElementById('eg-fecha').value = fechas[0];
+  document.getElementById('eg-proveedor').value = provs.join(', ');
+  document.getElementById('eg-notas').value = notas.join(' | ').slice(0, 900);
+}
+
+function escanearTicketEgreso() {
+  var fileInput = document.getElementById('eg-ocr-file');
+  var files = fileInput && fileInput.files;
+  if (!files || !files.length) return;
+  var status = document.getElementById('eg-ocr-status');
+  var result = document.getElementById('eg-ocr-result');
+  status.textContent = 'Procesando ' + files.length + ' ticket' + (files.length === 1 ? '' : 's') + '...';
+  status.style.color = 'var(--amb)';
+  result.style.display = 'none';
+  var promesas = [];
+  for (var i = 0; i < files.length; i++) promesas.push(_enviarOCR(files[i]).catch(function() { return {error:'No se pudo leer'}; }));
+  Promise.all(promesas).then(function(res) {
+    var tickets = res.filter(function(t) { return t && !t.error; });
+    if (!tickets.length) {
+      status.textContent = 'No se pudo leer el ticket';
+      status.style.color = '#b91c1c';
+      return;
+    }
+    _llenarEgresoDesdeOCR(tickets);
+    var total = tickets.reduce(function(sum, t) { return sum + _totalTicketOCR(t); }, 0);
+    status.textContent = tickets.length + ' ticket' + (tickets.length === 1 ? '' : 's') + ' le\u00eddo' + (tickets.length === 1 ? '' : 's') + '. Revisa y guarda el egreso.';
+    status.style.color = 'var(--grn)';
+    var h = '<div style="display:flex;justify-content:space-between;gap:.5rem;align-items:center;margin-bottom:.4rem"><strong>Resultado OCR</strong><strong>$' + fmt(total) + '</strong></div>';
+    tickets.forEach(function(t) {
+      h += '<div style="padding:.4rem 0;border-top:1px solid #f0e8e5"><strong>' + escHtml(t.proveedor || 'Ticket') + '</strong><br><span style="color:var(--mut)">' + escHtml(_resumenItemsOCR(t.items || []) || 'Sin partidas detectadas') + '</span></div>';
+    });
+    result.innerHTML = h;
+    result.style.display = 'block';
+    cargarProveedoresEgresos();
+  }).catch(function() {
+    status.textContent = 'Error al procesar el ticket';
+    status.style.color = '#b91c1c';
+  });
+  fileInput.value = '';
 }
 
 function renderResumenEgresos(items) {
@@ -7777,6 +8018,13 @@ function guardarCliente() {
 }
 
 // ─── Gastos fijos ────────────────────────────────────────────────
+function montoMensualGastoFijo(g) {
+  var m = parseFloat(g && g.monto || 0) || 0;
+  if (g && g.periodicidad === 'quincenal') return m * 2;
+  if (g && g.periodicidad === 'semanal') return m * 4.33;
+  return m;
+}
+
 function cargarGastosFijos() {
   if (!puedeVerFinanzasCorte()) return Promise.resolve();
   var listEl = document.getElementById('c-gastos-fijos-list');
@@ -7792,9 +8040,7 @@ function cargarGastosFijos() {
     var total = 0;
     for (var i = 0; i < gastos.length; i++) {
       var g = gastos[i];
-      var m = g.monto;
-      if (g.periodicidad === 'quincenal') m = g.monto * 2;
-      else if (g.periodicidad === 'semanal') m = g.monto * 4.33;
+      var m = montoMensualGastoFijo(g);
       total += m;
       h += '<div class="srow">';
       h += '<span>' + g.concepto + ' <span style="font-size:.72rem;color:var(--mut)">(' + g.periodicidad + ')</span></span>';
@@ -7812,6 +8058,35 @@ function cargarGastosFijos() {
     if (diarioEl) diarioEl.textContent = '$' + fmt(total / 30);
   }).catch(function() {
     listEl.innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar</p>';
+  });
+}
+
+function cargarGastosFijosEgresos() {
+  var listEl = document.getElementById('eg-gastos-fijos-list');
+  var resumenEl = document.getElementById('eg-gastos-fijos-resumen');
+  if (!listEl || !resumenEl) return Promise.resolve();
+  return api('GET', '/punto-de-venta/gastos-fijos').then(function(gastos) {
+    if (!gastos.length) {
+      resumenEl.innerHTML = '';
+      listEl.innerHTML = '<p style="color:var(--mut);font-size:.83rem">Sin gastos mensuales. Agrega renta, servicios, suscripciones o pagos recurrentes.</p>';
+      return;
+    }
+    var total = 0;
+    var h = '';
+    gastos.forEach(function(g) {
+      var mensual = montoMensualGastoFijo(g);
+      total += mensual;
+      h += '<div class="srow">';
+      h += '<span><strong>' + escHtml(g.concepto || 'Gasto') + '</strong><br><small style="color:var(--mut)">' + escHtml(g.periodicidad || 'mensual') + (g.notas ? ' &bull; ' + escHtml(g.notas) : '') + '</small></span>';
+      h += '<span style="display:flex;align-items:center;gap:.35rem;justify-content:flex-end;flex-wrap:wrap"><span style="color:#b91c1c;font-weight:700">$' + fmt(g.monto) + '</span>';
+      h += actionBtn('Editar', '&#9998;', 'editarGasto(' + g.id + ',' + jsArg(g.concepto) + ',' + g.monto + ',' + jsArg(g.periodicidad) + ',' + jsArg(g.notas || '') + ')');
+      h += actionBtn('Eliminar', '&times;', 'eliminarGasto(' + g.id + ')', 'danger') + '</span></div>';
+    });
+    resumenEl.innerHTML = '<div class="srow"><span>Total mensual estimado</span><span style="font-weight:800;color:#b91c1c">$' + fmt(total) + '</span></div><div class="srow"><span>Promedio diario</span><span>$' + fmt(total / 30) + '</span></div>';
+    listEl.innerHTML = h;
+  }).catch(function(e) {
+    resumenEl.innerHTML = '';
+    listEl.innerHTML = '<p style="color:#b91c1c;font-size:.83rem">' + escHtml(e.message || 'Error al cargar gastos mensuales') + '</p>';
   });
 }
 
@@ -7851,6 +8126,7 @@ function guardarGasto() {
     toast('Gasto guardado');
     cerrarModal('modal-gasto');
     cargarGastosFijos();
+    cargarGastosFijosEgresos();
   }).catch(function(e) { toast(e.message || 'Error', true); });
 }
 
@@ -7859,6 +8135,7 @@ function eliminarGasto(id) {
   apiProtegida('DELETE', '/punto-de-venta/gastos-fijos/' + id, null, 'desactivar gasto fijo').then(function() {
     toast('Gasto eliminado');
     cargarGastosFijos();
+    cargarGastosFijosEgresos();
   }).catch(function(e) { toast(e.message || 'Error', true); });
 }
 
