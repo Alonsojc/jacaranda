@@ -1975,6 +1975,10 @@ h2{font-size:1.1rem}
 <div class="frow">
 <div class="fg"><label>IVA</label><select id="mnp-iva"><option value="0.16">16%</option><option value="0.00">0%</option><option value="exento">Exento</option></select></div>
 </div>
+<div class="frow">
+<div class="fg"><label>Caja/empaque</label><select id="mnp-caja"><option value="">Sin caja asignada</option></select></div>
+<div class="fg"><label>Cajas por pieza</label><input type="number" id="mnp-caja-cant" step="0.01" min="0" value="1"></div>
+</div>
 <div style="display:flex;gap:.5rem;margin-top:.5rem">
 <button class="cobrar" style="flex:1" onclick="crearProducto()">Crear Producto</button>
 <button class="limpiar" style="flex:1;padding:.5rem 1.2rem" onclick="cerrarModal('modal-new-prod')">Cancelar</button>
@@ -2067,6 +2071,10 @@ h2{font-size:1.1rem}
 </div>
 <div class="frow">
 <div class="fg"><label>IVA</label><select id="mep-iva"><option value="0.00">0%</option><option value="0.16">16%</option><option value="exento">Exento</option></select></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Caja/empaque</label><select id="mep-caja"><option value="">Sin caja asignada</option></select></div>
+<div class="fg"><label>Cajas por pieza</label><input type="number" id="mep-caja-cant" step="0.01" min="0" value="1"></div>
 </div>
 <div style="display:flex;gap:.5rem;margin-top:.5rem">
 <button class="cobrar" style="flex:1" onclick="guardarProducto()">Guardar</button>
@@ -2295,7 +2303,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v56';
+var APP_BUILD = 'jacaranda-v57';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -6153,12 +6161,64 @@ var _recetasCache = [];
 var _invProds = [];
 var _invProdPage = 0;
 var _invProdPerPage = 25;
+var _cajasProductoFetchIntentado = false;
+
+function nombreCajaProducto(p) {
+  if (!p || !p.caja_ingrediente_id) return '';
+  for (var i = 0; i < _allIngs.length; i++) {
+    if (Number(_allIngs[i].id) === Number(p.caja_ingrediente_id)) return _allIngs[i].nombre;
+  }
+  return 'Insumo #' + p.caja_ingrediente_id;
+}
+
+function opcionesCajaProducto(selectedId) {
+  selectedId = selectedId ? String(selectedId) : '';
+  var h = '<option value="">Sin caja asignada</option>';
+  for (var i = 0; i < _allIngs.length; i++) {
+    var ing = _allIngs[i];
+    var selected = String(ing.id) === selectedId ? ' selected' : '';
+    h += '<option value="' + ing.id + '"' + selected + '>' + escHtml(ing.nombre) + ' (' + escHtml(ing.unidad_medida) + ')</option>';
+  }
+  return h;
+}
+
+function llenarOpcionesCajaProducto(selectedEdit, selectedNew) {
+  var edit = document.getElementById('mep-caja');
+  if (edit) edit.innerHTML = opcionesCajaProducto(selectedEdit);
+  var nuevo = document.getElementById('mnp-caja');
+  if (nuevo) nuevo.innerHTML = opcionesCajaProducto(selectedNew);
+}
+
+function cargarIngredientesParaCajas(selectedEdit, selectedNew) {
+  if (_allIngs.length) {
+    llenarOpcionesCajaProducto(selectedEdit, selectedNew);
+    return Promise.resolve(_allIngs);
+  }
+  return api('GET', '/inventario/ingredientes').then(function(ings) {
+    _allIngs = ings || [];
+    llenarOpcionesCajaProducto(selectedEdit, selectedNew);
+    return _allIngs;
+  });
+}
+
+function payloadCajaProducto(prefix) {
+  var cajaEl = document.getElementById(prefix + '-caja');
+  var cantidadEl = document.getElementById(prefix + '-caja-cant');
+  var cajaId = cajaEl && cajaEl.value ? parseInt(cajaEl.value, 10) : null;
+  var cantidad = cantidadEl ? parseFloat(cantidadEl.value) : 1;
+  if (!cajaId) return { caja_ingrediente_id: null, caja_cantidad: 0 };
+  return { caja_ingrediente_id: cajaId, caja_cantidad: cantidad > 0 ? cantidad : 1 };
+}
 
 function cargarProductos() {
   api('GET', '/inventario/productos').then(function(prods) {
     _invProds = prods;
     _invProdPage = 0;
     renderInvProductos();
+    if (!_allIngs.length && !_cajasProductoFetchIntentado && prods.some(function(p) { return p.caja_ingrediente_id; })) {
+      _cajasProductoFetchIntentado = true;
+      cargarIngredientesParaCajas().then(renderInvProductos).catch(function() {});
+    }
   }).catch(function() {
     document.getElementById('tbl-productos').innerHTML = '<p style="color:var(--mut);padding:.5rem">Error al cargar productos</p>';
     document.getElementById('inv-prod-pag').style.display = 'none';
@@ -6194,7 +6254,8 @@ function renderInvProductos() {
     var txt = stock <= 0 ? 'Agotado' : stock <= min ? 'Bajo' : 'OK';
     var esc = p.nombre.replace(/'/g,"\\'");
     var nombreArg = jsArg(p.nombre);
-    h += '<tr><td>' + p.nombre + '</td>';
+    var cajaNota = p.caja_ingrediente_id ? '<span class="caf-price-note">Caja: ' + escHtml(nombreCajaProducto(p)) + '</span>' : '';
+    h += '<tr><td>' + escHtml(p.nombre) + cajaNota + '</td>';
     h += '<td>$' + fmt(precio) + (precioCafe > 0 ? '<span class="caf-price-note">Caf&eacute; $' + fmt(precioCafe) + '</span>' : '') + '</td>';
     h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline;cursor:pointer">' + Math.round(stock) + ' pzas</a></td>';
     h += '<td>' + Math.round(min) + '</td>';
@@ -6229,6 +6290,7 @@ function renderInvProductos() {
 function cargarIngredientes() {
   api('GET', '/inventario/ingredientes').then(function(ings) {
     _allIngs = ings;
+    llenarOpcionesCajaProducto();
     renderInvIngredientes();
 
     // Update compras dropdown
@@ -6398,6 +6460,8 @@ function editarProducto(id) {
     document.getElementById('mep-costo').value = parseFloat(p.costo_produccion);
     document.getElementById('mep-minimo').value = parseFloat(p.stock_minimo);
     document.getElementById('mep-iva').value = p.tasa_iva;
+    document.getElementById('mep-caja-cant').value = parseFloat(p.caja_cantidad || 1) || 1;
+    cargarIngredientesParaCajas(p.caja_ingrediente_id || '');
     document.getElementById('mep-title').textContent = 'Editar: ' + p.nombre;
     // Imagen
     var preview = document.getElementById('mep-img-preview');
@@ -6434,6 +6498,7 @@ function previewProductImage(input) {
 function guardarProducto() {
   var id = document.getElementById('mep-id').value;
   var precioCafeRaw = document.getElementById('mep-precio-caf').value;
+  var cajaPayload = payloadCajaProducto('mep');
   var data = {
     nombre: document.getElementById('mep-nombre').value,
     precio_unitario: parseFloat(document.getElementById('mep-precio').value),
@@ -6441,6 +6506,8 @@ function guardarProducto() {
     costo_produccion: parseFloat(document.getElementById('mep-costo').value),
     stock_minimo: parseFloat(document.getElementById('mep-minimo').value),
     tasa_iva: document.getElementById('mep-iva').value,
+    caja_ingrediente_id: cajaPayload.caja_ingrediente_id,
+    caja_cantidad: cajaPayload.caja_cantidad,
   };
   pedirPasswordAdminSiHaceFalta('editar producto').then(function(headers) {
     // Subir imagen si se seleccionó una nueva
@@ -6681,6 +6748,10 @@ function cargarListas() {
 
 function cargarListaProductos() {
   api('GET', '/inventario/productos').then(function(prods) {
+    if (!_allIngs.length && !_cajasProductoFetchIntentado && prods.some(function(p) { return p.caja_ingrediente_id; })) {
+      _cajasProductoFetchIntentado = true;
+      cargarIngredientesParaCajas().then(cargarListaProductos).catch(function() {});
+    }
     var h = '<table class="tbl product-actions-table"><colgroup><col><col class="col-price"><col class="col-cost"><col class="col-stock"><col class="col-min"><col class="col-iva"><col class="col-actions"></colgroup><tr><th>Producto</th><th>Precio</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th>IVA</th><th class="actions-th">Acciones</th></tr>';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
@@ -6692,7 +6763,8 @@ function cargarListaProductos() {
       var esc = p.nombre.replace(/'/g,"\\'");
       var nombreArg = jsArg(p.nombre);
       h += '<tr>';
-      h += '<td><strong>' + p.nombre + '</strong></td>';
+      var cajaNota = p.caja_ingrediente_id ? '<span class="caf-price-note">Caja: ' + escHtml(nombreCajaProducto(p)) + '</span>' : '';
+      h += '<td><strong>' + escHtml(p.nombre) + '</strong>' + cajaNota + '</td>';
       h += '<td>$' + fmt(precio) + '</td>';
       h += '<td style="color:var(--mut)">$' + fmt(costo) + '</td>';
       h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline">' + Math.round(stock) + '</a></td>';
@@ -6716,6 +6788,7 @@ function cargarListaProductos() {
 function cargarListaIngredientes() {
   api('GET', '/inventario/ingredientes').then(function(ings) {
     _allIngs = ings;
+    llenarOpcionesCajaProducto();
     var h = '<table class="tbl"><tr><th>Ingrediente</th><th>Stock</th><th>Unidad</th><th>Costo</th><th>M&iacute;n</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
     for (var i = 0; i < ings.length; i++) {
       var g = ings[i];
@@ -6832,6 +6905,8 @@ function nuevoProducto() {
   document.getElementById('mnp-costo').value = '';
   document.getElementById('mnp-minimo').value = '0';
   document.getElementById('mnp-iva').value = '0.16';
+  document.getElementById('mnp-caja-cant').value = '1';
+  cargarIngredientesParaCajas('', '');
   document.getElementById('modal-new-prod').classList.add('on');
 }
 
@@ -6840,6 +6915,7 @@ function crearProducto() {
   var nombre = document.getElementById('mnp-nombre').value.trim();
   var precio = parseFloat(document.getElementById('mnp-precio').value);
   if (!codigo || !nombre || !precio) { toast('Llena código, nombre y precio', true); return; }
+  var cajaPayload = payloadCajaProducto('mnp');
   var data = {
     codigo: codigo,
     nombre: nombre,
@@ -6847,6 +6923,8 @@ function crearProducto() {
     costo_produccion: parseFloat(document.getElementById('mnp-costo').value) || 0,
     stock_minimo: parseFloat(document.getElementById('mnp-minimo').value) || 0,
     tasa_iva: document.getElementById('mnp-iva').value,
+    caja_ingrediente_id: cajaPayload.caja_ingrediente_id,
+    caja_cantidad: cajaPayload.caja_cantidad,
   };
   var precioCafe = parseFloat(document.getElementById('mnp-precio-caf').value);
   if (precioCafe > 0) data.precio_cafeteria = precioCafe;

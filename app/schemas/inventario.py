@@ -106,6 +106,8 @@ class ProductoCreate(BaseModel):
     costo_produccion: Decimal = Field(default=Decimal("0"), ge=0)
     unidad_medida: UnidadMedida = UnidadMedida.PIEZA
     stock_minimo: Decimal = Field(default=Decimal("0"), ge=0)
+    caja_ingrediente_id: int | None = Field(default=None, gt=0)
+    caja_cantidad: Decimal = Field(default=Decimal("1"), ge=0)
     clave_prod_serv_sat: str = "50181900"
     clave_unidad_sat: str = "H87"
     tasa_iva: TasaIVA = TasaIVA.TASA_0
@@ -133,6 +135,8 @@ class ProductoUpdate(BaseModel):
     tasa_iva: TasaIVA | None = None
     activo: bool | None = None
     stock_minimo: Decimal | None = Field(default=None, ge=0)
+    caja_ingrediente_id: int | None = Field(default=None, gt=0)
+    caja_cantidad: Decimal | None = Field(default=None, ge=0)
 
 
 class ProductoResponse(BaseModel):
@@ -148,6 +152,8 @@ class ProductoResponse(BaseModel):
     unidad_medida: UnidadMedida
     stock_actual: Decimal
     stock_minimo: Decimal
+    caja_ingrediente_id: int | None = None
+    caja_cantidad: Decimal
     tasa_iva: TasaIVA
     clave_prod_serv_sat: str
     alergenos: str | None

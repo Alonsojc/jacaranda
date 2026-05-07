@@ -198,6 +198,24 @@ def ensure_runtime_schema(engine: Engine) -> None:
                 "precio_cafeteria",
                 Numeric(12, 2),
             )
+            _add_column_if_missing(
+                conn,
+                engine,
+                "productos",
+                producto_columns,
+                "caja_ingrediente_id",
+                Integer(),
+            )
+            _add_column_if_missing(
+                conn,
+                engine,
+                "productos",
+                producto_columns,
+                "caja_cantidad",
+                Numeric(12, 4),
+                server_default="1",
+                nullable=False,
+            )
 
     with engine.begin() as conn:
         inspector = inspect(conn)

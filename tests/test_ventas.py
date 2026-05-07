@@ -6,16 +6,36 @@ import pytest
 class TestVentas:
     """Tests para el flujo completo de ventas."""
 
-    def _crear_producto(self, client, auth_headers, codigo="PAN-001", precio="15.00"):
+    def _crear_producto(self, client, auth_headers, codigo="PAN-001", precio="15.00", **extra):
         """Helper: crea un producto y devuelve su ID."""
-        resp = client.post("/api/v1/inventario/productos", json={
+        payload = {
             "codigo": codigo,
             "nombre": f"Producto {codigo}",
             "precio_unitario": precio,
             "tasa_iva": "0.00",
-        }, headers=auth_headers)
+        }
+        payload.update(extra)
+        resp = client.post("/api/v1/inventario/productos", json=payload, headers=auth_headers)
         assert resp.status_code == 201
         return resp.json()["id"]
+
+    def _crear_caja(self, client, auth_headers, nombre="Caja grande", stock=20, minimo=3):
+        resp = client.post("/api/v1/inventario/ingredientes", json={
+            "nombre": nombre,
+            "unidad_medida": "caja",
+            "stock_minimo": str(minimo),
+            "costo_unitario": "5.00",
+        }, headers=auth_headers)
+        assert resp.status_code == 201, resp.text
+        caja_id = resp.json()["id"]
+        mov = client.post("/api/v1/inventario/movimientos", json={
+            "tipo": "entrada_ajuste",
+            "ingrediente_id": caja_id,
+            "cantidad": str(stock),
+            "referencia": "Stock inicial cajas test",
+        }, headers=auth_headers)
+        assert mov.status_code == 201, mov.text
+        return caja_id
 
     def _agregar_stock(self, client, auth_headers, producto_id, cantidad=50):
         """Helper: registra entrada de inventario."""
@@ -124,6 +144,34 @@ class TestVentas:
         # Stock should be restored to 20
         prod = client.get(f"/api/v1/inventario/productos/{pid}", headers=auth_headers).json()
         assert float(prod["stock_actual"]) == 20.0
+
+    def test_venta_descuenta_y_cancela_empaque(self, client, auth_headers):
+        caja_id = self._crear_caja(client, auth_headers, "Caja POS")
+        pid = self._crear_producto(
+            client,
+            auth_headers,
+            "PAN-CAJA",
+            caja_ingrediente_id=caja_id,
+            caja_cantidad="1",
+        )
+        self._agregar_stock(client, auth_headers, pid, 10)
+        venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "100.00",
+            "detalles": [{"producto_id": pid, "cantidad": "3"}],
+        }, headers=auth_headers)
+        assert venta.status_code == 201, venta.text
+
+        caja = client.get(f"/api/v1/inventario/ingredientes/{caja_id}", headers=auth_headers)
+        assert float(caja.json()["stock_actual"]) == 17.0
+
+        cancel = client.post(
+            f"/api/v1/punto-de-venta/ventas/{venta.json()['id']}/cancelar",
+            headers=auth_headers,
+        )
+        assert cancel.status_code == 200, cancel.text
+        caja = client.get(f"/api/v1/inventario/ingredientes/{caja_id}", headers=auth_headers)
+        assert float(caja.json()["stock_actual"]) == 20.0
 
     def test_cancelar_venta_revierte_puntos_y_audita(self, client, auth_headers, db):
         from app.models.auditoria import LogAuditoria

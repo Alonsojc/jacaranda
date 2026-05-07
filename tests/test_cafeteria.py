@@ -3,21 +3,50 @@
 from decimal import Decimal
 
 
-def _crear_producto_cafeteria(client, auth_headers, codigo="CAF-001"):
+def _crear_producto_cafeteria(client, auth_headers, codigo="CAF-001", **extra):
+    payload = {
+        "codigo": codigo,
+        "nombre": "Brownie cafetería",
+        "precio_unitario": "100.00",
+        "precio_cafeteria": "80.00",
+        "tasa_iva": "0.16",
+        "stock_minimo": "0",
+    }
+    payload.update(extra)
     resp = client.post(
         "/api/v1/inventario/productos",
-        json={
-            "codigo": codigo,
-            "nombre": "Brownie cafetería",
-            "precio_unitario": "100.00",
-            "precio_cafeteria": "80.00",
-            "tasa_iva": "0.16",
-            "stock_minimo": "0",
-        },
+        json=payload,
         headers=auth_headers,
     )
     assert resp.status_code == 201, resp.text
     return resp.json()
+
+
+def _crear_caja(client, auth_headers, nombre="Caja cafetería", stock=10):
+    resp = client.post(
+        "/api/v1/inventario/ingredientes",
+        json={
+            "nombre": nombre,
+            "unidad_medida": "caja",
+            "stock_minimo": "2",
+            "costo_unitario": "4.00",
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201, resp.text
+    caja_id = resp.json()["id"]
+    mov = client.post(
+        "/api/v1/inventario/movimientos",
+        json={
+            "tipo": "entrada_ajuste",
+            "ingrediente_id": caja_id,
+            "cantidad": str(stock),
+            "referencia": "Stock inicial caja cafetería",
+        },
+        headers=auth_headers,
+    )
+    assert mov.status_code == 201, mov.text
+    return caja_id
 
 
 def test_cafeteria_usa_precio_especial_y_credito(client, auth_headers):
@@ -117,3 +146,33 @@ def test_cafeteria_cancelar_devuelve_stock(client, auth_headers):
 
     after_cancel = client.get(f"/api/v1/inventario/productos/{producto['id']}", headers=auth_headers)
     assert Decimal(after_cancel.json()["stock_actual"]) == Decimal("0.0000")
+
+
+def test_cafeteria_descuenta_y_cancela_empaque(client, auth_headers):
+    caja_id = _crear_caja(client, auth_headers)
+    producto = _crear_producto_cafeteria(
+        client,
+        auth_headers,
+        codigo="CAF-CAJA",
+        caja_ingrediente_id=caja_id,
+        caja_cantidad="1",
+    )
+    venta = client.post(
+        "/api/v1/cafeteria/ventas",
+        json={
+            "cafeteria_nombre": "Café Empaque",
+            "detalles": [{"producto_id": producto["id"], "cantidad": "2"}],
+        },
+        headers=auth_headers,
+    )
+    assert venta.status_code == 201, venta.text
+    caja = client.get(f"/api/v1/inventario/ingredientes/{caja_id}", headers=auth_headers)
+    assert Decimal(caja.json()["stock_actual"]) == Decimal("8.0000")
+
+    cancel = client.post(
+        f"/api/v1/cafeteria/ventas/{venta.json()['id']}/cancelar",
+        headers={**auth_headers, "X-Admin-Override-Motivo": "Prueba empaque"},
+    )
+    assert cancel.status_code == 200, cancel.text
+    caja = client.get(f"/api/v1/inventario/ingredientes/{caja_id}", headers=auth_headers)
+    assert Decimal(caja.json()["stock_actual"]) == Decimal("10.0000")

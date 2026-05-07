@@ -143,9 +143,18 @@ def ingredientes_por_caducar(db: Session, dias: int = 7) -> list[LoteIngrediente
 
 # --- Productos ---
 
+def _validar_caja_ingrediente(db: Session, ingrediente_id: int | None) -> None:
+    if ingrediente_id is None:
+        return
+    ingrediente = db.query(Ingrediente).filter(Ingrediente.id == ingrediente_id).first()
+    if not ingrediente or not ingrediente.activo:
+        raise ValueError("Caja/empaque no encontrado o inactivo")
+
+
 def crear_producto(db: Session, data: ProductoCreate) -> Producto:
     if db.query(Producto).filter(Producto.codigo == data.codigo).first():
         raise ValueError(f"Ya existe un producto con código '{data.codigo}'")
+    _validar_caja_ingrediente(db, data.caja_ingrediente_id)
     producto = Producto(**data.model_dump())
     db.add(producto)
     db.commit()
@@ -159,6 +168,8 @@ def actualizar_producto(db: Session, id: int, data: ProductoUpdate, usuario_id: 
     if not producto:
         raise ValueError("Producto no encontrado")
     updates = data.model_dump(exclude_unset=True)
+    if "caja_ingrediente_id" in updates:
+        _validar_caja_ingrediente(db, updates["caja_ingrediente_id"])
     # Log price change
     if "precio_unitario" in updates and updates["precio_unitario"] != producto.precio_unitario:
         historial = HistorialPrecio(
@@ -252,6 +263,38 @@ def registrar_movimiento(
     else:
         db.flush()
     return movimiento
+
+
+def registrar_empaque_producto(
+    db: Session,
+    producto: Producto,
+    cantidad_productos: Decimal,
+    referencia: str,
+    usuario_id: int | None = None,
+    *,
+    tipo: TipoMovimiento = TipoMovimiento.SALIDA_VENTA,
+    commit: bool = False,
+    permitir_stock_negativo: bool = True,
+) -> MovimientoInventario | None:
+    """Registra consumo/devolución del empaque ligado a un producto."""
+    caja_id = producto.caja_ingrediente_id
+    caja_cantidad = Decimal(str(producto.caja_cantidad or 0))
+    cantidad_productos = Decimal(str(cantidad_productos or 0))
+    if not caja_id or caja_cantidad <= 0 or cantidad_productos <= 0:
+        return None
+    return registrar_movimiento(
+        db,
+        MovimientoCreate(
+            tipo=tipo,
+            ingrediente_id=caja_id,
+            cantidad=caja_cantidad * cantidad_productos,
+            referencia=referencia,
+            notas=f"Empaque para {producto.nombre}",
+        ),
+        usuario_id,
+        commit=commit,
+        permitir_stock_negativo=permitir_stock_negativo,
+    )
 
 
 def listar_movimientos(

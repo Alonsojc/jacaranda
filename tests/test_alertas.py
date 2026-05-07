@@ -53,6 +53,19 @@ class TestAlertas:
         nombres = [a["nombre"] for a in data["stock_bajo"]]
         assert "Harina Alerta" in nombres
 
+    def test_alerta_cajas_stock_bajo(self, client, auth_headers):
+        resp = client.post("/api/v1/inventario/ingredientes", json={
+            "nombre": "Caja chica alerta",
+            "unidad_medida": "caja",
+            "stock_minimo": "5",
+            "costo_unitario": "3.00",
+        }, headers=auth_headers)
+        assert resp.status_code == 201
+
+        data = client.get("/api/v1/reportes/alertas", headers=auth_headers).json()
+        nombres = [a["nombre"] for a in data["stock_bajo"]]
+        assert "Caja chica alerta" in nombres
+
     def test_merma_estructura(self, client, auth_headers):
         resp = client.get("/api/v1/reportes/alertas", headers=auth_headers)
         merma = resp.json()["merma_hoy"]

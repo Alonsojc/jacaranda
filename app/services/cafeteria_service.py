@@ -17,7 +17,7 @@ from app.models.inventario import Producto, TipoMovimiento
 from app.schemas.cafeteria import CafeteriaVentaCreate, PagoCafeteriaCreate
 from app.schemas.inventario import MovimientoCreate
 from app.services.auditoria_service import registrar_evento
-from app.services.inventario_service import registrar_movimiento
+from app.services.inventario_service import registrar_empaque_producto, registrar_movimiento
 from app.services.venta_service import _normalizar_fecha_db, _obtener_tasa_iva, _zona_operacion
 
 CENTAVO = Decimal("0.01")
@@ -72,6 +72,7 @@ def crear_venta(db: Session, data: CafeteriaVentaCreate, usuario_id: int) -> Caf
     iva_0_total = Decimal("0")
     iva_16_total = Decimal("0")
     detalles: list[DetalleCafeteriaVenta] = []
+    productos_por_id: dict[int, Producto] = {}
 
     for item in data.detalles:
         producto = (
@@ -84,6 +85,7 @@ def crear_venta(db: Session, data: CafeteriaVentaCreate, usuario_id: int) -> Caf
             raise ValueError(f"Producto ID {item.producto_id} no encontrado")
         if not producto.activo:
             raise ValueError(f"Producto '{producto.nombre}' no está activo")
+        productos_por_id[producto.id] = producto
 
         cantidad = Decimal(str(item.cantidad))
         precio = Decimal(producto.precio_cafeteria or producto.precio_unitario or 0)
@@ -164,6 +166,7 @@ def crear_venta(db: Session, data: CafeteriaVentaCreate, usuario_id: int) -> Caf
         raise ValueError("No se pudo generar folio único de cafetería")
 
     for detalle in detalles:
+        producto = productos_por_id.get(detalle.producto_id)
         detalle.venta_id = venta.id
         db.add(detalle)
         registrar_movimiento(
@@ -178,6 +181,16 @@ def crear_venta(db: Session, data: CafeteriaVentaCreate, usuario_id: int) -> Caf
             commit=False,
             permitir_stock_negativo=True,
         )
+        if producto:
+            registrar_empaque_producto(
+                db,
+                producto,
+                Decimal(str(detalle.cantidad)),
+                referencia=f"Cafetería {venta.folio}",
+                usuario_id=usuario_id,
+                commit=False,
+                permitir_stock_negativo=True,
+            )
 
     if pago_inicial > 0:
         db.add(
@@ -316,6 +329,7 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> CafeteriaVent
     }
     venta.estado = EstadoCuentaCafeteria.CANCELADA
     for detalle in venta.detalles:
+        producto = detalle.producto
         registrar_movimiento(
             db,
             MovimientoCreate(
@@ -328,6 +342,17 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> CafeteriaVent
             commit=False,
             permitir_stock_negativo=True,
         )
+        if producto:
+            registrar_empaque_producto(
+                db,
+                producto,
+                Decimal(str(detalle.cantidad)),
+                referencia=f"Cancelación cafetería {venta.folio}",
+                usuario_id=usuario_id,
+                tipo=TipoMovimiento.ENTRADA_DEVOLUCION,
+                commit=False,
+                permitir_stock_negativo=True,
+            )
     registrar_evento(
         db,
         usuario_id=usuario_id,

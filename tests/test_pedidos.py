@@ -7,14 +7,16 @@ import pytest
 class TestPedidos:
     """Tests del flujo de pedidos especiales."""
 
-    def _crear_producto(self, client, auth_headers, codigo="PED-001", stock=0):
-        resp = client.post("/api/v1/inventario/productos", json={
+    def _crear_producto(self, client, auth_headers, codigo="PED-001", stock=0, **extra):
+        payload = {
             "codigo": codigo,
             "nombre": f"Producto {codigo}",
             "precio_unitario": "100.00",
             "costo_produccion": "40.00",
             "tasa_iva": "0.00",
-        }, headers=auth_headers)
+        }
+        payload.update(extra)
+        resp = client.post("/api/v1/inventario/productos", json=payload, headers=auth_headers)
         assert resp.status_code == 201, resp.text
         pid = resp.json()["id"]
         if stock:
@@ -26,6 +28,24 @@ class TestPedidos:
             }, headers=auth_headers)
             assert mov.status_code == 201, mov.text
         return pid
+
+    def _crear_caja(self, client, auth_headers, nombre="Caja pedido", stock=5):
+        resp = client.post("/api/v1/inventario/ingredientes", json={
+            "nombre": nombre,
+            "unidad_medida": "caja",
+            "stock_minimo": "1",
+            "costo_unitario": "5.00",
+        }, headers=auth_headers)
+        assert resp.status_code == 201, resp.text
+        caja_id = resp.json()["id"]
+        mov = client.post("/api/v1/inventario/movimientos", json={
+            "tipo": "entrada_ajuste",
+            "ingrediente_id": caja_id,
+            "cantidad": str(stock),
+            "referencia": "Stock inicial caja pedido",
+        }, headers=auth_headers)
+        assert mov.status_code == 201, mov.text
+        return caja_id
 
     def _crear_pedido(self, client, auth_headers, **kwargs):
         payload = {
@@ -175,6 +195,46 @@ class TestPedidos:
         data = resp.json()
         assert data["detalles"][0]["producto_id"] == pid
         assert data["detalles"][0]["cantidad"] == 2
+
+    def test_pedido_entregado_descuenta_producto_y_empaque(self, client, auth_headers):
+        caja_id = self._crear_caja(client, auth_headers)
+        pid = self._crear_producto(
+            client,
+            auth_headers,
+            "PED-CAJA",
+            stock=5,
+            caja_ingrediente_id=caja_id,
+            caja_cantidad="1",
+        )
+        resp = self._crear_pedido(
+            client,
+            auth_headers,
+            detalles=[{
+                "producto_id": pid,
+                "descripcion": "Pastel con caja",
+                "cantidad": 2,
+                "precio_unitario": "100.00",
+            }],
+        )
+        assert resp.status_code == 200, resp.text
+        pedido_id = resp.json()["id"]
+        confirmado = client.patch(
+            f"/api/v1/pedidos/{pedido_id}/estado",
+            json={"estado": "confirmado"},
+            headers=auth_headers,
+        )
+        assert confirmado.status_code == 200, confirmado.text
+        entregado = client.patch(
+            f"/api/v1/pedidos/{pedido_id}/estado",
+            json={"estado": "entregado"},
+            headers=auth_headers,
+        )
+        assert entregado.status_code == 200, entregado.text
+
+        producto = client.get(f"/api/v1/inventario/productos/{pid}", headers=auth_headers)
+        caja = client.get(f"/api/v1/inventario/ingredientes/{caja_id}", headers=auth_headers)
+        assert float(producto.json()["stock_actual"]) == 3.0
+        assert float(caja.json()["stock_actual"]) == 3.0
 
     def test_capacidad_diaria_de_pedidos(self, client, auth_headers, monkeypatch):
         monkeypatch.setattr(

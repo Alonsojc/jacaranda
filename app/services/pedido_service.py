@@ -7,10 +7,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
 
 from app.core.config import settings
-from app.models.inventario import Producto
+from app.models.inventario import Producto, TipoMovimiento
 from app.models.pedido import Pedido, DetallePedido, EstadoPedido, OrigenPedido
 from app.schemas.pedido import PedidoCreate, PedidoUpdate
+from app.schemas.inventario import MovimientoCreate
 from app.services.auditoria_service import registrar_evento
+from app.services.inventario_service import registrar_empaque_producto, registrar_movimiento
 
 
 _TRANSICIONES_ESTADO: dict[EstadoPedido, set[EstadoPedido]] = {
@@ -243,6 +245,7 @@ def cambiar_estado_pedido(
         pedido.en_ruta_en = ahora
     elif estado_destino == EstadoPedido.ENTREGADO:
         pedido.entregado_en = ahora
+        _descontar_inventario_pedido_entregado(db, pedido, usuario_id)
 
     registrar_evento(
         db,
@@ -260,6 +263,50 @@ def cambiar_estado_pedido(
         db.commit()
         db.refresh(pedido)
     return pedido
+
+
+def _descontar_inventario_pedido_entregado(
+    db: Session,
+    pedido: Pedido,
+    usuario_id: int | None = None,
+) -> None:
+    """Descuenta producto y empaque al cerrar el pedido como entregado."""
+    for detalle in pedido.detalles:
+        if not detalle.producto_id:
+            continue
+        producto = (
+            db.query(Producto)
+            .filter(Producto.id == detalle.producto_id)
+            .with_for_update()
+            .first()
+        )
+        if not producto:
+            continue
+        cantidad = Decimal(str(detalle.cantidad or 0))
+        if cantidad <= 0:
+            continue
+        registrar_movimiento(
+            db,
+            MovimientoCreate(
+                tipo=TipoMovimiento.SALIDA_VENTA,
+                producto_id=producto.id,
+                cantidad=cantidad,
+                referencia=f"Pedido {pedido.folio}",
+                notas="Entrega de pedido",
+            ),
+            usuario_id,
+            commit=False,
+            permitir_stock_negativo=True,
+        )
+        registrar_empaque_producto(
+            db,
+            producto,
+            cantidad,
+            referencia=f"Pedido {pedido.folio}",
+            usuario_id=usuario_id,
+            commit=False,
+            permitir_stock_negativo=True,
+        )
 
 
 def cancelar_pedido(

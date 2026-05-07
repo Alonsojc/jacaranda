@@ -132,6 +132,8 @@ class Producto(Base):
     )
     stock_actual: Mapped[Decimal] = mapped_column(Numeric(12, 4), default=Decimal("0"))
     stock_minimo: Mapped[Decimal] = mapped_column(Numeric(12, 4), default=Decimal("0"))
+    caja_ingrediente_id: Mapped[int | None] = mapped_column(ForeignKey("ingredientes.id"))
+    caja_cantidad: Mapped[Decimal] = mapped_column(Numeric(12, 4), default=Decimal("1"))
 
     # Fiscal - Clave SAT para facturación CFDI
     clave_prod_serv_sat: Mapped[str] = mapped_column(
@@ -169,6 +171,9 @@ class Producto(Base):
 
     # Relaciones
     categoria: Mapped["CategoriaProducto | None"] = relationship(back_populates="productos")
+    caja_ingrediente: Mapped["Ingrediente | None"] = relationship(
+        foreign_keys="Producto.caja_ingrediente_id"
+    )
     receta: Mapped["Receta | None"] = relationship(back_populates="producto")  # noqa: F821
     movimientos: Mapped[list["MovimientoInventario"]] = relationship(
         back_populates="producto",

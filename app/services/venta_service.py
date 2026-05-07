@@ -18,7 +18,7 @@ from app.models.inventario import Producto, TasaIVA, TipoMovimiento
 from app.models.cliente import Cliente
 from app.schemas.venta import VentaCreate, CorteCajaCreate
 from app.schemas.inventario import MovimientoCreate
-from app.services.inventario_service import registrar_movimiento
+from app.services.inventario_service import registrar_empaque_producto, registrar_movimiento
 from app.services.auditoria_service import registrar_evento
 from app.core.config import settings
 
@@ -161,6 +161,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
 
     detalles = []
     stock_por_producto: dict[int, dict] = {}
+    productos_por_id: dict[int, Producto] = {}
 
     for item in data.detalles:
         producto = db.query(Producto).filter(
@@ -170,6 +171,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             raise ValueError(f"Producto ID {item.producto_id} no encontrado")
         if not producto.activo:
             raise ValueError(f"Producto '{producto.nombre}' no está activo")
+        productos_por_id[producto.id] = producto
         stock_antes = Decimal(str(producto.stock_actual or 0))
         cantidad_solicitada = Decimal(str(item.cantidad))
         stock_info = stock_por_producto.setdefault(
@@ -336,6 +338,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
 
     # Descontar inventario
     for item in data.detalles:
+        producto = productos_por_id.get(item.producto_id)
         mov = MovimientoCreate(
             tipo=TipoMovimiento.SALIDA_VENTA,
             producto_id=item.producto_id,
@@ -349,6 +352,16 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             commit=False,
             permitir_stock_negativo=True,
         )
+        if producto:
+            registrar_empaque_producto(
+                db,
+                producto,
+                Decimal(str(item.cantidad)),
+                referencia=f"Venta {folio}",
+                usuario_id=usuario_id,
+                commit=False,
+                permitir_stock_negativo=True,
+            )
 
     if productos_sin_stock:
         registrar_evento(
@@ -404,6 +417,7 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
 
     # Devolver inventario
     for detalle in venta.detalles:
+        producto = detalle.producto
         mov = MovimientoCreate(
             tipo=TipoMovimiento.ENTRADA_DEVOLUCION,
             producto_id=detalle.producto_id,
@@ -411,6 +425,17 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
             referencia=f"Cancelación venta {venta.folio}",
         )
         registrar_movimiento(db, mov, usuario_id, commit=False)
+        if producto:
+            registrar_empaque_producto(
+                db,
+                producto,
+                Decimal(str(detalle.cantidad)),
+                referencia=f"Cancelación venta {venta.folio}",
+                usuario_id=usuario_id,
+                tipo=TipoMovimiento.ENTRADA_DEVOLUCION,
+                commit=False,
+                permitir_stock_negativo=True,
+            )
 
     if venta.cliente_id:
         from app.models.lealtad import HistorialPuntos
