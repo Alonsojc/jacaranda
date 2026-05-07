@@ -160,6 +160,16 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .quick-pay{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin:-.25rem 0 .55rem}
 .quick-pay .limpiar{margin:0;font-size:.78rem;padding:.45rem .55rem}
 #titems{margin-top:.7rem;max-height:340px;overflow-y:auto;padding-right:.1rem}
+.caf-account{background:linear-gradient(180deg,#fff,#fffaf8);border-radius:14px;padding:1rem;border:1px solid var(--brd);box-shadow:0 2px 10px rgba(75,53,47,.05)}
+.caf-account h3{font-size:1rem;margin-bottom:.7rem}
+.caf-ticket-empty{color:var(--mut);font-size:.83rem;margin:.4rem 0;padding:.75rem;border:1px dashed var(--brd);border-radius:10px;text-align:center;background:#fdf9f7}
+.caf-ticket-list{display:flex;flex-direction:column;gap:.45rem;margin-bottom:.75rem}
+.caf-ticket-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.55rem;align-items:center;padding:.55rem .6rem;border:1px solid #f0e8e5;border-radius:10px;background:#fdf9f7}
+.caf-ticket-qty{display:flex;align-items:center;gap:.25rem}
+.caf-ticket-qty b{min-width:1.35rem;text-align:center;color:var(--dk);font-size:.9rem}
+.caf-ticket-name{min-width:0;font-weight:700;color:var(--dk);font-size:.83rem;line-height:1.2;word-break:break-word}
+.caf-ticket-right{display:flex;align-items:center;gap:.35rem;justify-content:flex-end}
+.caf-ticket-price{font-weight:800;color:var(--v);white-space:nowrap;font-size:.86rem}
 /* Tabla */
 .card table th,.card table td{text-align:center;vertical-align:middle}
 .tbl{width:100%;border-collapse:collapse;font-size:.82rem;table-layout:fixed;word-break:break-word}
@@ -671,7 +681,7 @@ h2{font-size:1.1rem}
 <input type="text" id="caf-search" placeholder="Buscar producto..." oninput="filtrarCafeteriaPOS()" style="width:100%;padding:.55rem .8rem;border:1px solid var(--brd);border-radius:10px;font-size:.85rem;margin-bottom:.7rem;font-family:inherit;transition:border-color .2s;outline:none" onfocus="this.style.borderColor='var(--v)'" onblur="this.style.borderColor=''">
 <div id="caf-products"><p style="color:var(--mut);text-align:center;padding:2rem">Cargando productos...</p></div>
 </div>
-<div class="tkt">
+<div class="tkt caf-account">
 <h3>Cuenta cafeter&iacute;a</h3>
 <div id="caf-items"></div>
 <div id="caf-sum" style="display:none">
@@ -2342,6 +2352,12 @@ function fmt(n) {
   var x = parseFloat(n) || 0;
   return x.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
+function fmtQty(n) {
+  var x = parseFloat(n);
+  if (!isFinite(x)) return '0';
+  if (Math.abs(x - Math.round(x)) < 0.0001) return String(Math.round(x));
+  return x.toLocaleString('es-MX', {maximumFractionDigits:2});
+}
 function escHtml(v) {
   if (window.JacarandaCore && JacarandaCore.escHtml) return JacarandaCore.escHtml(v);
   return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) {
@@ -2356,7 +2372,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v65';
+var APP_BUILD = 'jacaranda-v66';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -2371,7 +2387,7 @@ var PAGINAS_DESACTIVADAS = {
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _clienteRecompensaActual = null, _canjearRecompensaLealtad = false;
-var cafCart = [], cafPm = 'trans', _cafGroups = {}, _cafProductById = {}, _cafVentas = [], _cafEnProceso = false, _cafIdempotencyKey = null;
+var cafCart = [], cafPm = 'trans', _cafGroups = {}, _cafGroupOrder = [], _cafProductById = {}, _cafVentas = [], _cafEnProceso = false, _cafIdempotencyKey = null;
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
 var _pedidoEnProceso = false, _pedidoIdempotencyKey = null;
 var _clienteEditId = null;
@@ -4269,6 +4285,7 @@ function renderCafeteriaProductos(prods) {
   }
   orden.sort(function(a, b) { return a.localeCompare(b); });
   _cafGroups = grupos;
+  _cafGroupOrder = orden.slice();
 
   var h = '<div class="prods">';
   for (var gi = 0; gi < orden.length; gi++) {
@@ -4293,7 +4310,7 @@ function renderCafeteriaProductos(prods) {
       var sp = items[0];
       clickAttr = 'onclick="cafAddProducto(' + sp.id + ')"';
     } else {
-      clickAttr = 'onclick="abrirVariantesCafeteria(' + jsArg(orden[gi]) + ')"';
+      clickAttr = 'onclick="abrirVariantesCafeteriaIdx(' + gi + ')"';
     }
     h += '<div class="pi' + (allOut ? ' pi-out' : '') + '" role="button" tabindex="0" ' + clickAttr + '>';
     h += g.imagen ? '<img class="pi-img" src="' + g.imagen + '">' : '<div class="pi-noimg">\uD83C\uDF5E</div>';
@@ -4313,8 +4330,8 @@ function renderCafeteriaProductos(prods) {
     var stkCls = allOut ? 'pi-stk-out' : (stockTotal <= minTotal ? 'pi-stk-low' : 'pi-stk-ok');
     var stkTxt = allOut ? 'Agotado' : Math.round(stockTotal) + ' pzas';
     h += '<span class="pi-stock-chip ' + stkCls + '">' + stkTxt + '</span>';
-    if (single) h += '<button type="button" class="pi-action" onclick="event.stopPropagation();cafAddProducto(' + items[0].id + ')">Agregar</button>';
-    else h += '<button type="button" class="pi-action secondary" onclick="event.stopPropagation();abrirVariantesCafeteria(' + jsArg(orden[gi]) + ')">Elegir</button>';
+    if (single) h += '<button type="button" class="pi-action" onclick="event.stopPropagation();cafAddProducto(' + items[0].id + ')">' + (allOut ? 'Agregar igual' : 'Agregar') + '</button>';
+    else h += '<button type="button" class="pi-action secondary" onclick="event.stopPropagation();abrirVariantesCafeteriaIdx(' + gi + ')">' + (allOut ? 'Elegir igual' : 'Elegir') + '</button>';
     h += '</div></div>';
   }
   h += '</div>';
@@ -4345,6 +4362,12 @@ function filtrarCafeteriaPOS() {
   }
 }
 
+function abrirVariantesCafeteriaIdx(idx) {
+  var key = _cafGroupOrder[idx];
+  if (key == null) return;
+  abrirVariantesCafeteria(key);
+}
+
 function abrirVariantesCafeteria(key) {
   var g = _cafGroups[key];
   if (!g) return;
@@ -4360,13 +4383,13 @@ function abrirVariantesCafeteria(key) {
     var agotado = stock <= 0;
     var stkCls = agotado ? 'pi-stk-out' : (stock <= min ? 'pi-stk-low' : 'pi-stk-ok');
     var stkTxt = agotado ? 'Agotado' : Math.round(stock) + ' pzas';
-    h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem .8rem;border:1px solid var(--brd);border-radius:10px;cursor:pointer;transition:all .15s" '
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem .8rem;border:1px solid var(--brd);border-radius:10px;cursor:pointer;transition:all .15s' + (agotado ? ';opacity:.78' : '') + '" '
       + 'onmouseover="this.style.borderColor=\'var(--v)\';this.style.background=\'#faf3f0\'" '
       + 'onmouseout="this.style.borderColor=\'\';this.style.background=\'\'" '
       + 'onclick="cafAddProducto(' + p.id + ');cerrarModal(\'modal-variante\')">';
     h += '<div><strong style="font-size:.9rem">' + escHtml(label) + '</strong>';
     h += '<span style="margin-left:.5rem;color:var(--v);font-weight:700;font-size:.95rem">$' + fmt(precio) + '</span></div>';
-    h += '<span class="pi-stock-chip ' + stkCls + '">' + stkTxt + '</span>';
+    h += '<span class="pi-stock-chip ' + stkCls + '">' + stkTxt + (agotado ? ' - agregar igual' : '') + '</span>';
     h += '</div>';
   }
   document.getElementById('mv-options').innerHTML = h;
@@ -4417,18 +4440,20 @@ function cafRen() {
   var sum = document.getElementById('caf-sum');
   if (!list || !sum) return;
   if (!cafCart.length) {
-    list.innerHTML = '<p style="color:var(--mut);font-size:.83rem;margin:.4rem 0">Agrega productos para crear una cuenta.</p>';
+    list.innerHTML = '<div class="caf-ticket-empty">Agrega productos para crear una cuenta.</div>';
     sum.style.display = 'none';
     return;
   }
-  var h = '';
+  var h = '<div class="caf-ticket-list">';
   for (var i = 0; i < cafCart.length; i++) {
     var c = cafCart[i];
-    h += '<div class="trow">';
-    h += '<button onclick="cafQty(' + i + ',-1)">-</button><b>' + c.q + '</b><button onclick="cafQty(' + i + ',1)">+</button>';
-    h += '<span>' + escHtml(c.n) + '</span><strong>$' + fmt(c.p * c.q) + '</strong>';
-    h += '<button class="x" onclick="cafRm(' + i + ')">&times;</button></div>';
+    h += '<div class="caf-ticket-row">';
+    h += '<div class="caf-ticket-qty"><button type="button" class="qty-btn" onclick="cafQty(' + i + ',-1)">-</button><b>' + fmtQty(c.q) + '</b><button type="button" class="qty-btn" onclick="cafQty(' + i + ',1)">+</button></div>';
+    h += '<div class="caf-ticket-name">' + escHtml(c.n) + '</div>';
+    h += '<div class="caf-ticket-right"><strong class="caf-ticket-price">$' + fmt(c.p * c.q) + '</strong><button type="button" class="qty-btn rm" onclick="cafRm(' + i + ')">&times;</button></div>';
+    h += '</div>';
   }
+  h += '</div>';
   list.innerHTML = h;
   var t = cafTotals();
   document.getElementById('caf-sub').textContent = '$' + fmt(t.sub);
@@ -4493,7 +4518,7 @@ function registrarCafeteria() {
     pago_inicial: parseFloat(document.getElementById('caf-pago-inicial').value) || 0,
     metodo_pago: pago.metodo_pago,
     terminal: pago.terminal,
-    detalles: cafCart.map(function(c) { return {producto_id: c.id, cantidad: c.q}; })
+    detalles: cafCart.map(function(c) { return {producto_id: c.id, cantidad: Math.max(1, parseInt(c.q, 10) || 1)}; })
   };
   api('POST', '/cafeteria/ventas', body).then(function(v) {
     toast('Entrega ' + v.folio + ' registrada');
@@ -4559,7 +4584,7 @@ function renderCafeteriaVentas(items) {
       h += '<div class="caf-sale-lines">';
       for (var d = 0; d < v.detalles.length; d++) {
         var det = v.detalles[d];
-        h += escHtml(det.cantidad) + 'x ' + escHtml(det.producto_nombre || ('Producto #' + det.producto_id)) + ' &nbsp; ';
+        h += fmtQty(det.cantidad) + 'x ' + escHtml(det.producto_nombre || ('Producto #' + det.producto_id)) + ' &nbsp; ';
       }
       h += '</div>';
     }
@@ -4636,7 +4661,7 @@ function renderCafReport(data, elId) {
     h += '<h4 style="font-size:.82rem;margin:.65rem 0 .25rem;color:var(--mut);text-transform:uppercase">Productos</h4>';
     for (var j = 0; j < Math.min(data.productos.length, 8); j++) {
       var p = data.productos[j];
-      h += '<div class="caf-summary-row"><span>' + escHtml(p.nombre) + '</span><span>' + fmt(p.cantidad).replace('.00','') + ' pzas &bull; $' + fmt(p.total) + '</span></div>';
+      h += '<div class="caf-summary-row"><span>' + escHtml(p.nombre) + '</span><span>' + fmtQty(p.cantidad) + ' pzas &bull; $' + fmt(p.total) + '</span></div>';
     }
   }
   if (data.pagos && data.pagos.length) {
