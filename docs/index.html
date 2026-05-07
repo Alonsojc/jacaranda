@@ -1050,7 +1050,7 @@ h2{font-size:1.1rem}
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem">
 <div>
 <div style="font-weight:600;font-size:.85rem;color:#7c3aed">Programa de Lealtad</div>
-<div style="font-size:.78rem;color:var(--mut)">Descuento disponible: <strong id="lcd-desc-disp">$0</strong> &bull; 1 pto = $0.50</div>
+<div style="font-size:.78rem;color:var(--mut)">Descuento disponible: <strong id="lcd-desc-disp">$0</strong> &bull; <span id="lcd-valor-punto">1 pto = $0.50</span></div>
 </div>
 <div style="display:flex;gap:.3rem;align-items:center">
 <input type="number" id="lcd-canjear-pts" placeholder="Puntos" min="1" style="width:80px;padding:.3rem .5rem;border:1px solid #c4b5fd;border-radius:6px;font-size:.8rem">
@@ -1083,6 +1083,7 @@ h2{font-size:1.1rem}
 <p style="font-size:.83rem;color:var(--mut);margin:0">Programa de lealtad: niveles, cupones, cumplea&ntilde;os.</p>
 <button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="enviarOfertasCumple()">Enviar ofertas cumplea&ntilde;os</button>
 </div>
+<div id="lealtad-config" class="card" style="margin-bottom:1rem"><p style="color:var(--mut);font-size:.83rem">Cargando configuraci&oacute;n...</p></div>
 <div id="lealtad-dash" class="card" style="margin-bottom:1rem"><p style="color:var(--mut);font-size:.83rem">Cargando dashboard lealtad...</p></div>
 <h3 style="font-size:.95rem;margin-bottom:.5rem">Cupones activos</h3>
 <div id="lealtad-cupones"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
@@ -2331,7 +2332,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v62';
+var APP_BUILD = 'jacaranda-v63';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -2682,11 +2683,35 @@ function mostrarTarjetaClientePublica() {
     h += '<div style="font-size:.78rem;color:' + (disponible ? 'var(--grn)' : 'var(--mut)') + ';margin-top:.45rem;font-weight:700">' + (disponible ? disponible + ' recompensa disponible' : 'Faltan $' + fmt(r.monto_restante || 0) + ' para tu siguiente recompensa') + '</div>';
     h += '</div></div>';
     h += '<button class="cobrar" style="width:100%;margin-top:.4rem" onclick="descargarQRClientePublico()">Descargar QR</button>';
+    h += '<div id="cliente-publico-wallet" style="display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin-top:.45rem"><button class="limpiar" disabled style="margin:0;padding:.55rem;font-size:.78rem">Apple Wallet</button><button class="limpiar" disabled style="margin:0;padding:.55rem;font-size:.78rem">Google Wallet</button></div>';
     h += '<p style="font-size:.72rem;color:var(--mut);margin-top:.7rem;line-height:1.35">Presenta este QR en Jacaranda para acumular compras. La recompensa se valida en caja.</p>';
     box.innerHTML = h;
+    cargarWalletClientePublico(t.tarjeta_qr || code);
     dibujarQR('cliente-publico-qr', link, 220);
   }).catch(function(e) {
     box.innerHTML = '<p style="color:#b91c1c;font-size:.9rem;padding:1rem">' + escHtml(e.message || 'Tarjeta no encontrada') + '</p>';
+  });
+}
+
+function cargarWalletClientePublico(code) {
+  var el = document.getElementById('cliente-publico-wallet');
+  if (!el || !code) return;
+  apiPublic('GET', '/lealtad/publico/' + encodeURIComponent(code) + '/wallet').then(function(w) {
+    var apple = '';
+    var google = '';
+    if (w.apple_wallet_disponible && w.apple_wallet_url) {
+      apple = '<a class="cobrar" href="' + escHtml(API_URL + w.apple_wallet_url) + '" style="display:block;text-align:center;text-decoration:none;margin:0;padding:.58rem;font-size:.78rem">Apple Wallet</a>';
+    } else {
+      apple = '<button class="limpiar" disabled title="' + escHtml((w.apple_wallet_faltante || []).join(', ')) + '" style="margin:0;padding:.58rem;font-size:.78rem">Apple Wallet</button>';
+    }
+    if (w.google_wallet_disponible && w.google_wallet_url) {
+      google = '<a class="cobrar" href="' + escHtml(w.google_wallet_url) + '" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none;margin:0;padding:.58rem;font-size:.78rem;background:#1a73e8">Google Wallet</a>';
+    } else {
+      google = '<button class="limpiar" disabled title="' + escHtml((w.google_wallet_faltante || []).join(', ')) + '" style="margin:0;padding:.58rem;font-size:.78rem">Google Wallet</button>';
+    }
+    el.innerHTML = apple + google;
+  }).catch(function() {
+    el.innerHTML = '<button class="limpiar" disabled style="margin:0;padding:.58rem;font-size:.78rem">Apple Wallet</button><button class="limpiar" disabled style="margin:0;padding:.58rem;font-size:.78rem">Google Wallet</button>';
   });
 }
 
@@ -5636,6 +5661,7 @@ function iniciarNotifPeriodicas() {
 
 // ─── Lealtad: canjear puntos ─────────────────────────────────────
 var _lcdClienteId = null;
+var _lcdValorPunto = 0.5;
 function canjearPuntosCliente() {
   if (!_lcdClienteId) return;
   var pts = parseInt(document.getElementById('lcd-canjear-pts').value);
@@ -5643,7 +5669,7 @@ function canjearPuntosCliente() {
   api('POST', '/clientes/' + _lcdClienteId + '/canjear-puntos?puntos=' + pts).then(function(r) {
     toast('Canjeados ' + r.puntos_canjeados + ' pts = $' + fmt(r.descuento) + ' descuento');
     document.getElementById('lcd-puntos').textContent = r.puntos_restantes;
-    document.getElementById('lcd-desc-disp').textContent = '$' + fmt(r.puntos_restantes * 0.5);
+    document.getElementById('lcd-desc-disp').textContent = '$' + fmt(r.puntos_restantes * _lcdValorPunto);
     document.getElementById('lcd-canjear-pts').value = '';
     cargarListaClientes();
     cargarClientesPOS();
@@ -7608,11 +7634,20 @@ function verHistorialCliente(id) {
     document.getElementById('lcd-promedio').textContent = '$' + fmt(d.ticket_promedio);
     // Loyalty points
     var pts = d.cliente.puntos || 0;
+    _lcdValorPunto = 0.5;
     document.getElementById('lcd-puntos').textContent = pts;
+    api('GET', '/clientes/' + id + '/puntos').then(function(p) {
+      _lcdValorPunto = p.valor_punto || 0.5;
+      document.getElementById('lcd-valor-punto').textContent = '1 pto = $' + fmt(_lcdValorPunto);
+      document.getElementById('lcd-desc-disp').textContent = '$' + fmt(p.descuento_disponible || 0);
+    }).catch(function() {
+      _lcdValorPunto = 0.5;
+      document.getElementById('lcd-valor-punto').textContent = '1 pto = $0.50';
+    });
     var loyaltyEl = document.getElementById('lcd-loyalty');
     if (pts > 0) {
       loyaltyEl.style.display = 'block';
-      document.getElementById('lcd-desc-disp').textContent = '$' + fmt(pts * 0.5);
+      document.getElementById('lcd-desc-disp').textContent = '$' + fmt(pts * _lcdValorPunto);
       document.getElementById('lcd-canjear-pts').value = '';
       document.getElementById('lcd-canjear-pts').max = pts;
     } else {
@@ -10915,11 +10950,65 @@ function recibirOrden(id) {
 }
 
 // ─── Lealtad ──────────────────────────────────────────────────────
+function renderLealtadConfig(c) {
+  c = c || {};
+  var activa = c.cumpleanos_promo_activa !== false;
+  var expira = c.puntos_expiran_dias == null ? '' : c.puntos_expiran_dias;
+  var h = '';
+  h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.8rem;flex-wrap:wrap;margin-bottom:.7rem">';
+  h += '<div><h3 style="font-size:.95rem;margin:0 0 .2rem">Configuraci&oacute;n de lealtad</h3><p style="font-size:.78rem;color:var(--mut);margin:0">Estos valores cambian lo que se acumula y lo que ve el cliente en su tarjeta.</p></div>';
+  h += '<button class="cobrar" style="width:auto;padding:.45rem 1rem;font-size:.8rem;margin:0" onclick="guardarConfigLealtad()">Guardar cambios</button>';
+  h += '</div>';
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.65rem">';
+  h += '<label style="display:grid;gap:.25rem;font-size:.78rem;color:var(--mut);font-weight:700">Meta recompensa<input id="lc-meta" type="number" min="1" step="0.01" value="' + escHtml(c.recompensa_monto_meta || 10000) + '" style="padding:.5rem;border:1px solid var(--brd);border-radius:8px;font-size:.86rem"></label>';
+  h += '<label style="display:grid;gap:.25rem;font-size:.78rem;color:var(--mut);font-weight:700">Nombre recompensa<input id="lc-nombre" value="' + escHtml(c.recompensa_nombre || 'Pastel chico gratis') + '" style="padding:.5rem;border:1px solid var(--brd);border-radius:8px;font-size:.86rem"></label>';
+  h += '<label style="display:grid;gap:.25rem;font-size:.78rem;color:var(--mut);font-weight:700">Puntos por peso<input id="lc-puntos-peso" type="number" min="0" step="0.0001" value="' + escHtml(c.puntos_por_peso || 0.1) + '" style="padding:.5rem;border:1px solid var(--brd);border-radius:8px;font-size:.86rem"></label>';
+  h += '<label style="display:grid;gap:.25rem;font-size:.78rem;color:var(--mut);font-weight:700">Valor por punto<input id="lc-valor-punto" type="number" min="0" step="0.01" value="' + escHtml(c.valor_punto || 0.5) + '" style="padding:.5rem;border:1px solid var(--brd);border-radius:8px;font-size:.86rem"></label>';
+  h += '<label style="display:grid;gap:.25rem;font-size:.78rem;color:var(--mut);font-weight:700">Descuento cumplea&ntilde;os %<input id="lc-cumple-desc" type="number" min="0" max="100" step="0.01" value="' + escHtml(c.cumpleanos_descuento_porcentaje || 10) + '" style="padding:.5rem;border:1px solid var(--brd);border-radius:8px;font-size:.86rem"></label>';
+  h += '<label style="display:grid;gap:.25rem;font-size:.78rem;color:var(--mut);font-weight:700">Expiraci&oacute;n puntos (d&iacute;as)<input id="lc-expira" type="number" min="0" step="1" placeholder="Sin expiraci&oacute;n" value="' + escHtml(expira) + '" style="padding:.5rem;border:1px solid var(--brd);border-radius:8px;font-size:.86rem"></label>';
+  h += '<label style="display:flex;gap:.45rem;align-items:center;font-size:.86rem;color:var(--dk);font-weight:700;padding:.75rem .5rem;border:1px solid var(--brd);border-radius:8px"><input id="lc-cumple-activa" type="checkbox" ' + (activa ? 'checked' : '') + '> Promos de cumplea&ntilde;os activas</label>';
+  h += '</div>';
+  h += '<p style="font-size:.75rem;color:var(--mut);margin:.65rem 0 0">Ejemplo: 0.1 puntos por peso = 1 punto por cada $10. El valor por punto controla el descuento cuando canjean puntos en caja.</p>';
+  document.getElementById('lealtad-config').innerHTML = h;
+}
+
+function cargarConfigLealtad() {
+  return api('GET', '/lealtad/configuracion').then(function(c) {
+    renderLealtadConfig(c);
+    return c;
+  }).catch(function() {
+    document.getElementById('lealtad-config').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">Error al cargar configuraci&oacute;n.</p>';
+  });
+}
+
+function guardarConfigLealtad() {
+  var expiraRaw = (document.getElementById('lc-expira').value || '').trim();
+  var payload = {
+    recompensa_monto_meta: document.getElementById('lc-meta').value,
+    recompensa_nombre: document.getElementById('lc-nombre').value.trim(),
+    puntos_por_peso: document.getElementById('lc-puntos-peso').value,
+    valor_punto: document.getElementById('lc-valor-punto').value,
+    cumpleanos_promo_activa: document.getElementById('lc-cumple-activa').checked,
+    cumpleanos_descuento_porcentaje: document.getElementById('lc-cumple-desc').value,
+    puntos_expiran_dias: expiraRaw === '' ? null : parseInt(expiraRaw, 10)
+  };
+  if (!payload.recompensa_nombre) { toast('Pon nombre de recompensa', true); return; }
+  api('PUT', '/lealtad/configuracion', payload).then(function(c) {
+    renderLealtadConfig(c);
+    toast('Configuraci&oacute;n de lealtad guardada');
+    cargarLealtad();
+  }).catch(function(e) { toast(e.message || 'Error al guardar configuraci&oacute;n', true); });
+}
+
 function cargarLealtad() {
+  cargarConfigLealtad();
   api('GET', '/lealtad/dashboard').then(function(d) {
     var h = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.6rem">';
     h += '<div class="card" style="text-align:center"><div style="font-size:1.5rem;font-weight:700">' + (d.total_puntos_circulacion||0) + '</div><div style="font-size:.75rem;color:var(--mut)">Puntos en circulaci&oacute;n</div></div>';
     h += '<div class="card" style="text-align:center"><div style="font-size:1.5rem;font-weight:700">' + (d.cupones_activos||0) + '</div><div style="font-size:.75rem;color:var(--mut)">Cupones activos</div></div>';
+    if (d.configuracion) {
+      h += '<div class="card" style="text-align:center"><div style="font-size:1.1rem;font-weight:700">$' + fmt(d.configuracion.recompensa_monto_meta || 0) + '</div><div style="font-size:.75rem;color:var(--mut)">' + escHtml(d.configuracion.recompensa_nombre || 'Recompensa') + '</div></div>';
+    }
     var niveles = d.clientes_por_nivel || {};
     Object.keys(niveles).forEach(function(n) { h += '<div class="card" style="text-align:center"><div style="font-size:1.2rem;font-weight:700">' + niveles[n] + '</div><div style="font-size:.75rem;color:var(--mut)">' + n + '</div></div>'; });
     h += '</div>';

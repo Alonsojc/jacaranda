@@ -176,7 +176,11 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             return venta_existente
 
     cliente_lealtad = None
+    lealtad_config = None
     if data.cliente_id:
+        from app.services.lealtad_service import obtener_configuracion
+
+        lealtad_config = obtener_configuracion(db)
         cliente_lealtad = db.query(Cliente).filter(
             Cliente.id == data.cliente_id
         ).with_for_update().first()
@@ -198,12 +202,19 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     if data.canjear_recompensa_lealtad:
         if not cliente_lealtad:
             raise ValueError("El canje de recompensa requiere cliente asociado")
-        from app.services.lealtad_service import RECOMPENSA_NOMBRE, recompensas_disponibles
+        from app.services.lealtad_service import (
+            obtener_configuracion,
+            recompensas_disponibles,
+        )
 
-        recompensas_disponibles_antes = recompensas_disponibles(cliente_lealtad)
+        lealtad_config = lealtad_config or obtener_configuracion(db)
+        recompensas_disponibles_antes = recompensas_disponibles(
+            cliente_lealtad,
+            lealtad_config,
+        )
         if recompensas_disponibles_antes <= 0:
             raise ValueError("El cliente no tiene recompensas disponibles")
-        recompensa_nombre = RECOMPENSA_NOMBRE
+        recompensa_nombre = lealtad_config.recompensa_nombre
         recompensas_canjeadas_antes = int(cliente_lealtad.recompensas_lealtad_canjeadas or 0)
 
     subtotal_total = Decimal("0")
@@ -275,7 +286,10 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         )
 
     if data.puntos_canjeados:
-        descuento_puntos = Decimal(str(data.puntos_canjeados)) * VALOR_PUNTO
+        from app.services.lealtad_service import obtener_configuracion, valor_punto
+
+        lealtad_config = lealtad_config or obtener_configuracion(db)
+        descuento_puntos = Decimal(str(data.puntos_canjeados)) * valor_punto(lealtad_config)
         _aplicar_descuento_global(detalles, descuento_puntos)
         subtotal_total, descuento_total, iva_0_total, iva_16_total, total_impuestos = (
             _recalcular_totales(detalles)
@@ -531,7 +545,11 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
 
     if venta.cliente_id:
         from app.models.lealtad import HistorialPuntos
-        from app.services.lealtad_service import calcular_nivel
+        from app.services.lealtad_service import (
+            calcular_nivel,
+            obtener_configuracion,
+            puntos_por_peso,
+        )
 
         cliente = db.query(Cliente).filter(
             Cliente.id == venta.cliente_id
@@ -550,7 +568,11 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
                 HistorialPuntos.venta_id == venta.id,
                 HistorialPuntos.puntos < 0,
             ).scalar()
-            puntos_revertidos = int(puntos_generados or int(venta.total * PUNTOS_POR_PESO))
+            config = obtener_configuracion(db)
+            puntos_revertidos = int(
+                puntos_generados
+                or int(venta.total * puntos_por_peso(config))
+            )
             puntos_restaurados = abs(int(puntos_canjeados or 0))
             saldo_actual = cliente.puntos_acumulados
             cliente.puntos_totales_historicos = max(

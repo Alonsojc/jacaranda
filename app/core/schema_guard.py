@@ -9,6 +9,7 @@ from app.models.cafeteria import (
     PagoCafeteriaVenta,
 )
 from app.models.compras import RecepcionOrdenCompra
+from app.models.lealtad import LealtadConfiguracion
 from app.models.notificacion import FCMToken
 from app.models.pago_online import ConektaWebhookEvent
 from app.models.pedido import DetallePedido
@@ -278,6 +279,27 @@ def ensure_runtime_schema(engine: Engine) -> None:
     RecepcionOrdenCompra.__table__.create(bind=engine, checkfirst=True)
     WhatsAppWebhookEvent.__table__.create(bind=engine, checkfirst=True)
     FCMToken.__table__.create(bind=engine, checkfirst=True)
+    LealtadConfiguracion.__table__.create(bind=engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(text(
+            """
+            INSERT INTO lealtad_configuracion (
+                id,
+                recompensa_monto_meta,
+                recompensa_nombre,
+                puntos_por_peso,
+                valor_punto,
+                cumpleanos_promo_activa,
+                cumpleanos_descuento_porcentaje,
+                puntos_expiran_dias,
+                actualizado_en
+            )
+            SELECT 1, 10000, 'Pastel chico gratis', 0.1000, 0.50, true, 10, NULL, CURRENT_TIMESTAMP
+            WHERE NOT EXISTS (
+                SELECT 1 FROM lealtad_configuracion WHERE id = 1
+            )
+            """
+        ))
 
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())

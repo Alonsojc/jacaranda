@@ -50,6 +50,45 @@ class AsignarCuponBody(BaseModel):
     cliente_id: int
 
 
+class LealtadConfigUpdate(BaseModel):
+    recompensa_monto_meta: Decimal | None = Field(None, ge=Decimal("0.01"))
+    recompensa_nombre: str | None = Field(None, min_length=3, max_length=120)
+    puntos_por_peso: Decimal | None = Field(None, ge=0, le=100)
+    valor_punto: Decimal | None = Field(None, ge=0)
+    cumpleanos_promo_activa: bool | None = None
+    cumpleanos_descuento_porcentaje: Decimal | None = Field(None, ge=0, le=100)
+    puntos_expiran_dias: int | None = Field(None, ge=0, le=3650)
+
+
+# ── Configuracion ───────────────────────────────────────────────────
+
+@router.get("/configuracion")
+def obtener_configuracion(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("listas", "ver")),
+):
+    """Obtiene la configuracion editable del programa de lealtad."""
+    return lealtad_service.configuracion_dict(
+        lealtad_service.obtener_configuracion(db)
+    )
+
+
+@router.put("/configuracion")
+def actualizar_configuracion(
+    data: LealtadConfigUpdate,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("listas", "editar")),
+):
+    """Actualiza metas, puntos, recompensa y promos de cumpleaños."""
+    config = lealtad_service.actualizar_configuracion(
+        db,
+        data.model_dump(exclude_unset=True),
+    )
+    db.commit()
+    db.refresh(config)
+    return lealtad_service.configuracion_dict(config)
+
+
 # ── Niveles ──────────────────────────────────────────────────────────
 
 @router.get("/niveles")
@@ -151,6 +190,40 @@ def obtener_qr_publico(
     )
 
 
+@router.get("/publico/{qr_code}/wallet")
+def obtener_wallet_publico(
+    qr_code: str,
+    db: Session = Depends(get_db),
+):
+    """Informa si Apple/Google Wallet estan configurados y entrega sus links."""
+    try:
+        return lealtad_service.wallet_status_publico(db, qr_code)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Wallet no disponible: {e}")
+
+
+@router.get("/publico/{qr_code}/apple.pkpass", include_in_schema=False)
+def descargar_apple_wallet(
+    qr_code: str,
+    db: Session = Depends(get_db),
+):
+    """Descarga el pase de Apple Wallet cuando las credenciales existen."""
+    try:
+        pkpass = lealtad_service.generar_apple_pkpass(db, qr_code)
+    except ValueError as e:
+        raise HTTPException(status_code=412, detail=str(e))
+    return Response(
+        content=pkpass,
+        media_type="application/vnd.apple.pkpass",
+        headers={
+            "Content-Disposition": 'attachment; filename="jacaranda.pkpass"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @router.get("/tarjeta-qr/{qr_code}")
 def buscar_por_qr(
     qr_code: str,
@@ -167,7 +240,10 @@ def buscar_por_qr(
         "nivel": cliente.nivel_lealtad,
         "puntos_acumulados": cliente.puntos_acumulados,
         "monto_lealtad_acumulado": float(cliente.monto_lealtad_acumulado or 0),
-        "recompensa": lealtad_service.progreso_recompensa(cliente),
+        "recompensa": lealtad_service.progreso_recompensa(
+            cliente,
+            lealtad_service.obtener_configuracion(db),
+        ),
     }
 
 

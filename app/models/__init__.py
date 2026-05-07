@@ -46,7 +46,7 @@ from app.models.compras import (  # noqa: F401
     EvaluacionProveedor, EstadoOrdenCompra, EstadoCuentaPagar,
 )
 from app.models.lealtad import (  # noqa: F401
-    Cupon, CuponCliente, HistorialPuntos,
+    Cupon, CuponCliente, HistorialPuntos, LealtadConfiguracion,
     NivelLealtad, TipoCupon, EstadoCupon,
 )
 from app.models.sucursal import (  # noqa: F401

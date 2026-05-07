@@ -237,6 +237,78 @@ class TestLealtad:
         assert resp.status_code == 200
         assert resp.json() == []
 
+    # ── Configuracion ──
+
+    def test_configuracion_lealtad_default_y_update(self, client, auth_headers):
+        resp = client.get("/api/v1/lealtad/configuracion", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["recompensa_nombre"] == "Pastel chico gratis"
+        assert data["recompensa_monto_meta"] == 10000.0
+        assert data["valor_punto"] == 0.5
+
+        update = client.put("/api/v1/lealtad/configuracion", json={
+            "recompensa_monto_meta": "7500",
+            "recompensa_nombre": "Pastel mediano gratis",
+            "puntos_por_peso": "0.2",
+            "valor_punto": "1.25",
+            "cumpleanos_promo_activa": False,
+            "cumpleanos_descuento_porcentaje": "15",
+            "puntos_expiran_dias": 365,
+        }, headers=auth_headers)
+        assert update.status_code == 200, update.text
+        updated = update.json()
+        assert updated["recompensa_nombre"] == "Pastel mediano gratis"
+        assert updated["recompensa_monto_meta"] == 7500.0
+        assert updated["puntos_por_peso"] == 0.2
+        assert updated["valor_punto"] == 1.25
+        assert updated["cumpleanos_promo_activa"] is False
+        assert updated["cumpleanos_descuento_porcentaje"] == 15.0
+        assert updated["puntos_expiran_dias"] == 365
+
+    def test_tarjeta_respeta_configuracion_recompensa(self, client, auth_headers, db):
+        from app.models.cliente import Cliente
+
+        cid = self._crear_cliente(client, auth_headers, cliente_frecuente=True)
+        client.put("/api/v1/lealtad/configuracion", json={
+            "recompensa_monto_meta": "500",
+            "recompensa_nombre": "Caja chica gratis",
+        }, headers=auth_headers)
+        cliente = db.query(Cliente).filter(Cliente.id == cid).first()
+        cliente.monto_lealtad_acumulado = Decimal("500")
+        db.commit()
+
+        resp = client.get(f"/api/v1/lealtad/tarjeta/{cid}", headers=auth_headers)
+        assert resp.status_code == 200
+        recompensa = resp.json()["recompensa"]
+        assert recompensa["nombre"] == "Caja chica gratis"
+        assert recompensa["monto_meta"] == 500.0
+        assert recompensa["disponibles"] == 1
+
+    def test_wallet_status_publico_sin_credenciales(self, client, auth_headers, monkeypatch):
+        from app.core.config import settings
+
+        for key in (
+            "APPLE_WALLET_PASS_TYPE_ID",
+            "APPLE_WALLET_TEAM_ID",
+            "APPLE_WALLET_CERT_PEM",
+            "APPLE_WALLET_KEY_PEM",
+            "APPLE_WALLET_WWDR_PEM",
+            "GOOGLE_WALLET_ISSUER_ID",
+            "GOOGLE_WALLET_CLASS_ID",
+            "GOOGLE_WALLET_SERVICE_ACCOUNT_JSON",
+            "FIREBASE_SERVICE_ACCOUNT_JSON",
+        ):
+            monkeypatch.setattr(settings, key, "")
+
+        cid = self._crear_cliente(client, auth_headers, cliente_frecuente=True)
+        tarjeta = client.get(f"/api/v1/lealtad/tarjeta/{cid}", headers=auth_headers).json()
+        resp = client.get(f"/api/v1/lealtad/publico/{tarjeta['tarjeta_qr']}/wallet")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["apple_wallet_disponible"] is False
+        assert data["google_wallet_disponible"] is False
+
     # ── Dashboard ──
 
     def test_dashboard_lealtad(self, client, auth_headers):
@@ -246,6 +318,7 @@ class TestLealtad:
         assert "clientes_por_nivel" in data
         assert "total_puntos_circulacion" in data
         assert "cupones_activos" in data
+        assert "configuracion" in data
 
     # ── Unit tests del servicio ──
 

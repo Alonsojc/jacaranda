@@ -10,7 +10,6 @@ from app.models.cliente import Cliente
 from app.models.usuario import Usuario
 from app.schemas.cliente import ClienteCreate, ClienteUpdate, ClienteResponse
 from app.services import lealtad_service
-from app.services.venta_service import VALOR_PUNTO
 
 router = APIRouter()
 
@@ -114,13 +113,15 @@ def consultar_puntos(
     cliente = db.query(Cliente).filter(Cliente.id == id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    config = lealtad_service.obtener_configuracion(db)
+    valor_punto = lealtad_service.valor_punto(config)
     return {
         "puntos": cliente.puntos_acumulados,
-        "valor_punto": float(VALOR_PUNTO),
-        "descuento_disponible": float(Decimal(str(cliente.puntos_acumulados)) * VALOR_PUNTO),
+        "valor_punto": float(valor_punto),
+        "descuento_disponible": float(Decimal(str(cliente.puntos_acumulados)) * valor_punto),
         "cliente_frecuente": cliente.cliente_frecuente,
         "monto_lealtad_acumulado": float(cliente.monto_lealtad_acumulado or 0),
-        "recompensa": lealtad_service.progreso_recompensa(cliente),
+        "recompensa": lealtad_service.progreso_recompensa(cliente, config),
     }
 
 
@@ -140,7 +141,10 @@ def canjear_puntos(
             status_code=400,
             detail=f"Puntos insuficientes: tiene {cliente.puntos_acumulados}, pidió {puntos}",
         )
-    descuento = float(Decimal(str(puntos)) * VALOR_PUNTO)
+    descuento = float(
+        Decimal(str(puntos))
+        * lealtad_service.valor_punto(lealtad_service.obtener_configuracion(db))
+    )
     return {
         "puntos_canjeados": puntos,
         "descuento": descuento,

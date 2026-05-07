@@ -103,3 +103,32 @@ class HistorialPuntos(Base):
     creado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+
+
+class LealtadConfiguracion(Base):
+    """Configuracion editable del programa de cliente frecuente."""
+    __tablename__ = "lealtad_configuracion"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    recompensa_monto_meta: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), default=Decimal("10000")
+    )
+    recompensa_nombre: Mapped[str] = mapped_column(
+        String(120), default="Pastel chico gratis"
+    )
+    puntos_por_peso: Mapped[Decimal] = mapped_column(
+        Numeric(12, 4), default=Decimal("0.1000")
+    )
+    valor_punto: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), default=Decimal("0.50")
+    )
+    cumpleanos_promo_activa: Mapped[bool] = mapped_column(Boolean, default=True)
+    cumpleanos_descuento_porcentaje: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2), default=Decimal("10.00")
+    )
+    puntos_expiran_dias: Mapped[int | None] = mapped_column(Integer)
+    actualizado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )

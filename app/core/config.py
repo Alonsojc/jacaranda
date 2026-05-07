@@ -152,6 +152,17 @@ class Settings(BaseSettings):
     FIREBASE_SERVICE_ACCOUNT_JSON: str = ""
     FIREBASE_SERVICE_ACCOUNT_FILE: str = ""
 
+    # --- Wallet digital de cliente frecuente ---
+    APPLE_WALLET_PASS_TYPE_ID: str = ""
+    APPLE_WALLET_TEAM_ID: str = ""
+    APPLE_WALLET_ORG_NAME: str = "Jacaranda"
+    APPLE_WALLET_CERT_PEM: str = ""
+    APPLE_WALLET_KEY_PEM: str = ""
+    APPLE_WALLET_WWDR_PEM: str = ""
+    GOOGLE_WALLET_ISSUER_ID: str = ""
+    GOOGLE_WALLET_CLASS_ID: str = ""
+    GOOGLE_WALLET_SERVICE_ACCOUNT_JSON: str = ""
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
     @property

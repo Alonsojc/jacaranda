@@ -3,9 +3,16 @@ Servicio del sistema de lealtad avanzado.
 Niveles, cupones, tarjeta digital QR, promociones de cumpleanos.
 """
 
+import base64
+import hashlib
+import io
+import json
+import re
 import uuid
-from datetime import date, datetime, timezone
+import zipfile
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
+from urllib.parse import quote
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
@@ -13,14 +20,117 @@ from sqlalchemy import func, extract
 from app.models.cliente import Cliente
 from app.models.lealtad import (
     Cupon, CuponCliente, HistorialPuntos,
-    NivelLealtad, TipoCupon, EstadoCupon,
+    NivelLealtad, TipoCupon, EstadoCupon, LealtadConfiguracion,
 )
 from app.core.config import settings
-from app.services.venta_service import PUNTOS_POR_PESO
 
 
 MONTO_RECOMPENSA_PASTEL_CHICO = Decimal("10000")
 RECOMPENSA_NOMBRE = "Pastel chico gratis"
+PUNTOS_POR_PESO_DEFAULT = Decimal("0.1000")
+VALOR_PUNTO_DEFAULT = Decimal("0.50")
+CUMPLEANOS_DESCUENTO_DEFAULT = Decimal("10")
+
+
+# ── Configuracion ────────────────────────────────────────────────────
+
+def obtener_configuracion(db: Session) -> LealtadConfiguracion:
+    """Obtiene o crea la configuracion editable del programa."""
+    config = db.get(LealtadConfiguracion, 1)
+    if config:
+        return config
+    config = LealtadConfiguracion(
+        id=1,
+        recompensa_monto_meta=MONTO_RECOMPENSA_PASTEL_CHICO,
+        recompensa_nombre=RECOMPENSA_NOMBRE,
+        puntos_por_peso=PUNTOS_POR_PESO_DEFAULT,
+        valor_punto=VALOR_PUNTO_DEFAULT,
+        cumpleanos_promo_activa=True,
+        cumpleanos_descuento_porcentaje=CUMPLEANOS_DESCUENTO_DEFAULT,
+        puntos_expiran_dias=None,
+    )
+    db.add(config)
+    db.flush()
+    return config
+
+
+def _decimal_config(valor, default: Decimal) -> Decimal:
+    if valor is None:
+        return default
+    return Decimal(str(valor))
+
+
+def configuracion_dict(config: LealtadConfiguracion) -> dict:
+    return {
+        "id": config.id,
+        "recompensa_monto_meta": float(_decimal_config(
+            config.recompensa_monto_meta,
+            MONTO_RECOMPENSA_PASTEL_CHICO,
+        )),
+        "recompensa_nombre": config.recompensa_nombre or RECOMPENSA_NOMBRE,
+        "puntos_por_peso": float(_decimal_config(
+            config.puntos_por_peso,
+            PUNTOS_POR_PESO_DEFAULT,
+        )),
+        "valor_punto": float(_decimal_config(config.valor_punto, VALOR_PUNTO_DEFAULT)),
+        "cumpleanos_promo_activa": bool(config.cumpleanos_promo_activa),
+        "cumpleanos_descuento_porcentaje": float(_decimal_config(
+            config.cumpleanos_descuento_porcentaje,
+            CUMPLEANOS_DESCUENTO_DEFAULT,
+        )),
+        "puntos_expiran_dias": config.puntos_expiran_dias,
+        "actualizado_en": (
+            config.actualizado_en.isoformat() if config.actualizado_en else None
+        ),
+    }
+
+
+def actualizar_configuracion(db: Session, data: dict) -> LealtadConfiguracion:
+    config = obtener_configuracion(db)
+    campos_decimal = {
+        "recompensa_monto_meta",
+        "puntos_por_peso",
+        "valor_punto",
+        "cumpleanos_descuento_porcentaje",
+    }
+    campos_permitidos = campos_decimal | {
+        "recompensa_nombre",
+        "cumpleanos_promo_activa",
+        "puntos_expiran_dias",
+    }
+    for key, value in data.items():
+        if key not in campos_permitidos:
+            continue
+        if key in campos_decimal and value is not None:
+            value = Decimal(str(value))
+        if key == "recompensa_nombre" and value is not None:
+            value = value.strip()
+        setattr(config, key, value)
+    config.actualizado_en = datetime.now(timezone.utc)
+    db.flush()
+    return config
+
+
+def _monto_meta(config: LealtadConfiguracion | None = None) -> Decimal:
+    return max(
+        Decimal("0.01"),
+        _decimal_config(
+            getattr(config, "recompensa_monto_meta", None),
+            MONTO_RECOMPENSA_PASTEL_CHICO,
+        ),
+    )
+
+
+def _nombre_recompensa(config: LealtadConfiguracion | None = None) -> str:
+    return (getattr(config, "recompensa_nombre", None) or RECOMPENSA_NOMBRE).strip()
+
+
+def puntos_por_peso(config: LealtadConfiguracion | None = None) -> Decimal:
+    return _decimal_config(getattr(config, "puntos_por_peso", None), PUNTOS_POR_PESO_DEFAULT)
+
+
+def valor_punto(config: LealtadConfiguracion | None = None) -> Decimal:
+    return _decimal_config(getattr(config, "valor_punto", None), VALOR_PUNTO_DEFAULT)
 
 
 # ── Niveles ──────────────────────────────────────────────────────────
@@ -64,10 +174,11 @@ def acumular_puntos(
     if not cliente:
         raise ValueError("Cliente no encontrado")
 
+    config = obtener_configuracion(db)
     nivel = calcular_nivel(cliente.puntos_totales_historicos)
     mult = multiplicador_puntos(nivel)
 
-    puntos_base = int(monto_venta * PUNTOS_POR_PESO)
+    puntos_base = int(monto_venta * puntos_por_peso(config))
     puntos_ganados = int(puntos_base * mult)
 
     saldo_anterior = cliente.puntos_acumulados
@@ -98,7 +209,7 @@ def acumular_puntos(
         "nivel": nuevo_nivel.value,
         "saldo": cliente.puntos_acumulados,
         "monto_acumulado": cliente.monto_lealtad_acumulado,
-        "recompensas_disponibles": recompensas_disponibles(cliente),
+        "recompensas_disponibles": recompensas_disponibles(cliente, config),
     }
 
 
@@ -124,38 +235,42 @@ def _whatsapp_tarjeta_url(cliente: Cliente) -> str | None:
         + ", aqui esta tu tarjeta de cliente frecuente Jacaranda: "
         + link
     )
-    from urllib.parse import quote
-
     return f"https://wa.me/{tel}?text={quote(mensaje)}"
 
 
-def recompensas_disponibles(cliente: Cliente) -> int:
+def recompensas_disponibles(
+    cliente: Cliente,
+    config: LealtadConfiguracion | None = None,
+) -> int:
     monto = Decimal(str(cliente.monto_lealtad_acumulado or 0))
-    generadas = int(monto // MONTO_RECOMPENSA_PASTEL_CHICO)
+    generadas = int(monto // _monto_meta(config))
     return max(0, generadas - int(cliente.recompensas_lealtad_canjeadas or 0))
 
 
-def progreso_recompensa(cliente: Cliente) -> dict:
+def progreso_recompensa(
+    cliente: Cliente,
+    config: LealtadConfiguracion | None = None,
+) -> dict:
     monto = Decimal(str(cliente.monto_lealtad_acumulado or 0))
-    restante = MONTO_RECOMPENSA_PASTEL_CHICO - (monto % MONTO_RECOMPENSA_PASTEL_CHICO)
-    if restante == MONTO_RECOMPENSA_PASTEL_CHICO and monto > 0:
+    meta = _monto_meta(config)
+    restante = meta - (monto % meta)
+    if restante == meta and monto > 0:
         restante = Decimal("0")
     progreso = Decimal("0")
-    if MONTO_RECOMPENSA_PASTEL_CHICO > 0:
+    if meta > 0:
         progreso = min(
             Decimal("100"),
-            ((monto % MONTO_RECOMPENSA_PASTEL_CHICO) / MONTO_RECOMPENSA_PASTEL_CHICO)
-            * Decimal("100"),
+            ((monto % meta) / meta) * Decimal("100"),
         )
-        if recompensas_disponibles(cliente) > 0:
+        if recompensas_disponibles(cliente, config) > 0:
             progreso = Decimal("100")
     return {
-        "nombre": RECOMPENSA_NOMBRE,
-        "monto_meta": float(MONTO_RECOMPENSA_PASTEL_CHICO),
+        "nombre": _nombre_recompensa(config),
+        "monto_meta": float(meta),
         "monto_acumulado": float(monto),
         "monto_restante": float(max(Decimal("0"), restante)),
         "progreso_porcentaje": float(progreso.quantize(Decimal("0.01"))),
-        "disponibles": recompensas_disponibles(cliente),
+        "disponibles": recompensas_disponibles(cliente, config),
         "canjeadas": int(cliente.recompensas_lealtad_canjeadas or 0),
     }
 
@@ -193,6 +308,7 @@ def obtener_tarjeta(db: Session, cliente_id: int) -> dict:
     cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
     if not cliente:
         raise ValueError("Cliente no encontrado")
+    config = obtener_configuracion(db)
 
     return {
         "cliente_id": cliente.id,
@@ -203,7 +319,7 @@ def obtener_tarjeta(db: Session, cliente_id: int) -> dict:
         "puntos_acumulados": cliente.puntos_acumulados,
         "puntos_totales_historicos": cliente.puntos_totales_historicos,
         "monto_lealtad_acumulado": float(cliente.monto_lealtad_acumulado or 0),
-        "recompensa": progreso_recompensa(cliente),
+        "recompensa": progreso_recompensa(cliente, config),
         "tarjeta_qr": cliente.tarjeta_qr,
         "url_publica": _url_tarjeta_cliente(cliente.tarjeta_qr) if cliente.tarjeta_qr else None,
         "whatsapp_url": _whatsapp_tarjeta_url(cliente),
@@ -223,15 +339,276 @@ def obtener_tarjeta_publica(db: Session, qr_code: str) -> dict:
     cliente = buscar_por_qr(db, qr_code)
     if not cliente:
         raise ValueError("Tarjeta no encontrada")
+    config = obtener_configuracion(db)
     return {
         "nombre": cliente.nombre,
         "nivel": cliente.nivel_lealtad,
         "puntos_acumulados": cliente.puntos_acumulados,
         "monto_lealtad_acumulado": float(cliente.monto_lealtad_acumulado or 0),
-        "recompensa": progreso_recompensa(cliente),
+        "recompensa": progreso_recompensa(cliente, config),
         "tarjeta_qr": cliente.tarjeta_qr,
         "url_publica": _url_tarjeta_cliente(cliente.tarjeta_qr),
     }
+
+
+# ── Apple Wallet / Google Wallet ────────────────────────────────────
+
+def _missing_wallet_fields(fields: dict[str, str]) -> list[str]:
+    return [name for name, value in fields.items() if not value]
+
+
+def _public_cliente_por_qr(db: Session, qr_code: str) -> Cliente:
+    cliente = buscar_por_qr(db, qr_code)
+    if not cliente:
+        raise ValueError("Tarjeta no encontrada")
+    return cliente
+
+
+def wallet_status_publico(db: Session, qr_code: str) -> dict:
+    cliente = _public_cliente_por_qr(db, qr_code)
+    google_missing = _missing_wallet_fields({
+        "GOOGLE_WALLET_ISSUER_ID": settings.GOOGLE_WALLET_ISSUER_ID,
+        "GOOGLE_WALLET_CLASS_ID": settings.GOOGLE_WALLET_CLASS_ID,
+        "GOOGLE_WALLET_SERVICE_ACCOUNT_JSON": (
+            settings.GOOGLE_WALLET_SERVICE_ACCOUNT_JSON
+            or settings.FIREBASE_SERVICE_ACCOUNT_JSON
+        ),
+    })
+    apple_missing = _missing_wallet_fields({
+        "APPLE_WALLET_PASS_TYPE_ID": settings.APPLE_WALLET_PASS_TYPE_ID,
+        "APPLE_WALLET_TEAM_ID": settings.APPLE_WALLET_TEAM_ID,
+        "APPLE_WALLET_CERT_PEM": settings.APPLE_WALLET_CERT_PEM,
+        "APPLE_WALLET_KEY_PEM": settings.APPLE_WALLET_KEY_PEM,
+        "APPLE_WALLET_WWDR_PEM": settings.APPLE_WALLET_WWDR_PEM,
+    })
+    status = {
+        "apple_wallet_disponible": not apple_missing,
+        "apple_wallet_faltante": apple_missing,
+        "apple_wallet_url": None,
+        "google_wallet_disponible": not google_missing,
+        "google_wallet_faltante": google_missing,
+        "google_wallet_url": None,
+    }
+    if not apple_missing:
+        status["apple_wallet_url"] = (
+            f"/api/v1/lealtad/publico/{cliente.tarjeta_qr}/apple.pkpass"
+        )
+    if not google_missing:
+        status["google_wallet_url"] = generar_google_wallet_url(db, cliente)
+    return status
+
+
+def _pem_bytes(value: str) -> bytes:
+    return value.replace("\\n", "\n").strip().encode("utf-8")
+
+
+_PNG_1X1 = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+)
+
+
+def generar_apple_pkpass(db: Session, qr_code: str) -> bytes:
+    """Genera un .pkpass firmado cuando las credenciales Apple estan configuradas."""
+    status = wallet_status_publico(db, qr_code)
+    if status["apple_wallet_faltante"]:
+        raise ValueError(
+            "Faltan credenciales Apple Wallet: "
+            + ", ".join(status["apple_wallet_faltante"])
+        )
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.serialization import pkcs7
+
+    cliente = _public_cliente_por_qr(db, qr_code)
+    config = obtener_configuracion(db)
+    recompensa = progreso_recompensa(cliente, config)
+    public_url = _url_tarjeta_cliente(cliente.tarjeta_qr)
+    serial = "jacaranda-" + re.sub(r"[^A-Za-z0-9.-]", "-", cliente.tarjeta_qr)
+    pass_json = {
+        "formatVersion": 1,
+        "passTypeIdentifier": settings.APPLE_WALLET_PASS_TYPE_ID,
+        "serialNumber": serial,
+        "teamIdentifier": settings.APPLE_WALLET_TEAM_ID,
+        "organizationName": settings.APPLE_WALLET_ORG_NAME or "Jacaranda",
+        "description": "Tarjeta de cliente frecuente Jacaranda",
+        "logoText": "Jacaranda",
+        "foregroundColor": "rgb(74, 53, 48)",
+        "backgroundColor": "rgb(250, 243, 240)",
+        "labelColor": "rgb(164, 130, 121)",
+        "generic": {
+            "primaryFields": [
+                {"key": "cliente", "label": "Cliente frecuente", "value": cliente.nombre}
+            ],
+            "secondaryFields": [
+                {
+                    "key": "acumulado",
+                    "label": "Acumulado",
+                    "value": f"${Decimal(str(cliente.monto_lealtad_acumulado or 0)):,.2f}",
+                },
+                {
+                    "key": "puntos",
+                    "label": "Puntos",
+                    "value": str(cliente.puntos_acumulados or 0),
+                },
+            ],
+            "auxiliaryFields": [
+                {
+                    "key": "recompensa",
+                    "label": recompensa["nombre"],
+                    "value": (
+                        f"{recompensa['disponibles']} disponibles"
+                        if recompensa["disponibles"]
+                        else f"Faltan ${recompensa['monto_restante']:,.2f}"
+                    ),
+                }
+            ],
+            "backFields": [
+                {
+                    "key": "instrucciones",
+                    "label": "Uso",
+                    "value": "Presenta este QR en Jacaranda para acumular compras.",
+                },
+                {"key": "url", "label": "Link", "value": public_url},
+            ],
+        },
+        "barcodes": [
+            {
+                "message": public_url,
+                "format": "PKBarcodeFormatQR",
+                "messageEncoding": "iso-8859-1",
+                "altText": "Jacaranda",
+            }
+        ],
+        "barcode": {
+            "message": public_url,
+            "format": "PKBarcodeFormatQR",
+            "messageEncoding": "iso-8859-1",
+            "altText": "Jacaranda",
+        },
+    }
+
+    files = {
+        "pass.json": json.dumps(pass_json, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
+        "icon.png": _PNG_1X1,
+        "icon@2x.png": _PNG_1X1,
+        "logo.png": _PNG_1X1,
+        "logo@2x.png": _PNG_1X1,
+    }
+    manifest = {
+        name: hashlib.sha1(content).hexdigest()
+        for name, content in sorted(files.items())
+    }
+    manifest_bytes = json.dumps(manifest, separators=(",", ":")).encode("utf-8")
+
+    cert = x509.load_pem_x509_certificate(_pem_bytes(settings.APPLE_WALLET_CERT_PEM))
+    key = serialization.load_pem_private_key(
+        _pem_bytes(settings.APPLE_WALLET_KEY_PEM),
+        password=None,
+    )
+    wwdr = x509.load_pem_x509_certificate(_pem_bytes(settings.APPLE_WALLET_WWDR_PEM))
+    builder = pkcs7.PKCS7SignatureBuilder().set_data(manifest_bytes)
+    builder = builder.add_signer(cert, key, hashes.SHA256()).add_certificate(wwdr)
+    signature = builder.sign(
+        serialization.Encoding.DER,
+        [pkcs7.PKCS7Options.DetachedSignature],
+    )
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, content in files.items():
+            zf.writestr(name, content)
+        zf.writestr("manifest.json", manifest_bytes)
+        zf.writestr("signature", signature)
+    return out.getvalue()
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def _wallet_service_account() -> dict:
+    raw = settings.GOOGLE_WALLET_SERVICE_ACCOUNT_JSON or settings.FIREBASE_SERVICE_ACCOUNT_JSON
+    return json.loads(raw)
+
+
+def _google_class_id() -> str:
+    issuer = settings.GOOGLE_WALLET_ISSUER_ID.strip()
+    class_id = settings.GOOGLE_WALLET_CLASS_ID.strip()
+    if "." in class_id:
+        return class_id
+    return f"{issuer}.{class_id}"
+
+
+def generar_google_wallet_url(db: Session, cliente: Cliente) -> str:
+    """Genera el Save to Google Wallet URL sin llamar APIs externas."""
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding
+
+    service_account = _wallet_service_account()
+    config = obtener_configuracion(db)
+    recompensa = progreso_recompensa(cliente, config)
+    public_url = _url_tarjeta_cliente(cliente.tarjeta_qr)
+    issuer = settings.GOOGLE_WALLET_ISSUER_ID.strip()
+    object_id = issuer + ".jacaranda_" + re.sub(r"[^A-Za-z0-9_]", "_", cliente.tarjeta_qr)
+    payload = {
+        "iss": service_account["client_email"],
+        "aud": "google",
+        "origins": [settings.FRONTEND_URL.rstrip("/")],
+        "typ": "savetowallet",
+        "payload": {
+            "genericObjects": [
+                {
+                    "id": object_id,
+                    "classId": _google_class_id(),
+                    "genericType": "GENERIC_TYPE_UNSPECIFIED",
+                    "hexBackgroundColor": "#c4988a",
+                    "cardTitle": {
+                        "defaultValue": {
+                            "language": "es-MX",
+                            "value": "Jacaranda cliente frecuente",
+                        }
+                    },
+                    "header": {
+                        "defaultValue": {"language": "es-MX", "value": cliente.nombre}
+                    },
+                    "subheader": {
+                        "defaultValue": {"language": "es-MX", "value": "sharing flavors"}
+                    },
+                    "barcode": {
+                        "type": "QR_CODE",
+                        "value": public_url,
+                        "alternateText": "Jacaranda",
+                    },
+                    "textModulesData": [
+                        {
+                            "id": "reward",
+                            "header": "Recompensa",
+                            "body": recompensa["nombre"],
+                        },
+                        {
+                            "id": "progress",
+                            "header": "Acumulado",
+                            "body": f"${Decimal(str(cliente.monto_lealtad_acumulado or 0)):,.2f}",
+                        },
+                    ],
+                }
+            ]
+        },
+    }
+    header = {"alg": "RS256", "typ": "JWT"}
+    signing_input = (
+        _b64url(json.dumps(header, separators=(",", ":")).encode("utf-8"))
+        + "."
+        + _b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    )
+    key = serialization.load_pem_private_key(
+        _pem_bytes(service_account["private_key"]),
+        password=None,
+    )
+    signature = key.sign(signing_input.encode("ascii"), padding.PKCS1v15(), hashes.SHA256())
+    token = signing_input + "." + _b64url(signature)
+    return "https://pay.google.com/gp/v/save/" + quote(token, safe="")
 
 
 # ── Cupones ──────────────────────────────────────────────────────────
@@ -373,10 +750,17 @@ def cumpleanos_del_mes(db: Session) -> list[Cliente]:
 
 def enviar_ofertas_cumpleanos(db: Session) -> list[dict]:
     """
-    Genera cupones de cumpleanos (10% descuento) para clientes que
+    Genera cupones de cumpleanos para clientes que
     cumplen anos este mes y aun no tienen cupon de cumpleanos vigente.
     """
     hoy = date.today()
+    config = obtener_configuracion(db)
+    if not config.cumpleanos_promo_activa:
+        return []
+    descuento = _decimal_config(
+        config.cumpleanos_descuento_porcentaje,
+        CUMPLEANOS_DESCUENTO_DEFAULT,
+    )
     clientes = cumpleanos_del_mes(db)
     resultados = []
 
@@ -387,21 +771,19 @@ def enviar_ofertas_cumpleanos(db: Session) -> list[dict]:
         if existente:
             continue
 
-        # Crear cupon de cumpleanos: 10% descuento, valido todo el mes
+        # Crear cupon de cumpleanos, valido todo el mes
         primer_dia = hoy.replace(day=1)
         if hoy.month == 12:
             ultimo_dia = hoy.replace(month=12, day=31)
         else:
-            ultimo_dia = hoy.replace(month=hoy.month + 1, day=1).replace(
-                day=1
-            ) - __import__("datetime").timedelta(days=1)
+            ultimo_dia = hoy.replace(month=hoy.month + 1, day=1) - timedelta(days=1)
 
         cupon = Cupon(
             codigo=codigo_cumple,
             nombre=f"Feliz cumpleanos {cliente.nombre}",
-            descripcion="Cupon de cumpleanos - 10% de descuento",
+            descripcion=f"Cupon de cumpleanos - {descuento}% de descuento",
             tipo=TipoCupon.PORCENTAJE,
-            valor=Decimal("10"),
+            valor=descuento,
             compra_minima=Decimal("0"),
             nivel_requerido=None,
             max_usos=1,
@@ -434,6 +816,7 @@ def enviar_ofertas_cumpleanos(db: Session) -> list[dict]:
 
 def dashboard_lealtad(db: Session) -> dict:
     """Estadisticas del programa de lealtad."""
+    config = obtener_configuracion(db)
     # Clientes por nivel
     niveles = (
         db.query(Cliente.nivel_lealtad, func.count(Cliente.id))
@@ -485,4 +868,5 @@ def dashboard_lealtad(db: Session) -> dict:
             for c in top_clientes
         ],
         "cupones_activos": cupones_activos,
+        "configuracion": configuracion_dict(config),
     }
