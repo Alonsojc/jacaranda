@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from app.core.database import get_db
-from app.core.dependencies import require_admin_or_override, require_permission
+from app.core.dependencies import require_admin_or_override, require_permission, require_role
 from app.models.usuario import RolUsuario, Usuario
 from app.models.venta import CorteCaja
 from app.models.gasto_fijo import GastoFijo
@@ -163,7 +163,7 @@ def listar_gastos_fijos(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, le=500),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_permission("corte", "ver")),
+    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
 ):
     return db.query(GastoFijo).filter(GastoFijo.activo.is_(True)).offset(skip).limit(limit).all()
 
@@ -182,7 +182,7 @@ def listar_gastos_fijos_inactivos(
 def crear_gasto_fijo(
     data: GastoFijoCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_permission("corte", "editar")),
+    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
 ):
     gasto = GastoFijo(**data.model_dump())
     db.add(gasto)

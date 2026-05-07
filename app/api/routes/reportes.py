@@ -30,7 +30,7 @@ def dashboard(
 def gastos_hoy(
     fecha: date | None = None,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_permission("corte", "ver")),
+    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
 ):
     return svc.gastos_hoy(db, fecha)
 
@@ -120,7 +120,7 @@ def alertas_caducidad(
 @router.get("/gastos-fijos-resumen")
 def gastos_fijos_resumen(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_permission("corte", "ver")),
+    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
 ):
     """Resumen de gastos fijos mensuales."""
     return svc.resumen_gastos_fijos(db)
@@ -213,7 +213,7 @@ def dashboard_avanzado(
 def punto_equilibrio(
     dias: int = Query(default=30, le=90),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_permission("rep", "ver")),
+    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
 ):
     """Punto de equilibrio (break-even analysis) de la panadería."""
     return svc.punto_de_equilibrio(db, dias)

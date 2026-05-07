@@ -876,7 +876,7 @@ h2{font-size:1.1rem}
 <p style="color:var(--mut);text-align:center;padding:1rem;font-size:.85rem">Cargando ventas...</p>
 </div>
 </div>
-<div class="card">
+<div class="card" data-admin-finance>
 <h3>Egresos del d&iacute;a</h3>
 <div class="srow"><span>Total gastos</span><span style="color:#b91c1c;font-weight:700" id="c-gastos-total">$0.00</span></div>
 <div class="srow"><span>Movimientos registrados</span><span id="c-gastos-num">0</span></div>
@@ -884,7 +884,7 @@ h2{font-size:1.1rem}
 <p style="color:var(--mut);font-size:.83rem;text-align:center">Sin egresos hoy</p>
 </div>
 </div>
-<div class="card">
+<div class="card" data-admin-finance>
 <h3>Utilidad del d&iacute;a</h3>
 <div class="srow"><span>Ventas totales</span><span class="green" id="c-util-ventas">$0.00</span></div>
 <div class="srow"><span>Egresos</span><span style="color:#b91c1c" id="c-util-gastos">$0.00</span></div>
@@ -922,7 +922,7 @@ h2{font-size:1.1rem}
 </div>
 
 <!-- Gastos fijos -->
-<div class="card" style="margin-bottom:1rem">
+<div class="card" style="margin-bottom:1rem" data-admin-finance>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
 <h3 style="margin:0">Gastos fijos mensuales</h3>
 <button class="cobrar" style="width:auto;padding:.3rem .8rem;font-size:.78rem;margin:0" onclick="abrirNuevoGasto()">+ Agregar</button>
@@ -935,7 +935,7 @@ h2{font-size:1.1rem}
 </div>
 
 <!-- Punto de equilibrio -->
-<div class="card" style="margin-bottom:1rem">
+<div class="card" style="margin-bottom:1rem" data-admin-finance>
 <h3>Punto de equilibrio</h3>
 <div id="c-punto-eq"><p style="color:var(--mut);font-size:.83rem;text-align:center">Cargando...</p></div>
 </div>
@@ -1131,7 +1131,7 @@ h2{font-size:1.1rem}
 <span class="tab" onclick="repTab('rep-mermas')">Mermas</span>
 <span class="tab" onclick="repTab('rep-abc')">ABC</span>
 <span class="tab" onclick="repTab('rep-horas')">Por hora</span>
-<span class="tab" onclick="repTab('rep-pe')">Punto equilibrio</span>
+<span class="tab" data-admin-finance onclick="repTab('rep-pe')">Punto equilibrio</span>
 <span class="tab" onclick="repTab('rep-yoy')">Comparativo</span>
 <span class="tab" data-module="fiscal" onclick="repTab('rep-fiscal')">Fiscal</span>
 </div>
@@ -2329,7 +2329,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v54';
+var APP_BUILD = 'jacaranda-v55';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -2405,6 +2405,7 @@ function actualizarVisibilidadModulos() {
     });
     group.style.display = visible ? '' : 'none';
   });
+  actualizarVisibilidadFinanzasCorte();
 }
 
 function nuevaClaveIdempotencia(prefix) {
@@ -2586,6 +2587,27 @@ function deferDashboard(fn, delay) {
 
 function esAdminActual() {
   return _currentUser && String(_currentUser.rol || '').toLowerCase() === 'administrador';
+}
+
+function puedeVerFinanzasCorte() {
+  return esAdminActual();
+}
+
+function actualizarVisibilidadFinanzasCorte() {
+  var visible = puedeVerFinanzasCorte();
+  document.querySelectorAll('[data-admin-finance]').forEach(function(el) {
+    el.style.display = visible ? '' : 'none';
+  });
+  if (!visible) {
+    window._totalGastosDia = 0;
+    var campos = ['c-gastos-total', 'c-util-gastos', 'c-util-neta', 'c-gf-total', 'c-gf-diario'];
+    for (var i = 0; i < campos.length; i++) {
+      var el = document.getElementById(campos[i]);
+      if (el) el.textContent = '$0.00';
+    }
+    var num = document.getElementById('c-gastos-num');
+    if (num) num.textContent = '0';
+  }
 }
 
 var _adminAuthPending = null;
@@ -6008,8 +6030,9 @@ function exportarCorte() {
   var trans = document.getElementById('c-total-trans').textContent;
   var total = document.getElementById('c-total').textContent;
   var tickets = document.getElementById('c-tickets').textContent;
-  var gastos = document.getElementById('c-gastos-total').textContent;
-  var utilidad = document.getElementById('c-util-neta').textContent;
+  var verFinanzas = puedeVerFinanzasCorte();
+  var gastos = verFinanzas ? document.getElementById('c-gastos-total').textContent : null;
+  var utilidad = verFinanzas ? document.getElementById('c-util-neta').textContent : null;
   var fondo = document.getElementById('c-fondo').value || '2000';
   var real = document.getElementById('c-real').value || '--';
   var dif = document.getElementById('c-dif').textContent;
@@ -6029,8 +6052,10 @@ function exportarCorte() {
   txt += '\ud83d\udcca *Resumen:*\n';
   txt += '  Total ventas: ' + total + '\n';
   txt += '  Tickets: ' + tickets + '\n';
-  txt += '  Gastos (compras): ' + gastos + '\n';
-  txt += '  *Utilidad: ' + utilidad + '*\n';
+  if (verFinanzas) {
+    txt += '  Gastos (compras): ' + gastos + '\n';
+    txt += '  *Utilidad: ' + utilidad + '*\n';
+  }
   txt += '\n';
   txt += '\ud83d\udcdd *Caja:*\n';
   txt += '  Fondo: $' + fondo + '\n';
@@ -6979,6 +7004,7 @@ function corteFechaHoy() {
 }
 
 function cargarCorte() {
+  actualizarVisibilidadFinanzasCorte();
   // Set date picker to today if empty
   var fechaInput = document.getElementById('c-fecha');
   if (!fechaInput.value) fechaInput.value = new Date().toISOString().split('T')[0];
@@ -7036,16 +7062,19 @@ function cargarCorte() {
     _totalVentasDia = totalGeneral;
     var fondo = parseFloat(document.getElementById('c-fondo').value) || 0;
     document.getElementById('c-esperado').textContent = '$' + fmt(fondo + efTotal);
-    document.getElementById('c-util-ventas').textContent = '$' + fmt(totalGeneral);
-    actualizarUtilidad();
+    if (puedeVerFinanzasCorte()) {
+      document.getElementById('c-util-ventas').textContent = '$' + fmt(totalGeneral);
+      actualizarUtilidad();
+    }
   }).catch(function(){
     document.getElementById('c-ventas-list').innerHTML = '<p style="color:var(--mut);text-align:center;padding:.5rem;font-size:.85rem">Error al cargar ventas</p>';
   });
-  // Load expenses for selected date
-  cargarGastos(hoy);
   cargarResumenCorte(hoy);
-  cargarGastosFijos();
-  cargarPuntoEquilibrio();
+  if (puedeVerFinanzasCorte()) {
+    cargarGastos(hoy);
+    cargarGastosFijos();
+    cargarPuntoEquilibrioCorte();
+  }
   cargarHistorialCortes();
   // Pre-fill historial dates (last 7 days)
   var hvff = document.getElementById('hv-ff');
@@ -7078,6 +7107,7 @@ function cargarResumenCorte(fecha) {
 }
 
 function cargarGastos(fecha) {
+  if (!puedeVerFinanzasCorte()) return Promise.resolve();
   var q = fecha ? '?fecha=' + fecha : '';
   api('GET', '/reportes/gastos-hoy' + q).then(function(g) {
     document.getElementById('c-gastos-total').textContent = '$' + fmt(g.total_gastos);
@@ -7139,7 +7169,7 @@ function guardarEgreso() {
     limpiarEgresoForm();
     cargarEgresos();
     var fechaCorte = document.getElementById('c-fecha');
-    if (fechaCorte && fechaCorte.value === data.fecha) cargarGastos(data.fecha);
+    if (puedeVerFinanzasCorte() && fechaCorte && fechaCorte.value === data.fecha) cargarGastos(data.fecha);
   }).catch(function(e) { toast(e.message || 'Error al guardar egreso', true); });
 }
 
@@ -7199,11 +7229,12 @@ function borrarEgreso(id) {
     toast('Egreso borrado');
     cargarEgresos();
     var fechaCorte = document.getElementById('c-fecha');
-    if (fechaCorte && fechaCorte.value) cargarGastos(fechaCorte.value);
+    if (puedeVerFinanzasCorte() && fechaCorte && fechaCorte.value) cargarGastos(fechaCorte.value);
   }).catch(function(e) { if (e.message !== 'Autorización cancelada') toast(e.message || 'Error al borrar egreso', true); });
 }
 
 function actualizarUtilidad() {
+  if (!puedeVerFinanzasCorte()) return;
   var ventas = _totalVentasDia || 0;
   var gastos = window._totalGastosDia || 0;
   var util = ventas - gastos;
@@ -7326,6 +7357,7 @@ function guardarCliente() {
 
 // ─── Gastos fijos ────────────────────────────────────────────────
 function cargarGastosFijos() {
+  if (!puedeVerFinanzasCorte()) return Promise.resolve();
   api('GET', '/punto-de-venta/gastos-fijos').then(function(gastos) {
     if (!gastos.length) {
       document.getElementById('c-gastos-fijos-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin gastos fijos. Agrega renta, luz, etc.</p>';
@@ -7405,7 +7437,8 @@ function eliminarGasto(id) {
 }
 
 // ─── Punto de equilibrio ─────────────────────────────────────────
-function cargarPuntoEquilibrio() {
+function cargarPuntoEquilibrioCorte() {
+  if (!puedeVerFinanzasCorte()) return Promise.resolve();
   Promise.all([
     api('GET', '/punto-de-venta/gastos-fijos'),
     api('GET', '/reportes/ventas-por-dia?dias=30')
@@ -7560,8 +7593,10 @@ function exportarCorteCSV() {
   csv += 'Transferencia,' + (document.getElementById('c-total-trans').textContent.replace('$','').replace(/,/g,'')) + '\n';
   csv += 'Total Ventas,' + (document.getElementById('c-total').textContent.replace('$','').replace(/,/g,'')) + '\n';
   csv += 'Tickets,' + document.getElementById('c-tickets').textContent + '\n';
-  csv += 'Gastos,' + (document.getElementById('c-gastos-total').textContent.replace('$','').replace(/,/g,'')) + '\n';
-  csv += 'Utilidad,' + (document.getElementById('c-util-neta').textContent.replace('$','').replace(/,/g,'')) + '\n';
+  if (puedeVerFinanzasCorte()) {
+    csv += 'Gastos,' + (document.getElementById('c-gastos-total').textContent.replace('$','').replace(/,/g,'')) + '\n';
+    csv += 'Utilidad,' + (document.getElementById('c-util-neta').textContent.replace('$','').replace(/,/g,'')) + '\n';
+  }
   csv += '\nDetalle de ventas\n';
   csv += 'Folio,Hora,Metodo,Productos,Total,Estado\n';
   for (var i = 0; i < _corteVentas.length; i++) {
@@ -7585,9 +7620,11 @@ function compartirCorteWhatsApp() {
   txt += 'BBVA: ' + document.getElementById('c-total-bbva').textContent + '\n';
   txt += '\ud83c\udfe6 Transferencia: ' + document.getElementById('c-total-trans').textContent + '\n';
   txt += '*Total: ' + document.getElementById('c-total').textContent + '* (' + document.getElementById('c-tickets').textContent + ' tickets)\n\n';
-  txt += '\ud83d\udcca *Resultado:*\n';
-  txt += 'Gastos: ' + document.getElementById('c-gastos-total').textContent + '\n';
-  txt += '*Utilidad: ' + document.getElementById('c-util-neta').textContent + '*';
+  if (puedeVerFinanzasCorte()) {
+    txt += '\ud83d\udcca *Resultado:*\n';
+    txt += 'Gastos: ' + document.getElementById('c-gastos-total').textContent + '\n';
+    txt += '*Utilidad: ' + document.getElementById('c-util-neta').textContent + '*';
+  }
   window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
 }
 
@@ -8097,6 +8134,9 @@ function seleccionarRepTab(tab) {
     toast('Fiscal est\u00e1 desactivado', true);
     tab = 'rep-ventas';
   }
+  if (tab === 'rep-pe' && !puedeVerFinanzasCorte()) {
+    tab = 'rep-ventas';
+  }
   ['rep-ventas','rep-prod','rep-marg','rep-mermas','rep-abc','rep-horas','rep-pe','rep-yoy','rep-fiscal'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
@@ -8329,6 +8369,7 @@ function cargarABC() {
 
 // ─── Punto de equilibrio ────────────────────────────────────────
 function cargarPuntoEquilibrio() {
+  if (!puedeVerFinanzasCorte()) return Promise.resolve();
   var dias = document.getElementById('rep-pe-dias').value || 30;
   api('GET', '/reportes/punto-equilibrio?dias=' + dias).then(function(r) {
     var h = '<div class="row r4" style="margin-bottom:1rem">';

@@ -120,6 +120,17 @@ def test_cashier_can_use_pos_but_not_inventory_or_fiscal_reports(client, db):
     assert resp_fiscal.status_code == 403
 
 
+def test_cashier_cannot_read_cash_cut_financial_details(client, db):
+    _crear_usuario(db, RolUsuario.CAJERO, "cajero-corte-finanzas@test.com")
+    _crear_gasto(db)
+    headers = _login(client, "cajero-corte-finanzas@test.com")
+
+    assert client.get("/api/v1/reportes/gastos-hoy", headers=headers).status_code == 403
+    assert client.get("/api/v1/punto-de-venta/gastos-fijos", headers=headers).status_code == 403
+    assert client.get("/api/v1/reportes/gastos-fijos-resumen", headers=headers).status_code == 403
+    assert client.get("/api/v1/reportes/punto-equilibrio", headers=headers).status_code == 403
+
+
 def test_legacy_admin_permissions_get_new_modules_backfilled(client, db):
     admin = _crear_usuario(db, RolUsuario.ADMINISTRADOR, "admin-legacy-perms@test.com")
     admin.permisos_modulos = {
