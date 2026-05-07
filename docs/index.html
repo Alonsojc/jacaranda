@@ -876,21 +876,6 @@ h2{font-size:1.1rem}
 <p style="color:var(--mut);text-align:center;padding:1rem;font-size:.85rem">Cargando ventas...</p>
 </div>
 </div>
-<div class="card" data-admin-finance>
-<h3>Egresos del d&iacute;a</h3>
-<div class="srow"><span>Total gastos</span><span style="color:#b91c1c;font-weight:700" id="c-gastos-total">$0.00</span></div>
-<div class="srow"><span>Movimientos registrados</span><span id="c-gastos-num">0</span></div>
-<div id="c-gastos-list" style="max-height:200px;overflow-y:auto;margin-top:.5rem">
-<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin egresos hoy</p>
-</div>
-</div>
-<div class="card" data-admin-finance>
-<h3>Utilidad del d&iacute;a</h3>
-<div class="srow"><span>Ventas totales</span><span class="green" id="c-util-ventas">$0.00</span></div>
-<div class="srow"><span>Egresos</span><span style="color:#b91c1c" id="c-util-gastos">$0.00</span></div>
-<div class="srow" style="border-top:2px solid var(--brd);padding-top:.5rem;margin-top:.3rem"><span style="font-weight:700;font-size:1rem">Utilidad bruta</span><span style="font-weight:700;font-size:1.1rem" id="c-util-neta">$0.00</span></div>
-<p style="font-size:.72rem;color:var(--mut);margin-top:.5rem">* Utilidad bruta = ventas - compras de ingredientes - egresos variables del d&iacute;a. No incluye renta, n&oacute;mina ni otros gastos fijos.</p>
-</div>
 </div>
 
 <!-- Historial de ventas -->
@@ -919,25 +904,6 @@ h2{font-size:1.1rem}
 <div class="srow" style="font-weight:700"><span>Total</span><span class="green" id="hv-total">$0</span></div>
 <div class="srow"><span>Ventas</span><span id="hv-count">0</span></div>
 </div>
-</div>
-
-<!-- Gastos fijos -->
-<div class="card" style="margin-bottom:1rem" data-admin-finance>
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
-<h3 style="margin:0">Gastos fijos mensuales</h3>
-<button class="cobrar" style="width:auto;padding:.3rem .8rem;font-size:.78rem;margin:0" onclick="abrirNuevoGasto()">+ Agregar</button>
-</div>
-<div id="c-gastos-fijos-list"><p style="color:var(--mut);font-size:.83rem;text-align:center">Cargando...</p></div>
-<div id="c-gastos-fijos-total" style="display:none;border-top:2px solid var(--brd);padding-top:.5rem;margin-top:.5rem">
-<div class="srow" style="font-weight:700"><span>Total mensual</span><span id="c-gf-total">$0</span></div>
-<div class="srow"><span>Equivalente diario</span><span id="c-gf-diario" style="color:var(--mut)">$0</span></div>
-</div>
-</div>
-
-<!-- Punto de equilibrio -->
-<div class="card" style="margin-bottom:1rem" data-admin-finance>
-<h3>Punto de equilibrio</h3>
-<div id="c-punto-eq"><p style="color:var(--mut);font-size:.83rem;text-align:center">Cargando...</p></div>
 </div>
 
 <!-- Historial cortes -->
@@ -2329,7 +2295,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v55';
+var APP_BUILD = 'jacaranda-v56';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -6030,9 +5996,6 @@ function exportarCorte() {
   var trans = document.getElementById('c-total-trans').textContent;
   var total = document.getElementById('c-total').textContent;
   var tickets = document.getElementById('c-tickets').textContent;
-  var verFinanzas = puedeVerFinanzasCorte();
-  var gastos = verFinanzas ? document.getElementById('c-gastos-total').textContent : null;
-  var utilidad = verFinanzas ? document.getElementById('c-util-neta').textContent : null;
   var fondo = document.getElementById('c-fondo').value || '2000';
   var real = document.getElementById('c-real').value || '--';
   var dif = document.getElementById('c-dif').textContent;
@@ -6052,10 +6015,6 @@ function exportarCorte() {
   txt += '\ud83d\udcca *Resumen:*\n';
   txt += '  Total ventas: ' + total + '\n';
   txt += '  Tickets: ' + tickets + '\n';
-  if (verFinanzas) {
-    txt += '  Gastos (compras): ' + gastos + '\n';
-    txt += '  *Utilidad: ' + utilidad + '*\n';
-  }
   txt += '\n';
   txt += '\ud83d\udcdd *Caja:*\n';
   txt += '  Fondo: $' + fondo + '\n';
@@ -7062,19 +7021,10 @@ function cargarCorte() {
     _totalVentasDia = totalGeneral;
     var fondo = parseFloat(document.getElementById('c-fondo').value) || 0;
     document.getElementById('c-esperado').textContent = '$' + fmt(fondo + efTotal);
-    if (puedeVerFinanzasCorte()) {
-      document.getElementById('c-util-ventas').textContent = '$' + fmt(totalGeneral);
-      actualizarUtilidad();
-    }
   }).catch(function(){
     document.getElementById('c-ventas-list').innerHTML = '<p style="color:var(--mut);text-align:center;padding:.5rem;font-size:.85rem">Error al cargar ventas</p>';
   });
   cargarResumenCorte(hoy);
-  if (puedeVerFinanzasCorte()) {
-    cargarGastos(hoy);
-    cargarGastosFijos();
-    cargarPuntoEquilibrioCorte();
-  }
   cargarHistorialCortes();
   // Pre-fill historial dates (last 7 days)
   var hvff = document.getElementById('hv-ff');
@@ -7108,11 +7058,16 @@ function cargarResumenCorte(fecha) {
 
 function cargarGastos(fecha) {
   if (!puedeVerFinanzasCorte()) return Promise.resolve();
+  var totalEl = document.getElementById('c-gastos-total');
+  var numEl = document.getElementById('c-gastos-num');
+  var utilGastosEl = document.getElementById('c-util-gastos');
+  var listEl = document.getElementById('c-gastos-list');
+  if (!totalEl || !numEl || !utilGastosEl || !listEl) return Promise.resolve();
   var q = fecha ? '?fecha=' + fecha : '';
   api('GET', '/reportes/gastos-hoy' + q).then(function(g) {
-    document.getElementById('c-gastos-total').textContent = '$' + fmt(g.total_gastos);
-    document.getElementById('c-gastos-num').textContent = g.numero_movimientos || g.numero_compras || 0;
-    document.getElementById('c-util-gastos').textContent = '$' + fmt(g.total_gastos);
+    totalEl.textContent = '$' + fmt(g.total_gastos);
+    numEl.textContent = g.numero_movimientos || g.numero_compras || 0;
+    utilGastosEl.textContent = '$' + fmt(g.total_gastos);
     window._totalGastosDia = g.total_gastos;
     actualizarUtilidad();
     if (g.desglose.length) {
@@ -7124,12 +7079,12 @@ function cargarGastos(fecha) {
         h += '<div class="srow"><span><strong>' + escHtml(d.concepto || d.ingrediente || 'Egreso') + '</strong><br><small style="color:var(--mut)">' + escHtml(etiqueta) + (detalle ? ' &bull; ' + escHtml(detalle) : '') + (d.hora ? ' &bull; ' + escHtml(d.hora) : '') + '</small></span>';
         h += '<span>$' + fmt(d.total) + '</span></div>';
       }
-      document.getElementById('c-gastos-list').innerHTML = h;
+      listEl.innerHTML = h;
     } else {
-      document.getElementById('c-gastos-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin egresos hoy</p>';
+      listEl.innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin egresos hoy</p>';
     }
   }).catch(function(){
-    document.getElementById('c-gastos-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Error al cargar gastos</p>';
+    listEl.innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Error al cargar gastos</p>';
     window._totalGastosDia = 0;
   });
 }
@@ -7168,8 +7123,6 @@ function guardarEgreso() {
     toast('Egreso guardado');
     limpiarEgresoForm();
     cargarEgresos();
-    var fechaCorte = document.getElementById('c-fecha');
-    if (puedeVerFinanzasCorte() && fechaCorte && fechaCorte.value === data.fecha) cargarGastos(data.fecha);
   }).catch(function(e) { toast(e.message || 'Error al guardar egreso', true); });
 }
 
@@ -7228,8 +7181,6 @@ function borrarEgreso(id) {
   apiProtegida('DELETE', '/egresos/' + id, null, 'borrar egreso').then(function() {
     toast('Egreso borrado');
     cargarEgresos();
-    var fechaCorte = document.getElementById('c-fecha');
-    if (puedeVerFinanzasCorte() && fechaCorte && fechaCorte.value) cargarGastos(fechaCorte.value);
   }).catch(function(e) { if (e.message !== 'Autorización cancelada') toast(e.message || 'Error al borrar egreso', true); });
 }
 
@@ -7239,6 +7190,7 @@ function actualizarUtilidad() {
   var gastos = window._totalGastosDia || 0;
   var util = ventas - gastos;
   var el = document.getElementById('c-util-neta');
+  if (!el) return;
   el.textContent = '$' + fmt(util);
   el.style.color = util >= 0 ? 'var(--grn)' : '#b91c1c';
 }
@@ -7358,10 +7310,13 @@ function guardarCliente() {
 // ─── Gastos fijos ────────────────────────────────────────────────
 function cargarGastosFijos() {
   if (!puedeVerFinanzasCorte()) return Promise.resolve();
+  var listEl = document.getElementById('c-gastos-fijos-list');
+  var totalBox = document.getElementById('c-gastos-fijos-total');
+  if (!listEl || !totalBox) return Promise.resolve();
   api('GET', '/punto-de-venta/gastos-fijos').then(function(gastos) {
     if (!gastos.length) {
-      document.getElementById('c-gastos-fijos-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin gastos fijos. Agrega renta, luz, etc.</p>';
-      document.getElementById('c-gastos-fijos-total').style.display = 'none';
+      listEl.innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin gastos fijos. Agrega renta, luz, etc.</p>';
+      totalBox.style.display = 'none';
       return;
     }
     var h = '';
@@ -7380,12 +7335,14 @@ function cargarGastosFijos() {
       h += actionBtn('Eliminar', '&times;', 'eliminarGasto(' + g.id + ')', 'danger');
       h += '</span></div>';
     }
-    document.getElementById('c-gastos-fijos-list').innerHTML = h;
-    document.getElementById('c-gastos-fijos-total').style.display = 'block';
-    document.getElementById('c-gf-total').textContent = '$' + fmt(total);
-    document.getElementById('c-gf-diario').textContent = '$' + fmt(total / 30);
+    listEl.innerHTML = h;
+    totalBox.style.display = 'block';
+    var totalEl = document.getElementById('c-gf-total');
+    var diarioEl = document.getElementById('c-gf-diario');
+    if (totalEl) totalEl.textContent = '$' + fmt(total);
+    if (diarioEl) diarioEl.textContent = '$' + fmt(total / 30);
   }).catch(function() {
-    document.getElementById('c-gastos-fijos-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar</p>';
+    listEl.innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar</p>';
   });
 }
 
@@ -7439,6 +7396,8 @@ function eliminarGasto(id) {
 // ─── Punto de equilibrio ─────────────────────────────────────────
 function cargarPuntoEquilibrioCorte() {
   if (!puedeVerFinanzasCorte()) return Promise.resolve();
+  var el = document.getElementById('c-punto-eq');
+  if (!el) return Promise.resolve();
   Promise.all([
     api('GET', '/punto-de-venta/gastos-fijos'),
     api('GET', '/reportes/ventas-por-dia?dias=30')
@@ -7460,7 +7419,6 @@ function cargarPuntoEquilibrioCorte() {
     var promDiario = diasConVenta > 0 ? totalVentas / diasConVenta : 0;
     var costoDiario = costoMensual / 30;
     var ventasMes = promDiario * 30;
-    var el = document.getElementById('c-punto-eq');
     if (!gastos.length) {
       el.innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Agrega gastos fijos para calcular</p>';
       return;
@@ -7489,7 +7447,7 @@ function cargarPuntoEquilibrioCorte() {
     h += '</div>';
     el.innerHTML = h;
   }).catch(function() {
-    document.getElementById('c-punto-eq').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Error al calcular</p>';
+    el.innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Error al calcular</p>';
   });
 }
 
@@ -7593,10 +7551,6 @@ function exportarCorteCSV() {
   csv += 'Transferencia,' + (document.getElementById('c-total-trans').textContent.replace('$','').replace(/,/g,'')) + '\n';
   csv += 'Total Ventas,' + (document.getElementById('c-total').textContent.replace('$','').replace(/,/g,'')) + '\n';
   csv += 'Tickets,' + document.getElementById('c-tickets').textContent + '\n';
-  if (puedeVerFinanzasCorte()) {
-    csv += 'Gastos,' + (document.getElementById('c-gastos-total').textContent.replace('$','').replace(/,/g,'')) + '\n';
-    csv += 'Utilidad,' + (document.getElementById('c-util-neta').textContent.replace('$','').replace(/,/g,'')) + '\n';
-  }
   csv += '\nDetalle de ventas\n';
   csv += 'Folio,Hora,Metodo,Productos,Total,Estado\n';
   for (var i = 0; i < _corteVentas.length; i++) {
@@ -7620,11 +7574,6 @@ function compartirCorteWhatsApp() {
   txt += 'BBVA: ' + document.getElementById('c-total-bbva').textContent + '\n';
   txt += '\ud83c\udfe6 Transferencia: ' + document.getElementById('c-total-trans').textContent + '\n';
   txt += '*Total: ' + document.getElementById('c-total').textContent + '* (' + document.getElementById('c-tickets').textContent + ' tickets)\n\n';
-  if (puedeVerFinanzasCorte()) {
-    txt += '\ud83d\udcca *Resultado:*\n';
-    txt += 'Gastos: ' + document.getElementById('c-gastos-total').textContent + '\n';
-    txt += '*Utilidad: ' + document.getElementById('c-util-neta').textContent + '*';
-  }
   window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
 }
 
