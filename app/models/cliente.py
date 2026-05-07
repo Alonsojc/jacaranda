@@ -4,7 +4,9 @@ Cumple con requisitos de facturación CFDI 4.0 del SAT.
 """
 
 from datetime import date, datetime, timezone
-from sqlalchemy import String, Boolean, DateTime, Date, Text
+from decimal import Decimal
+
+from sqlalchemy import String, Boolean, DateTime, Date, Text, Numeric, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -37,9 +39,14 @@ class Cliente(Base):
     codigo_postal: Mapped[str | None] = mapped_column(String(5))
 
     # Programa de lealtad
+    cliente_frecuente: Mapped[bool] = mapped_column(Boolean, default=False)
     puntos_acumulados: Mapped[int] = mapped_column(default=0)
     nivel_lealtad: Mapped[str] = mapped_column(String(20), default="bronce")  # bronce, plata, oro
     puntos_totales_historicos: Mapped[int] = mapped_column(default=0)  # Para calcular nivel
+    monto_lealtad_acumulado: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), default=Decimal("0")
+    )
+    recompensas_lealtad_canjeadas: Mapped[int] = mapped_column(Integer, default=0)
     fecha_cumpleanos: Mapped[date | None] = mapped_column(Date)
     tarjeta_qr: Mapped[str | None] = mapped_column(String(100))  # UUID para tarjeta digital
     notas: Mapped[str | None] = mapped_column(Text)

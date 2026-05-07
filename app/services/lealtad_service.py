@@ -15,7 +15,12 @@ from app.models.lealtad import (
     Cupon, CuponCliente, HistorialPuntos,
     NivelLealtad, TipoCupon, EstadoCupon,
 )
+from app.core.config import settings
 from app.services.venta_service import PUNTOS_POR_PESO
+
+
+MONTO_RECOMPENSA_PASTEL_CHICO = Decimal("10000")
+RECOMPENSA_NOMBRE = "Pastel chico gratis"
 
 
 # ── Niveles ──────────────────────────────────────────────────────────
@@ -68,6 +73,9 @@ def acumular_puntos(
     saldo_anterior = cliente.puntos_acumulados
     cliente.puntos_acumulados += puntos_ganados
     cliente.puntos_totales_historicos += puntos_ganados
+    cliente.monto_lealtad_acumulado = (
+        Decimal(str(cliente.monto_lealtad_acumulado or 0)) + monto_venta
+    )
 
     # Recalcular nivel despues de acumular
     nuevo_nivel = calcular_nivel(cliente.puntos_totales_historicos)
@@ -89,10 +97,76 @@ def acumular_puntos(
         "multiplicador": mult,
         "nivel": nuevo_nivel.value,
         "saldo": cliente.puntos_acumulados,
+        "monto_acumulado": cliente.monto_lealtad_acumulado,
+        "recompensas_disponibles": recompensas_disponibles(cliente),
     }
 
 
 # ── Tarjeta digital QR ──────────────────────────────────────────────
+
+def _url_tarjeta_cliente(qr_code: str) -> str:
+    base = settings.FRONTEND_URL.rstrip("/") + "/"
+    return f"{base}#cliente/{qr_code}"
+
+
+def _whatsapp_tarjeta_url(cliente: Cliente) -> str | None:
+    if not cliente.telefono or not cliente.tarjeta_qr:
+        return None
+    tel = "".join(ch for ch in cliente.telefono if ch.isdigit())
+    if len(tel) == 10:
+        tel = "52" + tel
+    if not tel:
+        return None
+    link = _url_tarjeta_cliente(cliente.tarjeta_qr)
+    mensaje = (
+        "Hola "
+        + cliente.nombre
+        + ", aqui esta tu tarjeta de cliente frecuente Jacaranda: "
+        + link
+    )
+    from urllib.parse import quote
+
+    return f"https://wa.me/{tel}?text={quote(mensaje)}"
+
+
+def recompensas_disponibles(cliente: Cliente) -> int:
+    monto = Decimal(str(cliente.monto_lealtad_acumulado or 0))
+    generadas = int(monto // MONTO_RECOMPENSA_PASTEL_CHICO)
+    return max(0, generadas - int(cliente.recompensas_lealtad_canjeadas or 0))
+
+
+def progreso_recompensa(cliente: Cliente) -> dict:
+    monto = Decimal(str(cliente.monto_lealtad_acumulado or 0))
+    restante = MONTO_RECOMPENSA_PASTEL_CHICO - (monto % MONTO_RECOMPENSA_PASTEL_CHICO)
+    if restante == MONTO_RECOMPENSA_PASTEL_CHICO and monto > 0:
+        restante = Decimal("0")
+    progreso = Decimal("0")
+    if MONTO_RECOMPENSA_PASTEL_CHICO > 0:
+        progreso = min(
+            Decimal("100"),
+            ((monto % MONTO_RECOMPENSA_PASTEL_CHICO) / MONTO_RECOMPENSA_PASTEL_CHICO)
+            * Decimal("100"),
+        )
+        if recompensas_disponibles(cliente) > 0:
+            progreso = Decimal("100")
+    return {
+        "nombre": RECOMPENSA_NOMBRE,
+        "monto_meta": float(MONTO_RECOMPENSA_PASTEL_CHICO),
+        "monto_acumulado": float(monto),
+        "monto_restante": float(max(Decimal("0"), restante)),
+        "progreso_porcentaje": float(progreso.quantize(Decimal("0.01"))),
+        "disponibles": recompensas_disponibles(cliente),
+        "canjeadas": int(cliente.recompensas_lealtad_canjeadas or 0),
+    }
+
+
+def _generar_qr_unico(db: Session) -> str:
+    for _ in range(5):
+        codigo = str(uuid.uuid4())
+        existe = db.query(Cliente.id).filter(Cliente.tarjeta_qr == codigo).first()
+        if not existe:
+            return codigo
+    raise ValueError("No se pudo generar una tarjeta unica")
 
 def generar_tarjeta_qr(db: Session, cliente_id: int) -> dict:
     """Genera un UUID unico para la tarjeta QR del cliente."""
@@ -100,14 +174,17 @@ def generar_tarjeta_qr(db: Session, cliente_id: int) -> dict:
     if not cliente:
         raise ValueError("Cliente no encontrado")
 
-    qr_code = str(uuid.uuid4())
+    qr_code = cliente.tarjeta_qr or _generar_qr_unico(db)
     cliente.tarjeta_qr = qr_code
+    cliente.cliente_frecuente = True
     db.flush()
 
     return {
         "cliente_id": cliente.id,
         "nombre": cliente.nombre,
         "tarjeta_qr": qr_code,
+        "url_publica": _url_tarjeta_cliente(qr_code),
+        "whatsapp_url": _whatsapp_tarjeta_url(cliente),
     }
 
 
@@ -120,10 +197,16 @@ def obtener_tarjeta(db: Session, cliente_id: int) -> dict:
     return {
         "cliente_id": cliente.id,
         "nombre": cliente.nombre,
+        "telefono": cliente.telefono,
+        "cliente_frecuente": cliente.cliente_frecuente,
         "nivel": cliente.nivel_lealtad,
         "puntos_acumulados": cliente.puntos_acumulados,
         "puntos_totales_historicos": cliente.puntos_totales_historicos,
+        "monto_lealtad_acumulado": float(cliente.monto_lealtad_acumulado or 0),
+        "recompensa": progreso_recompensa(cliente),
         "tarjeta_qr": cliente.tarjeta_qr,
+        "url_publica": _url_tarjeta_cliente(cliente.tarjeta_qr) if cliente.tarjeta_qr else None,
+        "whatsapp_url": _whatsapp_tarjeta_url(cliente),
     }
 
 
@@ -133,6 +216,22 @@ def buscar_por_qr(db: Session, qr_code: str) -> Cliente | None:
         Cliente.tarjeta_qr == qr_code,
         Cliente.activo.is_(True),
     ).first()
+
+
+def obtener_tarjeta_publica(db: Session, qr_code: str) -> dict:
+    """Obtiene tarjeta publica sin datos sensibles para el cliente final."""
+    cliente = buscar_por_qr(db, qr_code)
+    if not cliente:
+        raise ValueError("Tarjeta no encontrada")
+    return {
+        "nombre": cliente.nombre,
+        "nivel": cliente.nivel_lealtad,
+        "puntos_acumulados": cliente.puntos_acumulados,
+        "monto_lealtad_acumulado": float(cliente.monto_lealtad_acumulado or 0),
+        "recompensa": progreso_recompensa(cliente),
+        "tarjeta_qr": cliente.tarjeta_qr,
+        "url_publica": _url_tarjeta_cliente(cliente.tarjeta_qr),
+    }
 
 
 # ── Cupones ──────────────────────────────────────────────────────────

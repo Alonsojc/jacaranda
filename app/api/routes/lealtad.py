@@ -105,6 +105,18 @@ def obtener_tarjeta(
     return tarjeta
 
 
+@router.get("/publico/{qr_code}")
+def obtener_tarjeta_publica(
+    qr_code: str,
+    db: Session = Depends(get_db),
+):
+    """Obtiene la tarjeta publica del cliente sin exponer datos sensibles."""
+    try:
+        return lealtad_service.obtener_tarjeta_publica(db, qr_code)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.get("/tarjeta-qr/{qr_code}")
 def buscar_por_qr(
     qr_code: str,
@@ -120,6 +132,8 @@ def buscar_por_qr(
         "nombre": cliente.nombre,
         "nivel": cliente.nivel_lealtad,
         "puntos_acumulados": cliente.puntos_acumulados,
+        "monto_lealtad_acumulado": float(cliente.monto_lealtad_acumulado or 0),
+        "recompensa": lealtad_service.progreso_recompensa(cliente),
     }
 
 

@@ -458,6 +458,17 @@ h2{font-size:1.1rem}
 </div>
 <div class="wrap">
 
+<!-- TARJETA PUBLICA CLIENTE -->
+<div class="page" id="cliente-publico">
+<div class="card" style="max-width:520px;margin:2rem auto;text-align:center;overflow:hidden">
+<div style="font-family:'DM Serif Display',serif;font-size:1.7rem;color:var(--v);letter-spacing:.12em">Jacaranda</div>
+<div style="font-size:.72rem;color:var(--mut);letter-spacing:.16em;margin-bottom:1rem">sharing flavors</div>
+<div id="cliente-publico-content">
+<p style="color:var(--mut);font-size:.9rem;padding:1rem">Cargando tarjeta...</p>
+</div>
+</div>
+</div>
+
 <!-- DASHBOARD -->
 <div class="page on" id="dash">
 <h2 style="margin-bottom:.3rem">Dashboard</h2>
@@ -606,6 +617,7 @@ h2{font-size:1.1rem}
 <select id="pos-cliente" onchange="selClientePOS()" style="flex:1;padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit">
 <option value="">P&uacute;blico general</option>
 </select>
+<button type="button" class="limpiar" onclick="abrirEscanerCliente()" style="width:auto;margin:0;padding:.38rem .55rem;font-size:.76rem;white-space:nowrap">&#128247; Escanear</button>
 <span id="pos-puntos" style="font-size:.75rem;color:var(--mut);white-space:nowrap;display:none"></span>
 </div>
 <div style="font-size:.78rem;color:var(--mut);margin:.4rem 0 .3rem;font-weight:600">M&eacute;todo de pago:</div>
@@ -1904,10 +1916,26 @@ h2{font-size:1.1rem}
 <div class="fg"><label>RFC (facturaci&oacute;n)</label><input id="mc-rfc" placeholder="XAXX010101000" maxlength="13" style="text-transform:uppercase"></div>
 <div class="fg"><label>R&eacute;gimen fiscal</label><input id="mc-regimen" placeholder="612"></div>
 </div>
+<label style="display:flex;align-items:center;gap:.5rem;margin:.2rem 0 .7rem;color:var(--txt);font-size:.84rem;font-weight:600">
+<input type="checkbox" id="mc-frecuente" style="width:18px;height:18px;accent-color:var(--v)"> Cliente frecuente
+</label>
 <div class="fg"><label>Notas</label><input id="mc-notas" placeholder=""></div>
 <div style="display:flex;gap:.5rem;margin-top:1rem">
 <button class="cobrar" style="flex:1" onclick="guardarCliente()">Guardar</button>
 <button class="limpiar" style="flex:1" onclick="cerrarModal('modal-cliente')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Escanear cliente frecuente -->
+<div class="modal-bg" id="modal-scan-cliente">
+<div class="modal" style="max-width:420px">
+<h3>Escanear cliente</h3>
+<div id="scan-reader" style="width:100%;min-height:260px;background:#fdf9f7;border:1px solid var(--brd);border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:.83rem;text-align:center;padding:.8rem">Preparando c&aacute;mara...</div>
+<div class="fg" style="margin-top:.8rem"><label>C&oacute;digo QR o link</label><input id="scan-code" placeholder="Pega el link o c&oacute;digo del cliente"></div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="cobrar" style="flex:1" onclick="buscarClienteEscaneado()">Usar cliente</button>
+<button class="limpiar" style="flex:1" onclick="cerrarModal('modal-scan-cliente')">Cancelar</button>
 </div>
 </div>
 </div>
@@ -2295,7 +2323,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v58';
+var APP_BUILD = 'jacaranda-v59';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -2426,6 +2454,8 @@ var REFRESH_TOKEN = localStorage.getItem('jacaranda_refresh_token') || '';
 var API_TIMEOUT_MS = 25000;
 var CHART_JS_SRC = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js';
 var JSPDF_SRC = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js';
+var QR_CODE_SRC = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js';
+var HTML5_QRCODE_SRC = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
 var FIREBASE_APP_SRC = 'https://www.gstatic.com/firebasejs/12.7.0/firebase-app-compat.js';
 var FIREBASE_MSG_SRC = 'https://www.gstatic.com/firebasejs/12.7.0/firebase-messaging-compat.js';
 var FCM_TOKEN_KEY = 'jacaranda_fcm_token';
@@ -2459,6 +2489,14 @@ function ensureChart() {
 
 function ensureJsPDF() {
   return loadScriptOnce(JSPDF_SRC, function() { return !!(window.jspdf && window.jspdf.jsPDF); });
+}
+
+function ensureQRCode() {
+  return loadScriptOnce(QR_CODE_SRC, function() { return !!(window.QRCode && window.QRCode.toCanvas); });
+}
+
+function ensureHtml5QrCode() {
+  return loadScriptOnce(HTML5_QRCODE_SRC, function() { return !!window.Html5Qrcode; });
 }
 
 function api(method, path, body, _retry, extraHeaders) {
@@ -2531,6 +2569,117 @@ function api(method, path, body, _retry, extraHeaders) {
     return _apiGetInFlight[dedupeKey];
   }
   return request;
+}
+
+function apiPublic(method, path, body) {
+  var opts = {method: method, headers: {'Content-Type':'application/json'}};
+  var controller = window.AbortController ? new AbortController() : null;
+  var timeoutId = null;
+  if (controller) {
+    opts.signal = controller.signal;
+    timeoutId = setTimeout(function() { controller.abort(); }, API_TIMEOUT_MS);
+  }
+  if (body) opts.body = JSON.stringify(body);
+  return fetch(API_URL + '/api/v1' + path, opts).then(function(r) {
+    if (timeoutId) clearTimeout(timeoutId);
+    if (!r.ok) return r.json().catch(function(){return {};}).then(function(body){
+      var msg = typeof body.detail === 'string' ? body.detail : (body.message || r.status);
+      var e = new Error(msg);
+      e.status = r.status;
+      throw e;
+    });
+    return r.json();
+  }).catch(function(e) {
+    if (timeoutId) clearTimeout(timeoutId);
+    if (e && e.name === 'AbortError') throw new Error('El servidor tardó demasiado en responder');
+    if (e && (e.name === 'TypeError' || /failed to fetch/i.test(e.message || ''))) {
+      var netErr = new Error('No se pudo conectar al servidor');
+      netErr.status = 0;
+      throw netErr;
+    }
+    throw e;
+  });
+}
+
+function codigoTarjetaDesdeTexto(valor) {
+  valor = String(valor || '').trim();
+  if (!valor) return '';
+  var hashMatch = valor.match(/#cliente\/([^?#\s]+)/);
+  if (hashMatch) return decodeURIComponent(hashMatch[1]);
+  var queryMatch = valor.match(/[?&]cliente=([^&#\s]+)/);
+  if (queryMatch) return decodeURIComponent(queryMatch[1]);
+  return valor.replace(/^LOY-?/i, '').trim();
+}
+
+function esRutaClientePublica() {
+  return /^#cliente\/[^/]+/.test(location.hash || '');
+}
+
+function codigoClientePublico() {
+  return codigoTarjetaDesdeTexto((location.hash || '').replace(/^#cliente\//, ''));
+}
+
+function dibujarQR(canvasId, texto, size) {
+  return ensureQRCode().then(function() {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    return window.QRCode.toCanvas(canvas, texto, {
+      width: size || 220,
+      margin: 1,
+      color: {dark: '#4a3530', light: '#ffffff'}
+    });
+  }).catch(function(e) {
+    console.warn('No se pudo dibujar QR:', e);
+  });
+}
+
+function mostrarTarjetaClientePublica() {
+  var code = codigoClientePublico();
+  document.getElementById('login-screen').style.display = 'none';
+  document.querySelector('nav').style.display = 'none';
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('on'); });
+  document.getElementById('cliente-publico').classList.add('on');
+  var box = document.getElementById('cliente-publico-content');
+  box.innerHTML = '<p style="color:var(--mut);font-size:.9rem;padding:1rem">Cargando tarjeta...</p>';
+  if (!code) {
+    box.innerHTML = '<p style="color:#b91c1c;font-size:.9rem;padding:1rem">Tarjeta no encontrada.</p>';
+    return;
+  }
+  apiPublic('GET', '/lealtad/publico/' + encodeURIComponent(code)).then(function(t) {
+    var r = t.recompensa || {};
+    var progreso = Math.max(0, Math.min(100, parseFloat(r.progreso_porcentaje) || 0));
+    var link = t.url_publica || (APP_URL + '#cliente/' + t.tarjeta_qr);
+    var disponible = parseInt(r.disponibles || 0, 10);
+    var h = '';
+    h += '<div style="background:linear-gradient(135deg,#faf3f0,#fff);border:1px solid var(--brd);border-radius:16px;padding:1.1rem;margin:.5rem 0 1rem">';
+    h += '<div style="font-size:.75rem;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Cliente frecuente</div>';
+    h += '<div style="font-family:&quot;DM Serif Display&quot;,serif;font-size:1.8rem;color:var(--dk);line-height:1.1;margin:.25rem 0">' + escHtml(t.nombre) + '</div>';
+    h += '<div style="display:flex;justify-content:center;margin:1rem 0"><canvas id="cliente-publico-qr" width="220" height="220" style="border:1px solid var(--brd);border-radius:12px;padding:.45rem;background:#fff"></canvas></div>';
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin:.8rem 0">';
+    h += '<div style="background:#fff;border:1px solid var(--brd);border-radius:10px;padding:.65rem"><div style="font-size:1.35rem;font-weight:800;color:var(--v)">' + (t.puntos_acumulados || 0) + '</div><div style="font-size:.72rem;color:var(--mut)">puntos</div></div>';
+    h += '<div style="background:#fff;border:1px solid var(--brd);border-radius:10px;padding:.65rem"><div style="font-size:1.35rem;font-weight:800;color:var(--grn)">$' + fmt(t.monto_lealtad_acumulado || 0) + '</div><div style="font-size:.72rem;color:var(--mut)">acumulado</div></div>';
+    h += '</div>';
+    h += '<div style="text-align:left;margin-top:.8rem">';
+    h += '<div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--mut);font-weight:700;margin-bottom:.35rem"><span>' + escHtml(r.nombre || 'Pastel chico gratis') + '</span><span>' + progreso.toFixed(0) + '%</span></div>';
+    h += '<div style="height:10px;background:#f5eeeb;border-radius:999px;overflow:hidden"><div style="height:100%;width:' + progreso + '%;background:var(--grn);border-radius:999px"></div></div>';
+    h += '<div style="font-size:.78rem;color:' + (disponible ? 'var(--grn)' : 'var(--mut)') + ';margin-top:.45rem;font-weight:700">' + (disponible ? disponible + ' recompensa disponible' : 'Faltan $' + fmt(r.monto_restante || 0) + ' para tu siguiente recompensa') + '</div>';
+    h += '</div></div>';
+    h += '<button class="cobrar" style="width:100%;margin-top:.4rem" onclick="descargarQRClientePublico()">Descargar QR</button>';
+    h += '<p style="font-size:.72rem;color:var(--mut);margin-top:.7rem;line-height:1.35">Presenta este QR en Jacaranda para acumular compras. La recompensa se valida en caja.</p>';
+    box.innerHTML = h;
+    dibujarQR('cliente-publico-qr', link, 220);
+  }).catch(function(e) {
+    box.innerHTML = '<p style="color:#b91c1c;font-size:.9rem;padding:1rem">' + escHtml(e.message || 'Tarjeta no encontrada') + '</p>';
+  });
+}
+
+function descargarQRClientePublico() {
+  var canvas = document.getElementById('cliente-publico-qr');
+  if (!canvas) return;
+  var a = document.createElement('a');
+  a.href = canvas.toDataURL('image/png');
+  a.download = 'jacaranda-cliente-frecuente.png';
+  a.click();
 }
 
 var _dashGetCache = {};
@@ -6422,6 +6571,7 @@ function cargarInventarioCompleto() {
 // ─── Edit modals ─────────────────────────────────────────────────
 function cerrarModal(id) {
   if (id === 'modal-admin-auth') { cancelarAdminAuth(); return; }
+  if (id === 'modal-scan-cliente') detenerEscanerCliente();
   document.getElementById(id).classList.remove('on');
 }
 
@@ -6430,6 +6580,7 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
     document.querySelectorAll('.modal-bg.on').forEach(function(m) {
       if (m.id === 'modal-admin-auth') cancelarAdminAuth();
+      else if (m.id === 'modal-scan-cliente') cerrarModal('modal-scan-cliente');
       else m.classList.remove('on');
     });
   }
@@ -6437,6 +6588,7 @@ document.addEventListener('keydown', function(e) {
 document.addEventListener('click', function(e) {
   if (e.target.classList.contains('modal-bg')) {
     if (e.target.id === 'modal-admin-auth') cancelarAdminAuth();
+    else if (e.target.id === 'modal-scan-cliente') cerrarModal('modal-scan-cliente');
     else e.target.classList.remove('on');
   }
 });
@@ -7299,7 +7451,7 @@ function realizarCorte() {
 function cargarListaClientes() {
   api('GET', '/clientes/').then(function(cls) {
     if (!cls.length) { document.getElementById('l-clientes-tbl').innerHTML = '<p style="color:var(--mut)">Sin clientes registrados</p>'; return; }
-    var h = '<table class="tbl"><tr><th>Nombre</th><th>Tel&eacute;fono</th><th>Email</th><th>RFC</th><th>Puntos</th></tr>';
+    var h = '<table class="tbl"><tr><th>Nombre</th><th>Tel&eacute;fono</th><th>Email</th><th>RFC</th><th>Puntos</th><th>Frecuente</th><th>Tarjeta</th></tr>';
     for (var i = 0; i < cls.length; i++) {
       var c = cls[i];
       h += '<tr style="cursor:pointer" onclick="verHistorialCliente(' + c.id + ')">';
@@ -7308,6 +7460,8 @@ function cargarListaClientes() {
       h += '<td style="font-size:.78rem">' + (c.email || '-') + '</td>';
       h += '<td style="font-size:.78rem">' + (c.rfc || '-') + '</td>';
       h += '<td>' + (c.puntos_acumulados || 0) + '</td>';
+      h += '<td><span class="badge ' + (c.cliente_frecuente ? 'bok' : 'bpend') + '">' + (c.cliente_frecuente ? 'S&iacute;' : 'No') + '</span></td>';
+      h += '<td>' + actionBtn(c.cliente_frecuente ? 'Enviar tarjeta' : 'Activar y enviar', '&#128172;', 'enviarTarjetaCliente(' + c.id + ',event)', '') + '</td>';
       h += '</tr>';
     }
     h += '</table>';
@@ -7348,6 +7502,27 @@ function verHistorialCliente(id) {
   }).catch(function() { toast('Error al cargar historial', true); });
 }
 
+function enviarTarjetaCliente(id, ev) {
+  if (ev) ev.stopPropagation();
+  api('GET', '/lealtad/tarjeta/' + id).then(function(t) {
+    var link = t.url_publica || (APP_URL + '#cliente/' + t.tarjeta_qr);
+    var txt = 'Hola ' + (t.nombre || '') + ', aqui esta tu tarjeta de cliente frecuente Jacaranda: ' + link;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).catch(function() {});
+    }
+    if (t.whatsapp_url) {
+      window.open(t.whatsapp_url, '_blank');
+    } else {
+      abrirWhatsAppConFallback(txt);
+    }
+    toast('Link de tarjeta listo');
+    cargarListaClientes();
+    cargarClientesPOS();
+  }).catch(function(e) {
+    toast(e.message || 'No se pudo generar la tarjeta', true);
+  });
+}
+
 function nuevoCliente() {
   document.getElementById('mc-nombre').value = '';
   document.getElementById('mc-tel').value = '';
@@ -7355,6 +7530,7 @@ function nuevoCliente() {
   document.getElementById('mc-rfc').value = '';
   document.getElementById('mc-regimen').value = '';
   document.getElementById('mc-notas').value = '';
+  document.getElementById('mc-frecuente').checked = false;
   document.getElementById('modal-cliente').classList.add('on');
 }
 
@@ -7368,6 +7544,7 @@ function guardarCliente() {
     rfc: document.getElementById('mc-rfc').value.trim().toUpperCase() || null,
     regimen_fiscal: document.getElementById('mc-regimen').value.trim() || null,
     notas: document.getElementById('mc-notas').value.trim() || null,
+    cliente_frecuente: document.getElementById('mc-frecuente').checked,
   }).then(function() {
     toast('Cliente creado');
     cerrarModal('modal-cliente');
@@ -8810,6 +8987,8 @@ function cargarReporteCofepris() {
 
 // ─── Puntos de lealtad en POS ─────────────────────────────────────
 var _posClientes = [];
+var _clienteScanner = null;
+var _clienteScanEnProceso = false;
 
 function cargarClientesPOS() {
   api('GET', '/clientes/').then(function(clientes) {
@@ -8830,14 +9009,96 @@ function selClientePOS() {
   var cid = sel.value;
   if (!cid) { puntosEl.style.display = 'none'; return; }
   api('GET', '/clientes/' + cid + '/puntos').then(function(r) {
-    if (r.puntos > 0) {
-      puntosEl.style.display = 'inline';
-      puntosEl.innerHTML = r.puntos + ' pts = $' + fmt(r.descuento_disponible);
+    var recompensa = r.recompensa || {};
+    var disponibles = parseInt(recompensa.disponibles || 0, 10);
+    puntosEl.style.display = 'inline';
+    if (disponibles > 0) {
+      puntosEl.innerHTML = '&#127873; ' + escHtml(recompensa.nombre || 'Pastel chico gratis') + ' disponible';
+    } else if (r.puntos > 0) {
+      var faltan = recompensa.monto_restante ? ' · faltan $' + fmt(recompensa.monto_restante) : '';
+      puntosEl.innerHTML = r.puntos + ' pts = $' + fmt(r.descuento_disponible) + faltan;
     } else {
-      puntosEl.style.display = 'inline';
       puntosEl.innerHTML = '0 pts';
     }
   }).catch(function() { puntosEl.style.display = 'none'; });
+}
+
+function abrirEscanerCliente() {
+  var modal = document.getElementById('modal-scan-cliente');
+  var reader = document.getElementById('scan-reader');
+  var codeInput = document.getElementById('scan-code');
+  if (codeInput) codeInput.value = '';
+  if (reader) reader.innerHTML = 'Preparando c&aacute;mara...';
+  modal.classList.add('on');
+  detenerEscanerCliente();
+  ensureHtml5QrCode().then(function() {
+    _clienteScanner = new Html5Qrcode('scan-reader');
+    return _clienteScanner.start(
+      {facingMode: 'environment'},
+      {fps: 10, qrbox: {width: 240, height: 240}},
+      function(decodedText) {
+        if (_clienteScanEnProceso) return;
+        document.getElementById('scan-code').value = decodedText;
+        buscarClienteEscaneado();
+      }
+    );
+  }).catch(function(e) {
+    console.warn('No se pudo iniciar escaner QR:', e);
+    if (reader) {
+      reader.innerHTML = '<div><strong>No se pudo abrir la c&aacute;mara.</strong><br><span style="font-size:.78rem">Pega el link o c&oacute;digo del cliente abajo.</span></div>';
+    }
+  });
+}
+
+function detenerEscanerCliente() {
+  if (!_clienteScanner) return;
+  var scanner = _clienteScanner;
+  _clienteScanner = null;
+  try {
+    scanner.stop().then(function() {
+      try { scanner.clear(); } catch(e) {}
+    }).catch(function() {
+      try { scanner.clear(); } catch(e) {}
+    });
+  } catch(e) {
+    try { scanner.clear(); } catch(err) {}
+  }
+}
+
+function buscarClienteEscaneado() {
+  if (_clienteScanEnProceso) return;
+  var raw = document.getElementById('scan-code').value;
+  var code = codigoTarjetaDesdeTexto(raw);
+  if (!code) { toast('Pega o escanea un c&oacute;digo de cliente', true); return; }
+  _clienteScanEnProceso = true;
+  api('GET', '/lealtad/tarjeta-qr/' + encodeURIComponent(code)).then(function(data) {
+    aplicarClienteEscaneado(data);
+    _clienteScanEnProceso = false;
+  }).catch(function(e) {
+    _clienteScanEnProceso = false;
+    toast(e.message || 'Cliente no encontrado', true);
+  });
+}
+
+function aplicarClienteEscaneado(data) {
+  detenerEscanerCliente();
+  var sel = document.getElementById('pos-cliente');
+  var id = String(data.cliente_id || '');
+  if (!id) return;
+  var exists = false;
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === id) { exists = true; break; }
+  }
+  if (!exists) {
+    var opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = data.nombre + (data.puntos_acumulados ? ' (' + data.puntos_acumulados + ' pts)' : '');
+    sel.appendChild(opt);
+  }
+  sel.value = id;
+  selClientePOS();
+  cerrarModal('modal-scan-cliente');
+  toast('Cliente seleccionado: ' + data.nombre);
 }
 
 // ─── Exportar reportes a CSV ──────────────────────────────────────
@@ -10331,6 +10592,12 @@ function programarAutoReconnect() {
 }
 
 function autoConectar() {
+  if (esRutaClientePublica()) {
+    mostrarTarjetaClientePublica();
+    return;
+  }
+  var nav = document.querySelector('nav');
+  if (nav) nav.style.display = 'flex';
   if (esArchivoLocal()) {
     TOKEN = '';
     REFRESH_TOKEN = '';
@@ -10384,6 +10651,9 @@ function autoConectar() {
 }
 
 actualizarBannerOffline();
+window.addEventListener('hashchange', function() {
+  if (esRutaClientePublica()) mostrarTarjetaClientePublica();
+});
 autoConectar();
 
 // ─── Compras y Proveedores ─────────────────────────────────────────

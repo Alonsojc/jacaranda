@@ -154,6 +154,28 @@ def ensure_runtime_schema(engine: Engine) -> None:
                 f"ON {table_name} (idempotency_key)"
             ))
 
+        if "clientes" in tables:
+            cliente_columns = {col["name"] for col in inspector.get_columns("clientes")}
+            for column_name, column_type, default, nullable in (
+                ("cliente_frecuente", Boolean(), "false", False),
+                ("monto_lealtad_acumulado", Numeric(14, 2), "0", False),
+                ("recompensas_lealtad_canjeadas", Integer(), "0", False),
+            ):
+                _add_column_if_missing(
+                    conn,
+                    engine,
+                    "clientes",
+                    cliente_columns,
+                    column_name,
+                    column_type,
+                    server_default=default,
+                    nullable=nullable,
+                )
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_clientes_tarjeta_qr "
+                "ON clientes (tarjeta_qr)"
+            ))
+
         if "pedidos" in tables:
             pedido_columns = {col["name"] for col in inspector.get_columns("pedidos")}
             # Delivery/reserva fields were added after some production databases

@@ -71,6 +71,11 @@ class TestLealtad:
         assert data["cliente_id"] == cid
         assert data["tarjeta_qr"] is not None
         assert data["nivel"] == "bronce"
+        assert data["cliente_frecuente"] is True
+        assert data["url_publica"].endswith(f"#cliente/{data['tarjeta_qr']}")
+        assert "wa.me/52" in data["whatsapp_url"]
+        assert data["recompensa"]["nombre"] == "Pastel chico gratis"
+        assert data["recompensa"]["monto_meta"] == 10000.0
 
     def test_buscar_por_qr(self, client, auth_headers):
         cid = self._crear_cliente(client, auth_headers)
@@ -82,6 +87,22 @@ class TestLealtad:
         resp2 = client.get(f"/api/v1/lealtad/tarjeta-qr/{qr_code}", headers=auth_headers)
         assert resp2.status_code == 200
         assert resp2.json()["cliente_id"] == cid
+        assert resp2.json()["recompensa"]["disponibles"] == 0
+
+    def test_tarjeta_publica_no_expone_datos_sensibles(self, client, auth_headers):
+        cid = self._crear_cliente(client, auth_headers, cliente_frecuente=True)
+        resp = client.get(f"/api/v1/lealtad/tarjeta/{cid}", headers=auth_headers)
+        assert resp.status_code == 200
+        qr_code = resp.json()["tarjeta_qr"]
+
+        publica = client.get(f"/api/v1/lealtad/publico/{qr_code}")
+        assert publica.status_code == 200
+        data = publica.json()
+        assert data["nombre"] == "María García"
+        assert data["tarjeta_qr"] == qr_code
+        assert data["url_publica"].endswith(f"#cliente/{qr_code}")
+        assert "telefono" not in data
+        assert "email" not in data
 
     def test_buscar_qr_inexistente(self, client, auth_headers):
         resp = client.get("/api/v1/lealtad/tarjeta-qr/no-existe-qr", headers=auth_headers)

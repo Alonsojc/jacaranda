@@ -9,6 +9,7 @@ from app.core.dependencies import require_permission
 from app.models.cliente import Cliente
 from app.models.usuario import Usuario
 from app.schemas.cliente import ClienteCreate, ClienteUpdate, ClienteResponse
+from app.services import lealtad_service
 from app.services.venta_service import VALOR_PUNTO
 
 router = APIRouter()
@@ -22,6 +23,9 @@ def crear_cliente(
 ):
     cliente = Cliente(**data.model_dump())
     db.add(cliente)
+    db.flush()
+    if cliente.cliente_frecuente:
+        lealtad_service.generar_tarjeta_qr(db, cliente.id)
     db.commit()
     db.refresh(cliente)
     return cliente
@@ -66,11 +70,14 @@ def actualizar_cliente(
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     _ALLOWED_FIELDS = {"nombre", "telefono", "email", "rfc", "razon_social",
-                        "regimen_fiscal", "domicilio_fiscal_cp", "uso_cfdi", "activo"}
+                        "regimen_fiscal", "domicilio_fiscal_cp", "uso_cfdi",
+                        "cliente_frecuente", "activo"}
     for key, value in data.model_dump(exclude_unset=True).items():
         if key not in _ALLOWED_FIELDS:
             continue
         setattr(cliente, key, value)
+    if cliente.cliente_frecuente and not cliente.tarjeta_qr:
+        lealtad_service.generar_tarjeta_qr(db, cliente.id)
     db.commit()
     db.refresh(cliente)
     return cliente
@@ -110,6 +117,9 @@ def consultar_puntos(
         "puntos": cliente.puntos_acumulados,
         "valor_punto": float(VALOR_PUNTO),
         "descuento_disponible": float(Decimal(str(cliente.puntos_acumulados)) * VALOR_PUNTO),
+        "cliente_frecuente": cliente.cliente_frecuente,
+        "monto_lealtad_acumulado": float(cliente.monto_lealtad_acumulado or 0),
+        "recompensa": lealtad_service.progreso_recompensa(cliente),
     }
 
 

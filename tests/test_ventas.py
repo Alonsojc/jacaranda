@@ -175,6 +175,7 @@ class TestVentas:
 
     def test_cancelar_venta_revierte_puntos_y_audita(self, client, auth_headers, db):
         from app.models.auditoria import LogAuditoria
+        from app.models.cliente import Cliente
         from app.models.lealtad import HistorialPuntos
 
         cliente = client.post("/api/v1/clientes/", json={
@@ -193,6 +194,8 @@ class TestVentas:
         }, headers=auth_headers).json()
         puntos = client.get(f"/api/v1/clientes/{cliente['id']}/puntos", headers=auth_headers).json()
         assert puntos["puntos"] == 10
+        cliente_db = db.query(Cliente).filter(Cliente.id == cliente["id"]).first()
+        assert float(cliente_db.monto_lealtad_acumulado) == float(venta["total"])
 
         resp = client.post(
             f"/api/v1/punto-de-venta/ventas/{venta['id']}/cancelar",
@@ -201,6 +204,8 @@ class TestVentas:
         assert resp.status_code == 200
         puntos = client.get(f"/api/v1/clientes/{cliente['id']}/puntos", headers=auth_headers).json()
         assert puntos["puntos"] == 0
+        db.refresh(cliente_db)
+        assert float(cliente_db.monto_lealtad_acumulado) == 0.0
         historial = db.query(HistorialPuntos).filter(
             HistorialPuntos.cliente_id == cliente["id"],
             HistorialPuntos.venta_id == venta["id"],

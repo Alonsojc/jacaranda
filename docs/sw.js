@@ -1,5 +1,5 @@
 // Jacaranda Service Worker — Offline support + sync queue
-const CACHE_NAME = 'jacaranda-v58';
+const CACHE_NAME = 'jacaranda-v59';
 const STATIC_ASSETS = [
   './',
   './index.html',

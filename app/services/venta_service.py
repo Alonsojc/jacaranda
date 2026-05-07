@@ -446,6 +446,7 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
         ).with_for_update().first()
         if cliente:
             puntos_antes = cliente.puntos_acumulados
+            monto_antes = Decimal(str(cliente.monto_lealtad_acumulado or 0))
             puntos_generados = db.query(func.coalesce(func.sum(HistorialPuntos.puntos), 0)).filter(
                 HistorialPuntos.cliente_id == cliente.id,
                 HistorialPuntos.venta_id == venta.id,
@@ -463,6 +464,10 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
             cliente.puntos_totales_historicos = max(
                 0,
                 cliente.puntos_totales_historicos - puntos_revertidos,
+            )
+            cliente.monto_lealtad_acumulado = max(
+                Decimal("0"),
+                monto_antes - Decimal(str(venta.total or 0)),
             )
             cliente.nivel_lealtad = calcular_nivel(cliente.puntos_totales_historicos).value
             if puntos_revertidos:

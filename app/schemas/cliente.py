@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from datetime import date, datetime
+from decimal import Decimal
 import re
 
 
@@ -22,6 +23,7 @@ class ClienteCreate(BaseModel):
     estado: str | None = None
     codigo_postal: str | None = None
     fecha_cumpleanos: date | None = None
+    cliente_frecuente: bool = False
     notas: str | None = None
 
     @field_validator("rfc")
@@ -73,6 +75,7 @@ class ClienteUpdate(BaseModel):
     regimen_fiscal: str | None = None
     domicilio_fiscal_cp: str | None = None
     uso_cfdi: str | None = None
+    cliente_frecuente: bool | None = None
     activo: bool | None = None
 
 
@@ -86,9 +89,12 @@ class ClienteResponse(BaseModel):
     regimen_fiscal: str | None
     domicilio_fiscal_cp: str | None
     uso_cfdi: str
+    cliente_frecuente: bool = False
     puntos_acumulados: int
     nivel_lealtad: str = "bronce"
     puntos_totales_historicos: int = 0
+    monto_lealtad_acumulado: Decimal = Decimal("0")
+    recompensas_lealtad_canjeadas: int = 0
     fecha_cumpleanos: date | None = None
     tarjeta_qr: str | None = None
     notas: str | None = None
