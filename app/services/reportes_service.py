@@ -12,10 +12,11 @@ from app.core.db_compat import db_extract_dow
 from app.models.venta import Venta, DetalleVenta, EstadoVenta
 from app.models.empleado import RegistroNomina
 from app.models.inventario import MovimientoInventario, TipoMovimiento, Ingrediente
+from app.models.egreso import Egreso
 
 
 def gastos_hoy(db: Session, fecha: date | None = None) -> dict:
-    """Retorna gastos del día (compras de ingredientes)."""
+    """Retorna egresos del día: compras de ingredientes + gastos operativos."""
     from datetime import timezone
     dia = fecha or date.today()
     hoy_inicio = datetime.combine(dia, datetime.min.time(), tzinfo=timezone.utc)
@@ -28,8 +29,16 @@ def gastos_hoy(db: Session, fecha: date | None = None) -> dict:
             MovimientoInventario.fecha <= hoy_fin,
         )
     ).order_by(MovimientoInventario.fecha.desc()).all()
+    egresos = (
+        db.query(Egreso)
+        .filter(Egreso.activo.is_(True), Egreso.fecha == dia)
+        .order_by(Egreso.id.desc())
+        .all()
+    )
 
-    total = sum(m.cantidad * m.costo_unitario for m in compras)
+    total_compras = sum(m.cantidad * m.costo_unitario for m in compras)
+    total_egresos = sum(e.monto for e in egresos)
+    total = total_compras + total_egresos
 
     desglose = []
     for m in compras:
@@ -39,17 +48,37 @@ def gastos_hoy(db: Session, fecha: date | None = None) -> dict:
             if ing:
                 nombre = ing.nombre
         desglose.append({
+            "tipo": "compra",
+            "concepto": nombre,
             "ingrediente": nombre,
             "cantidad": float(m.cantidad),
             "costo_unitario": float(m.costo_unitario),
             "total": float(m.cantidad * m.costo_unitario),
             "referencia": m.referencia,
             "hora": m.fecha.strftime("%H:%M") if m.fecha else "",
+            "categoria": "ingredientes",
+            "metodo_pago": "",
+        })
+
+    for e in egresos:
+        desglose.append({
+            "tipo": "egreso",
+            "concepto": e.concepto,
+            "ingrediente": e.concepto,
+            "cantidad": 1,
+            "costo_unitario": float(e.monto),
+            "total": float(e.monto),
+            "referencia": e.proveedor or e.notas or "",
+            "hora": e.creado_en.strftime("%H:%M") if e.creado_en else "",
+            "categoria": e.categoria,
+            "metodo_pago": e.metodo_pago,
         })
 
     return {
         "total_gastos": float(total),
         "numero_compras": len(compras),
+        "numero_egresos": len(egresos),
+        "numero_movimientos": len(compras) + len(egresos),
         "desglose": desglose,
     }
 

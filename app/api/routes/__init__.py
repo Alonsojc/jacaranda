@@ -7,7 +7,7 @@ from app.api.routes import (
     clientes, facturacion, empleados, cofepris, reportes,
     pedidos, whatsapp, contabilidad, ia, notificaciones, lealtad, compras,
     sucursales, merma, fiscal, crm, auditoria, calidad, kpis,
-    delivery, pagos, ejecutivo, backup,
+    delivery, pagos, ejecutivo, backup, egresos,
 )
 
 router = APIRouter()
@@ -39,3 +39,4 @@ router.include_router(delivery.router, prefix="/delivery", tags=["Delivery Track
 router.include_router(pagos.router, prefix="/pagos", tags=["Pagos Online"])
 router.include_router(ejecutivo.router, prefix="/ejecutivo", tags=["Dashboard Ejecutivo"])
 router.include_router(backup.router, prefix="/backup", tags=["Backup y Restauración"])
+router.include_router(egresos.router, prefix="/egresos", tags=["Egresos"])

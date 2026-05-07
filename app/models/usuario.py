@@ -20,7 +20,7 @@ class RolUsuario(str, enum.Enum):
 
 # Módulos del sistema con permisos configurables
 MODULOS_DISPONIBLES = [
-    "dash", "pos", "ped", "inv", "corte", "rep", "listas", "prod", "conta",
+    "dash", "pos", "ped", "inv", "corte", "egresos", "rep", "listas", "prod", "conta",
     "iapg", "cofepris", "compras", "sucursales", "merma", "calidad", "crm",
     "kpis", "fiscal", "auditoria", "ejecutivo", "deliveryp", "papelera",
     "backup", "usuarios",
@@ -37,11 +37,11 @@ def permisos_default_por_rol(rol: RolUsuario) -> dict:
     elif rol == RolUsuario.CAJERO:
         return {
             "dash": "ver", "pos": "editar", "ped": "editar",
-            "corte": "ver", "listas": "ver",
+            "corte": "ver", "egresos": "editar", "listas": "ver",
         }
     elif rol == RolUsuario.CONTADOR:
         return {
-            "dash": "ver", "rep": "editar", "corte": "ver",
+            "dash": "ver", "rep": "editar", "corte": "ver", "egresos": "editar",
             "compras": "ver", "conta": "editar",
             "fiscal": "editar", "kpis": "ver",
         }

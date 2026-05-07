@@ -54,7 +54,6 @@ def require_role(*roles: RolUsuario):
 
 _PERMISSION_LEVELS = {"oculto": 0, "ver": 1, "editar": 2}
 _PRODUCTION_DISABLED_MODULES = {
-    "prod",
     "compras",
     "proveedores",
     "sucursales",

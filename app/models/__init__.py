@@ -32,6 +32,7 @@ from app.models.pedido import (  # noqa: F401
 )
 from app.models.conteo_inventario import ConteoInventario  # noqa: F401
 from app.models.gasto_fijo import GastoFijo  # noqa: F401
+from app.models.egreso import Egreso  # noqa: F401
 from app.models.contabilidad import (  # noqa: F401
     CuentaContable, AsientoContable, LineaAsiento, MovimientoBancario,
     TipoCuenta, NaturalezaCuenta, TipoAsiento,

@@ -392,6 +392,8 @@ h2{font-size:1.1rem}
     <a data-pg="inv" onclick="go('inv')">&#128230; Inventario <span id="inv-badge" style="display:none;background:#ef4444;color:#fff;font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;vertical-align:top;min-width:14px;text-align:center"></span></a>
     <a data-pg="prod" onclick="go('prod')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO">&#127838; Producci&oacute;n</a>
     <a data-pg="corte" onclick="go('corte')">&#128178; Corte de caja</a>
+    <a data-pg="egresos" onclick="go('egresos')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CAJERO,CONTADOR">&#128179; Egresos</a>
+    <a data-pg="iapg" onclick="go('iapg')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO">&#128200; Predicci&oacute;n</a>
     <a data-pg="compras" onclick="go('compras')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">&#128722; Compras</a>
     <a data-pg="deliveryp" onclick="go('deliveryp')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#128666; Delivery</a>
   </div>
@@ -425,7 +427,6 @@ h2{font-size:1.1rem}
   <div class="nav-dd">
     <a data-pg="crm" onclick="go('crm')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#128101; CRM / Clientes</a>
     <a data-pg="sucursales" onclick="go('sucursales')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#127978; Sucursales</a>
-    <a data-pg="iapg" onclick="go('iapg')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#129302; Inteligencia artificial</a>
     <a data-pg="usuarios" onclick="go('usuarios')" class="nav-role" data-roles="ADMINISTRADOR">&#128100; Usuarios</a>
   </div>
 </div>
@@ -656,10 +657,10 @@ h2{font-size:1.1rem}
 <div class="section-tabs" style="margin-bottom:1rem">
 <span class="tab active" onclick="invTab('productos')">Productos terminados</span>
 <span class="tab" onclick="invTab('ingredientes')">Ingredientes</span>
-<span class="tab" data-module="compras" onclick="invTab('compras')">Registrar compra</span>
-<span class="tab" data-module="prod" onclick="invTab('hornear')">Hornear</span>
+<span class="tab" onclick="invTab('compras')">Registrar compra</span>
+<span class="tab" onclick="invTab('hornear')">Hornear</span>
 <span class="tab" onclick="invTab('conteo')">Conteo nocturno</span>
-<span class="tab" data-module="prod" onclick="invTab('pronostico')">Pron&oacute;stico</span>
+<span class="tab" onclick="invTab('pronostico')">Pron&oacute;stico</span>
 </div>
 
 <div id="inv-productos">
@@ -810,19 +811,19 @@ h2{font-size:1.1rem}
 </div>
 </div>
 <div class="card">
-<h3>Gastos del d&iacute;a (compras)</h3>
+<h3>Egresos del d&iacute;a</h3>
 <div class="srow"><span>Total gastos</span><span style="color:#b91c1c;font-weight:700" id="c-gastos-total">$0.00</span></div>
-<div class="srow"><span>Compras registradas</span><span id="c-gastos-num">0</span></div>
+<div class="srow"><span>Movimientos registrados</span><span id="c-gastos-num">0</span></div>
 <div id="c-gastos-list" style="max-height:200px;overflow-y:auto;margin-top:.5rem">
-<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin compras hoy</p>
+<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin egresos hoy</p>
 </div>
 </div>
 <div class="card">
 <h3>Utilidad del d&iacute;a</h3>
 <div class="srow"><span>Ventas totales</span><span class="green" id="c-util-ventas">$0.00</span></div>
-<div class="srow"><span>Gastos (compras)</span><span style="color:#b91c1c" id="c-util-gastos">$0.00</span></div>
+<div class="srow"><span>Egresos</span><span style="color:#b91c1c" id="c-util-gastos">$0.00</span></div>
 <div class="srow" style="border-top:2px solid var(--brd);padding-top:.5rem;margin-top:.3rem"><span style="font-weight:700;font-size:1rem">Utilidad bruta</span><span style="font-weight:700;font-size:1.1rem" id="c-util-neta">$0.00</span></div>
-<p style="font-size:.72rem;color:var(--mut);margin-top:.5rem">* Utilidad bruta = ventas - compras de ingredientes. No incluye renta, n&oacute;mina ni otros gastos fijos.</p>
+<p style="font-size:.72rem;color:var(--mut);margin-top:.5rem">* Utilidad bruta = ventas - compras de ingredientes - egresos variables del d&iacute;a. No incluye renta, n&oacute;mina ni otros gastos fijos.</p>
 </div>
 </div>
 
@@ -879,6 +880,59 @@ h2{font-size:1.1rem}
 <div id="c-historial" style="max-height:300px;overflow-y:auto">
 <p style="color:var(--mut);font-size:.83rem;text-align:center">Cargando...</p>
 </div>
+</div>
+</div>
+
+<!-- EGRESOS -->
+<div class="page" id="egresos">
+<div class="page-header">
+  <div class="page-title">
+    <h2>Egresos</h2>
+    <p style="font-size:.83rem;color:var(--mut);margin:0">Registra gastos operativos del d&iacute;a sin entrar al m&oacute;dulo completo de compras.</p>
+  </div>
+  <div class="page-actions">
+    <button class="limpiar" style="width:auto;margin:0;padding:.45rem .8rem" onclick="go('inv');setTimeout(function(){invTab('compras')},120)">Compra de ingredientes</button>
+  </div>
+</div>
+<div class="row r2">
+<div class="card">
+<h3>Nuevo egreso</h3>
+<div class="frow">
+<div class="fg"><label>Concepto</label><input id="eg-concepto" placeholder="Gas, empaque, flete..."></div>
+<div class="fg"><label>Monto</label><input type="number" id="eg-monto" min="0" step="0.01" placeholder="250.00"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Categor&iacute;a</label><select id="eg-categoria">
+<option value="operativo">Operativo</option>
+<option value="empaque">Empaque</option>
+<option value="servicio">Servicio</option>
+<option value="flete">Flete</option>
+<option value="mantenimiento">Mantenimiento</option>
+<option value="otro">Otro</option>
+</select></div>
+<div class="fg"><label>Forma de pago</label><select id="eg-metodo">
+<option value="efectivo">Efectivo</option>
+<option value="transferencia">Transferencia</option>
+<option value="bbva">BBVA</option>
+<option value="clip">CLIP</option>
+<option value="tarjeta">Tarjeta</option>
+</select></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Fecha</label><input type="date" id="eg-fecha"></div>
+<div class="fg"><label>Proveedor / persona</label><input id="eg-proveedor" placeholder="Nombre opcional"></div>
+</div>
+<div class="fg"><label>Notas</label><input id="eg-notas" placeholder="Motivo o referencia"></div>
+<button class="cobrar" onclick="guardarEgreso()">Guardar egreso</button>
+</div>
+<div class="card">
+<h3>Resumen</h3>
+<div id="eg-resumen"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+</div>
+<div class="card">
+<h3>Egresos recientes</h3>
+<div id="eg-list"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
 </div>
 </div>
 
@@ -1408,9 +1462,9 @@ h2{font-size:1.1rem}
 </div>
 </div>
 
-<!-- IA / PRONÓSTICOS -->
+<!-- PREDICCION -->
 <div class="page" id="iapg">
-<h2>IA &mdash; Pron&oacute;sticos</h2>
+<h2>Predicci&oacute;n</h2>
 <div class="section-tabs" style="margin-bottom:1rem">
 <span class="tab active" onclick="iaTab('ia-dash')">Dashboard</span>
 <span class="tab" onclick="iaTab('ia-produccion')">Producci&oacute;n sugerida</span>
@@ -1680,10 +1734,11 @@ h2{font-size:1.1rem}
 </div>
 <div class="mm-items">
 <a data-pg="corte" onclick="navegarMobile('corte', event);return false" class="mm-link">&#128200; Corte de caja</a>
+<a data-pg="egresos" onclick="navegarMobile('egresos', event);return false" class="mm-link">&#128179; Egresos</a>
 <a data-pg="prod" onclick="navegarMobile('prod', event);return false" class="mm-link">&#127838; Producci&oacute;n</a>
 <a data-pg="rep" onclick="navegarMobile('rep', event);return false" class="mm-link">&#128202; Reportes</a>
 <a data-pg="conta" onclick="navegarMobile('conta', event);return false" class="mm-link">&#128209; Contabilidad</a>
-<a data-pg="iapg" onclick="navegarMobile('iapg', event);return false" class="mm-link">&#129302; IA Pron&oacute;sticos</a>
+<a data-pg="iapg" onclick="navegarMobile('iapg', event);return false" class="mm-link">&#128200; Predicci&oacute;n</a>
 <a data-pg="listas" onclick="navegarMobile('listas', event);return false" class="mm-link">&#128221; Listas</a>
 <a data-pg="cofepris" onclick="navegarMobile('cofepris', event);return false" class="mm-link">&#9879; COFEPRIS</a>
 <a data-pg="merma" onclick="navegarMobile('merma', event);return false" class="mm-link">&#128465; Merma</a>
@@ -2201,15 +2256,17 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v52';
+var APP_BUILD = 'jacaranda-v53';
 var MODULOS_DESACTIVADOS = {
-  prod: 'Producci\u00f3n',
   compras: 'Compras',
   proveedores: 'Proveedores',
   sucursales: 'Sucursales',
   kpis: 'KPIs',
   ejecutivo: 'Dashboard ejecutivo',
   fiscal: 'Fiscal'
+};
+var PAGINAS_DESACTIVADAS = {
+  prod: 'Producci\u00f3n'
 };
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
@@ -2232,15 +2289,23 @@ function nombreModuloDesactivado(modulo) {
   return MODULOS_DESACTIVADOS[modulo] || modulo || 'M\u00f3dulo';
 }
 
+function paginaDesactivada(pagina) {
+  return !!PAGINAS_DESACTIVADAS[pagina];
+}
+
+function nombrePaginaDesactivada(pagina) {
+  return PAGINAS_DESACTIVADAS[pagina] || nombreModuloDesactivado(pagina);
+}
+
 function moduloFallbackActivo(u) {
   var orden = [
-    'pos', 'ped', 'inv', 'dash', 'corte', 'listas', 'rep',
+    'pos', 'ped', 'inv', 'dash', 'corte', 'egresos', 'listas', 'rep',
     'cofepris', 'calidad', 'merma', 'crm', 'iapg', 'papelera',
     'auditoria', 'backup', 'deliveryp', 'usuarios'
   ];
   for (var i = 0; i < orden.length; i++) {
     var mod = orden[i];
-    if (!moduloDesactivado(mod) && document.getElementById(mod) && puedeVerModuloUsuario(u, mod)) {
+    if (!moduloDesactivado(mod) && !paginaDesactivada(mod) && document.getElementById(mod) && puedeVerModuloUsuario(u, mod)) {
       return mod;
     }
   }
@@ -2251,7 +2316,7 @@ function actualizarVisibilidadModulos() {
   var permisos = window._permisos || {};
   document.querySelectorAll('.nav-links a[data-pg], .mobile-menu .mm-link[data-pg]').forEach(function(a) {
     var mod = a.getAttribute('data-pg');
-    var visible = !moduloDesactivado(mod) && !!permisos[mod];
+    var visible = !moduloDesactivado(mod) && !paginaDesactivada(mod) && !!permisos[mod];
     a.style.display = visible ? '' : 'none';
   });
   document.querySelectorAll('[data-module]').forEach(function(el) {
@@ -2606,6 +2671,7 @@ function togglePassword(inputId, btn) {
 // ─── Navegación ───────────────────────────────────────────────────
 function puedeVerModuloUsuario(u, modulo) {
   if (moduloDesactivado(modulo)) return false;
+  if (paginaDesactivada(modulo)) return false;
   var permisos = (u && u.permisos_modulos) || window._permisos || {};
   return !!permisos[modulo];
 }
@@ -2623,6 +2689,7 @@ function tabDesdeHash(u) {
   var tab = (location.hash || '').replace('#', '').trim();
   if (!tab || !document.getElementById(tab)) return '';
   if (moduloDesactivado(tab)) return '';
+  if (paginaDesactivada(tab)) return '';
   if (u && !puedeVerModuloUsuario(u, tab)) return '';
   return tab;
 }
@@ -2634,7 +2701,7 @@ function pantallaInicialUsuario(u) {
     return moduloInicioUsuario(u);
   }
   var tab = localStorage.getItem('jacaranda_tab') || moduloInicioUsuario(u);
-  if (moduloDesactivado(tab) || !puedeVerModuloUsuario(u, tab)) return moduloInicioUsuario(u);
+  if (moduloDesactivado(tab) || paginaDesactivada(tab) || !puedeVerModuloUsuario(u, tab)) return moduloInicioUsuario(u);
   return tab;
 }
 
@@ -2648,7 +2715,7 @@ function reportarErrorPagina(p, err) {
 }
 
 function cargarPagina(p) {
-  if (moduloDesactivado(p)) return null;
+  if (moduloDesactivado(p) || paginaDesactivada(p)) return null;
   if (p === 'ped') {
     setCalPedVisible(true);
     prepararDatosNuevoPedido();
@@ -2658,6 +2725,7 @@ function cargarPagina(p) {
   if (p === 'pos') return Promise.all([cargarPOSProductos(), cargarClientesPOS()]);
   if (p === 'inv') return cargarInventarioCompleto();
   if (p === 'corte') return cargarCorte();
+  if (p === 'egresos') return initEgresos();
   if (p === 'listas') return cargarListas();
   if (p === 'rep') return initReportes();
   if (p === 'prod') return cargarProduccion();
@@ -2681,7 +2749,7 @@ function cargarPagina(p) {
 }
 
 function activarPagina(p) {
-  if (moduloDesactivado(p)) {
+  if (moduloDesactivado(p) || paginaDesactivada(p)) {
     p = moduloFallbackActivo();
   }
   var target = document.getElementById(p);
@@ -2706,8 +2774,8 @@ function activarPagina(p) {
 }
 
 function go(p) {
-  if (moduloDesactivado(p)) {
-    toast(nombreModuloDesactivado(p) + ' est\u00e1 desactivado', true);
+  if (moduloDesactivado(p) || paginaDesactivada(p)) {
+    toast(nombrePaginaDesactivada(p) + ' est\u00e1 desactivado', true);
     p = moduloFallbackActivo();
   }
   p = activarPagina(p);
@@ -5028,10 +5096,6 @@ function renderChartVentas(dias) {
 
 // ─── Inventario tabs ──────────────────────────────────────────────
 function invTab(tab) {
-  if ((tab === 'compras' && moduloDesactivado('compras')) || ((tab === 'hornear' || tab === 'pronostico') && moduloDesactivado('prod'))) {
-    toast('Este flujo est\u00e1 desactivado', true);
-    tab = 'productos';
-  }
   ['productos','ingredientes','compras','hornear','conteo','pronostico'].forEach(function(t) {
     var el = document.getElementById('inv-' + t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
@@ -6539,7 +6603,7 @@ function cargarGastos(fecha) {
   var q = fecha ? '?fecha=' + fecha : '';
   api('GET', '/reportes/gastos-hoy' + q).then(function(g) {
     document.getElementById('c-gastos-total').textContent = '$' + fmt(g.total_gastos);
-    document.getElementById('c-gastos-num').textContent = g.numero_compras;
+    document.getElementById('c-gastos-num').textContent = g.numero_movimientos || g.numero_compras || 0;
     document.getElementById('c-util-gastos').textContent = '$' + fmt(g.total_gastos);
     window._totalGastosDia = g.total_gastos;
     actualizarUtilidad();
@@ -6547,17 +6611,118 @@ function cargarGastos(fecha) {
       var h = '';
       for (var i = 0; i < g.desglose.length; i++) {
         var d = g.desglose[i];
-        h += '<div class="srow"><span>' + d.ingrediente + ' (' + d.cantidad + ') &bull; ' + d.hora + '</span>';
+        var etiqueta = d.tipo === 'egreso' ? (d.categoria || 'egreso') : 'compra';
+        var detalle = d.tipo === 'egreso' ? (d.metodo_pago || '') : ((d.cantidad || 0) + ' pzas');
+        h += '<div class="srow"><span><strong>' + escHtml(d.concepto || d.ingrediente || 'Egreso') + '</strong><br><small style="color:var(--mut)">' + escHtml(etiqueta) + (detalle ? ' &bull; ' + escHtml(detalle) : '') + (d.hora ? ' &bull; ' + escHtml(d.hora) : '') + '</small></span>';
         h += '<span>$' + fmt(d.total) + '</span></div>';
       }
       document.getElementById('c-gastos-list').innerHTML = h;
     } else {
-      document.getElementById('c-gastos-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin compras hoy</p>';
+      document.getElementById('c-gastos-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin egresos hoy</p>';
     }
   }).catch(function(){
     document.getElementById('c-gastos-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Error al cargar gastos</p>';
     window._totalGastosDia = 0;
   });
+}
+
+function initEgresos() {
+  var fecha = document.getElementById('eg-fecha');
+  if (fecha && !fecha.value) fecha.value = fechaHoyISO();
+  return cargarEgresos();
+}
+
+function limpiarEgresoForm() {
+  document.getElementById('eg-concepto').value = '';
+  document.getElementById('eg-monto').value = '';
+  document.getElementById('eg-categoria').value = 'operativo';
+  document.getElementById('eg-metodo').value = 'efectivo';
+  document.getElementById('eg-fecha').value = fechaHoyISO();
+  document.getElementById('eg-proveedor').value = '';
+  document.getElementById('eg-notas').value = '';
+}
+
+function guardarEgreso() {
+  var concepto = document.getElementById('eg-concepto').value.trim();
+  var monto = parseFloat(document.getElementById('eg-monto').value);
+  if (!concepto) { toast('Escribe el concepto del egreso', true); return; }
+  if (!monto || monto <= 0) { toast('Escribe un monto mayor a cero', true); return; }
+  var data = {
+    concepto: concepto,
+    monto: monto,
+    categoria: document.getElementById('eg-categoria').value,
+    metodo_pago: document.getElementById('eg-metodo').value,
+    fecha: document.getElementById('eg-fecha').value || fechaHoyISO(),
+    proveedor: document.getElementById('eg-proveedor').value.trim() || null,
+    notas: document.getElementById('eg-notas').value.trim() || null
+  };
+  api('POST', '/egresos/', data).then(function() {
+    toast('Egreso guardado');
+    limpiarEgresoForm();
+    cargarEgresos();
+    var fechaCorte = document.getElementById('c-fecha');
+    if (fechaCorte && fechaCorte.value === data.fecha) cargarGastos(data.fecha);
+  }).catch(function(e) { toast(e.message || 'Error al guardar egreso', true); });
+}
+
+function cargarEgresos() {
+  return api('GET', '/egresos/?limit=80').then(function(items) {
+    renderEgresos(items || []);
+    renderResumenEgresos(items || []);
+  }).catch(function(e) {
+    document.getElementById('eg-list').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">' + escHtml(e.message || 'Error al cargar egresos') + '</p>';
+    document.getElementById('eg-resumen').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">No se pudo cargar resumen</p>';
+  });
+}
+
+function renderResumenEgresos(items) {
+  var hoy = fechaHoyISO();
+  var totalHoy = 0;
+  var totalMes = 0;
+  var mes = hoy.slice(0, 7);
+  var porMetodo = {};
+  items.forEach(function(e) {
+    var monto = parseFloat(e.monto || 0);
+    if (e.fecha === hoy) totalHoy += monto;
+    if ((e.fecha || '').slice(0, 7) === mes) totalMes += monto;
+    var metodo = e.metodo_pago || 'otro';
+    porMetodo[metodo] = (porMetodo[metodo] || 0) + monto;
+  });
+  var h = '<div class="srow"><span>Hoy</span><span style="font-weight:700;color:#b91c1c">$' + fmt(totalHoy) + '</span></div>';
+  h += '<div class="srow"><span>Mes actual</span><span>$' + fmt(totalMes) + '</span></div>';
+  Object.keys(porMetodo).slice(0, 5).forEach(function(m) {
+    h += '<div class="srow"><span>' + escHtml(m) + '</span><span>$' + fmt(porMetodo[m]) + '</span></div>';
+  });
+  document.getElementById('eg-resumen').innerHTML = h;
+}
+
+function renderEgresos(items) {
+  if (!items.length) {
+    document.getElementById('eg-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem">A&uacute;n no hay egresos registrados.</p>';
+    return;
+  }
+  var h = '<table class="tbl"><tr><th>Fecha</th><th>Concepto</th><th>Categor&iacute;a</th><th>Pago</th><th>Monto</th><th class="actions-th">Acciones</th></tr>';
+  items.forEach(function(e) {
+    var fecha = e.fecha ? new Date(e.fecha + 'T12:00:00').toLocaleDateString('es-MX', {day:'2-digit',month:'short'}) : '';
+    h += '<tr><td>' + escHtml(fecha) + '</td>';
+    h += '<td><strong>' + escHtml(e.concepto) + '</strong>' + (e.proveedor ? '<br><small style="color:var(--mut)">' + escHtml(e.proveedor) + '</small>' : '') + '</td>';
+    h += '<td>' + escHtml(e.categoria || '') + '</td>';
+    h += '<td>' + escHtml(e.metodo_pago || '') + '</td>';
+    h += '<td style="font-weight:700;color:#b91c1c">$' + fmt(e.monto) + '</td>';
+    h += '<td class="actions-cell"><div class="action-buttons">' + actionBtn('Borrar', '&#10005;', 'borrarEgreso(' + e.id + ')', 'danger') + '</div></td></tr>';
+  });
+  h += '</table>';
+  document.getElementById('eg-list').innerHTML = h;
+}
+
+function borrarEgreso(id) {
+  if (!confirm('¿Borrar este egreso? Se desactivará y quedará en auditoría.')) return;
+  apiProtegida('DELETE', '/egresos/' + id, null, 'borrar egreso').then(function() {
+    toast('Egreso borrado');
+    cargarEgresos();
+    var fechaCorte = document.getElementById('c-fecha');
+    if (fechaCorte && fechaCorte.value) cargarGastos(fechaCorte.value);
+  }).catch(function(e) { if (e.message !== 'Autorización cancelada') toast(e.message || 'Error al borrar egreso', true); });
 }
 
 function actualizarUtilidad() {
@@ -9344,8 +9509,8 @@ function confirmarCerrarSesion() {
 var _editPermsUserId = null;
 var _moduloNombres = {
   dash:'Inicio', pos:'Venta', ped:'Pedidos', inv:'Inventario',
-  corte:'Corte', rep:'Reportes', listas:'Listas', prod:'Producción',
-  conta:'Contabilidad', iapg:'IA', cofepris:'COFEPRIS', compras:'Compras',
+  corte:'Corte', egresos:'Egresos', rep:'Reportes', listas:'Listas', prod:'Hornear / recetas',
+  conta:'Contabilidad', iapg:'Predicción', cofepris:'COFEPRIS', compras:'Compras',
   sucursales:'Sucursales', merma:'Merma', calidad:'Calidad', crm:'CRM',
   kpis:'KPIs', fiscal:'Fiscal', auditoria:'Auditoría', ejecutivo:'Ejecutivo',
   deliveryp:'Delivery', papelera:'Papelera', backup:'Respaldos', usuarios:'Usuarios'
@@ -9477,7 +9642,7 @@ function editarPermisos(userId, nombre, rol) {
     var user = users.find(function(u) { return u.id === userId; });
     if (!user) return;
     var perms = user.permisos_modulos || {};
-    var mods = ['dash','pos','ped','inv','corte','rep','listas','prod','conta','iapg','cofepris','compras','sucursales','merma','calidad','crm','kpis','fiscal','auditoria','ejecutivo','deliveryp','papelera','backup','usuarios'];
+    var mods = ['dash','pos','ped','inv','corte','egresos','rep','listas','prod','conta','iapg','cofepris','compras','sucursales','merma','calidad','crm','kpis','fiscal','auditoria','ejecutivo','deliveryp','papelera','backup','usuarios'];
     var h = '';
     for (var i = 0; i < mods.length; i++) {
       var m = mods[i];
