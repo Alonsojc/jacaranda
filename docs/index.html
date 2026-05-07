@@ -726,7 +726,6 @@ h2{font-size:1.1rem}
 <span class="tab" onclick="invTab('compras')">Registrar compra</span>
 <span class="tab" onclick="invTab('hornear')">Hornear</span>
 <span class="tab" onclick="invTab('conteo')">Conteo nocturno</span>
-<span class="tab" onclick="invTab('pronostico')">Pron&oacute;stico</span>
 </div>
 
 <div id="inv-productos">
@@ -817,13 +816,6 @@ h2{font-size:1.1rem}
 </div>
 </div>
 
-<div id="inv-pronostico" style="display:none">
-<p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Sugerencia de producci&oacute;n basada en ventas de las &uacute;ltimas 4 semanas (mismo d&iacute;a).</p>
-<div class="card">
-<h3>Qu&eacute; hornear hoy</h3>
-<div id="pronostico-list"><p style="color:var(--mut);font-size:.83rem">Cargando pron&oacute;stico...</p></div>
-</div>
-</div>
 </div><!-- /inv -->
 
 <!-- CORTE DE CAJA -->
@@ -2303,7 +2295,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v57';
+var APP_BUILD = 'jacaranda-v58';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -5559,7 +5551,7 @@ function renderChartVentas(dias) {
 
 // ─── Inventario tabs ──────────────────────────────────────────────
 function invTab(tab) {
-  ['productos','ingredientes','compras','hornear','conteo','pronostico'].forEach(function(t) {
+  ['productos','ingredientes','compras','hornear','conteo'].forEach(function(t) {
     var el = document.getElementById('inv-' + t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
@@ -5570,7 +5562,6 @@ function invTab(tab) {
   if (tab === 'productos') cargarProductos();
   if (tab === 'ingredientes') cargarIngredientes();
   if (tab === 'conteo') cargarConteo();
-  if (tab === 'pronostico') cargarPronostico();
 }
 
 function registrarCompra() {
