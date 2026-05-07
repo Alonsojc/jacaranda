@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -115,6 +115,40 @@ def obtener_tarjeta_publica(
         return lealtad_service.obtener_tarjeta_publica(db, qr_code)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/publico/{qr_code}/qr.svg", include_in_schema=False)
+def obtener_qr_publico(
+    qr_code: str,
+    db: Session = Depends(get_db),
+):
+    """Genera el QR publico como SVG para no depender del canvas del navegador."""
+    try:
+        tarjeta = lealtad_service.obtener_tarjeta_publica(db, qr_code)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    from reportlab.graphics import renderSVG
+    from reportlab.graphics.barcode.qr import QrCodeWidget
+    from reportlab.graphics.shapes import Drawing
+
+    qr = QrCodeWidget(tarjeta["url_publica"])
+    bounds = qr.getBounds()
+    width = bounds[2] - bounds[0]
+    height = bounds[3] - bounds[1]
+    size = 220
+    drawing = Drawing(
+        size,
+        size,
+        transform=[size / width, 0, 0, size / height, 0, 0],
+    )
+    drawing.add(qr)
+    svg = renderSVG.drawToString(drawing)
+    return Response(
+        content=svg,
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @router.get("/tarjeta-qr/{qr_code}")

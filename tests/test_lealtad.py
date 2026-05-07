@@ -104,6 +104,17 @@ class TestLealtad:
         assert "telefono" not in data
         assert "email" not in data
 
+    def test_tarjeta_publica_qr_svg(self, client, auth_headers):
+        cid = self._crear_cliente(client, auth_headers, cliente_frecuente=True)
+        resp = client.get(f"/api/v1/lealtad/tarjeta/{cid}", headers=auth_headers)
+        assert resp.status_code == 200
+        qr_code = resp.json()["tarjeta_qr"]
+
+        qr = client.get(f"/api/v1/lealtad/publico/{qr_code}/qr.svg")
+        assert qr.status_code == 200
+        assert "image/svg+xml" in qr.headers["content-type"]
+        assert b"<svg" in qr.content
+
     def test_buscar_qr_inexistente(self, client, auth_headers):
         resp = client.get("/api/v1/lealtad/tarjeta-qr/no-existe-qr", headers=auth_headers)
         assert resp.status_code == 404

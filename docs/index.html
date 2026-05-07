@@ -2330,7 +2330,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v60';
+var APP_BUILD = 'jacaranda-v61';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -2638,6 +2638,8 @@ function dibujarQR(canvasId, texto, size) {
     });
   }).catch(function(e) {
     console.warn('No se pudo dibujar QR:', e);
+    var canvas = document.getElementById(canvasId);
+    if (canvas) canvas.style.display = 'none';
   });
 }
 
@@ -2657,12 +2659,17 @@ function mostrarTarjetaClientePublica() {
     var r = t.recompensa || {};
     var progreso = Math.max(0, Math.min(100, parseFloat(r.progreso_porcentaje) || 0));
     var link = t.url_publica || (APP_URL + '#cliente/' + t.tarjeta_qr);
+    var qrImg = API_URL + '/api/v1/lealtad/publico/' + encodeURIComponent(t.tarjeta_qr || code) + '/qr.svg';
     var disponible = parseInt(r.disponibles || 0, 10);
     var h = '';
     h += '<div style="background:linear-gradient(135deg,#faf3f0,#fff);border:1px solid var(--brd);border-radius:16px;padding:1.1rem;margin:.5rem 0 1rem">';
     h += '<div style="font-size:.75rem;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Cliente frecuente</div>';
     h += '<div style="font-family:&quot;DM Serif Display&quot;,serif;font-size:1.8rem;color:var(--dk);line-height:1.1;margin:.25rem 0">' + escHtml(t.nombre) + '</div>';
-    h += '<div style="display:flex;justify-content:center;margin:1rem 0"><canvas id="cliente-publico-qr" width="220" height="220" style="border:1px solid var(--brd);border-radius:12px;padding:.45rem;background:#fff"></canvas></div>';
+    h += '<div style="display:flex;justify-content:center;margin:1rem 0"><div style="border:1px solid var(--brd);border-radius:12px;padding:.45rem;background:#fff;width:236px;min-height:236px;display:grid;place-items:center">';
+    h += '<img id="cliente-publico-qr-img" src="' + escHtml(qrImg) + '" alt="QR cliente frecuente" style="width:220px;height:220px;display:block" onerror="this.style.display=&quot;none&quot;;var f=document.getElementById(&quot;cliente-publico-qr-fallback&quot;);if(f)f.style.display=&quot;block&quot;">';
+    h += '<canvas id="cliente-publico-qr" width="220" height="220" style="display:none;width:220px;height:220px;background:#fff"></canvas>';
+    h += '<div id="cliente-publico-qr-fallback" style="display:none;font-size:.72rem;color:var(--mut);line-height:1.35;word-break:break-word;padding:.4rem">C&oacute;digo: ' + escHtml(t.tarjeta_qr || code) + '</div>';
+    h += '</div></div>';
     h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin:.8rem 0">';
     h += '<div style="background:#fff;border:1px solid var(--brd);border-radius:10px;padding:.65rem"><div style="font-size:1.35rem;font-weight:800;color:var(--v)">' + (t.puntos_acumulados || 0) + '</div><div style="font-size:.72rem;color:var(--mut)">puntos</div></div>';
     h += '<div style="background:#fff;border:1px solid var(--brd);border-radius:10px;padding:.65rem"><div style="font-size:1.35rem;font-weight:800;color:var(--grn)">$' + fmt(t.monto_lealtad_acumulado || 0) + '</div><div style="font-size:.72rem;color:var(--mut)">acumulado</div></div>';
@@ -2683,10 +2690,18 @@ function mostrarTarjetaClientePublica() {
 
 function descargarQRClientePublico() {
   var canvas = document.getElementById('cliente-publico-qr');
-  if (!canvas) return;
+  var img = document.getElementById('cliente-publico-qr-img');
   var a = document.createElement('a');
-  a.href = canvas.toDataURL('image/png');
-  a.download = 'jacaranda-cliente-frecuente.png';
+  if (canvas && canvas.style.display !== 'none') {
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'jacaranda-cliente-frecuente.png';
+  } else if (img && img.src) {
+    a.href = img.src;
+    a.download = 'jacaranda-cliente-frecuente.svg';
+    a.target = '_blank';
+  } else {
+    return;
+  }
   a.click();
 }
 
