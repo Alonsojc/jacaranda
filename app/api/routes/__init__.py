@@ -7,7 +7,7 @@ from app.api.routes import (
     clientes, facturacion, empleados, cofepris, reportes,
     pedidos, whatsapp, contabilidad, ia, notificaciones, lealtad, compras,
     sucursales, merma, fiscal, crm, auditoria, calidad, kpis,
-    delivery, pagos, ejecutivo, backup, egresos,
+    delivery, pagos, ejecutivo, backup, egresos, cafeteria,
 )
 
 router = APIRouter()
@@ -16,6 +16,7 @@ router.include_router(auth.router, prefix="/auth", tags=["Autenticación"])
 router.include_router(inventario.router, prefix="/inventario", tags=["Inventario"])
 router.include_router(recetas.router, prefix="/recetas", tags=["Recetas y Producción"])
 router.include_router(punto_de_venta.router, prefix="/punto-de-venta", tags=["Punto de Venta"])
+router.include_router(cafeteria.router, prefix="/cafeteria", tags=["Cafetería"])
 router.include_router(clientes.router, prefix="/clientes", tags=["Clientes"])
 router.include_router(facturacion.router, prefix="/facturacion", tags=["Facturación CFDI 4.0"])
 router.include_router(empleados.router, prefix="/empleados", tags=["Empleados y Nómina"])

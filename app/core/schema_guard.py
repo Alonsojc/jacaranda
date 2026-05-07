@@ -3,6 +3,11 @@
 from sqlalchemy import Boolean, DateTime, Integer, Numeric, String, Text, inspect, text
 from sqlalchemy.engine import Engine
 
+from app.models.cafeteria import (
+    CafeteriaVenta,
+    DetalleCafeteriaVenta,
+    PagoCafeteriaVenta,
+)
 from app.models.compras import RecepcionOrdenCompra
 from app.models.notificacion import FCMToken
 from app.models.pago_online import ConektaWebhookEvent
@@ -181,6 +186,19 @@ def ensure_runtime_schema(engine: Engine) -> None:
                     nullable=nullable,
                 )
 
+        if "productos" in tables:
+            producto_columns = {
+                col["name"] for col in inspector.get_columns("productos")
+            }
+            _add_column_if_missing(
+                conn,
+                engine,
+                "productos",
+                producto_columns,
+                "precio_cafeteria",
+                Numeric(12, 2),
+            )
+
     with engine.begin() as conn:
         inspector = inspect(conn)
         tables = set(inspector.get_table_names())
@@ -195,6 +213,9 @@ def ensure_runtime_schema(engine: Engine) -> None:
             conn.execute(text("DROP TABLE detalles_pedido"))
 
     ConektaWebhookEvent.__table__.create(bind=engine, checkfirst=True)
+    CafeteriaVenta.__table__.create(bind=engine, checkfirst=True)
+    DetalleCafeteriaVenta.__table__.create(bind=engine, checkfirst=True)
+    PagoCafeteriaVenta.__table__.create(bind=engine, checkfirst=True)
     DetallePedido.__table__.create(bind=engine, checkfirst=True)
     RecepcionOrdenCompra.__table__.create(bind=engine, checkfirst=True)
     WhatsAppWebhookEvent.__table__.create(bind=engine, checkfirst=True)

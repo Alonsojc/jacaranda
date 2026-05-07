@@ -18,6 +18,10 @@ from app.models.venta import (  # noqa: F401
     Venta, DetalleVenta, CorteCaja,
     MetodoPago, FormaPago, EstadoVenta,
 )
+from app.models.cafeteria import (  # noqa: F401
+    CafeteriaVenta, DetalleCafeteriaVenta, PagoCafeteriaVenta,
+    EstadoCuentaCafeteria,
+)
 from app.models.facturacion import (  # noqa: F401
     CFDIComprobante, CFDIConcepto,
     EstadoCFDI, TipoComprobante, TipoRelacion,
