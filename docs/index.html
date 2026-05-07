@@ -2372,7 +2372,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v66';
+var APP_BUILD = 'jacaranda-v67';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -2670,19 +2670,57 @@ function codigoClientePublico() {
   return codigoTarjetaDesdeTexto((location.hash || '').replace(/^#cliente\//, ''));
 }
 
-function dibujarQR(canvasId, texto, size) {
+function qrSvgClienteUrl(code) {
+  return API_URL + '/api/v1/lealtad/publico/' + encodeURIComponent(code || '') + '/qr.svg';
+}
+
+function dibujarQRDesdeServidor(canvas, code, size) {
+  if (!canvas || !code) return Promise.reject(new Error('QR no disponible'));
+  size = size || 220;
+  canvas.width = size;
+  canvas.height = size;
+  return fetch(qrSvgClienteUrl(code), {cache: 'no-store'}).then(function(r) {
+    if (!r.ok) throw new Error('No se pudo cargar QR');
+    return r.text();
+  }).then(function(svg) {
+    return new Promise(function(resolve, reject) {
+      var url = URL.createObjectURL(new Blob([svg], {type: 'image/svg+xml'}));
+      var img = new Image();
+      img.onload = function() {
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, size, size);
+        ctx.drawImage(img, 0, 0, size, size);
+        URL.revokeObjectURL(url);
+        resolve(canvas);
+      };
+      img.onerror = function() {
+        URL.revokeObjectURL(url);
+        reject(new Error('No se pudo dibujar QR'));
+      };
+      img.src = url;
+    });
+  });
+}
+
+function dibujarQR(canvasId, texto, size, fallbackCode) {
+  var canvas = document.getElementById(canvasId);
+  if (!canvas) return Promise.reject(new Error('QR no disponible'));
+  size = size || 220;
+  canvas.width = size;
+  canvas.height = size;
   return ensureQRCode().then(function() {
-    var canvas = document.getElementById(canvasId);
-    if (!canvas) return;
     return window.QRCode.toCanvas(canvas, texto, {
-      width: size || 220,
+      width: size,
       margin: 1,
       color: {dark: '#4a3530', light: '#ffffff'}
+    }).then(function() {
+      return canvas;
     });
   }).catch(function(e) {
-    console.warn('No se pudo dibujar QR:', e);
-    var canvas = document.getElementById(canvasId);
-    if (canvas) canvas.style.display = 'none';
+    console.warn('No se pudo dibujar QR local:', e);
+    if (fallbackCode) return dibujarQRDesdeServidor(canvas, fallbackCode, size);
+    throw e;
   });
 }
 
@@ -2725,12 +2763,15 @@ function mostrarTarjetaClientePublica() {
     h += '<div style="height:10px;background:#f5eeeb;border-radius:999px;overflow:hidden"><div style="height:100%;width:' + progreso + '%;background:var(--grn);border-radius:999px"></div></div>';
     h += '<div style="font-size:.78rem;color:' + (disponible ? 'var(--grn)' : 'var(--mut)') + ';margin-top:.45rem;font-weight:700">' + (disponible ? disponible + ' recompensa disponible' : 'Faltan $' + fmt(r.monto_restante || 0) + ' para tu siguiente recompensa') + '</div>';
     h += '</div></div>';
-    h += '<button class="cobrar" style="width:100%;margin-top:.4rem" onclick="descargarQRClientePublico()">Descargar tarjeta QR</button>';
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin-top:.4rem">';
+    h += '<button class="cobrar" style="width:100%;margin:0" onclick="descargarQRClientePublico()">Descargar tarjeta</button>';
+    h += '<button class="limpiar" style="width:100%;margin:0" onclick="compartirTarjetaClientePublico()">Compartir</button>';
+    h += '</div>';
     h += '<div id="cliente-publico-wallet" style="display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin-top:.45rem"><button class="limpiar" disabled style="margin:0;padding:.55rem;font-size:.78rem">Apple Wallet</button><button class="limpiar" disabled style="margin:0;padding:.55rem;font-size:.78rem">Google Wallet</button></div>';
     h += '<p style="font-size:.72rem;color:var(--mut);margin-top:.7rem;line-height:1.35">Presenta este QR en Jacaranda para acumular compras. La recompensa se valida en caja.</p>';
     box.innerHTML = h;
     cargarWalletClientePublico(t.tarjeta_qr || code);
-    dibujarQR('cliente-publico-qr', link, 220);
+    dibujarQR('cliente-publico-qr', link, 220, t.tarjeta_qr || code).catch(function() {});
   }).catch(function(e) {
     box.innerHTML = '<p style="color:#b91c1c;font-size:.9rem;padding:1rem">' + escHtml(e.message || 'Tarjeta no encontrada') + '</p>';
   });
@@ -2772,9 +2813,33 @@ function _cardRoundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function descargarTarjetaClientePublicoCanvas(t, qrCanvas) {
-  var r = (t && t.recompensa) || {};
-  var progreso = Math.max(0, Math.min(100, parseFloat(r.progreso_porcentaje) || 0));
+function nombreArchivoTarjetaCliente(t) {
+  var slug = ((t && t.nombre) || 'cliente').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'cliente';
+  return 'jacaranda-tarjeta-' + slug + '.png';
+}
+
+function descargarDataUrl(dataUrl, filename) {
+  var a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = filename || 'jacaranda-tarjeta.png';
+  a.click();
+}
+
+function dataUrlToBlob(dataUrl) {
+  var parts = String(dataUrl || '').split(',');
+  var mime = ((parts[0] || '').match(/:(.*?);/) || [])[1] || 'image/png';
+  var binary = atob(parts[1] || '');
+  var len = binary.length;
+  var bytes = new Uint8Array(len);
+  for (var i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], {type: mime});
+}
+
+function mensajeTarjetaCliente(t, link) {
+  return 'Hola ' + ((t && t.nombre) || '') + ', aqui esta tu tarjeta de cliente frecuente Jacaranda: ' + link;
+}
+
+function crearTarjetaClientePublicoDataUrl(t, qrCanvas) {
   var w = 900, h = 1280;
   var canvas = document.createElement('canvas');
   canvas.width = w;
@@ -2806,80 +2871,86 @@ function descargarTarjetaClientePublicoCanvas(t, qrCanvas) {
 
   ctx.fillStyle = '#a08a84';
   ctx.font = '700 22px Inter, Arial, sans-serif';
-  ctx.fillText('CLIENTE FRECUENTE', w / 2, 292);
+  ctx.fillText('CLIENTE FRECUENTE', w / 2, 310);
   ctx.fillStyle = '#4a3530';
   ctx.font = '700 48px "DM Serif Display", Georgia, serif';
-  ctx.fillText((t && t.nombre) || 'Cliente Jacaranda', w / 2, 352);
+  ctx.fillText((t && t.nombre) || 'Cliente Jacaranda', w / 2, 372);
 
   ctx.fillStyle = '#ffffff';
-  _cardRoundRect(ctx, 235, 405, 430, 430, 24);
+  _cardRoundRect(ctx, 190, 445, 520, 520, 28);
   ctx.fill();
   ctx.strokeStyle = '#eadcd7';
   ctx.lineWidth = 2;
   ctx.stroke();
   if (qrCanvas) {
-    ctx.drawImage(qrCanvas, 265, 435, 370, 370);
+    ctx.drawImage(qrCanvas, 230, 485, 440, 440);
   }
 
-  var points = String((t && t.puntos_acumulados) || 0);
-  var amount = '$' + fmt((t && t.monto_lealtad_acumulado) || 0);
-  var boxY = 880;
-  ctx.fillStyle = '#ffffff';
-  _cardRoundRect(ctx, 115, boxY, 310, 110, 18);
-  ctx.fill();
-  ctx.strokeStyle = '#eadcd7';
-  ctx.stroke();
-  _cardRoundRect(ctx, 475, boxY, 310, 110, 18);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = '#c4988a';
-  ctx.font = '800 46px Inter, Arial, sans-serif';
-  ctx.fillText(points, 270, boxY + 48);
-  ctx.fillStyle = '#a08a84';
-  ctx.font = '500 22px Inter, Arial, sans-serif';
-  ctx.fillText('puntos', 270, boxY + 82);
-  ctx.fillStyle = '#10b981';
-  ctx.font = '800 42px Inter, Arial, sans-serif';
-  ctx.fillText(amount, 630, boxY + 48);
-  ctx.fillStyle = '#a08a84';
-  ctx.font = '500 22px Inter, Arial, sans-serif';
-  ctx.fillText('acumulado', 630, boxY + 82);
-
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#a08a84';
-  ctx.font = '700 24px Inter, Arial, sans-serif';
-  ctx.fillText(r.nombre || 'Pastel chico gratis', 115, 1056);
-  ctx.textAlign = 'right';
-  ctx.fillText(progreso.toFixed(0) + '%', 785, 1056);
-  ctx.fillStyle = '#f5eeeb';
-  _cardRoundRect(ctx, 115, 1080, 670, 18, 9);
-  ctx.fill();
-  ctx.fillStyle = '#10b981';
-  _cardRoundRect(ctx, 115, 1080, Math.max(18, 670 * (progreso / 100)), 18, 9);
-  ctx.fill();
   ctx.textAlign = 'center';
   ctx.fillStyle = '#a08a84';
-  ctx.font = '700 22px Inter, Arial, sans-serif';
-  var rewardText = parseInt(r.disponibles || 0, 10) ? (r.disponibles + ' recompensa disponible') : ('Faltan $' + fmt(r.monto_restante || 0));
-  ctx.fillText(rewardText, w / 2, 1135);
+  ctx.font = '700 30px Inter, Arial, sans-serif';
+  ctx.fillText('Escanea para ver tus puntos en vivo', w / 2, 1040);
+  ctx.font = '500 24px Inter, Arial, sans-serif';
+  ctx.fillText('Presenta esta tarjeta en Jacaranda para acumular compras.', w / 2, 1085);
+  ctx.fillText('Las recompensas se validan en caja.', w / 2, 1120);
 
-  var a = document.createElement('a');
-  var slug = ((t && t.nombre) || 'cliente').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'cliente';
-  a.href = canvas.toDataURL('image/png');
-  a.download = 'jacaranda-tarjeta-' + slug + '.png';
-  a.click();
+  ctx.fillStyle = '#c4988a';
+  ctx.font = '700 24px Inter, Arial, sans-serif';
+  ctx.fillText('@jacaranda.flavors', w / 2, 1180);
+
+  return canvas.toDataURL('image/png');
 }
 
-function descargarQRClientePublico() {
+function descargarTarjetaClientePublicoCanvas(t, qrCanvas) {
+  var dataUrl = crearTarjetaClientePublicoDataUrl(t, qrCanvas);
+  descargarDataUrl(dataUrl, nombreArchivoTarjetaCliente(t));
+  return dataUrl;
+}
+
+function generarTarjetaClientePublicoDataUrl() {
   var t = _clientePublicoActual || {};
   var code = t.tarjeta_qr || codigoClientePublico();
   var link = t.url_publica || (APP_URL + '#cliente/' + code);
   var qrCanvas = document.getElementById('cliente-publico-qr');
-  if (!qrCanvas || !code) return;
-  dibujarQR('cliente-publico-qr', link, 420).then(function() {
-    descargarTarjetaClientePublicoCanvas(t, qrCanvas);
-  }).catch(function() {
+  if (!qrCanvas || !code) return Promise.reject(new Error('QR no disponible'));
+  return dibujarQR('cliente-publico-qr', link, 420, code).then(function() {
+    return crearTarjetaClientePublicoDataUrl(t, qrCanvas);
+  });
+}
+
+function descargarQRClientePublico() {
+  generarTarjetaClientePublicoDataUrl().then(function(dataUrl) {
+    descargarDataUrl(dataUrl, nombreArchivoTarjetaCliente(_clientePublicoActual || {}));
+  }).catch(function(e) {
+    console.warn(e);
     toast('No se pudo generar la tarjeta QR', true);
+  });
+}
+
+function compartirTarjetaClientePublico() {
+  var t = _clientePublicoActual || {};
+  var code = t.tarjeta_qr || codigoClientePublico();
+  var link = t.url_publica || (APP_URL + '#cliente/' + code);
+  var msg = mensajeTarjetaCliente(t, link);
+  generarTarjetaClientePublicoDataUrl().then(function(dataUrl) {
+    var fileName = nombreArchivoTarjetaCliente(t);
+    var file = new File([dataUrlToBlob(dataUrl)], fileName, {type: 'image/png'});
+    if (navigator.canShare && navigator.canShare({files: [file]}) && navigator.share) {
+      return navigator.share({
+        title: 'Tarjeta Jacaranda',
+        text: msg,
+        files: [file]
+      }).then(function() {
+        toast('Tarjeta lista para compartir');
+      });
+    }
+    descargarDataUrl(dataUrl, fileName);
+    abrirWhatsAppConFallback(msg);
+    toast('Tarjeta descargada y link listo en WhatsApp');
+  }).catch(function(e) {
+    console.warn(e);
+    abrirWhatsAppConFallback(msg);
+    toast('No se pudo adjuntar imagen; abrí WhatsApp con el link', true);
   });
 }
 
@@ -7964,7 +8035,7 @@ function enviarTarjetaCliente(id, ev) {
   if (ev) ev.stopPropagation();
   api('GET', '/lealtad/tarjeta/' + id).then(function(t) {
     var link = t.url_publica || (APP_URL + '#cliente/' + t.tarjeta_qr);
-    var txt = 'Hola ' + (t.nombre || '') + ', aqui esta tu tarjeta de cliente frecuente Jacaranda: ' + link;
+    var txt = mensajeTarjetaCliente(t, link);
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(link).catch(function() {});
     }
