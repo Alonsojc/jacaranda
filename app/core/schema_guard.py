@@ -154,6 +154,24 @@ def ensure_runtime_schema(engine: Engine) -> None:
                 f"ON {table_name} (idempotency_key)"
             ))
 
+        if "ventas" in tables:
+            venta_columns = {col["name"] for col in inspector.get_columns("ventas")}
+            for column_name, column_type, default, nullable in (
+                ("recompensa_lealtad_canjeada", Boolean(), "false", False),
+                ("recompensa_lealtad_nombre", String(120), None, True),
+                ("recompensa_lealtad_monto", Numeric(14, 2), "0", False),
+            ):
+                _add_column_if_missing(
+                    conn,
+                    engine,
+                    "ventas",
+                    venta_columns,
+                    column_name,
+                    column_type,
+                    server_default=default,
+                    nullable=nullable,
+                )
+
         if "clientes" in tables:
             cliente_columns = {col["name"] for col in inspector.get_columns("clientes")}
             for column_name, column_type, default, nullable in (

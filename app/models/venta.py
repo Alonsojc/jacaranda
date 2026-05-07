@@ -65,6 +65,13 @@ class Venta(Base):
     total_impuestos: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     total: Mapped[Decimal] = mapped_column(Numeric(14, 2))
 
+    # Recompensa de cliente frecuente
+    recompensa_lealtad_canjeada: Mapped[bool] = mapped_column(Boolean, default=False)
+    recompensa_lealtad_nombre: Mapped[str | None] = mapped_column(String(120))
+    recompensa_lealtad_monto: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), default=Decimal("0")
+    )
+
     # Pago
     metodo_pago: Mapped[MetodoPago] = mapped_column(
         SAEnum(MetodoPago), default=MetodoPago.EFECTIVO

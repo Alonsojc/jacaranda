@@ -620,6 +620,13 @@ h2{font-size:1.1rem}
 <button type="button" class="limpiar" onclick="abrirEscanerCliente()" style="width:auto;margin:0;padding:.38rem .55rem;font-size:.76rem;white-space:nowrap">&#128247; Escanear</button>
 <span id="pos-puntos" style="font-size:.75rem;color:var(--mut);white-space:nowrap;display:none"></span>
 </div>
+<div id="pos-recompensa" style="display:none;border:1px solid #bbf7d0;background:#f0fdf4;color:#14532d;border-radius:10px;padding:.5rem .6rem;margin:.35rem 0 .55rem;font-size:.78rem">
+<label style="display:flex;align-items:center;gap:.45rem;font-weight:800;cursor:pointer">
+<input type="checkbox" id="pos-recompensa-check" onchange="toggleRecompensaLealtad()" style="width:18px;height:18px;accent-color:var(--grn)">
+<span id="pos-recompensa-title">Canjear pastel chico gratis</span>
+</label>
+<div id="pos-recompensa-msg" style="font-size:.72rem;color:#166534;margin-top:.25rem"></div>
+</div>
 <div style="font-size:.78rem;color:var(--mut);margin:.4rem 0 .3rem;font-weight:600">M&eacute;todo de pago:</div>
 <div class="pmt" style="grid-template-columns:1fr 1fr">
 <div class="pbtn sel" id="pm-ef" onclick="setPm('ef')">&#128181; Efectivo</div>
@@ -2323,7 +2330,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v59';
+var APP_BUILD = 'jacaranda-v60';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -2337,6 +2344,7 @@ var PAGINAS_DESACTIVADAS = {
 };
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
+var _clienteRecompensaActual = null, _canjearRecompensaLealtad = false;
 var cafCart = [], cafPm = 'trans', _cafGroups = {}, _cafVentas = [], _cafEnProceso = false, _cafIdempotencyKey = null;
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
 var _pedidoEnProceso = false, _pedidoIdempotencyKey = null;
@@ -3056,6 +3064,62 @@ function add(id, n, pr, iv) {
   }
 }
 
+function recompensaLealtadActiva() {
+  return !!(_canjearRecompensaLealtad && _clienteRecompensaActual && parseInt(_clienteRecompensaActual.disponibles || 0, 10) > 0);
+}
+
+function descuentoRecompensaCarrito() {
+  if (!recompensaLealtadActiva()) return {base:0, iva:0, total:0, nombre:''};
+  var mejor = null;
+  for (var i = 0; i < cart.length; i++) {
+    var c = cart[i];
+    if (!/chico/i.test(c.n || '')) continue;
+    var baseDisponible = Math.max(0, (c.p * c.q) - (c.desc || 0));
+    if (baseDisponible <= 0) continue;
+    var base = Math.min(c.p, baseDisponible);
+    var candidato = {
+      base: base,
+      iva: base * (c.iv || 0),
+      total: base * (1 + (c.iv || 0)),
+      nombre: c.n
+    };
+    if (!mejor || candidato.total < mejor.total) mejor = candidato;
+  }
+  return mejor || {base:0, iva:0, total:0, nombre:''};
+}
+
+function actualizarCajaRecompensa() {
+  var box = document.getElementById('pos-recompensa');
+  var chk = document.getElementById('pos-recompensa-check');
+  var msg = document.getElementById('pos-recompensa-msg');
+  var title = document.getElementById('pos-recompensa-title');
+  var disponibles = _clienteRecompensaActual ? parseInt(_clienteRecompensaActual.disponibles || 0, 10) : 0;
+  if (!box || !chk || !msg) return;
+  if (disponibles <= 0) {
+    box.style.display = 'none';
+    chk.checked = false;
+    _canjearRecompensaLealtad = false;
+    return;
+  }
+  box.style.display = 'block';
+  if (title) title.textContent = 'Canjear ' + (_clienteRecompensaActual.nombre || 'pastel chico gratis');
+  var desc = descuentoRecompensaCarrito();
+  if (_canjearRecompensaLealtad && desc.total > 0) {
+    msg.textContent = 'Se descontará ' + desc.nombre + ' (-$' + fmt(desc.total) + ').';
+  } else if (_canjearRecompensaLealtad) {
+    msg.textContent = 'Agrega un pastel chico al ticket para aplicar la recompensa.';
+  } else {
+    msg.textContent = disponibles + ' recompensa disponible. Márcala para aplicarla en esta venta.';
+  }
+}
+
+function toggleRecompensaLealtad() {
+  var chk = document.getElementById('pos-recompensa-check');
+  _canjearRecompensaLealtad = !!(chk && chk.checked);
+  actualizarCajaRecompensa();
+  ren();
+}
+
 function ren() {
   var h='', s=0, iv=0, dsc=0;
   for (var i = 0; i < cart.length; i++) {
@@ -3078,10 +3142,17 @@ function ren() {
   }
   document.getElementById('titems').innerHTML = h;
   document.getElementById('tsum').style.display = cart.length ? 'block' : 'none';
-  document.getElementById('tsub').textContent = '$' + fmt(s);
-  if (dsc > 0) document.getElementById('tsub').textContent += ' (-$' + fmt(dsc) + ')';
-  document.getElementById('tiva').textContent = '$' + fmt(iv);
-  document.getElementById('ttot').textContent = '$' + fmt((s + iv));
+  var rew = descuentoRecompensaCarrito();
+  var subtotalFinal = Math.max(0, s - rew.base);
+  var ivaFinal = Math.max(0, iv - rew.iva);
+  document.getElementById('tsub').textContent = '$' + fmt(subtotalFinal);
+  var notasDesc = [];
+  if (dsc > 0) notasDesc.push('-$' + fmt(dsc));
+  if (rew.total > 0) notasDesc.push('🎁 -$' + fmt(rew.total));
+  if (notasDesc.length) document.getElementById('tsub').textContent += ' (' + notasDesc.join(' · ') + ')';
+  document.getElementById('tiva').textContent = '$' + fmt(ivaFinal);
+  document.getElementById('ttot').textContent = '$' + fmt((subtotalFinal + ivaFinal));
+  actualizarCajaRecompensa();
   var bp = document.getElementById('pos-btn-prods');
   if (bp) bp.style.display = (cart.length && window.innerWidth <= 900) ? '' : 'none';
 }
@@ -3135,7 +3206,8 @@ function _cartTotal() {
     var l = cart[i].p * cart[i].q - (cart[i].desc || 0);
     s += l; iv += l * cart[i].iv;
   }
-  return s + iv;
+  var rew = descuentoRecompensaCarrito();
+  return Math.max(0, s - rew.base) + Math.max(0, iv - rew.iva);
 }
 
 function _cartResumenCotizacion() {
@@ -3500,6 +3572,21 @@ function procesarVenta() {
   var body = {detalles: detalles, forma_pago: 'PUE', idempotency_key: _ventaIdempotencyKey};
   var clienteId = document.getElementById('pos-cliente').value;
   if (clienteId) body.cliente_id = parseInt(clienteId);
+  if (_canjearRecompensaLealtad) {
+    var recompensaDesc = descuentoRecompensaCarrito();
+    if (!clienteId) {
+      _ventaEnProceso = false;
+      toast('Selecciona un cliente frecuente para canjear la recompensa', true);
+      return;
+    }
+    if (recompensaDesc.total <= 0) {
+      _ventaEnProceso = false;
+      toast('Agrega un pastel chico al ticket para canjear la recompensa', true);
+      return;
+    }
+    body.canjear_recompensa_lealtad = true;
+    body.recompensa_lealtad_motivo = 'Canje en punto de venta';
+  }
 
   if (_splitMode) {
     var ef = parseFloat(document.getElementById('mc-sp-ef').value) || 0;
@@ -3536,6 +3623,11 @@ function procesarVenta() {
   }).catch(function(e) {
     // Offline: queue sale for later sync
     if (!navigator.onLine || _offline) {
+      if (body.canjear_recompensa_lealtad) {
+        _ventaEnProceso = false;
+        toast('No se puede canjear recompensa sin conexión', true);
+        return;
+      }
       body._cartItems = cart.map(function(c){ return {n:c.n,q:c.q,p:c.p,desc:c.desc||0}; });
       body._total = total;
       body._timestamp = new Date().toISOString();
@@ -3578,6 +3670,10 @@ function sincronizarVentas() {
       if (venta.idempotency_key) body.idempotency_key = venta.idempotency_key;
       if (venta.cliente_id) body.cliente_id = venta.cliente_id;
       if (venta.pagos) body.pagos = venta.pagos;
+      if (venta.canjear_recompensa_lealtad) {
+        body.canjear_recompensa_lealtad = true;
+        body.recompensa_lealtad_motivo = venta.recompensa_lealtad_motivo;
+      }
       chain = chain.then(function() {
         return api('POST', '/punto-de-venta/ventas', body).then(function() { ok++; }).catch(function() { fail++; });
       });
@@ -3608,7 +3704,7 @@ function guardarVentaIndexedDB(body) {
     tx.objectStore('pending-sales').add({
       url: API_URL + '/api/v1/punto-de-venta/ventas',
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN},
-      body: JSON.stringify({detalles: body.detalles, forma_pago: body.forma_pago, metodo_pago: body.metodo_pago, terminal: body.terminal, monto_recibido: body.monto_recibido, pagos: body.pagos, cliente_id: body.cliente_id, idempotency_key: body.idempotency_key}),
+      body: JSON.stringify({detalles: body.detalles, forma_pago: body.forma_pago, metodo_pago: body.metodo_pago, terminal: body.terminal, monto_recibido: body.monto_recibido, pagos: body.pagos, cliente_id: body.cliente_id, idempotency_key: body.idempotency_key, canjear_recompensa_lealtad: body.canjear_recompensa_lealtad, recompensa_lealtad_motivo: body.recompensa_lealtad_motivo}),
       timestamp: new Date().toISOString(),
     });
     // Request background sync
@@ -3686,6 +3782,10 @@ function renderTicket(tk) {
   var h = '';
   h += '<div class="srow"><span>Total</span><span class="green" style="font-size:1.2rem">' + tk.total + '</span></div>';
   h += '<div class="srow"><span>Subtotal</span><span>' + tk.subtotal + '</span></div>';
+  if (tk.descuento && tk.descuento !== '$0.00') h += '<div class="srow"><span>Descuento</span><span style="color:#b91c1c">-' + tk.descuento + '</span></div>';
+  if (tk.recompensa_lealtad && tk.recompensa_lealtad.canjeada) {
+    h += '<div class="srow"><span>Recompensa</span><span style="color:var(--grn)">🎁 ' + escHtml(tk.recompensa_lealtad.nombre || 'Pastel chico gratis') + '</span></div>';
+  }
   h += '<div class="srow"><span>IVA</span><span>' + tk.iva + '</span></div>';
   h += '<div class="srow"><span>M\u00e9todo</span><span>' + tk.metodo_pago + '</span></div>';
   if (tk.monto_recibido && tk.monto_recibido !== '$0.00') h += '<div class="srow"><span>Recibido</span><span>' + tk.monto_recibido + '</span></div>';
@@ -3803,7 +3903,13 @@ function fallbackCopy(txt) {
   document.body.removeChild(ta);
 }
 
-function limpiar() { cart = []; ren(); }
+function limpiar() {
+  cart = [];
+  _canjearRecompensaLealtad = false;
+  var chk = document.getElementById('pos-recompensa-check');
+  if (chk) chk.checked = false;
+  ren();
+}
 function confirmarLimpiar() {
   if (cart.length === 0) return;
   if (confirm('¿Limpiar el carrito? (' + cart.length + ' productos)')) limpiar();
@@ -9007,10 +9113,23 @@ function selClientePOS() {
   var sel = document.getElementById('pos-cliente');
   var puntosEl = document.getElementById('pos-puntos');
   var cid = sel.value;
-  if (!cid) { puntosEl.style.display = 'none'; return; }
+  if (!cid) {
+    puntosEl.style.display = 'none';
+    _clienteRecompensaActual = null;
+    _canjearRecompensaLealtad = false;
+    var chk0 = document.getElementById('pos-recompensa-check');
+    if (chk0) chk0.checked = false;
+    actualizarCajaRecompensa();
+    ren();
+    return;
+  }
   api('GET', '/clientes/' + cid + '/puntos').then(function(r) {
     var recompensa = r.recompensa || {};
     var disponibles = parseInt(recompensa.disponibles || 0, 10);
+    _clienteRecompensaActual = recompensa;
+    _canjearRecompensaLealtad = false;
+    var chk = document.getElementById('pos-recompensa-check');
+    if (chk) chk.checked = false;
     puntosEl.style.display = 'inline';
     if (disponibles > 0) {
       puntosEl.innerHTML = '&#127873; ' + escHtml(recompensa.nombre || 'Pastel chico gratis') + ' disponible';
@@ -9020,7 +9139,15 @@ function selClientePOS() {
     } else {
       puntosEl.innerHTML = '0 pts';
     }
-  }).catch(function() { puntosEl.style.display = 'none'; });
+    actualizarCajaRecompensa();
+    ren();
+  }).catch(function() {
+    puntosEl.style.display = 'none';
+    _clienteRecompensaActual = null;
+    _canjearRecompensaLealtad = false;
+    actualizarCajaRecompensa();
+    ren();
+  });
 }
 
 function abrirEscanerCliente() {

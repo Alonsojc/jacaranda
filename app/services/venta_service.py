@@ -106,6 +106,43 @@ def _aplicar_descuento_global(detalles: list[DetalleVenta], descuento_bruto: Dec
         detalle.monto_iva = (detalle.subtotal * detalle.tasa_iva).quantize(CENTAVO)
 
 
+def _aplicar_recompensa_pastel_chico(
+    detalles: list[DetalleVenta],
+    productos_por_id: dict[int, Producto],
+) -> tuple[Decimal, str]:
+    """Aplica una pieza gratis al pastel chico más barato del ticket."""
+    candidatos: list[tuple[Decimal, DetalleVenta, Producto]] = []
+    for detalle in detalles:
+        producto = productos_por_id.get(detalle.producto_id)
+        if not producto:
+            continue
+        nombre = (producto.nombre or "").lower()
+        if "chico" not in nombre:
+            continue
+        if detalle.cantidad < 1 or detalle.subtotal <= 0:
+            continue
+        candidatos.append((Decimal(str(detalle.precio_unitario)), detalle, producto))
+
+    if not candidatos:
+        raise ValueError("Agrega un pastel chico al ticket para canjear la recompensa")
+
+    _, detalle, producto = min(candidatos, key=lambda item: item[0])
+    bruto_antes = (detalle.subtotal + detalle.monto_iva).quantize(CENTAVO)
+    descuento_base = min(
+        Decimal(str(detalle.precio_unitario)).quantize(CENTAVO),
+        Decimal(str(detalle.subtotal)).quantize(CENTAVO),
+    )
+    if descuento_base <= 0:
+        raise ValueError("El pastel chico seleccionado ya no tiene importe por descontar")
+
+    detalle.descuento += descuento_base
+    detalle.subtotal -= descuento_base
+    detalle.monto_iva = (detalle.subtotal * detalle.tasa_iva).quantize(CENTAVO)
+    bruto_despues = (detalle.subtotal + detalle.monto_iva).quantize(CENTAVO)
+    monto_canjeado = max(Decimal("0"), bruto_antes - bruto_despues)
+    return monto_canjeado.quantize(CENTAVO), producto.nombre
+
+
 def _recalcular_totales(
     detalles: list[DetalleVenta],
 ) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal]:
@@ -153,6 +190,21 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
                 "Puntos insuficientes: tiene "
                 f"{cliente_lealtad.puntos_acumulados}, pidió {data.puntos_canjeados}"
             )
+    recompensa_canjeada = False
+    recompensa_nombre = None
+    recompensa_producto_nombre = None
+    recompensa_monto = Decimal("0")
+    recompensas_canjeadas_antes = None
+    if data.canjear_recompensa_lealtad:
+        if not cliente_lealtad:
+            raise ValueError("El canje de recompensa requiere cliente asociado")
+        from app.services.lealtad_service import RECOMPENSA_NOMBRE, recompensas_disponibles
+
+        recompensas_disponibles_antes = recompensas_disponibles(cliente_lealtad)
+        if recompensas_disponibles_antes <= 0:
+            raise ValueError("El cliente no tiene recompensas disponibles")
+        recompensa_nombre = RECOMPENSA_NOMBRE
+        recompensas_canjeadas_antes = int(cliente_lealtad.recompensas_lealtad_canjeadas or 0)
 
     subtotal_total = Decimal("0")
     descuento_total = Decimal("0")
@@ -211,6 +263,16 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             objeto_impuesto=producto.objeto_impuesto,
         )
         detalles.append(detalle)
+
+    if data.canjear_recompensa_lealtad:
+        recompensa_monto, recompensa_producto_nombre = _aplicar_recompensa_pastel_chico(
+            detalles,
+            productos_por_id,
+        )
+        recompensa_canjeada = True
+        subtotal_total, descuento_total, iva_0_total, iva_16_total, total_impuestos = (
+            _recalcular_totales(detalles)
+        )
 
     if data.puntos_canjeados:
         descuento_puntos = Decimal(str(data.puntos_canjeados)) * VALOR_PUNTO
@@ -272,6 +334,9 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             iva_16=iva_16_total,
             total_impuestos=total_impuestos,
             total=total,
+            recompensa_lealtad_canjeada=recompensa_canjeada,
+            recompensa_lealtad_nombre=recompensa_nombre,
+            recompensa_lealtad_monto=recompensa_monto,
             metodo_pago=metodo_principal,
             terminal=data.terminal,
             forma_pago=data.forma_pago,
@@ -324,6 +389,32 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             saldo_anterior=saldo_anterior,
             saldo_nuevo=cliente_lealtad.puntos_acumulados,
         ))
+
+    if recompensa_canjeada and cliente_lealtad:
+        cliente_lealtad.recompensas_lealtad_canjeadas += 1
+        registrar_evento(
+            db,
+            usuario_id=usuario_id,
+            usuario_nombre=None,
+            accion="canjear_recompensa_lealtad",
+            modulo="ventas",
+            entidad="ventas",
+            entidad_id=venta.id,
+            datos_anteriores={
+                "cliente_id": cliente_lealtad.id,
+                "recompensas_canjeadas": recompensas_canjeadas_antes,
+            },
+            datos_nuevos={
+                "folio": folio,
+                "cliente_id": cliente_lealtad.id,
+                "recompensa": recompensa_nombre,
+                "producto": recompensa_producto_nombre,
+                "monto": str(recompensa_monto),
+                "motivo": data.recompensa_lealtad_motivo or "Canje en punto de venta",
+                "recompensas_canjeadas": cliente_lealtad.recompensas_lealtad_canjeadas,
+            },
+            commit=False,
+        )
 
     # Agregar pagos (split payment records)
     if data.pagos:
@@ -410,6 +501,7 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
     estado_anterior = venta.estado.value
     puntos_revertidos = 0
     puntos_restaurados = 0
+    recompensas_restauradas = 0
     puntos_antes = None
     puntos_despues = None
 
@@ -469,6 +561,12 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
                 Decimal("0"),
                 monto_antes - Decimal(str(venta.total or 0)),
             )
+            if venta.recompensa_lealtad_canjeada:
+                cliente.recompensas_lealtad_canjeadas = max(
+                    0,
+                    int(cliente.recompensas_lealtad_canjeadas or 0) - 1,
+                )
+                recompensas_restauradas = 1
             cliente.nivel_lealtad = calcular_nivel(cliente.puntos_totales_historicos).value
             if puntos_revertidos:
                 saldo_despues_reversion = saldo_actual - puntos_revertidos
@@ -512,6 +610,8 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
             "estado": EstadoVenta.CANCELADA.value,
             "puntos_revertidos": puntos_revertidos,
             "puntos_restaurados": puntos_restaurados,
+            "recompensas_restauradas": recompensas_restauradas,
+            "recompensa_lealtad_canjeada": venta.recompensa_lealtad_canjeada,
             "puntos_acumulados": puntos_despues,
         },
         commit=False,
@@ -608,8 +708,14 @@ def generar_ticket(db: Session, venta_id: int) -> dict:
         "cajero": f"Usuario #{venta.usuario_id}",
         "productos": productos,
         "subtotal": f"${venta.subtotal:,.2f}",
+        "descuento": f"${venta.descuento:,.2f}",
         "iva": f"${venta.total_impuestos:,.2f}",
         "total": f"${venta.total:,.2f}",
+        "recompensa_lealtad": {
+            "canjeada": venta.recompensa_lealtad_canjeada,
+            "nombre": venta.recompensa_lealtad_nombre,
+            "monto": float(venta.recompensa_lealtad_monto or 0),
+        },
         "metodo_pago": metodo_str,
         "pagos": pagos_info,
         "monto_recibido": f"${venta.monto_recibido:,.2f}",

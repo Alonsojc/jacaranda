@@ -27,6 +27,8 @@ class VentaCreate(BaseModel):
     forma_pago: FormaPago = FormaPago.PUE
     monto_recibido: Decimal = Field(default=Decimal("0"), ge=0)
     puntos_canjeados: int = Field(default=0, ge=0)
+    canjear_recompensa_lealtad: bool = False
+    recompensa_lealtad_motivo: str | None = None
     notas: str | None = None
     detalles: list[DetalleVentaCreate] = Field(..., min_length=1)
     pagos: list[PagoVentaCreate] | None = None  # Split payments (optional)
@@ -66,6 +68,9 @@ class VentaResponse(BaseModel):
     iva_16: Decimal
     total_impuestos: Decimal
     total: Decimal
+    recompensa_lealtad_canjeada: bool = False
+    recompensa_lealtad_nombre: str | None = None
+    recompensa_lealtad_monto: Decimal = Decimal("0")
     metodo_pago: MetodoPago
     terminal: TerminalPago
     forma_pago: FormaPago
@@ -90,8 +95,10 @@ class TicketResponse(BaseModel):
     cajero: str
     productos: list[dict]
     subtotal: str
+    descuento: str | None = None
     iva: str
     total: str
+    recompensa_lealtad: dict | None = None
     metodo_pago: str
     monto_recibido: str
     cambio: str

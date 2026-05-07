@@ -1,5 +1,7 @@
 """Tests de integración para el módulo de ventas."""
 
+import json
+
 import pytest
 
 
@@ -219,6 +221,94 @@ class TestVentas:
         ).first()
         assert evento is not None
         assert "puntos_revertidos" in evento.datos_nuevos
+
+    def test_venta_canjea_recompensa_pastel_chico_y_cancelacion_la_restaura(
+        self,
+        client,
+        auth_headers,
+        db,
+    ):
+        from decimal import Decimal
+
+        from app.models.auditoria import LogAuditoria
+        from app.models.cliente import Cliente
+
+        cliente = client.post("/api/v1/clientes/", json={
+            "nombre": "Cliente Recompensa",
+            "telefono": "4420001111",
+            "email": "reward@example.com",
+            "cliente_frecuente": True,
+        }, headers=auth_headers).json()
+        cliente_db = db.query(Cliente).filter(Cliente.id == cliente["id"]).first()
+        cliente_db.monto_lealtad_acumulado = Decimal("10000.00")
+        db.commit()
+
+        pid = self._crear_producto(client, auth_headers, "PASTEL-CHICO", "500.00")
+        self._agregar_stock(client, auth_headers, pid, 3)
+
+        resp = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "0.00",
+            "cliente_id": cliente["id"],
+            "canjear_recompensa_lealtad": True,
+            "recompensa_lealtad_motivo": "Test canje",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert resp.status_code == 201, resp.text
+        venta = resp.json()
+        assert venta["total"] == "0.00"
+        assert venta["descuento"] == "500.00"
+        assert venta["recompensa_lealtad_canjeada"] is True
+        assert venta["recompensa_lealtad_nombre"] == "Pastel chico gratis"
+        assert venta["recompensa_lealtad_monto"] == "500.00"
+
+        db.refresh(cliente_db)
+        assert cliente_db.recompensas_lealtad_canjeadas == 1
+
+        evento = db.query(LogAuditoria).filter(
+            LogAuditoria.accion == "canjear_recompensa_lealtad",
+            LogAuditoria.modulo == "ventas",
+            LogAuditoria.entidad_id == venta["id"],
+        ).first()
+        assert evento is not None
+        datos_nuevos = json.loads(evento.datos_nuevos)
+        assert datos_nuevos["producto"] == "Producto PASTEL-CHICO"
+
+        cancel = client.post(
+            f"/api/v1/punto-de-venta/ventas/{venta['id']}/cancelar",
+            headers=auth_headers,
+        )
+        assert cancel.status_code == 200, cancel.text
+        db.refresh(cliente_db)
+        assert cliente_db.recompensas_lealtad_canjeadas == 0
+
+    def test_venta_rechaza_recompensa_sin_producto_chico(self, client, auth_headers, db):
+        from decimal import Decimal
+
+        from app.models.cliente import Cliente
+
+        cliente = client.post("/api/v1/clientes/", json={
+            "nombre": "Cliente Recompensa 2",
+            "telefono": "4420002222",
+            "email": "reward2@example.com",
+            "cliente_frecuente": True,
+        }, headers=auth_headers).json()
+        cliente_db = db.query(Cliente).filter(Cliente.id == cliente["id"]).first()
+        cliente_db.monto_lealtad_acumulado = Decimal("10000.00")
+        db.commit()
+
+        pid = self._crear_producto(client, auth_headers, "BROWNIE-REG", "70.00")
+        self._agregar_stock(client, auth_headers, pid, 3)
+
+        resp = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "70.00",
+            "cliente_id": cliente["id"],
+            "canjear_recompensa_lealtad": True,
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert resp.status_code == 400
+        assert "pastel chico" in resp.json()["detail"]
 
     def test_cancelar_venta_ya_cancelada(self, client, auth_headers):
         pid = self._crear_producto(client, auth_headers, "PAN-005")
