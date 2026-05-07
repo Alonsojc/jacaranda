@@ -125,6 +125,9 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .pi-stk-out{background:#fee2e2;color:#b91c1c}
 .pi-multi{font-size:.6rem;color:var(--mut);font-style:italic}
 .pi.pi-out{opacity:.72}
+.pi-action{margin-top:.35rem;min-height:34px;padding:.42rem .8rem;border:none;border-radius:9px;background:linear-gradient(135deg,#c4988a,#b8877a);color:#fff;font-weight:700;font-size:.75rem;cursor:pointer;box-shadow:0 2px 8px rgba(196,152,138,.2)}
+.pi-action.secondary{background:#f5eeeb;color:var(--v);box-shadow:none}
+.pi-action:active{transform:scale(.97)}
 .tkt{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd)}
 .tkt h3{font-size:.9rem;margin-bottom:.6rem}
 .ti{display:flex;justify-content:space-between;font-size:.82rem;padding:.35rem 0;border-bottom:1px solid #f0e8e5}
@@ -658,6 +661,7 @@ h2{font-size:1.1rem}
 <p>Venta a cafeter&iacute;as con precio especial, cr&eacute;dito y reportes de pagos separados del punto de venta diario.</p>
 </div>
 <div class="page-actions">
+<button class="limpiar" style="width:auto;margin:0;padding:.45rem .8rem" onclick="irEditarPreciosCafeteria()">Precios caf&eacute;</button>
 <button class="limpiar" style="width:auto;margin:0;padding:.45rem .8rem" onclick="cargarCafeteria()">Actualizar</button>
 </div>
 </div>
@@ -2332,7 +2336,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v63';
+var APP_BUILD = 'jacaranda-v64';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -2347,7 +2351,7 @@ var PAGINAS_DESACTIVADAS = {
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var _clienteRecompensaActual = null, _canjearRecompensaLealtad = false;
-var cafCart = [], cafPm = 'trans', _cafGroups = {}, _cafVentas = [], _cafEnProceso = false, _cafIdempotencyKey = null;
+var cafCart = [], cafPm = 'trans', _cafGroups = {}, _cafProductById = {}, _cafVentas = [], _cafEnProceso = false, _cafIdempotencyKey = null;
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
 var _pedidoEnProceso = false, _pedidoIdempotencyKey = null;
 var _clienteEditId = null;
@@ -4110,6 +4114,7 @@ function cargarCafeteria() { return initCafeteria(); }
 
 function initCafeteria() {
   setCafPm(cafPm || 'trans');
+  cafRen();
   return Promise.all([
     cargarCafeteriaProductos(),
     cargarCafeteriaVentas(),
@@ -4121,8 +4126,10 @@ function renderCafeteriaProductos(prods) {
   var activos = [];
   for (var i = 0; i < prods.length; i++) { if (prods[i].activo) activos.push(prods[i]); }
   var grupos = {}, orden = [];
+  _cafProductById = {};
   for (var j = 0; j < activos.length; j++) {
     var p = activos[j];
+    _cafProductById[p.id] = p;
     var parts = splitNombreVariante(p.nombre);
     var key = parts.nombre.toLowerCase().trim();
     if (!grupos[key]) { grupos[key] = { nombre: parts.nombre, imagen: null, items: [] }; orden.push(key); }
@@ -4152,12 +4159,12 @@ function renderCafeteriaProductos(prods) {
     var single = items.length === 1;
     var clickAttr;
     if (single) {
-      var sp = items[0], iv = sp.tasa_iva === '0.16' ? 0.16 : 0;
-      clickAttr = 'onclick="cafAdd(' + sp.id + ',' + jsArg(sp.nombre) + ',' + precioCafeteriaProducto(sp) + ',' + iv + ')"';
+      var sp = items[0];
+      clickAttr = 'onclick="cafAddProducto(' + sp.id + ')"';
     } else {
       clickAttr = 'onclick="abrirVariantesCafeteria(' + jsArg(orden[gi]) + ')"';
     }
-    h += '<div class="pi' + (allOut ? ' pi-out' : '') + '" ' + clickAttr + '>';
+    h += '<div class="pi' + (allOut ? ' pi-out' : '') + '" role="button" tabindex="0" ' + clickAttr + '>';
     h += g.imagen ? '<img class="pi-img" src="' + g.imagen + '">' : '<div class="pi-noimg">\uD83C\uDF5E</div>';
     h += '<div class="pi-body">';
     h += '<span class="pn">' + escHtml(g.nombre) + '</span>';
@@ -4175,6 +4182,8 @@ function renderCafeteriaProductos(prods) {
     var stkCls = allOut ? 'pi-stk-out' : (stockTotal <= minTotal ? 'pi-stk-low' : 'pi-stk-ok');
     var stkTxt = allOut ? 'Agotado' : Math.round(stockTotal) + ' pzas';
     h += '<span class="pi-stock-chip ' + stkCls + '">' + stkTxt + '</span>';
+    if (single) h += '<button type="button" class="pi-action" onclick="event.stopPropagation();cafAddProducto(' + items[0].id + ')">Agregar</button>';
+    else h += '<button type="button" class="pi-action secondary" onclick="event.stopPropagation();abrirVariantesCafeteria(' + jsArg(orden[gi]) + ')">Elegir</button>';
     h += '</div></div>';
   }
   h += '</div>';
@@ -4217,14 +4226,13 @@ function abrirVariantesCafeteria(key) {
     var precio = precioCafeteriaProducto(p);
     var stock = parseFloat(p.stock_actual) || 0;
     var min = parseFloat(p.stock_minimo) || 0;
-    var iv = p.tasa_iva === '0.16' ? 0.16 : 0;
     var agotado = stock <= 0;
     var stkCls = agotado ? 'pi-stk-out' : (stock <= min ? 'pi-stk-low' : 'pi-stk-ok');
     var stkTxt = agotado ? 'Agotado' : Math.round(stock) + ' pzas';
     h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem .8rem;border:1px solid var(--brd);border-radius:10px;cursor:pointer;transition:all .15s" '
       + 'onmouseover="this.style.borderColor=\'var(--v)\';this.style.background=\'#faf3f0\'" '
       + 'onmouseout="this.style.borderColor=\'\';this.style.background=\'\'" '
-      + 'onclick="cafAdd(' + p.id + ',' + jsArg(p.nombre) + ',' + precio + ',' + iv + ');cerrarModal(\'modal-variante\')">';
+      + 'onclick="cafAddProducto(' + p.id + ');cerrarModal(\'modal-variante\')">';
     h += '<div><strong style="font-size:.9rem">' + escHtml(label) + '</strong>';
     h += '<span style="margin-left:.5rem;color:var(--v);font-weight:700;font-size:.95rem">$' + fmt(precio) + '</span></div>';
     h += '<span class="pi-stock-chip ' + stkCls + '">' + stkTxt + '</span>';
@@ -4232,6 +4240,16 @@ function abrirVariantesCafeteria(key) {
   }
   document.getElementById('mv-options').innerHTML = h;
   document.getElementById('modal-variante').classList.add('on');
+}
+
+function cafAddProducto(id) {
+  var p = _cafProductById[id];
+  if (!p) {
+    toast('Producto no disponible, actualiza cafeter\u00eda', true);
+    return;
+  }
+  var iv = p.tasa_iva === '0.16' ? 0.16 : 0;
+  cafAdd(p.id, p.nombre, precioCafeteriaProducto(p), iv);
 }
 
 function cafAdd(id, n, p, iv) {
@@ -4306,6 +4324,14 @@ function setCafPm(m) {
     var el = document.getElementById('caf-pm-' + x);
     if (el) el.classList.toggle('sel', x === cafPm);
   });
+}
+
+function irEditarPreciosCafeteria() {
+  go('listas');
+  setTimeout(function() {
+    listTab('l-prods', {target: document.querySelector('#listas .tab[onclick*="l-prods"]')});
+    toast('Edita el producto y cambia Precio cafeter\u00eda');
+  }, 80);
 }
 
 function mapPagoCafeteria() {
@@ -7010,13 +7036,15 @@ function eliminarReceta(id, nombre) {
 }
 
 // ─── Listas page ─────────────────────────────────────────────────
-function listTab(tab) {
+function listTab(tab, evt) {
   ['l-prods','l-ings','l-recs','l-clientes','l-nomina','l-lealtad'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('#listas .tab').forEach(function(t) { t.classList.remove('active'); });
-  event.target.classList.add('active');
+  var implicitEvent = (typeof event !== 'undefined' && event && event.target && event.target.classList && event.target.classList.contains('tab')) ? event : null;
+  var target = (evt && evt.target) || (implicitEvent && implicitEvent.target) || document.querySelector('#listas .tab[onclick*="' + tab + '"]');
+  if (target) target.classList.add('active');
   if (tab === 'l-clientes') cargarListaClientes();
   if (tab === 'l-nomina') initNomina();
   if (tab === 'l-lealtad') cargarLealtad();
@@ -7050,6 +7078,7 @@ function cargarListaProductos() {
       var stock = parseFloat(p.stock_actual) || 0;
       var min = parseFloat(p.stock_minimo) || 0;
       var precio = parseFloat(p.precio_unitario) || 0;
+      var precioCafe = parseFloat(p.precio_cafeteria) || 0;
       var costo = parseFloat(p.costo_produccion) || 0;
       var iva = p.tasa_iva === '0.16' ? '16%' : p.tasa_iva === '0.00' ? '0%' : 'Ext';
       var esc = p.nombre.replace(/'/g,"\\'");
@@ -7057,7 +7086,7 @@ function cargarListaProductos() {
       h += '<tr>';
       var cajaNota = p.caja_ingrediente_id ? '<span class="caf-price-note">Caja: ' + escHtml(nombreCajaProducto(p)) + '</span>' : '';
       h += '<td><strong>' + escHtml(p.nombre) + '</strong>' + cajaNota + '</td>';
-      h += '<td>$' + fmt(precio) + '</td>';
+      h += '<td>$' + fmt(precio) + (precioCafe > 0 ? '<span class="caf-price-note">Caf&eacute; $' + fmt(precioCafe) + '</span>' : '') + '</td>';
       h += '<td style="color:var(--mut)">$' + fmt(costo) + '</td>';
       h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline">' + Math.round(stock) + '</a></td>';
       h += '<td>' + Math.round(min) + '</td>';
