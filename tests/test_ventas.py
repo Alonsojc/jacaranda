@@ -64,6 +64,33 @@ class TestVentas:
         assert data["estado"] == "completada"
         assert data["folio"].startswith("T-")
 
+    def test_venta_bbva_guarda_referencia_para_conciliacion(self, client, auth_headers, db):
+        from app.models.venta import PagoVenta
+
+        pid = self._crear_producto(client, auth_headers, "PAN-BBVA", "40.00")
+        self._agregar_stock(client, auth_headers, pid)
+        resp = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "03",
+            "terminal": "bbva",
+            "monto_recibido": "80.00",
+            "referencia_pago": "AUTH-1234",
+            "detalles": [{"producto_id": pid, "cantidad": "2"}],
+        }, headers=auth_headers)
+        assert resp.status_code == 201, resp.text
+        venta = resp.json()
+        assert venta["terminal"] == "bbva"
+        assert venta["pagos"][0]["referencia"] == "AUTH-1234"
+
+        pago = db.query(PagoVenta).filter(PagoVenta.venta_id == venta["id"]).one()
+        assert pago.referencia == "AUTH-1234"
+
+        ticket = client.get(
+            f"/api/v1/punto-de-venta/ventas/{venta['id']}/ticket",
+            headers=auth_headers,
+        )
+        assert ticket.status_code == 200
+        assert "AUTH-1234" in ticket.json()["metodo_pago"]
+
     def test_venta_idempotente_no_duplica_stock(self, client, auth_headers):
         pid = self._crear_producto(client, auth_headers, "PAN-IDEMP")
         self._agregar_stock(client, auth_headers, pid, 10)

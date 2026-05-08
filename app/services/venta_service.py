@@ -459,6 +459,15 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
                 referencia=pago_data.referencia,
             )
             db.add(pago)
+    else:
+        referencia_pago = data.referencia_pago.strip() if data.referencia_pago else ""
+        if referencia_pago and not data.pago_integrado:
+            db.add(PagoVenta(
+                venta_id=venta.id,
+                metodo_pago=metodo_principal,
+                monto=total,
+                referencia=referencia_pago,
+            ))
 
     # Descontar inventario
     for item in data.detalles:
@@ -861,10 +870,20 @@ def generar_ticket(db: Session, venta_id: int) -> dict:
         for p in venta.pagos:
             terminal = TerminalPago.BBVA if p.metodo_pago == MetodoPago.TRANSFERENCIA else None
             desc = etiqueta_pago(p.metodo_pago, terminal)
-            pagos_info.append({"metodo": desc, "monto": float(p.monto)})
+            pagos_info.append({
+                "metodo": desc,
+                "monto": float(p.monto),
+                "referencia": p.referencia,
+            })
     metodo_str = etiqueta_pago(venta.metodo_pago, venta.terminal)
     if pagos_info and len(pagos_info) > 1:
-        metodo_str = " + ".join(f"{p['metodo']} ${p['monto']:,.2f}" for p in pagos_info)
+        metodo_str = " + ".join(
+            f"{p['metodo']} ${p['monto']:,.2f}"
+            + (f" ({p['referencia']})" if p.get("referencia") else "")
+            for p in pagos_info
+        )
+    elif pagos_info and pagos_info[0].get("referencia"):
+        metodo_str = f"{metodo_str} ({pagos_info[0]['referencia']})"
 
     return {
         "razon_social": settings.RAZON_SOCIAL,

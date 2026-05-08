@@ -2244,6 +2244,10 @@ h2{font-size:1.1rem}
 <div style="font-size:2rem;font-weight:700;color:var(--v)" id="mc-total">$0.00</div>
 <div style="font-size:.85rem;color:var(--mut)" id="mc-metodo">Efectivo</div>
 </div>
+<div id="mc-referencia-wrap" class="fg" style="display:none;margin-bottom:.7rem">
+<label id="mc-referencia-label">Referencia / autorizaci&oacute;n</label>
+<input id="mc-referencia" maxlength="100" placeholder="Autorizaci&oacute;n, voucher o &uacute;ltimos 4">
+</div>
 <!-- Single payment mode -->
 <div id="mc-single">
 <div id="mc-efectivo">
@@ -2372,7 +2376,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v68';
+var APP_BUILD = 'jacaranda-v69';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -3747,8 +3751,14 @@ function cobrar() {
   _splitMode = false;
   var total = _cartTotal();
   document.getElementById('mc-total').textContent = '$' + fmt(total);
-  var nombres = {ef:'Efectivo', clip:'Tarjeta (CLIP)', trans:'Transferencia', bbva:'Transferencia (BBVA)'};
+  var nombres = {ef:'Efectivo', clip:'Tarjeta (CLIP)', trans:'Transferencia', bbva:'BBVA'};
   document.getElementById('mc-metodo').textContent = nombres[pm];
+  var refWrap = document.getElementById('mc-referencia-wrap');
+  var refInput = document.getElementById('mc-referencia');
+  var refLabel = document.getElementById('mc-referencia-label');
+  refInput.value = '';
+  refWrap.style.display = (pm === 'bbva' || pm === 'trans') ? 'block' : 'none';
+  refLabel.textContent = pm === 'bbva' ? 'Autorizacion BBVA / voucher' : 'Referencia transferencia';
   document.getElementById('mc-single').style.display = 'block';
   document.getElementById('mc-split').style.display = 'none';
   var efDiv = document.getElementById('mc-efectivo');
@@ -3768,7 +3778,8 @@ function toggleSplit() {
   _splitMode = !_splitMode;
   document.getElementById('mc-single').style.display = _splitMode ? 'none' : 'block';
   document.getElementById('mc-split').style.display = _splitMode ? 'block' : 'none';
-  document.getElementById('mc-metodo').textContent = _splitMode ? 'Pago dividido' : {ef:'Efectivo',clip:'Tarjeta (CLIP)',trans:'Transferencia',bbva:'Transferencia (BBVA)'}[pm];
+  document.getElementById('mc-metodo').textContent = _splitMode ? 'Pago dividido' : {ef:'Efectivo',clip:'Tarjeta (CLIP)',trans:'Transferencia',bbva:'BBVA'}[pm];
+  document.getElementById('mc-referencia-wrap').style.display = _splitMode ? 'none' : ((pm === 'bbva' || pm === 'trans') ? 'block' : 'none');
   if (_splitMode) {
     document.getElementById('mc-sp-ef').value = '';
     document.getElementById('mc-sp-tar').value = '';
@@ -3875,6 +3886,10 @@ function procesarVenta() {
     body.metodo_pago = metodos[pm];
     body.terminal = terminales[pm];
     body.monto_recibido = monto;
+    if (pm === 'bbva' || pm === 'trans') {
+      var refPago = document.getElementById('mc-referencia').value.trim();
+      if (refPago) body.referencia_pago = refPago;
+    }
     if (pm === 'clip') {
       body.pago_integrado = true;
       body.monto_recibido = total;
@@ -4033,7 +4048,7 @@ function guardarVentaIndexedDB(body) {
     tx.objectStore('pending-sales').add({
       url: API_URL + '/api/v1/punto-de-venta/ventas',
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN},
-      body: JSON.stringify({detalles: body.detalles, forma_pago: body.forma_pago, metodo_pago: body.metodo_pago, terminal: body.terminal, monto_recibido: body.monto_recibido, pagos: body.pagos, cliente_id: body.cliente_id, idempotency_key: body.idempotency_key, canjear_recompensa_lealtad: body.canjear_recompensa_lealtad, recompensa_lealtad_motivo: body.recompensa_lealtad_motivo, pago_integrado: body.pago_integrado}),
+      body: JSON.stringify({detalles: body.detalles, forma_pago: body.forma_pago, metodo_pago: body.metodo_pago, terminal: body.terminal, monto_recibido: body.monto_recibido, pagos: body.pagos, cliente_id: body.cliente_id, idempotency_key: body.idempotency_key, canjear_recompensa_lealtad: body.canjear_recompensa_lealtad, recompensa_lealtad_motivo: body.recompensa_lealtad_motivo, pago_integrado: body.pago_integrado, referencia_pago: body.referencia_pago}),
       timestamp: new Date().toISOString(),
     });
     // Request background sync
@@ -4097,6 +4112,8 @@ function mostrarTicket(venta) {
     h += '<div class="srow"><span>Subtotal</span><span>$' + fmt(venta.subtotal) + '</span></div>';
     h += '<div class="srow"><span>IVA</span><span>$' + fmt(venta.total_impuestos) + '</span></div>';
     h += '<div class="srow"><span>M\u00e9todo</span><span>' + escHtml(etiquetaPagoVenta(venta)) + '</span></div>';
+    var ref = referenciaPagoVenta(venta);
+    if (ref) h += '<div class="srow"><span>Referencia</span><span>' + escHtml(ref) + '</span></div>';
     if (cambio > 0) h += '<div class="srow"><span>Cambio</span><span style="color:var(--grn);font-weight:700">$' + fmt(cambio) + '</span></div>';
     document.getElementById('mt-detalles').innerHTML = h;
     document.getElementById('mt-productos').innerHTML = '';
@@ -4117,6 +4134,13 @@ function renderTicket(tk) {
   }
   h += '<div class="srow"><span>IVA</span><span>' + tk.iva + '</span></div>';
   h += '<div class="srow"><span>M\u00e9todo</span><span>' + tk.metodo_pago + '</span></div>';
+  var refTicket = '';
+  if (tk.pagos && tk.pagos.length) {
+    for (var j = 0; j < tk.pagos.length; j++) {
+      if (tk.pagos[j].referencia) { refTicket = tk.pagos[j].referencia; break; }
+    }
+  }
+  if (refTicket) h += '<div class="srow"><span>Referencia</span><span>' + escHtml(refTicket) + '</span></div>';
   if (tk.monto_recibido && tk.monto_recibido !== '$0.00') h += '<div class="srow"><span>Recibido</span><span>' + tk.monto_recibido + '</span></div>';
   if (tk.cambio && tk.cambio !== '$0.00') h += '<div class="srow"><span>Cambio</span><span style="color:var(--grn);font-weight:700">' + tk.cambio + '</span></div>';
   document.getElementById('mt-detalles').innerHTML = h;
@@ -7628,6 +7652,14 @@ function etiquetaPagoVenta(v) {
   return metodo || 'Otro';
 }
 
+function referenciaPagoVenta(v) {
+  var pagos = (v && v.pagos) || [];
+  for (var i = 0; i < pagos.length; i++) {
+    if (pagos[i].referencia) return pagos[i].referencia;
+  }
+  return '';
+}
+
 function resumenProductosVenta(v) {
   var detalles = (v && v.detalles) || [];
   if (!detalles.length) return 'Sin productos';
@@ -7695,7 +7727,10 @@ function cargarCorte() {
       var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
       h += '<div class="srow" style="cursor:pointer" onclick="verTicket(' + v.id + ',' + (v.estado==='cancelada') + ')">';
       h += '<span style="min-width:0"><span>' + escHtml(v.folio) + ' &bull; ' + hora + ' &bull; ' + escHtml(met) + estado + '</span>';
-      h += '<br><small style="color:var(--mut);font-size:.75rem;line-height:1.25">' + escHtml(resumenProductosVenta(v)) + '</small></span>';
+      var ref = referenciaPagoVenta(v);
+      h += '<br><small style="color:var(--mut);font-size:.75rem;line-height:1.25">' + escHtml(resumenProductosVenta(v)) + '</small>';
+      if (ref) h += '<br><small style="color:var(--v);font-size:.72rem;line-height:1.25">Ref: ' + escHtml(ref) + '</small>';
+      h += '</span>';
       h += '<span style="font-weight:600' + (v.estado==='cancelada'?';text-decoration:line-through;color:var(--mut)':'') + '">$' + fmt(tot) + '</span></div>';
     }
     if (!h) h = '<p style="color:var(--mut);text-align:center;padding:.5rem;font-size:.85rem">Sin ventas hoy</p>';
@@ -8432,13 +8467,13 @@ function renderHistVentas() {
 
 function exportarHistVentasCSV() {
   if (!_histVentas.length) { toast('Busca ventas primero', true); return; }
-  var csv = 'Folio,Fecha,Hora,Metodo Pago,Productos,Subtotal,IVA,Total,Estado\n';
+  var csv = 'Folio,Fecha,Hora,Metodo Pago,Referencia,Productos,Subtotal,IVA,Total,Estado\n';
   for (var i = 0; i < _histVentas.length; i++) {
     var v = _histVentas[i];
     var f = v.fecha ? new Date(v.fecha) : null;
     var fecha = f ? f.toLocaleDateString('es-MX') : '';
     var hora = f ? f.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
-    csv += v.folio + ',' + fecha + ',' + hora + ',"' + etiquetaPagoVenta(v).replace(/"/g,'""') + '","' + resumenProductosVenta(v).replace(/"/g,'""') + '",';
+    csv += v.folio + ',' + fecha + ',' + hora + ',"' + etiquetaPagoVenta(v).replace(/"/g,'""') + '","' + referenciaPagoVenta(v).replace(/"/g,'""') + '","' + resumenProductosVenta(v).replace(/"/g,'""') + '",';
     csv += (parseFloat(v.subtotal)||0).toFixed(2) + ',' + (parseFloat(v.total_impuestos)||0).toFixed(2) + ',';
     csv += (parseFloat(v.total)||0).toFixed(2) + ',' + v.estado + '\n';
   }
@@ -8459,11 +8494,11 @@ function exportarCorteCSV() {
   csv += 'Total Ventas,' + (document.getElementById('c-total').textContent.replace('$','').replace(/,/g,'')) + '\n';
   csv += 'Tickets,' + document.getElementById('c-tickets').textContent + '\n';
   csv += '\nDetalle de ventas\n';
-  csv += 'Folio,Hora,Metodo,Productos,Total,Estado\n';
+  csv += 'Folio,Hora,Metodo,Referencia,Productos,Total,Estado\n';
   for (var i = 0; i < _corteVentas.length; i++) {
     var v = _corteVentas[i];
     var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
-    csv += v.folio + ',' + hora + ',"' + etiquetaPagoVenta(v).replace(/"/g,'""') + '","' + resumenProductosVenta(v).replace(/"/g,'""') + '",' + (parseFloat(v.total)||0).toFixed(2) + ',' + v.estado + '\n';
+    csv += v.folio + ',' + hora + ',"' + etiquetaPagoVenta(v).replace(/"/g,'""') + '","' + referenciaPagoVenta(v).replace(/"/g,'""') + '","' + resumenProductosVenta(v).replace(/"/g,'""') + '",' + (parseFloat(v.total)||0).toFixed(2) + ',' + v.estado + '\n';
   }
   _descargarCSV('corte_' + fecha + '.csv', csv);
 }

@@ -27,6 +27,7 @@ class VentaCreate(BaseModel):
     forma_pago: FormaPago = FormaPago.PUE
     monto_recibido: Decimal = Field(default=Decimal("0"), ge=0)
     pago_integrado: bool = False
+    referencia_pago: str | None = Field(default=None, max_length=100)
     puntos_canjeados: int = Field(default=0, ge=0)
     canjear_recompensa_lealtad: bool = False
     recompensa_lealtad_motivo: str | None = None
