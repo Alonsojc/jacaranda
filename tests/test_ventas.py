@@ -1,6 +1,7 @@
 """Tests de integración para el módulo de ventas."""
 
 import json
+from decimal import Decimal
 
 import pytest
 
@@ -427,6 +428,166 @@ class TestVentas:
         }, headers=auth_headers)
         assert duplicado.status_code == 400
         assert "ya existe" in duplicado.json()["detail"].lower()
+
+    def test_venta_clip_integrada_queda_pendiente_y_no_entra_corte(self, client, auth_headers):
+        pid = self._crear_producto(client, auth_headers, "CLIP-PEND", "30.00")
+        self._agregar_stock(client, auth_headers, pid, 5)
+
+        venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "04",
+            "terminal": "clip",
+            "pago_integrado": True,
+            "monto_recibido": "0.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert venta.status_code == 201, venta.text
+        data = venta.json()
+        assert data["estado"] == "pendiente"
+        assert data["pago_integrado"] is True
+        assert data["pago_proveedor"] == "clip"
+        assert data["pago_externo_estado"] == "pendiente"
+
+        resumen = client.get("/api/v1/punto-de-venta/corte-caja/resumen", headers=auth_headers)
+        assert resumen.status_code == 200
+        assert Decimal(str(resumen.json()["total_ventas_clip"])) == Decimal("0.00")
+        assert Decimal(str(resumen.json()["total_ventas"])) == Decimal("0.00")
+
+    def test_clip_pinpad_y_webhook_confirmado_cierra_venta(
+        self,
+        client,
+        auth_headers,
+        monkeypatch,
+    ):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "SN-TEST")
+        monkeypatch.setattr(settings, "BACKEND_PUBLIC_URL", "https://web-production-b51486.up.railway.app")
+        monkeypatch.setattr(settings, "CLIP_WEBHOOK_SECRET", "test-secret")
+        monkeypatch.setattr(settings, "CLIP_ALLOW_UNSIGNED_WEBHOOKS", False)
+
+        pid = self._crear_producto(client, auth_headers, "CLIP-OK", "30.00")
+        self._agregar_stock(client, auth_headers, pid, 5)
+
+        venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "04",
+            "terminal": "clip",
+            "pago_integrado": True,
+            "monto_recibido": "0.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert venta.status_code == 201, venta.text
+        venta_data = venta.json()
+
+        def fake_pinpad(monto, referencia, descripcion="", serial_number_pos=None, webhook_url=None):
+            assert str(monto) == "30.00"
+            assert referencia == venta_data["folio"]
+            assert serial_number_pos is None
+            return {
+                "pinpad_request_id": "clip-pay-1",
+                "status": "pending",
+                "reference": referencia,
+            }
+
+        monkeypatch.setattr("app.services.clip_service.enviar_cobro_pinpad", fake_pinpad)
+
+        pinpad = client.post(
+            "/api/v1/pagos/clip/pinpad",
+            json={"venta_id": venta_data["id"]},
+            headers=auth_headers,
+        )
+        assert pinpad.status_code == 200, pinpad.text
+        assert pinpad.json()["payment_id"] == "clip-pay-1"
+
+        webhook_payload = {
+            "id": "evt_clip_1",
+            "type": "payment.approved",
+            "data": {
+                "id": "clip-pay-1",
+                "reference": venta_data["folio"],
+                "status": "approved",
+                "amount": "30.00",
+            },
+        }
+        webhook = client.post(
+            "/api/v1/pagos/clip/webhook?secret=test-secret",
+            json=webhook_payload,
+        )
+        assert webhook.status_code == 200, webhook.text
+        assert webhook.json()["processed"] is True
+
+        replay = client.post(
+            "/api/v1/pagos/clip/webhook?secret=test-secret",
+            json=webhook_payload,
+        )
+        assert replay.status_code == 200
+        assert replay.json()["duplicate"] is True
+
+        venta_confirmada = client.get(
+            f"/api/v1/punto-de-venta/ventas/{venta_data['id']}",
+            headers=auth_headers,
+        )
+        assert venta_confirmada.status_code == 200
+        venta_confirmada_data = venta_confirmada.json()
+        assert venta_confirmada_data["estado"] == "completada"
+        assert venta_confirmada_data["pago_externo_id"] == "clip-pay-1"
+        assert venta_confirmada_data["pago_externo_estado"] == "pagado"
+        assert len(venta_confirmada_data["pagos"]) == 1
+
+        resumen = client.get("/api/v1/punto-de-venta/corte-caja/resumen", headers=auth_headers)
+        assert resumen.status_code == 200
+        assert resumen.json()["total_ventas_clip"] == "30.00"
+        assert resumen.json()["total_ventas"] == "30.00"
+
+    def test_cancelar_venta_clip_pendiente_cancela_terminal(
+        self,
+        client,
+        auth_headers,
+        monkeypatch,
+    ):
+        pid = self._crear_producto(client, auth_headers, "CLIP-CANCEL", "30.00")
+        self._agregar_stock(client, auth_headers, pid, 5)
+
+        venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "04",
+            "terminal": "clip",
+            "pago_integrado": True,
+            "monto_recibido": "0.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert venta.status_code == 201, venta.text
+        venta_data = venta.json()
+
+        monkeypatch.setattr(
+            "app.services.clip_service.enviar_cobro_pinpad",
+            lambda *args, **kwargs: {
+                "pinpad_request_id": "clip-cancel-1",
+                "status": "pending",
+                "reference": venta_data["folio"],
+            },
+        )
+        pinpad = client.post(
+            "/api/v1/pagos/clip/pinpad",
+            json={"venta_id": venta_data["id"]},
+            headers=auth_headers,
+        )
+        assert pinpad.status_code == 200, pinpad.text
+
+        cancelados = []
+
+        def fake_cancelar(pinpad_request_id):
+            cancelados.append(pinpad_request_id)
+            return {"status": "cancelled"}
+
+        monkeypatch.setattr("app.services.clip_service.cancelar_pago_pinpad", fake_cancelar)
+
+        cancel = client.post(
+            f"/api/v1/punto-de-venta/ventas/{venta_data['id']}/cancelar",
+            headers=auth_headers,
+        )
+        assert cancel.status_code == 200, cancel.text
+        assert cancel.json()["estado"] == "cancelada"
+        assert cancel.json()["pago_externo_estado"] == "cancelado"
+        assert cancelados == ["clip-cancel-1"]
 
     def test_corte_con_diferencia_requiere_nota(self, client, auth_headers):
         pid = self._crear_producto(client, auth_headers, "CORTE-DIF", "30.00")

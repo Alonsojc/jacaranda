@@ -57,3 +57,19 @@ class ConektaWebhookEvent(Base):
     recibido_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+
+
+class ClipWebhookEvent(Base):
+    """Eventos de webhook de Clip para evitar replays y dobles cierres."""
+    __tablename__ = "clip_webhook_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    event_id: Mapped[str] = mapped_column(String(160), unique=True, index=True)
+    event_type: Mapped[str | None] = mapped_column(String(100))
+    payment_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    venta_id: Mapped[int | None] = mapped_column(ForeignKey("ventas.id"), index=True)
+    processed: Mapped[bool] = mapped_column(Boolean, default=False)
+    payload_json: Mapped[str | None] = mapped_column(Text)
+    recibido_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )

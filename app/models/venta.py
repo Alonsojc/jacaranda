@@ -84,6 +84,13 @@ class Venta(Base):
     )
     monto_recibido: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     cambio: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    pago_integrado: Mapped[bool] = mapped_column(Boolean, default=False)
+    pago_proveedor: Mapped[str | None] = mapped_column(String(30), index=True)
+    pago_externo_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    pago_externo_estado: Mapped[str | None] = mapped_column(String(60))
+    pago_externo_referencia: Mapped[str | None] = mapped_column(String(120), index=True)
+    pago_externo_payload: Mapped[str | None] = mapped_column(Text)
+    pago_verificado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Estado y facturación
     estado: Mapped[EstadoVenta] = mapped_column(

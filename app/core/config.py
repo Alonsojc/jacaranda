@@ -111,6 +111,12 @@ class Settings(BaseSettings):
     CLIP_API_KEY: str = ""
     CLIP_API_SECRET: str = ""
     CLIP_API_URL: str = "https://api.clip.mx"
+    CLIP_PINPAD_API_URL: str = "https://api.payclip.io"
+    CLIP_PINPAD_AUTHORIZATION: str = ""
+    CLIP_PINPAD_SERIAL_NUMBER: str = ""
+    CLIP_WEBHOOK_SECRET: str = ""
+    CLIP_ALLOW_UNSIGNED_WEBHOOKS: bool = False
+    BACKEND_PUBLIC_URL: str = ""
 
     # BBVA API Market (conciliación de pagos)
     BBVA_CLIENT_ID: str = ""

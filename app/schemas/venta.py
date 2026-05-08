@@ -26,6 +26,7 @@ class VentaCreate(BaseModel):
     terminal: TerminalPago = TerminalPago.EFECTIVO
     forma_pago: FormaPago = FormaPago.PUE
     monto_recibido: Decimal = Field(default=Decimal("0"), ge=0)
+    pago_integrado: bool = False
     puntos_canjeados: int = Field(default=0, ge=0)
     canjear_recompensa_lealtad: bool = False
     recompensa_lealtad_motivo: str | None = None
@@ -76,6 +77,12 @@ class VentaResponse(BaseModel):
     forma_pago: FormaPago
     monto_recibido: Decimal
     cambio: Decimal
+    pago_integrado: bool = False
+    pago_proveedor: str | None = None
+    pago_externo_id: str | None = None
+    pago_externo_estado: str | None = None
+    pago_externo_referencia: str | None = None
+    pago_verificado_en: datetime | None = None
     estado: EstadoVenta
     facturada: bool
     fecha: datetime

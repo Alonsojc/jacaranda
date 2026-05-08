@@ -11,7 +11,7 @@ from app.models.cafeteria import (
 from app.models.compras import RecepcionOrdenCompra
 from app.models.lealtad import LealtadConfiguracion
 from app.models.notificacion import FCMToken
-from app.models.pago_online import ConektaWebhookEvent
+from app.models.pago_online import ConektaWebhookEvent, ClipWebhookEvent
 from app.models.pedido import DetallePedido
 from app.models.whatsapp import WhatsAppWebhookEvent
 
@@ -161,6 +161,13 @@ def ensure_runtime_schema(engine: Engine) -> None:
                 ("recompensa_lealtad_canjeada", Boolean(), "false", False),
                 ("recompensa_lealtad_nombre", String(120), None, True),
                 ("recompensa_lealtad_monto", Numeric(14, 2), "0", False),
+                ("pago_integrado", Boolean(), "false", False),
+                ("pago_proveedor", String(30), None, True),
+                ("pago_externo_id", String(120), None, True),
+                ("pago_externo_estado", String(60), None, True),
+                ("pago_externo_referencia", String(120), None, True),
+                ("pago_externo_payload", Text(), None, True),
+                ("pago_verificado_en", DateTime(timezone=True), None, True),
             ):
                 _add_column_if_missing(
                     conn,
@@ -272,6 +279,7 @@ def ensure_runtime_schema(engine: Engine) -> None:
             conn.execute(text("DROP TABLE detalles_pedido"))
 
     ConektaWebhookEvent.__table__.create(bind=engine, checkfirst=True)
+    ClipWebhookEvent.__table__.create(bind=engine, checkfirst=True)
     CafeteriaVenta.__table__.create(bind=engine, checkfirst=True)
     DetalleCafeteriaVenta.__table__.create(bind=engine, checkfirst=True)
     PagoCafeteriaVenta.__table__.create(bind=engine, checkfirst=True)

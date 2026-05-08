@@ -11,6 +11,7 @@ Permite:
 import json
 import urllib.request
 import urllib.error
+from urllib.parse import quote, urlencode
 from base64 import b64encode
 from datetime import date, datetime
 from decimal import Decimal
@@ -57,6 +58,203 @@ def _clip_request(method: str, endpoint: str, data: dict | None = None) -> dict:
         raise ClipAPIError(f"CLIP API error {e.code}: {error_body}")
     except urllib.error.URLError as e:
         raise ClipAPIError(f"No se pudo conectar a CLIP: {e.reason}")
+
+
+def _get_pinpad_auth_header() -> str:
+    """Header completo para PinPad. Permite Bearer/Basic según lo entregue Clip."""
+    raw = getattr(settings, "CLIP_PINPAD_AUTHORIZATION", "").strip()
+    if raw:
+        return raw
+    return _get_auth_header()
+
+
+def _pinpad_request(
+    method: str,
+    endpoint: str,
+    data: dict | None = None,
+    extra_headers: dict | None = None,
+) -> dict:
+    """Hace una petición al API PinPad face-to-face de Clip."""
+    base_url = getattr(settings, "CLIP_PINPAD_API_URL", "https://api.payclip.io").rstrip("/")
+    url = f"{base_url}{endpoint}"
+
+    headers = {
+        "Authorization": _get_pinpad_auth_header(),
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    if extra_headers:
+        headers.update(extra_headers)
+
+    body = json.dumps(data).encode() if data else None
+    req = urllib.request.Request(url, data=body, headers=headers, method=method)
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read().decode()
+            return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode() if e.fp else ""
+        raise ClipAPIError(f"CLIP PinPad API error {e.code}: {error_body}")
+    except urllib.error.URLError as e:
+        raise ClipAPIError(f"No se pudo conectar a CLIP PinPad: {e.reason}")
+
+
+def clip_webhook_url() -> str:
+    """URL pública que Clip usará para avisar si el cobro se aprobó."""
+    base_url = getattr(settings, "BACKEND_PUBLIC_URL", "").strip().rstrip("/")
+    if not base_url:
+        raise ClipAPIError("Configura BACKEND_PUBLIC_URL para recibir webhooks de CLIP")
+    url = f"{base_url}/api/v1/pagos/clip/webhook"
+    secret = getattr(settings, "CLIP_WEBHOOK_SECRET", "").strip()
+    if secret:
+        url += "?" + urlencode({"secret": secret})
+    return url
+
+
+def enviar_cobro_pinpad(
+    monto: Decimal,
+    referencia: str,
+    descripcion: str = "",
+    serial_number_pos: str | None = None,
+    webhook_url: str | None = None,
+) -> dict:
+    """
+    Envía un cobro a una terminal Clip PinPad asociada a la cuenta.
+
+    La venta queda pendiente en Jacaranda hasta que el webhook de Clip confirme
+    el pago aprobado.
+    """
+    serial = (serial_number_pos or getattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "")).strip()
+    if not serial:
+        raise ClipAPIError("Configura CLIP_PINPAD_SERIAL_NUMBER con el serial de tu terminal")
+
+    payload = {
+        "amount": float(Decimal(str(monto)).quantize(Decimal("0.01"))),
+        "reference": referencia,
+        "serial_number_pos": serial,
+        "webhook_url": webhook_url or clip_webhook_url(),
+    }
+    if descripcion:
+        payload["description"] = descripcion
+    return _pinpad_request("POST", "/f2f/pinpad/v1/payment", payload)
+
+
+def consultar_pago_pinpad(pinpad_request_id: str, include_detail: bool = True) -> dict:
+    """Consulta un pago PinPad por el ID que devuelve Clip al crearlo."""
+    if not pinpad_request_id:
+        raise ClipAPIError("Falta pinpad_request_id para consultar CLIP")
+    endpoint = "/f2f/pinpad/v1/payment?" + urlencode({"pinpadRequestId": pinpad_request_id})
+    headers = {"Pinpad-Include-Detail": "true"} if include_detail else None
+    return _pinpad_request("GET", endpoint, extra_headers=headers)
+
+
+def cancelar_pago_pinpad(pinpad_request_id: str) -> dict:
+    """Cancela un cobro activo en una terminal PinPad."""
+    if not pinpad_request_id:
+        raise ClipAPIError("Falta pinpad_request_id para cancelar CLIP")
+    return _pinpad_request("DELETE", f"/f2f/pinpad/v1/payment/{quote(pinpad_request_id)}")
+
+
+def _pick_first(data: dict, keys: tuple[str, ...]):
+    for key in keys:
+        if key in data and data[key] not in (None, ""):
+            return data[key]
+    return None
+
+
+def extraer_pago_webhook_clip(payload: dict) -> dict:
+    """Normaliza los campos más importantes de un webhook de Clip."""
+    data = payload.get("data") or payload.get("payment") or payload
+    if not isinstance(data, dict):
+        data = {}
+
+    payment_id = _pick_first(
+        data,
+        (
+            "pinpad_request_id",
+            "pinpadRequestId",
+            "id",
+            "payment_id",
+            "transaction_id",
+            "paymentId",
+            "transactionId",
+        ),
+    ) or _pick_first(
+        payload,
+        (
+            "pinpad_request_id",
+            "pinpadRequestId",
+            "payment_id",
+            "transaction_id",
+            "paymentId",
+            "transactionId",
+        ),
+    )
+    status = _pick_first(
+        data,
+        ("status", "payment_status", "state", "paymentStatus"),
+    ) or _pick_first(payload, ("status", "payment_status", "state", "paymentStatus"))
+    reference = _pick_first(
+        data,
+        ("reference", "external_reference", "externalReference", "merchant_reference"),
+    ) or _pick_first(
+        payload,
+        ("reference", "external_reference", "externalReference", "merchant_reference"),
+    )
+    amount = _pick_first(data, ("amount", "total", "paid_amount", "paidAmount"))
+    event_id = _pick_first(payload, ("id", "event_id", "eventId"))
+    event_type = _pick_first(payload, ("type", "event_type", "eventType"))
+
+    if not event_id:
+        event_id = ":".join(
+            str(part)
+            for part in (
+                payment_id or "payment",
+                status or "unknown",
+                reference or "",
+                _pick_first(payload, ("created_at", "createdAt", "timestamp")) or "",
+            )
+        )
+
+    return {
+        "event_id": str(event_id),
+        "event_type": str(event_type or status or "clip.webhook"),
+        "payment_id": str(payment_id) if payment_id else None,
+        "status": str(status or "").lower(),
+        "reference": str(reference) if reference else None,
+        "amount": amount,
+    }
+
+
+def es_pago_clip_aprobado(status: str | None) -> bool:
+    value = (status or "").lower()
+    return value in {
+        "approved",
+        "paid",
+        "completed",
+        "complete",
+        "successful",
+        "success",
+        "captured",
+        "aprobado",
+        "pagado",
+    }
+
+
+def es_pago_clip_fallido(status: str | None) -> bool:
+    value = (status or "").lower()
+    return value in {
+        "failed",
+        "declined",
+        "rejected",
+        "cancelled",
+        "canceled",
+        "expired",
+        "fallido",
+        "rechazado",
+        "cancelado",
+    }
 
 
 def enviar_cobro(monto: Decimal, referencia: str, descripcion: str = "") -> dict:

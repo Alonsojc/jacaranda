@@ -4,6 +4,7 @@ Procesa ventas con desglose fiscal correcto de IVA.
 Genera tickets conforme a Ley Federal de Protección al Consumidor.
 """
 
+import json
 from decimal import Decimal
 from datetime import datetime, timezone, date
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -302,8 +303,20 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     cambio = Decimal("0")
     monto_recibido = data.monto_recibido
     metodo_principal = data.metodo_pago
+    estado_venta = EstadoVenta.COMPLETADA
 
-    if data.pagos:
+    if data.pago_integrado:
+        if data.pagos:
+            raise ValueError("El cobro integrado de terminal no permite pago dividido")
+        if data.terminal != TerminalPago.CLIP:
+            raise ValueError("Por ahora el cobro integrado solo está disponible para CLIP")
+        if data.puntos_canjeados or data.canjear_recompensa_lealtad:
+            raise ValueError("El canje de lealtad requiere cerrar la venta en caja")
+        metodo_principal = data.metodo_pago
+        monto_recibido = total
+        cambio = Decimal("0")
+        estado_venta = EstadoVenta.PENDIENTE
+    elif data.pagos:
         # Split payment: validate sum covers total
         suma_pagos = sum(p.monto for p in data.pagos)
         if suma_pagos < total:
@@ -356,6 +369,11 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             forma_pago=data.forma_pago,
             monto_recibido=monto_recibido,
             cambio=cambio,
+            estado=estado_venta,
+            pago_integrado=data.pago_integrado,
+            pago_proveedor="clip" if data.pago_integrado else None,
+            pago_externo_estado="pendiente" if data.pago_integrado else None,
+            pago_externo_referencia=folio if data.pago_integrado else None,
             notas=data.notas,
         )
         db.add(venta)
@@ -430,7 +448,8 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             commit=False,
         )
 
-    # Agregar pagos (split payment records)
+    # Agregar pagos (split payment records). Los pagos integrados se agregan al
+    # confirmarse por webhook para que no entren al corte antes de tiempo.
     if data.pagos:
         for pago_data in data.pagos:
             pago = PagoVenta(
@@ -494,13 +513,124 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             commit=False,
         )
 
-    # Acumular puntos de lealtad si hay cliente asociado
-    if venta.cliente_id:
+    # Acumular puntos de lealtad si hay cliente asociado y la venta ya cerró.
+    if venta.cliente_id and venta.estado == EstadoVenta.COMPLETADA:
         from app.services.lealtad_service import acumular_puntos
         acumular_puntos(db, venta.cliente_id, venta.id, total)
 
     db.commit()
     db.refresh(venta)
+    return venta
+
+
+def finalizar_pago_integrado(
+    db: Session,
+    venta_id: int,
+    proveedor: str,
+    payment_id: str | None,
+    payload: dict | None = None,
+    usuario_id: int | None = None,
+    commit: bool = True,
+) -> Venta:
+    """Cierra una venta pendiente cuando la terminal confirma el cobro."""
+    venta = db.query(Venta).filter(Venta.id == venta_id).with_for_update().first()
+    if not venta:
+        raise ValueError("Venta no encontrada")
+    if not venta.pago_integrado:
+        raise ValueError("La venta no usa pago integrado")
+    if venta.pago_proveedor and venta.pago_proveedor != proveedor:
+        raise ValueError("El proveedor del pago no coincide con la venta")
+    if venta.estado == EstadoVenta.CANCELADA:
+        raise ValueError("La venta ya está cancelada")
+
+    estado_anterior = venta.estado.value
+    externo_anterior = {
+        "pago_externo_id": venta.pago_externo_id,
+        "pago_externo_estado": venta.pago_externo_estado,
+    }
+    venta.pago_proveedor = proveedor
+    venta.pago_externo_id = payment_id or venta.pago_externo_id
+    venta.pago_externo_estado = "pagado"
+    venta.pago_externo_payload = json.dumps(payload or {}, default=str)
+    venta.pago_verificado_en = datetime.now(timezone.utc)
+    venta.monto_recibido = venta.total
+    venta.cambio = Decimal("0")
+
+    if venta.estado != EstadoVenta.COMPLETADA:
+        venta.estado = EstadoVenta.COMPLETADA
+        if not venta.pagos:
+            db.add(PagoVenta(
+                venta_id=venta.id,
+                metodo_pago=venta.metodo_pago,
+                monto=venta.total,
+                referencia=payment_id,
+            ))
+
+        if venta.cliente_id:
+            from app.models.lealtad import HistorialPuntos
+            from app.services.lealtad_service import acumular_puntos
+
+            puntos_existentes = db.query(HistorialPuntos.id).filter(
+                HistorialPuntos.cliente_id == venta.cliente_id,
+                HistorialPuntos.venta_id == venta.id,
+                HistorialPuntos.puntos > 0,
+            ).first()
+            if not puntos_existentes:
+                acumular_puntos(db, venta.cliente_id, venta.id, venta.total)
+
+        registrar_evento(
+            db,
+            usuario_id=usuario_id,
+            usuario_nombre=None,
+            accion="confirmar_pago_integrado",
+            modulo="pagos",
+            entidad="ventas",
+            entidad_id=venta.id,
+            datos_anteriores={
+                "estado": estado_anterior,
+                **externo_anterior,
+            },
+            datos_nuevos={
+                "estado": venta.estado.value,
+                "proveedor": proveedor,
+                "payment_id": payment_id,
+                "total": str(venta.total),
+            },
+            commit=False,
+        )
+
+    if commit:
+        db.commit()
+        db.refresh(venta)
+    else:
+        db.flush()
+    return venta
+
+
+def marcar_pago_integrado_fallido(
+    db: Session,
+    venta_id: int,
+    proveedor: str,
+    payment_id: str | None,
+    estado: str,
+    payload: dict | None = None,
+    commit: bool = True,
+) -> Venta:
+    """Guarda el rechazo/fallo de terminal sin cancelar automáticamente la venta."""
+    venta = db.query(Venta).filter(Venta.id == venta_id).with_for_update().first()
+    if not venta:
+        raise ValueError("Venta no encontrada")
+    if not venta.pago_integrado:
+        raise ValueError("La venta no usa pago integrado")
+    venta.pago_proveedor = proveedor
+    venta.pago_externo_id = payment_id or venta.pago_externo_id
+    venta.pago_externo_estado = estado or "fallido"
+    venta.pago_externo_payload = json.dumps(payload or {}, default=str)
+    if commit:
+        db.commit()
+        db.refresh(venta)
+    else:
+        db.flush()
     return venta
 
 
@@ -518,6 +648,21 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
     recompensas_restauradas = 0
     puntos_antes = None
     puntos_despues = None
+
+    if (
+        venta.pago_integrado
+        and venta.pago_proveedor == "clip"
+        and venta.estado == EstadoVenta.PENDIENTE
+        and venta.pago_externo_id
+    ):
+        from app.services import clip_service
+
+        try:
+            respuesta_clip = clip_service.cancelar_pago_pinpad(venta.pago_externo_id)
+            venta.pago_externo_estado = "cancelado"
+            venta.pago_externo_payload = json.dumps(respuesta_clip or {}, default=str)
+        except clip_service.ClipAPIError as e:
+            raise ValueError(f"No se pudo cancelar el cobro activo en CLIP: {e}") from e
 
     venta.estado = EstadoVenta.CANCELADA
 

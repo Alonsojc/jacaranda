@@ -2372,7 +2372,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v67';
+var APP_BUILD = 'jacaranda-v68';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -3875,9 +3875,31 @@ function procesarVenta() {
     body.metodo_pago = metodos[pm];
     body.terminal = terminales[pm];
     body.monto_recibido = monto;
+    if (pm === 'clip') {
+      body.pago_integrado = true;
+      body.monto_recibido = total;
+    }
   }
 
   api('POST', '/punto-de-venta/ventas', body).then(function(venta) {
+    if (body.pago_integrado && venta.estado === 'pendiente') {
+      return api('POST', '/pagos/clip/pinpad', {venta_id: venta.id}).then(function() {
+        cerrarModal('modal-cobrar');
+        limpiar();
+        cargarPOSProductos();
+        _ventaEnProceso = false;
+        _ventaIdempotencyKey = null;
+        toast('Cobro enviado a CLIP. Esperando confirmación...');
+        esperarPagoClip(venta.id);
+      }).catch(function(e) {
+        cerrarModal('modal-cobrar');
+        limpiar();
+        cargarPOSProductos();
+        _ventaEnProceso = false;
+        _ventaIdempotencyKey = null;
+        toast(e.message || 'Venta pendiente, pero no se pudo enviar a CLIP', true);
+      });
+    }
     cerrarModal('modal-cobrar');
     limpiar();
     mostrarTicket(venta);
@@ -3887,6 +3909,11 @@ function procesarVenta() {
   }).catch(function(e) {
     // Offline: queue sale for later sync
     if (!navigator.onLine || _offline) {
+      if (body.pago_integrado) {
+        _ventaEnProceso = false;
+        toast('CLIP requiere conexión para enviar el cobro a la terminal', true);
+        return;
+      }
       if (body.canjear_recompensa_lealtad) {
         _ventaEnProceso = false;
         toast('No se puede canjear recompensa sin conexión', true);
@@ -3908,6 +3935,44 @@ function procesarVenta() {
     } else {
       _ventaEnProceso = false;
       toast(e.message || 'Error al registrar venta', true);
+    }
+  });
+}
+
+function esperarPagoClip(ventaId, intentos) {
+  intentos = intentos == null ? 30 : intentos;
+  api('GET', '/pagos/clip/pinpad/' + ventaId).then(function(info) {
+    var estadoVenta = String(info.estado_venta || '').toLowerCase();
+    var estadoPago = String(info.estado_pago || '').toLowerCase();
+    if (estadoVenta === 'completada') {
+      toast('Pago CLIP confirmado');
+      api('GET', '/punto-de-venta/ventas/' + ventaId).then(function(venta) {
+        mostrarTicket(venta);
+        cargarCorte();
+        cargarPOSProductos();
+        cargarDashboard();
+      }).catch(function() {
+        cargarCorte();
+        cargarPOSProductos();
+      });
+      return;
+    }
+    var fallidos = ['failed', 'declined', 'rejected', 'cancelled', 'canceled', 'expired', 'fallido', 'rechazado', 'cancelado', 'error_envio'];
+    if (fallidos.indexOf(estadoPago) >= 0) {
+      toast('CLIP no confirmó el pago: ' + (info.estado_pago || 'fallido'), true);
+      return;
+    }
+    if (intentos > 0) {
+      setTimeout(function() { esperarPagoClip(ventaId, intentos - 1); }, 3000);
+    } else {
+      toast('La venta sigue pendiente de confirmación CLIP');
+      cargarCorte();
+    }
+  }).catch(function() {
+    if (intentos > 0) {
+      setTimeout(function() { esperarPagoClip(ventaId, intentos - 1); }, 3000);
+    } else {
+      toast('No se pudo confirmar CLIP. Revisa ventas pendientes.', true);
     }
   });
 }
@@ -3968,7 +4033,7 @@ function guardarVentaIndexedDB(body) {
     tx.objectStore('pending-sales').add({
       url: API_URL + '/api/v1/punto-de-venta/ventas',
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN},
-      body: JSON.stringify({detalles: body.detalles, forma_pago: body.forma_pago, metodo_pago: body.metodo_pago, terminal: body.terminal, monto_recibido: body.monto_recibido, pagos: body.pagos, cliente_id: body.cliente_id, idempotency_key: body.idempotency_key, canjear_recompensa_lealtad: body.canjear_recompensa_lealtad, recompensa_lealtad_motivo: body.recompensa_lealtad_motivo}),
+      body: JSON.stringify({detalles: body.detalles, forma_pago: body.forma_pago, metodo_pago: body.metodo_pago, terminal: body.terminal, monto_recibido: body.monto_recibido, pagos: body.pagos, cliente_id: body.cliente_id, idempotency_key: body.idempotency_key, canjear_recompensa_lealtad: body.canjear_recompensa_lealtad, recompensa_lealtad_motivo: body.recompensa_lealtad_motivo, pago_integrado: body.pago_integrado}),
       timestamp: new Date().toISOString(),
     });
     // Request background sync
