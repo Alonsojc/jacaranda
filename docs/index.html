@@ -2384,7 +2384,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v71';
+var APP_BUILD = 'jacaranda-v72';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -4488,7 +4488,7 @@ function renderCafeteriaProductos(prods) {
     } else {
       clickAttr = 'onclick="abrirVariantesCafeteriaIdx(' + gi + ')"';
     }
-    h += '<div class="pi' + (allOut ? ' pi-out' : '') + '" role="button" tabindex="0" ' + clickAttr + '>';
+    h += '<div class="pi' + (allOut ? ' pi-out' : '') + '" role="button" tabindex="0" title="' + (single ? 'Agregar producto' : 'Elegir presentación') + '" ' + clickAttr + '>';
     h += g.imagen ? '<img class="pi-img" src="' + g.imagen + '">' : '<div class="pi-noimg">\uD83C\uDF5E</div>';
     h += '<div class="pi-body">';
     h += '<span class="pn">' + escHtml(g.nombre) + '</span>';
@@ -4506,8 +4506,6 @@ function renderCafeteriaProductos(prods) {
     var stkCls = allOut ? 'pi-stk-out' : (stockTotal <= minTotal ? 'pi-stk-low' : 'pi-stk-ok');
     var stkTxt = allOut ? 'Agotado' : Math.round(stockTotal) + ' pzas';
     h += '<span class="pi-stock-chip ' + stkCls + '">' + stkTxt + '</span>';
-    if (single) h += '<button type="button" class="pi-action" onclick="event.stopPropagation();cafAddProducto(' + items[0].id + ')">' + (allOut ? 'Agregar igual' : 'Agregar') + '</button>';
-    else h += '<button type="button" class="pi-action secondary" onclick="event.stopPropagation();abrirVariantesCafeteriaIdx(' + gi + ')">' + (allOut ? 'Elegir igual' : 'Elegir') + '</button>';
     h += '</div></div>';
   }
   h += '</div>';
