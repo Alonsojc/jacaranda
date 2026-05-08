@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -11,6 +12,10 @@ from app.services import backup_service
 from app.services.auditoria_service import registrar_evento
 
 router = APIRouter()
+
+
+class VerificarBackupRequest(BaseModel):
+    filename: str | None = None
 
 
 @router.post("/crear")
@@ -83,6 +88,36 @@ async def restaurar_backup(
         )
         return result
     except (ValueError, RuntimeError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/verificar")
+def verificar_backup(
+    payload: VerificarBackupRequest | None = None,
+    user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = backup_service.verificar_restauracion_backup(
+            payload.filename if payload else None
+        )
+        registrar_evento(
+            db,
+            usuario_id=user.id,
+            usuario_nombre=user.nombre,
+            accion="verificar_restauracion",
+            modulo="backup",
+            entidad="backup",
+            datos_nuevos={
+                "filename": result.get("filename"),
+                "restore_mode": result.get("restore_mode"),
+                "ok": result.get("ok"),
+            },
+        )
+        return result
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except (ValueError, RuntimeError, OSError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 

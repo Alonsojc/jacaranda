@@ -1,5 +1,6 @@
 """Tests para backup y restauración."""
 
+import sqlite3
 import time
 from unittest.mock import patch
 
@@ -10,11 +11,30 @@ def _configure_file_backups(monkeypatch, tmp_path, max_files=20):
     db_file = tmp_path / "jacaranda.db"
     db_file.write_bytes(b"sqlite backup source")
     backup_dir = tmp_path / "backups"
-    monkeypatch.setattr(backup_service.settings, "DATABASE_URL", f"sqlite:///{db_file}", raising=False)
+    monkeypatch.setattr(
+        backup_service.settings, "DATABASE_URL", f"sqlite:///{db_file}", raising=False
+    )
     monkeypatch.setattr(backup_service.settings, "BACKUP_DIR", str(backup_dir), raising=False)
     monkeypatch.setattr(backup_service.settings, "BACKUP_RETENTION_DAYS", 7, raising=False)
     monkeypatch.setattr(backup_service.settings, "BACKUP_MAX_FILES", max_files, raising=False)
     return backup_dir
+
+
+def _configure_sqlite_backups(monkeypatch, tmp_path):
+    db_file = tmp_path / "jacaranda.db"
+    conn = sqlite3.connect(db_file)
+    try:
+        conn.execute("CREATE TABLE productos (id INTEGER PRIMARY KEY, nombre TEXT)")
+        conn.execute("INSERT INTO productos (nombre) VALUES ('Brownie')")
+        conn.commit()
+    finally:
+        conn.close()
+    backup_dir = tmp_path / "backups"
+    monkeypatch.setattr(backup_service.settings, "DATABASE_URL", f"sqlite:///{db_file}", raising=False)
+    monkeypatch.setattr(backup_service.settings, "BACKUP_DIR", str(backup_dir), raising=False)
+    monkeypatch.setattr(backup_service.settings, "BACKUP_RETENTION_DAYS", 7, raising=False)
+    monkeypatch.setattr(backup_service.settings, "BACKUP_MAX_FILES", 20, raising=False)
+    return db_file, backup_dir
 
 
 class TestBackup:
@@ -110,3 +130,39 @@ class TestBackup:
 
         assert len(items) == 2
         assert estado["max_backups"] == 2
+
+    def test_verificar_restauracion_prueba_sqlite_en_copia(
+        self, client, auth_headers, monkeypatch, tmp_path
+    ):
+        db_file, _backup_dir = _configure_sqlite_backups(monkeypatch, tmp_path)
+
+        created = client.post("/api/v1/backup/crear", headers=auth_headers)
+        resp = client.post("/api/v1/backup/verificar", headers=auth_headers)
+
+        assert created.status_code == 200
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["restore_mode"] == "sqlite_copy"
+        assert data["integrity_check"] == "ok"
+        assert data["tables"]["productos"] == 1
+
+        conn = sqlite3.connect(db_file)
+        try:
+            assert conn.execute("SELECT COUNT(*) FROM productos").fetchone()[0] == 1
+        finally:
+            conn.close()
+
+    def test_verificar_restauracion_rechaza_backup_invalido(
+        self, client, auth_headers, monkeypatch, tmp_path
+    ):
+        _configure_sqlite_backups(monkeypatch, tmp_path)
+
+        resp = client.post(
+            "/api/v1/backup/verificar",
+            json={"filename": "../jacaranda_bad.db"},
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "Nombre de backup inválido"

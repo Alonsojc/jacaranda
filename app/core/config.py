@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     BACKUP_DIR: str = "/tmp/jacaranda_backups"
     BACKUP_RETENTION_DAYS: int = 7
     BACKUP_MAX_FILES: int = 20
+    BACKUP_VERIFY_DATABASE_URL: str = ""
     ALLOW_DB_RESTORE: bool = False
     PEDIDOS_CAPACIDAD_DIARIA: int = 0  # 0 = sin límite duro
     APP_TIMEZONE: str = "America/Mexico_City"
