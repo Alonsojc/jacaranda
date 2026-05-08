@@ -2407,7 +2407,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v73';
+var APP_BUILD = 'jacaranda-v74';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -4222,9 +4222,16 @@ function verTicket(ventaId, cancelada) {
   });
 }
 
-function cancelarVentaActual() {
+async function cancelarVentaActual() {
   if (!_ventaActualId) return;
-  if (!confirm('¿Cancelar esta venta? Se devolverá el inventario.')) return;
+  var ok = await confirmarAccion({
+    title: 'Cancelar venta',
+    message: '¿Cancelar esta venta?',
+    detail: 'Se devolverá el inventario y la venta quedará marcada como cancelada.',
+    acceptText: 'Cancelar venta',
+    tone: 'danger'
+  });
+  if (!ok) return;
   apiProtegida('POST', '/punto-de-venta/ventas/' + _ventaActualId + '/cancelar', null, 'cancelar venta').then(function() {
     toast('Venta cancelada');
     cerrarModal('modal-ticket');
@@ -4302,9 +4309,16 @@ function limpiar() {
   if (chk) chk.checked = false;
   ren();
 }
-function confirmarLimpiar() {
+async function confirmarLimpiar() {
   if (cart.length === 0) return;
-  if (confirm('¿Limpiar el carrito? (' + cart.length + ' productos)')) limpiar();
+  var ok = await confirmarAccion({
+    title: 'Limpiar carrito',
+    message: '¿Limpiar el carrito?',
+    detail: cart.length + ' producto(s) se quitarán del ticket.',
+    acceptText: 'Limpiar',
+    tone: 'danger'
+  });
+  if (ok) limpiar();
 }
 
 function filtrarPOS() {
@@ -4822,8 +4836,15 @@ function pagarCafeteria(id) {
   }).catch(function(e) { toast(e.message || 'Error al registrar pago', true); });
 }
 
-function cancelarCafeteria(id, folio) {
-  if (!confirm('¿Cancelar entrega ' + folio + '? Se devolverá inventario.')) return;
+async function cancelarCafeteria(id, folio) {
+  var ok = await confirmarAccion({
+    title: 'Cancelar entrega',
+    message: '¿Cancelar entrega ' + folio + '?',
+    detail: 'Se devolverá inventario y la entrega quedará marcada como cancelada.',
+    acceptText: 'Cancelar entrega',
+    tone: 'danger'
+  });
+  if (!ok) return;
   apiProtegida('POST', '/cafeteria/ventas/' + id + '/cancelar', null, 'cancelar venta de cafetería').then(function() {
     toast('Entrega cancelada');
     cargarCafeteriaProductos();
@@ -6599,7 +6620,7 @@ function mensajeFaltantesHorneado(e) {
   }).join(', ') + (faltantes.length > 3 ? '...' : '');
 }
 
-function hornearMasivo() {
+async function hornearMasivo() {
   var inputs = document.querySelectorAll('.batch-bake-input');
   var items = [];
   var totalPiezas = 0;
@@ -6612,7 +6633,13 @@ function hornearMasivo() {
     totalPiezas += cantidad * rend;
   }
   if (!items.length) { toast('Captura al menos una tanda', true); return; }
-  if (!confirm('Registrar ' + items.length + ' recetas y ' + totalPiezas + ' piezas horneadas?')) return;
+  var ok = await confirmarAccion({
+    title: 'Registrar horneado',
+    message: '¿Registrar ' + items.length + ' recetas?',
+    detail: 'Se agregarán ' + totalPiezas + ' piezas al inventario.',
+    acceptText: 'Registrar'
+  });
+  if (!ok) return;
 
   api('POST', '/recetas/hornear-masivo', {items: items})
   .then(function(r) {
@@ -7275,8 +7302,15 @@ function guardarProducto() {
   }).catch(function(e) { toast(e.message || 'Error al guardar', true); });
 }
 
-function eliminarProducto(id, nombre) {
-  if (!confirm('Desactivar "' + nombre + '"? Ya no aparecerá en venta ni inventario, pero se conserva el historial.')) return;
+async function eliminarProducto(id, nombre) {
+  var ok = await confirmarAccion({
+    title: 'Desactivar producto',
+    message: '¿Desactivar "' + nombre + '"?',
+    detail: 'Ya no aparecerá en venta ni inventario, pero se conserva el historial.',
+    acceptText: 'Desactivar',
+    tone: 'danger'
+  });
+  if (!ok) return;
   apiProtegida('DELETE', '/inventario/productos/' + id, null, 'desactivar producto').then(function() {
     toast('Producto desactivado');
     cargarProductos();
@@ -7336,8 +7370,15 @@ function guardarIngrediente() {
   }).catch(function() { toast('Error al guardar', true); });
 }
 
-function eliminarIngrediente(id, nombre) {
-  if (!confirm('Desactivar "' + nombre + '"? Solo se puede si no tiene stock ni recetas activas.')) return;
+async function eliminarIngrediente(id, nombre) {
+  var ok = await confirmarAccion({
+    title: 'Desactivar ingrediente',
+    message: '¿Desactivar "' + nombre + '"?',
+    detail: 'Solo se puede si no tiene stock ni recetas activas.',
+    acceptText: 'Desactivar',
+    tone: 'danger'
+  });
+  if (!ok) return;
   apiProtegida('DELETE', '/inventario/ingredientes/' + id, null, 'desactivar ingrediente').then(function() {
     toast('Ingrediente desactivado');
     cargarIngredientes();
@@ -7442,8 +7483,15 @@ function guardarReceta() {
   }).catch(function() { toast('Error al guardar receta', true); });
 }
 
-function eliminarReceta(id, nombre) {
-  if (!confirm('Desactivar receta "' + nombre + '"? Se conservará el historial de producción.')) return;
+async function eliminarReceta(id, nombre) {
+  var ok = await confirmarAccion({
+    title: 'Desactivar receta',
+    message: '¿Desactivar receta "' + nombre + '"?',
+    detail: 'Se conservará el historial de producción.',
+    acceptText: 'Desactivar',
+    tone: 'danger'
+  });
+  if (!ok) return;
   apiProtegida('DELETE', '/recetas/' + id, null, 'desactivar receta').then(function() {
     toast('Receta desactivada');
     cargarRecetas();
@@ -8113,8 +8161,15 @@ function renderEgresos(items) {
   document.getElementById('eg-list').innerHTML = h;
 }
 
-function borrarEgreso(id) {
-  if (!confirm('¿Borrar este egreso? Se desactivará y quedará en auditoría.')) return;
+async function borrarEgreso(id) {
+  var ok = await confirmarAccion({
+    title: 'Borrar egreso',
+    message: '¿Borrar este egreso?',
+    detail: 'Se desactivará y quedará en auditoría.',
+    acceptText: 'Borrar',
+    tone: 'danger'
+  });
+  if (!ok) return;
   apiProtegida('DELETE', '/egresos/' + id, null, 'borrar egreso').then(function() {
     toast('Egreso borrado');
     cargarEgresos();
@@ -8427,8 +8482,15 @@ function guardarGasto() {
   }).catch(function(e) { toast(e.message || 'Error', true); });
 }
 
-function eliminarGasto(id) {
-  if (!confirm('Eliminar este gasto fijo?')) return;
+async function eliminarGasto(id) {
+  var ok = await confirmarAccion({
+    title: 'Eliminar gasto fijo',
+    message: '¿Eliminar este gasto fijo?',
+    detail: 'Ya no se tomará para gastos recurrentes.',
+    acceptText: 'Eliminar',
+    tone: 'danger'
+  });
+  if (!ok) return;
   apiProtegida('DELETE', '/punto-de-venta/gastos-fijos/' + id, null, 'desactivar gasto fijo').then(function() {
     toast('Gasto eliminado');
     cargarGastosFijos();
@@ -11117,8 +11179,15 @@ function cerrarSesion() {
   }
 }
 
-function confirmarCerrarSesion() {
-  if (confirm('¿Cerrar sesión?')) cerrarSesion();
+async function confirmarCerrarSesion() {
+  var ok = await confirmarAccion({
+    title: 'Cerrar sesión',
+    message: '¿Cerrar sesión?',
+    detail: 'Tendrás que volver a entrar para usar el sistema.',
+    acceptText: 'Cerrar sesión',
+    tone: 'danger'
+  });
+  if (ok) cerrarSesion();
 }
 
 // ─── Gestión de usuarios (admin) ─────────────────────────────────
@@ -11154,10 +11223,16 @@ function renderResultadoVerificacion(info) {
   return h;
 }
 
-function probarRestauracionBackup(encodedFilename) {
+async function probarRestauracionBackup(encodedFilename) {
   var filename = encodedFilename ? decodeURIComponent(encodedFilename) : null;
   var msg = filename ? 'Probar restauración de este respaldo?' : 'Probar restauración del último respaldo?';
-  if (!confirm(msg + '\\n\\nLa prueba se hace en una copia/base temporal y no toca producción.')) return;
+  var ok = await confirmarAccion({
+    title: 'Probar restauración',
+    message: msg,
+    detail: 'La prueba se hace en una copia/base temporal y no toca producción.',
+    acceptText: 'Probar'
+  });
+  if (!ok) return;
   api('POST', '/backup/verificar', filename ? {filename: filename} : {}).then(function(info) {
     toast('Restauración de prueba OK');
     var box = document.getElementById('backup-verify-result');
@@ -11221,9 +11296,16 @@ function cargarBackup() {
   });
 }
 
-function eliminarBackup(encodedFilename) {
+async function eliminarBackup(encodedFilename) {
   var filename = decodeURIComponent(encodedFilename);
-  if (!confirm('¿Seguro que quieres borrar este respaldo?\\n\\n' + filename)) return;
+  var ok = await confirmarAccion({
+    title: 'Borrar respaldo',
+    message: '¿Seguro que quieres borrar este respaldo?',
+    detail: filename,
+    acceptText: 'Borrar respaldo',
+    tone: 'danger'
+  });
+  if (!ok) return;
   api('DELETE', '/backup/' + encodedFilename).then(function() {
     toast('Backup borrado');
     cargarBackup();
@@ -11321,8 +11403,14 @@ function guardarPermisos() {
   }).catch(function(e) { toast(e.message || 'Error', true); });
 }
 
-function toggleUsuario(id) {
-  if (!confirm('¿Activar/desactivar este usuario?')) return;
+async function toggleUsuario(id) {
+  var ok = await confirmarAccion({
+    title: 'Cambiar estado de usuario',
+    message: '¿Activar/desactivar este usuario?',
+    detail: 'El acceso del usuario cambiará de inmediato.',
+    acceptText: 'Guardar cambio'
+  });
+  if (!ok) return;
   api('DELETE', '/auth/usuarios/' + id).then(function(r) {
     toast(r.activo ? 'Usuario activado' : 'Usuario desactivado');
     cargarUsuarios();
@@ -11561,12 +11649,18 @@ function pagarCuenta(id) {
   if (!monto) return;
   api('POST', '/compras/cuentas-pagar/' + id + '/pago', { monto: monto, metodo_pago: 'transferencia', fecha_pago: new Date().toISOString().slice(0,10) }).then(function() { toast('Pago registrado'); cargarCuentasPagar(); }).catch(function(e) { toast(e.message || 'Error', true); });
 }
-function recibirOrden(id) {
+async function recibirOrden(id) {
   if (_recepcionesCompraEnProceso[id]) {
     toast('Recepción en proceso, espera un momento');
     return;
   }
-  if (!confirm('¿Registrar recepción de esta orden de compra?')) return;
+  var ok = await confirmarAccion({
+    title: 'Registrar recepción',
+    message: '¿Registrar recepción de esta orden de compra?',
+    detail: 'Se sumarán al inventario las cantidades pendientes indicadas.',
+    acceptText: 'Registrar recepción'
+  });
+  if (!ok) return;
   _recepcionesCompraEnProceso[id] = nuevaClaveIdempotencia('recepcion-oc-' + id);
   api('GET', '/compras/ordenes/' + id).then(function(o) {
     var items = o.detalles.map(function(d) {
