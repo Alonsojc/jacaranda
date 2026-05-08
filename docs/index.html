@@ -238,6 +238,15 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .modal-bg.on{display:flex}
 .modal{background:#fff;border-radius:16px;padding:1.5rem 1.5rem 2rem;width:90%;max-width:500px;max-height:calc(100vh - 6rem);overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:modalIn .25s ease-out}
 @keyframes modalIn{from{opacity:0;transform:translateY(20px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.confirm-modal{text-align:center;max-width:390px;padding:1.8rem 1.6rem}
+.confirm-icon{width:52px;height:52px;margin:0 auto .85rem;border-radius:16px;display:flex;align-items:center;justify-content:center;background:#faf3f0;color:var(--v);font-size:1.45rem;font-weight:800}
+.confirm-modal.danger .confirm-icon{background:#fef2f2;color:#b91c1c}
+.confirm-message{color:var(--dk);font-weight:700;font-size:.98rem;line-height:1.35;margin:.1rem 0 .5rem}
+.confirm-detail{color:var(--mut);font-size:.84rem;line-height:1.45;margin:0 auto 1rem;max-width:310px}
+.confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:1rem}
+.confirm-actions .cobrar,.confirm-actions .limpiar{margin:0;min-height:44px}
+.confirm-actions .confirm-danger{background:linear-gradient(135deg,#ef4444,#b91c1c);box-shadow:0 3px 10px rgba(239,68,68,.24)}
+.confirm-actions .confirm-danger:hover{box-shadow:0 5px 18px rgba(239,68,68,.28)}
 /* Toast notification */
 .toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);background:#c4988a;color:#fff;padding:.8rem 1.5rem;border-radius:12px;font-weight:600;font-size:.9rem;box-shadow:0 8px 25px rgba(196,152,138,.35);z-index:200;transition:transform .3s ease-out;display:flex;align-items:center;gap:.5rem}
 .toast.show{transform:translateX(-50%) translateY(0)}
@@ -1838,6 +1847,20 @@ h2{font-size:1.1rem}
 </div>
 </div>
 
+<!-- MODAL: Confirmación -->
+<div class="modal-bg" id="modal-confirmacion">
+<div class="modal confirm-modal" id="confirm-modal-box">
+<div class="confirm-icon" id="confirm-icon">!</div>
+<h3 id="confirm-title">Confirmar acci&oacute;n</h3>
+<p class="confirm-message" id="confirm-message"></p>
+<p class="confirm-detail" id="confirm-detail"></p>
+<div class="confirm-actions">
+<button class="limpiar" id="confirm-cancel" onclick="resolverConfirmacion(false)">Cancelar</button>
+<button class="cobrar" id="confirm-accept" onclick="resolverConfirmacion(true)">Aceptar</button>
+</div>
+</div>
+</div>
+
 <!-- MODAL: Nueva Orden Producción -->
 <div class="modal-bg" id="modal-orden-prod">
 <div class="modal" style="max-width:420px">
@@ -2384,7 +2407,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v72';
+var APP_BUILD = 'jacaranda-v73';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -5571,29 +5594,44 @@ function avanzarPedido(id, nuevoEstado) {
 }
 
 function borrarPedido(id, folio) {
-  var msg = '¿Seguro que quieres borrar/anular ' + (folio || 'este pedido') + '?\\n\\nNo se elimina el histórico; quedará como cancelado.';
-  if (!confirm(msg)) return;
-  apiProtegida('DELETE', '/pedidos/' + id, null, 'borrar pedido').then(function() {
-    _pedidosCache = (_pedidosCache || []).filter(function(p) { return p.id !== id; });
-    renderPedidos();
-    if (_calPedVisible) renderCalPed();
-    cargarReservasPedidos();
-    toast('Pedido borrado de la vista y anulado en historial');
-    cargarPedidos();
-  }).catch(function(e) {
-    toast(e.message || 'Error al borrar pedido', true);
+  confirmarAccion({
+    title: 'Anular pedido',
+    message: '¿Seguro que quieres anular ' + (folio || 'este pedido') + '?',
+    detail: 'No se elimina el historial. El pedido quedará como cancelado y se conserva para auditoría.',
+    acceptText: 'Anular pedido',
+    tone: 'danger'
+  }).then(function(ok) {
+    if (!ok) return;
+    apiProtegida('DELETE', '/pedidos/' + id, null, 'borrar pedido').then(function() {
+      _pedidosCache = (_pedidosCache || []).filter(function(p) { return p.id !== id; });
+      renderPedidos();
+      if (_calPedVisible) renderCalPed();
+      cargarReservasPedidos();
+      toast('Pedido anulado y oculto de la vista');
+      cargarPedidos();
+    }).catch(function(e) {
+      toast(e.message || 'Error al anular pedido', true);
+    });
   });
 }
 
 function borrarPedidoLocal(localId) {
-  if (!confirm('¿Borrar este pedido pendiente solo de este dispositivo?')) return;
-  var idx = parseInt(String(localId || '').replace('local-', ''), 10);
-  if (isNaN(idx) || idx < 0 || idx >= _pedidosPendientes.length) return;
-  _pedidosPendientes.splice(idx, 1);
-  guardarPedidosPendientes();
-  renderPedidos();
-  if (_calPedVisible) renderCalPed();
-  toast('Pedido pendiente borrado');
+  confirmarAccion({
+    title: 'Borrar pendiente local',
+    message: '¿Borrar este pedido pendiente de este dispositivo?',
+    detail: 'Solo se quitará de este navegador. Si todavía no se sincronizó, no estará guardado en el servidor.',
+    acceptText: 'Borrar local',
+    tone: 'danger'
+  }).then(function(ok) {
+    if (!ok) return;
+    var idx = parseInt(String(localId || '').replace('local-', ''), 10);
+    if (isNaN(idx) || idx < 0 || idx >= _pedidosPendientes.length) return;
+    _pedidosPendientes.splice(idx, 1);
+    guardarPedidosPendientes();
+    renderPedidos();
+    if (_calPedVisible) renderCalPed();
+    toast('Pedido pendiente borrado');
+  });
 }
 
 function playNotif() {
@@ -7077,7 +7115,50 @@ function cargarInventarioCompleto() {
 }
 
 // ─── Edit modals ─────────────────────────────────────────────────
+var _confirmResolver = null;
+function cerrarConfirmacion() {
+  var modal = document.getElementById('modal-confirmacion');
+  if (modal) modal.classList.remove('on');
+}
+function resolverConfirmacion(ok) {
+  var resolver = _confirmResolver;
+  _confirmResolver = null;
+  cerrarConfirmacion();
+  if (resolver) resolver(!!ok);
+}
+function confirmarAccion(opts) {
+  opts = opts || {};
+  return new Promise(function(resolve) {
+    if (_confirmResolver) resolverConfirmacion(false);
+    _confirmResolver = resolve;
+    var box = document.getElementById('confirm-modal-box');
+    var icon = document.getElementById('confirm-icon');
+    var title = document.getElementById('confirm-title');
+    var message = document.getElementById('confirm-message');
+    var detail = document.getElementById('confirm-detail');
+    var cancel = document.getElementById('confirm-cancel');
+    var accept = document.getElementById('confirm-accept');
+    if (box) box.className = 'modal confirm-modal' + (opts.tone === 'danger' ? ' danger' : '');
+    if (icon) icon.textContent = opts.icon || (opts.tone === 'danger' ? '!' : '?');
+    if (title) title.textContent = opts.title || 'Confirmar acci\u00f3n';
+    if (message) message.textContent = opts.message || '';
+    if (detail) {
+      detail.textContent = opts.detail || '';
+      detail.style.display = opts.detail ? 'block' : 'none';
+    }
+    if (cancel) cancel.textContent = opts.cancelText || 'Cancelar';
+    if (accept) {
+      accept.textContent = opts.acceptText || 'Aceptar';
+      accept.className = 'cobrar' + (opts.tone === 'danger' ? ' confirm-danger' : '');
+    }
+    var modal = document.getElementById('modal-confirmacion');
+    if (modal) modal.classList.add('on');
+    setTimeout(function() { if (accept) accept.focus(); }, 50);
+  });
+}
+
 function cerrarModal(id) {
+  if (id === 'modal-confirmacion') { resolverConfirmacion(false); return; }
   if (id === 'modal-admin-auth') { cancelarAdminAuth(); return; }
   if (id === 'modal-scan-cliente') detenerEscanerCliente();
   document.getElementById(id).classList.remove('on');
@@ -7089,6 +7170,7 @@ document.addEventListener('keydown', function(e) {
     document.querySelectorAll('.modal-bg.on').forEach(function(m) {
       if (m.id === 'modal-admin-auth') cancelarAdminAuth();
       else if (m.id === 'modal-scan-cliente') cerrarModal('modal-scan-cliente');
+      else if (m.id === 'modal-confirmacion') resolverConfirmacion(false);
       else m.classList.remove('on');
     });
   }
@@ -7097,6 +7179,7 @@ document.addEventListener('click', function(e) {
   if (e.target.classList.contains('modal-bg')) {
     if (e.target.id === 'modal-admin-auth') cancelarAdminAuth();
     else if (e.target.id === 'modal-scan-cliente') cerrarModal('modal-scan-cliente');
+    else if (e.target.id === 'modal-confirmacion') resolverConfirmacion(false);
     else e.target.classList.remove('on');
   }
 });
