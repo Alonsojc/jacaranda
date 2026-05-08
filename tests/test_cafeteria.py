@@ -78,6 +78,8 @@ def test_cafeteria_usa_precio_especial_y_credito(client, auth_headers):
     assert Decimal(data["saldo_pendiente"]) == Decimal("135.60")
     assert data["estado"] == "pendiente"
     assert data["detalles"][0]["precio_unitario"] == "80.00"
+    assert data["pagos"][0]["metodo_pago"] == "28"
+    assert data["pagos"][0]["terminal"] == "bbva"
 
     duplicate = client.post(
         "/api/v1/cafeteria/ventas",

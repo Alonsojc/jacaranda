@@ -2248,6 +2248,13 @@ h2{font-size:1.1rem}
 <label id="mc-referencia-label">Referencia / autorizaci&oacute;n</label>
 <input id="mc-referencia" maxlength="100" placeholder="Autorizaci&oacute;n, voucher o &uacute;ltimos 4">
 </div>
+<div id="mc-bbva-tipo-wrap" class="fg" style="display:none;margin-bottom:.7rem">
+<label>Tipo de tarjeta BBVA</label>
+<select id="mc-bbva-tipo">
+<option value="28">Tarjeta d&eacute;bito</option>
+<option value="04">Tarjeta cr&eacute;dito</option>
+</select>
+</div>
 <!-- Single payment mode -->
 <div id="mc-single">
 <div id="mc-efectivo">
@@ -2267,7 +2274,7 @@ h2{font-size:1.1rem}
 <div class="fg"><label>&#128181; Efectivo</label><input type="number" id="mc-sp-ef" step="0.01" oninput="calcSplit()" style="font-weight:700;text-align:center" placeholder="0"></div>
 <div class="fg"><label>&#128179; Tarjeta (CLIP)</label><input type="number" id="mc-sp-tar" step="0.01" oninput="calcSplit()" style="font-weight:700;text-align:center" placeholder="0"></div>
 </div>
-<div class="fg"><label>&#127974; Transferencia (BBVA)</label><input type="number" id="mc-sp-trans" step="0.01" oninput="calcSplit()" style="font-weight:700;text-align:center;max-width:50%" placeholder="0"></div>
+<div class="fg"><label>&#127974; Transferencia</label><input type="number" id="mc-sp-trans" step="0.01" oninput="calcSplit()" style="font-weight:700;text-align:center;max-width:50%" placeholder="0"></div>
 </div>
 <div style="text-align:center;margin-bottom:.5rem">
 <div style="font-size:.85rem;color:var(--mut)">Falta: <span id="mc-sp-falta" style="font-weight:700">$0.00</span></div>
@@ -2376,7 +2383,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v69';
+var APP_BUILD = 'jacaranda-v70';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -3756,9 +3763,13 @@ function cobrar() {
   var refWrap = document.getElementById('mc-referencia-wrap');
   var refInput = document.getElementById('mc-referencia');
   var refLabel = document.getElementById('mc-referencia-label');
+  var tipoBbvaWrap = document.getElementById('mc-bbva-tipo-wrap');
+  var tipoBbva = document.getElementById('mc-bbva-tipo');
   refInput.value = '';
   refWrap.style.display = (pm === 'bbva' || pm === 'trans') ? 'block' : 'none';
   refLabel.textContent = pm === 'bbva' ? 'Autorizacion BBVA / voucher' : 'Referencia transferencia';
+  if (tipoBbva) tipoBbva.value = '28';
+  if (tipoBbvaWrap) tipoBbvaWrap.style.display = pm === 'bbva' ? 'block' : 'none';
   document.getElementById('mc-single').style.display = 'block';
   document.getElementById('mc-split').style.display = 'none';
   var efDiv = document.getElementById('mc-efectivo');
@@ -3780,6 +3791,8 @@ function toggleSplit() {
   document.getElementById('mc-split').style.display = _splitMode ? 'block' : 'none';
   document.getElementById('mc-metodo').textContent = _splitMode ? 'Pago dividido' : {ef:'Efectivo',clip:'Tarjeta (CLIP)',trans:'Transferencia',bbva:'BBVA'}[pm];
   document.getElementById('mc-referencia-wrap').style.display = _splitMode ? 'none' : ((pm === 'bbva' || pm === 'trans') ? 'block' : 'none');
+  var tipoBbvaWrap = document.getElementById('mc-bbva-tipo-wrap');
+  if (tipoBbvaWrap) tipoBbvaWrap.style.display = (!_splitMode && pm === 'bbva') ? 'block' : 'none';
   if (_splitMode) {
     document.getElementById('mc-sp-ef').value = '';
     document.getElementById('mc-sp-tar').value = '';
@@ -3876,7 +3889,9 @@ function procesarVenta() {
     body.metodo_pago = '01'; // fallback, backend picks largest
     body.monto_recibido = ef + tar + trans;
   } else {
-    var metodos = {ef:'01', clip:'04', trans:'03', bbva:'03'};
+    var bbvaTipo = document.getElementById('mc-bbva-tipo');
+    var metodoBbva = bbvaTipo && bbvaTipo.value === '04' ? '04' : '28';
+    var metodos = {ef:'01', clip:'04', trans:'03', bbva:metodoBbva};
     var terminales = {ef:'efectivo', clip:'clip', trans:'efectivo', bbva:'bbva'};
     var monto = total;
     if (pm === 'ef') {
@@ -4654,8 +4669,8 @@ function mapPagoCafeteria() {
   var map = {
     ef: {metodo_pago:'01', terminal:'efectivo'},
     clip: {metodo_pago:'04', terminal:'clip'},
-    trans: {metodo_pago:'03', terminal:'bbva'},
-    bbva: {metodo_pago:'03', terminal:'bbva'}
+    trans: {metodo_pago:'03', terminal:'efectivo'},
+    bbva: {metodo_pago:'28', terminal:'bbva'}
   };
   return map[cafPm] || map.trans;
 }
@@ -4715,12 +4730,15 @@ function etiquetaEstadoCafeteria(v) {
 }
 
 function etiquetaPagoCafeteria(p) {
-  var m = p && (p.terminal || p.metodo_pago);
-  if (m === 'efectivo' || m === '01') return 'Efectivo';
-  if (m === 'clip' || m === '04') return 'CLIP';
-  if (m === 'bbva') return 'BBVA / transferencia';
-  if (m === '03') return 'Transferencia';
-  return m || 'Pago';
+  var terminal = String((p && p.terminal) || '');
+  var metodo = String((p && p.metodo_pago) || '');
+  if (terminal === 'clip') return 'CLIP';
+  if (terminal === 'bbva') return 'BBVA';
+  if (metodo === '01') return 'Efectivo';
+  if (metodo === '03') return 'Transferencia';
+  if (metodo === '04') return 'Tarjeta credito';
+  if (metodo === '28') return 'Tarjeta debito';
+  return metodo || terminal || 'Pago';
 }
 
 function renderCafeteriaVentas(items) {
@@ -7634,7 +7652,7 @@ function etiquetaPagoDetalle(p) {
   var metodo = String((p && p.metodo_pago) || '');
   if (metodo === '01') return 'Efectivo';
   if (metodo === '04' || metodo === '28') return 'CLIP';
-  if (metodo === '03') return 'BBVA';
+  if (metodo === '03') return 'Transferencia';
   return 'Otro';
 }
 
@@ -7673,10 +7691,11 @@ function resumenProductosVenta(v) {
 }
 
 function sumarPagoCorte(totales, metodo, monto, terminal) {
-  if (metodo === '01') totales.ef += monto;
-  else if (terminal === 'clip' || metodo === '04' || metodo === '28') totales.clip += monto;
+  if (terminal === 'clip') totales.clip += monto;
   else if (terminal === 'bbva') totales.bbva += monto;
+  else if (metodo === '01') totales.ef += monto;
   else if (metodo === '03') totales.trans += monto;
+  else if (metodo === '04' || metodo === '28') totales.tar += monto;
   else totales.tar += monto;
 }
 
@@ -7707,7 +7726,7 @@ function cargarCorte() {
             var pm2 = v.pagos[j].metodo_pago;
             var pm2m = parseFloat(v.pagos[j].monto) || 0;
             var parciales = {ef:0, tar:0, trans:0, clip:0, bbva:0};
-            sumarPagoCorte(parciales, pm2, pm2m, pm2 === '03' ? 'bbva' : '');
+            sumarPagoCorte(parciales, pm2, pm2m, (pm2 === '04' || pm2 === '28') ? 'clip' : '');
             efTotal += parciales.ef;
             tarTotal += parciales.tar;
             transTotal += parciales.trans;

@@ -47,6 +47,13 @@ def _normalizar_fecha_db(valor: datetime) -> datetime:
     return valor_utc
 
 
+def _normalizar_metodo_terminal(metodo: MetodoPago, terminal: TerminalPago) -> MetodoPago:
+    """Corrige payloads viejos donde BBVA llegaba como transferencia SAT 03."""
+    if terminal == TerminalPago.BBVA and metodo == MetodoPago.TRANSFERENCIA:
+        return MetodoPago.TARJETA_DEBITO
+    return metodo
+
+
 def _generar_folio(db: Session, serie: str = "T") -> str:
     """Genera folio secuencial por serie."""
     ultima_venta = (
@@ -302,7 +309,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     # Validar pago
     cambio = Decimal("0")
     monto_recibido = data.monto_recibido
-    metodo_principal = data.metodo_pago
+    metodo_principal = _normalizar_metodo_terminal(data.metodo_pago, data.terminal)
     estado_venta = EstadoVenta.COMPLETADA
 
     if data.pago_integrado:
@@ -312,7 +319,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             raise ValueError("Por ahora el cobro integrado solo está disponible para CLIP")
         if data.puntos_canjeados or data.canjear_recompensa_lealtad:
             raise ValueError("El canje de lealtad requiere cerrar la venta en caja")
-        metodo_principal = data.metodo_pago
+        metodo_principal = _normalizar_metodo_terminal(data.metodo_pago, data.terminal)
         monto_recibido = total
         cambio = Decimal("0")
         estado_venta = EstadoVenta.PENDIENTE
@@ -868,8 +875,8 @@ def generar_ticket(db: Session, venta_id: int) -> dict:
     pagos_info = []
     if venta.pagos:
         for p in venta.pagos:
-            terminal = TerminalPago.BBVA if p.metodo_pago == MetodoPago.TRANSFERENCIA else None
-            desc = etiqueta_pago(p.metodo_pago, terminal)
+            terminal_pago = venta.terminal if len(venta.pagos) == 1 else None
+            desc = etiqueta_pago(p.metodo_pago, terminal_pago)
             pagos_info.append({
                 "metodo": desc,
                 "monto": float(p.monto),
@@ -949,7 +956,7 @@ def _totales_corte(db: Session, fecha: date) -> dict:
                 elif p.metodo_pago in (MetodoPago.TARJETA_CREDITO, MetodoPago.TARJETA_DEBITO):
                     total_clip += p.monto
                 elif p.metodo_pago == MetodoPago.TRANSFERENCIA:
-                    total_bbva += p.monto
+                    total_transferencia += p.monto
         else:
             # Single payment
             if v.metodo_pago == MetodoPago.EFECTIVO:

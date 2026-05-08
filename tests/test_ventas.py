@@ -79,10 +79,13 @@ class TestVentas:
         assert resp.status_code == 201, resp.text
         venta = resp.json()
         assert venta["terminal"] == "bbva"
+        assert venta["metodo_pago"] == "28"
         assert venta["pagos"][0]["referencia"] == "AUTH-1234"
+        assert venta["pagos"][0]["metodo_pago"] == "28"
 
         pago = db.query(PagoVenta).filter(PagoVenta.venta_id == venta["id"]).one()
         assert pago.referencia == "AUTH-1234"
+        assert pago.metodo_pago.value == "28"
 
         ticket = client.get(
             f"/api/v1/punto-de-venta/ventas/{venta['id']}/ticket",

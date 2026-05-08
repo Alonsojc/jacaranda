@@ -24,14 +24,14 @@ class CafeteriaVentaCreate(BaseModel):
     detalles: list[DetalleCafeteriaCreate] = Field(..., min_length=1)
     pago_inicial: Decimal | None = Field(default=None, ge=0)
     metodo_pago: MetodoPago = MetodoPago.TRANSFERENCIA
-    terminal: TerminalPago = TerminalPago.BBVA
+    terminal: TerminalPago = TerminalPago.EFECTIVO
     referencia_pago: str | None = Field(default=None, max_length=120)
 
 
 class PagoCafeteriaCreate(BaseModel):
     monto: Decimal | None = Field(default=None, gt=0)
     metodo_pago: MetodoPago = MetodoPago.TRANSFERENCIA
-    terminal: TerminalPago = TerminalPago.BBVA
+    terminal: TerminalPago = TerminalPago.EFECTIVO
     referencia: str | None = Field(default=None, max_length=120)
 
 

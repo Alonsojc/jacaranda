@@ -18,7 +18,12 @@ from app.schemas.cafeteria import CafeteriaVentaCreate, PagoCafeteriaCreate
 from app.schemas.inventario import MovimientoCreate
 from app.services.auditoria_service import registrar_evento
 from app.services.inventario_service import registrar_empaque_producto, registrar_movimiento
-from app.services.venta_service import _normalizar_fecha_db, _obtener_tasa_iva, _zona_operacion
+from app.services.venta_service import (
+    _normalizar_fecha_db,
+    _normalizar_metodo_terminal,
+    _obtener_tasa_iva,
+    _zona_operacion,
+)
 
 CENTAVO = Decimal("0.01")
 
@@ -193,11 +198,12 @@ def crear_venta(db: Session, data: CafeteriaVentaCreate, usuario_id: int) -> Caf
             )
 
     if pago_inicial > 0:
+        metodo_pago = _normalizar_metodo_terminal(data.metodo_pago, data.terminal)
         db.add(
             PagoCafeteriaVenta(
                 venta_id=venta.id,
                 monto=pago_inicial,
-                metodo_pago=data.metodo_pago,
+                metodo_pago=metodo_pago,
                 terminal=data.terminal,
                 referencia=data.referencia_pago,
                 usuario_id=usuario_id,
@@ -287,11 +293,12 @@ def registrar_pago(db: Session, venta_id: int, data: PagoCafeteriaCreate, usuari
         if venta.monto_pagado >= venta.total
         else EstadoCuentaCafeteria.PENDIENTE
     )
+    metodo_pago = _normalizar_metodo_terminal(data.metodo_pago, data.terminal)
     db.add(
         PagoCafeteriaVenta(
             venta_id=venta.id,
             monto=monto,
-            metodo_pago=data.metodo_pago,
+            metodo_pago=metodo_pago,
             terminal=data.terminal,
             referencia=data.referencia,
             usuario_id=usuario_id,
