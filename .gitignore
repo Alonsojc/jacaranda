@@ -46,3 +46,6 @@ htmlcov/
 
 # Tool artifacts
 .playwright-cli/
+
+# Local migration exports with private recipes/costs
+migration/costing_import/*.csv
