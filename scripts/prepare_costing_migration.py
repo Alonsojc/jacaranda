@@ -88,9 +88,12 @@ REFRIGERATION_KEYWORDS = (
 EXCLUDED_RECIPE_LABEL_RE = re.compile(
     r"("
     r"^total$|^subtotal$|^ingredientes$|^medidas$|^precio$|"
-    r"venta|utilidad|empaque|entrega|costo|tanda|precio individual|precio de|"
+    r"venta|utilidad|empaque|entrega|costo|tanda|precio individual|precio de|precio por|"
     r"para negocios|presentacion|presentación|piezas por|"
-    r"^#|^\d+\s+caja|^\d+\s+pastel|^\d+\s+pie|^\d+\s+panque|^\d+\s+panqué|^\d+\s+galleta"
+    r"^#|^\d+\s+(?:bite\s+)?rosca|^\d+\s+mini\s+rosca|"
+    r"^\d+\s+caja|^\d+\s+pastel|^\d+\s+pie|^\d+\s+panque|^\d+\s+panqué|"
+    r"^\d+\s+galleta|^\d+\s+gelatina|^\d+\s+pan(?:es)?|^\d+\s+charola|"
+    r"^\d+\s+brownie|^\d+\s+sandwich"
     r")",
     re.IGNORECASE,
 )
@@ -105,8 +108,10 @@ INGREDIENT_ALIASES = {
     "mascabada": "Azúcar mascabado",
     "canela": "Canela Pura",
     "oreo": "Galleta Oreo",
+    "oreos": "Galleta Oreo",
     "galleta oreo": "Galleta Oreo",
     "chispas": "Chispas de chocolate Hershyes",
+    "chispas chocolate": "Chispas de chocolate Hershyes",
     "chispas de chocolate": "Chispas de chocolate Hershyes",
     "chispas de colores": "Chispas de colores pasteles",
     "chispas de colores pasteles": "Chispas de colores pasteles",
@@ -114,12 +119,29 @@ INGREDIENT_ALIASES = {
     "chispas blancas": "Chispas de chocolate blanco",
     "chocolate semi amargo": "Chocolate turin semi amargo",
     "chocolate semiamargo": "Chocolate turin semi amargo",
+    "cinnamon crunch": "Cinammon cereal",
+    "cereal corn flakes": "Corn flakes",
+    "corn flakes": "Corn flakes",
     "polvo para hornear": "Polvo para hornear",
     "royal": "Polvo para hornear",
+    "harina suave": "Harina",
+    "harina fuerza": "Harina de fuerza",
+    "harina de fuerza": "Harina de fuerza",
     "harina de avena": "Avena",
     "harina almendra": "Harina de almendra",
     "harina de almendra": "Harina de almendra",
     "almendra rallada": "Harina de almendra",
+    "galletas louts": "Galletas Lotus",
+    "galletas lotus": "Galletas Lotus",
+    "miel karo": "Miel Maiz",
+    "miel de maiz": "Miel Maiz",
+    "vainilla pudding": "Vainilla Puddin",
+    "vainilla puddin": "Vainilla Puddin",
+    "monk": "Monk fruit",
+    "monk fruit": "Monk fruit",
+    "conejito": "Chocolate turin conejito",
+    "cajeta": "Cajeta coronado",
+    "crema batida": "Crema para batir",
     "mermelada": "Mermelada frambuesa",
     "colorante": "Colorantes",
     "colorante rojo": "Colorantes",
@@ -286,13 +308,13 @@ def parse_ingredient_sheet(wb, pending: list[dict[str, str]]) -> tuple[list[dict
 
             if is_packaging_name(name):
                 empaques.append({
-                    "importar": "no",
+                    "importar": "si",
                     "nombre": name,
                     "unidad_medida": unit,
                     "costo_unitario": decimal_str(cost),
                     "stock_actual": "0.0000",
                     "stock_minimo": "0.0000",
-                    "notas": "Detectado desde hoja Ingredientes; confirmar si debe funcionar como empaque ligado a productos",
+                    "notas": "Detectado con costo real desde hoja Ingredientes; listo para importar como inventario de empaque",
                 })
 
         supply_name = text(ws.cell(row, 7).value)
@@ -588,7 +610,7 @@ Generado automáticamente desde `Ingredientes y Costos.xlsx`.
 
 - `ingredientes.csv`: materias primas detectadas desde la hoja Ingredientes.
 - `insumos_operativos.csv`: insumos/gastos operativos detectados, para revisar antes de meterlos a Egresos o proveedores.
-- `empaques.csv`: empaques/cajas detectados o sugeridos para ligar a productos.
+- `empaques.csv`: empaques/cajas detectados o sugeridos para ligar a productos. Los detectados con costo real quedan en `importar=si`; los sugeridos sin costo quedan en `importar=no`.
 - `productos.csv`: productos/recetas detectados desde las hojas de costeo. Vienen con `importar=no` hasta que los revises.
 - `recetas.csv`: cabeceras de recetas. Vienen con `importar=no` hasta que los revises.
 - `receta_ingredientes.csv`: ingredientes por receta.
@@ -611,7 +633,7 @@ Generado automáticamente desde `Ingredientes y Costos.xlsx`.
 2. Abre primero `revision_pendiente.csv`.
 3. Revisa unidades, nombres duplicados, precios, rendimientos y presentaciones.
 4. En cada CSV cambia `importar=no` a `importar=si` solo en filas confiables.
-5. Si quieres una primera carga conservadora, importa solo `ingredientes.csv` y deja productos/recetas en `importar=no`.
+5. Si quieres una primera carga conservadora, deja importables solo `ingredientes.csv` y los empaques con costo real; productos/recetas deben seguir en `importar=no`.
 6. Para importar una receta, marca también su producto correspondiente en `productos.csv` con el mismo `codigo`.
 7. Corre validación sin escribir:
 
