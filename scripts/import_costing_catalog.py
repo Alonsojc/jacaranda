@@ -249,6 +249,11 @@ def apply_import(db: Session, input_dir: Path) -> dict[str, int]:
         "productos": 0,
         "recetas": 0,
     }
+    ingredient_cache: dict[str, Ingrediente] = {
+        clean(ingredient.nombre).lower(): ingredient
+        for ingredient in db.query(Ingrediente).all()
+        if clean(ingredient.nombre)
+    }
 
     for row in read_csv(input_dir / "proveedores.csv"):
         if not yes(row.get("importar")) or not clean(row.get("nombre")):
@@ -267,11 +272,13 @@ def apply_import(db: Session, input_dir: Path) -> dict[str, int]:
             if not yes(row.get("importar")) or not clean(row.get("nombre")):
                 continue
             provider = upsert_provider(db, row.get("proveedor", ""))
-            ingredient = find_by_name(db, Ingrediente, row["nombre"])
+            ingredient_key = clean(row["nombre"]).lower()
+            ingredient = ingredient_cache.get(ingredient_key)
             unit = parse_unit(clean(row.get("unidad_medida"))) or UnidadMedida.PIEZA
             if not ingredient:
                 ingredient = Ingrediente(nombre=clean(row["nombre"]), unidad_medida=unit)
                 db.add(ingredient)
+                ingredient_cache[ingredient_key] = ingredient
             ingredient.unidad_medida = unit
             ingredient.costo_unitario = as_decimal(row.get("costo_unitario"), Decimal("0")) or Decimal("0")
             ingredient.stock_actual = as_decimal(row.get("stock_actual"), Decimal("0")) or Decimal("0")
