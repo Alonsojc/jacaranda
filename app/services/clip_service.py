@@ -68,6 +68,17 @@ def _get_pinpad_auth_header() -> str:
     return _get_auth_header()
 
 
+def _pinpad_credentials_configured(serial: str | None = None) -> bool:
+    raw = getattr(settings, "CLIP_PINPAD_AUTHORIZATION", "").strip()
+    basic = bool(getattr(settings, "CLIP_API_KEY", "") and getattr(settings, "CLIP_API_SECRET", ""))
+    terminal = bool(serial or getattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "").strip())
+    return terminal and (bool(raw) or basic)
+
+
+def _pinpad_mock_enabled(serial: str | None = None) -> bool:
+    return bool(getattr(settings, "CLIP_PINPAD_MOCK_MODE", False)) or not _pinpad_credentials_configured(serial)
+
+
 def _pinpad_request(
     method: str,
     endpoint: str,
@@ -100,16 +111,28 @@ def _pinpad_request(
         raise ClipAPIError(f"No se pudo conectar a CLIP PinPad: {e.reason}")
 
 
-def clip_webhook_url() -> str:
+def clip_webhook_url(required: bool = True) -> str | None:
     """URL pública que Clip usará para avisar si el cobro se aprobó."""
     base_url = getattr(settings, "BACKEND_PUBLIC_URL", "").strip().rstrip("/")
     if not base_url:
+        if not required:
+            return None
         raise ClipAPIError("Configura BACKEND_PUBLIC_URL para recibir webhooks de CLIP")
-    url = f"{base_url}/api/v1/pagos/clip/webhook"
-    secret = getattr(settings, "CLIP_WEBHOOK_SECRET", "").strip()
-    if secret:
-        url += "?" + urlencode({"secret": secret})
-    return url
+    return f"{base_url}/api/v1/pagos/clip/webhook"
+
+
+def _mock_pinpad_response(monto: Decimal, referencia: str, serial: str | None) -> dict:
+    amount = Decimal(str(monto)).quantize(Decimal("0.01"))
+    safe_reference = "".join(ch if ch.isalnum() or ch in ("-", "_") else "-" for ch in referencia)
+    return {
+        "mock": True,
+        "pinpad_request_id": f"mock-pinpad-{safe_reference}",
+        "status": "pending",
+        "estado": "pendiente",
+        "reference": referencia,
+        "amount": str(amount),
+        "serial_number_pos": serial or "MOCK",
+    }
 
 
 def enviar_cobro_pinpad(
@@ -126,6 +149,8 @@ def enviar_cobro_pinpad(
     el pago aprobado.
     """
     serial = (serial_number_pos or getattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "")).strip()
+    if _pinpad_mock_enabled(serial):
+        return _mock_pinpad_response(monto, referencia, serial)
     if not serial:
         raise ClipAPIError("Configura CLIP_PINPAD_SERIAL_NUMBER con el serial de tu terminal")
 
@@ -133,8 +158,10 @@ def enviar_cobro_pinpad(
         "amount": float(Decimal(str(monto)).quantize(Decimal("0.01"))),
         "reference": referencia,
         "serial_number_pos": serial,
-        "webhook_url": webhook_url or clip_webhook_url(),
     }
+    callback_url = webhook_url or clip_webhook_url(required=False)
+    if callback_url:
+        payload["webhook_url"] = callback_url
     if descripcion:
         payload["description"] = descripcion
     return _pinpad_request("POST", "/f2f/pinpad/v1/payment", payload)
@@ -144,6 +171,13 @@ def consultar_pago_pinpad(pinpad_request_id: str, include_detail: bool = True) -
     """Consulta un pago PinPad por el ID que devuelve Clip al crearlo."""
     if not pinpad_request_id:
         raise ClipAPIError("Falta pinpad_request_id para consultar CLIP")
+    if str(pinpad_request_id).startswith("mock-pinpad-"):
+        return {
+            "mock": True,
+            "pinpad_request_id": pinpad_request_id,
+            "status": "pending",
+            "estado": "pendiente",
+        }
     endpoint = "/f2f/pinpad/v1/payment?" + urlencode({"pinpadRequestId": pinpad_request_id})
     headers = {"Pinpad-Include-Detail": "true"} if include_detail else None
     return _pinpad_request("GET", endpoint, extra_headers=headers)
@@ -255,6 +289,14 @@ def es_pago_clip_fallido(status: str | None) -> bool:
         "rechazado",
         "cancelado",
     }
+
+
+def estado_operativo_clip(status: str | None) -> str:
+    if es_pago_clip_aprobado(status):
+        return "pagado"
+    if es_pago_clip_fallido(status):
+        return "fallido"
+    return "pendiente"
 
 
 def enviar_cobro(monto: Decimal, referencia: str, descripcion: str = "") -> dict:

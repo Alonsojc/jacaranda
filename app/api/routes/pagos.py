@@ -13,6 +13,7 @@ from app.models.pago_online import ClipWebhookEvent
 from app.models.usuario import Usuario, RolUsuario
 from app.models.venta import EstadoVenta, TerminalPago, Venta
 from app.services import clip_service, pagos_service, venta_service
+from app.services.auditoria_service import registrar_evento
 
 router = APIRouter()
 
@@ -101,7 +102,7 @@ def reembolso(
 def crear_cobro_clip_pinpad(
     data: ClipPinpadRequest,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_permission("pos", "editar")),
+    user: Usuario = Depends(require_permission("pos", "editar")),
 ):
     """Envía una venta pendiente a la terminal Clip PinPad."""
     venta = db.query(Venta).filter(Venta.id == data.venta_id).first()
@@ -113,6 +114,16 @@ def crear_cobro_clip_pinpad(
         raise HTTPException(status_code=400, detail="La venta ya está pagada")
     if venta.terminal != TerminalPago.CLIP or not venta.pago_integrado:
         raise HTTPException(status_code=400, detail="La venta no está configurada para CLIP integrado")
+    if venta.pago_externo_id:
+        return {
+            "ok": True,
+            "idempotent": True,
+            "venta_id": venta.id,
+            "folio": venta.folio,
+            "payment_id": venta.pago_externo_id,
+            "estado": venta.pago_externo_estado or "pendiente",
+            "respuesta": json.loads(venta.pago_externo_payload or "{}"),
+        }
 
     try:
         respuesta = clip_service.enviar_cobro_pinpad(
@@ -130,9 +141,27 @@ def crear_cobro_clip_pinpad(
     info = clip_service.extraer_pago_webhook_clip(respuesta)
     venta.pago_proveedor = "clip"
     venta.pago_externo_id = info.get("payment_id") or venta.pago_externo_id
-    venta.pago_externo_estado = info.get("status") or "enviado"
+    venta.pago_externo_estado = clip_service.estado_operativo_clip(info.get("status"))
     venta.pago_externo_referencia = venta.folio
     venta.pago_externo_payload = json.dumps(respuesta, default=str)
+    registrar_evento(
+        db,
+        usuario_id=user.id,
+        usuario_nombre=user.nombre,
+        accion="crear_intento_pago",
+        modulo="pagos",
+        entidad="ventas",
+        entidad_id=venta.id,
+        datos_nuevos={
+            "proveedor": "clip",
+            "payment_id": venta.pago_externo_id,
+            "estado": venta.pago_externo_estado,
+            "mock": bool(respuesta.get("mock")),
+            "folio": venta.folio,
+            "total": str(venta.total),
+        },
+        commit=False,
+    )
     db.commit()
     db.refresh(venta)
     return {
@@ -181,7 +210,7 @@ def estado_cobro_clip_pinpad(
                     respuesta,
                 )
             elif info.get("status"):
-                venta.pago_externo_estado = info.get("status")
+                venta.pago_externo_estado = clip_service.estado_operativo_clip(info.get("status"))
                 venta.pago_externo_payload = json.dumps(respuesta, default=str)
                 db.commit()
                 db.refresh(venta)
@@ -279,7 +308,7 @@ async def webhook_clip(
                 venta.id,
                 "clip",
                 info.get("payment_id"),
-                info.get("status") or "fallido",
+                clip_service.estado_operativo_clip(info.get("status")),
                 payload,
                 commit=False,
             )
@@ -287,7 +316,7 @@ async def webhook_clip(
         else:
             venta.pago_proveedor = "clip"
             venta.pago_externo_id = info.get("payment_id") or venta.pago_externo_id
-            venta.pago_externo_estado = info.get("status") or venta.pago_externo_estado
+            venta.pago_externo_estado = clip_service.estado_operativo_clip(info.get("status"))
             venta.pago_externo_payload = json.dumps(payload, default=str)
             event.processed = True
         db.commit()

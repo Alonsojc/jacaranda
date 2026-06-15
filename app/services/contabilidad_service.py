@@ -19,9 +19,31 @@ from app.models.inventario import (
 )
 from app.models.gasto_fijo import GastoFijo
 from app.models.empleado import RegistroNomina
+from app.services.pago_metodos import canal_pago, etiqueta_canal_pago
 from app.services.venta_service import _normalizar_fecha_db, _zona_operacion
 
 ZERO = Decimal("0")
+
+
+def _pagos_operativos_venta(venta: Venta) -> list[dict]:
+    """Devuelve pagos reales por canal; evita inflar bancos en ventas divididas."""
+    if venta.pagos:
+        return [
+            {
+                "canal": canal_pago(pago.metodo_pago, pago.terminal),
+                "label": etiqueta_canal_pago(pago.metodo_pago, pago.terminal),
+                "monto": pago.monto or ZERO,
+                "referencia": pago.referencia,
+            }
+            for pago in venta.pagos
+            if getattr(pago, "estado", "pagado") == "pagado"
+        ]
+    return [{
+        "canal": canal_pago(venta.metodo_pago, venta.terminal),
+        "label": etiqueta_canal_pago(venta.metodo_pago, venta.terminal),
+        "monto": venta.total or ZERO,
+        "referencia": venta.pago_externo_referencia,
+    }]
 
 
 # ─── Catálogo de cuentas ──────────────────────────────────────────
@@ -252,11 +274,16 @@ def balance_general(db: Session, fecha_corte: date | None = None) -> dict:
     saldos_polizas = _saldos_cuentas(db, corte)
 
     # 2. Estimaciones directas de datos operativos
-    # Caja: ventas en efectivo no conciliadas
-    efectivo = db.query(func.coalesce(func.sum(Venta.total), 0)).filter(
-        and_(Venta.estado == EstadoVenta.COMPLETADA,
-             Venta.metodo_pago == "01", Venta.fecha <= corte_dt)
-    ).scalar()
+    # Caja: solo la porción en efectivo, incluso cuando la venta fue dividida.
+    ventas_corte = db.query(Venta).filter(
+        and_(Venta.estado == EstadoVenta.COMPLETADA, Venta.fecha <= corte_dt)
+    ).all()
+    efectivo = sum(
+        pago["monto"]
+        for venta in ventas_corte
+        for pago in _pagos_operativos_venta(venta)
+        if pago["canal"] == "efectivo"
+    )
 
     # Inventario materia prima
     inv_mp = ZERO
@@ -531,21 +558,29 @@ def conciliacion_bancaria(db: Session, mes: int, anio: int) -> dict:
              MovimientoBancario.fecha < ultimo_dia)
     ).order_by(MovimientoBancario.fecha).all()
 
-    # Ventas con tarjeta/transferencia del mes (depósitos esperados)
-    ventas_electronicas = db.query(Venta).filter(
+    # Ventas con tarjeta/transferencia del mes (depósitos esperados).
+    # Se calcula por pago para no mezclar efectivo en ventas divididas.
+    ventas_mes = db.query(Venta).filter(
         and_(Venta.estado == EstadoVenta.COMPLETADA,
-             Venta.metodo_pago.in_(["03", "04", "28"]),
              Venta.fecha >= inicio_dt, Venta.fecha < fin_dt)
     ).all()
+    pagos_electronicos = []
+    for venta in ventas_mes:
+        for pago in _pagos_operativos_venta(venta):
+            if pago["canal"] in {"transferencia", "clip", "bbva", "tarjeta"}:
+                pagos_electronicos.append({"venta": venta, **pago})
 
     # Identify conciliadas vs pendientes
     ventas_conciliadas_ids = {m.venta_id for m in movs_banco if m.venta_id and m.conciliado}
-    ventas_no_conciliadas = [v for v in ventas_electronicas if v.id not in ventas_conciliadas_ids]
+    pagos_no_conciliados = [
+        item for item in pagos_electronicos
+        if item["venta"].id not in ventas_conciliadas_ids
+    ]
 
     total_depositos = sum(float(m.deposito or 0) for m in movs_banco)
     total_retiros = sum(float(m.retiro or 0) for m in movs_banco)
     saldo_banco = total_depositos - total_retiros
-    saldo_sistema = sum(float(v.total) for v in ventas_electronicas)
+    saldo_sistema = sum(float(item["monto"]) for item in pagos_electronicos)
     conciliados = sum(1 for m in movs_banco if m.conciliado)
 
     movs_list = []
@@ -563,14 +598,16 @@ def conciliacion_bancaria(db: Session, mes: int, anio: int) -> dict:
         })
 
     ventas_pend = []
-    for v in ventas_no_conciliadas:
-        metodos = {"03": "Transferencia", "04": "Tarjeta crédito", "28": "Tarjeta débito"}
+    for item in pagos_no_conciliados:
+        v = item["venta"]
         ventas_pend.append({
             "id": v.id,
             "folio": v.folio,
             "fecha": v.fecha.isoformat() if v.fecha else "",
-            "total": float(v.total),
-            "metodo": metodos.get(v.metodo_pago, v.metodo_pago),
+            "total": float(item["monto"]),
+            "metodo": item["label"],
+            "canal": item["canal"],
+            "referencia": item.get("referencia") or "",
         })
 
     return {

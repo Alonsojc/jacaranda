@@ -2,6 +2,7 @@
 
 import json
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -82,10 +83,15 @@ class TestVentas:
         assert venta["metodo_pago"] == "28"
         assert venta["pagos"][0]["referencia"] == "AUTH-1234"
         assert venta["pagos"][0]["metodo_pago"] == "28"
+        assert venta["pagos"][0]["terminal"] == "bbva"
+        assert venta["pagos"][0]["proveedor"] == "bbva"
+        assert venta["pagos"][0]["estado"] == "pagado"
 
         pago = db.query(PagoVenta).filter(PagoVenta.venta_id == venta["id"]).one()
         assert pago.referencia == "AUTH-1234"
         assert pago.metodo_pago.value == "28"
+        assert pago.terminal.value == "bbva"
+        assert pago.proveedor == "bbva"
 
         ticket = client.get(
             f"/api/v1/punto-de-venta/ventas/{venta['id']}/ticket",
@@ -93,6 +99,78 @@ class TestVentas:
         )
         assert ticket.status_code == 200
         assert "AUTH-1234" in ticket.json()["metodo_pago"]
+
+    def test_pago_dividido_separa_canales_y_corte_conciliacion(self, client, auth_headers):
+        from datetime import date
+
+        pid = self._crear_producto(client, auth_headers, "PAN-SPLIT-PAY", "100.00")
+        self._agregar_stock(client, auth_headers, pid)
+
+        resp = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "100.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+            "pagos": [
+                {"metodo_pago": "01", "terminal": "efectivo", "monto": "10.00"},
+                {"metodo_pago": "04", "terminal": "clip", "monto": "20.00"},
+                {"metodo_pago": "28", "terminal": "bbva", "monto": "30.00"},
+                {"metodo_pago": "03", "terminal": "efectivo", "monto": "40.00"},
+            ],
+        }, headers=auth_headers)
+        assert resp.status_code == 201, resp.text
+        venta = resp.json()
+        pagos = {(p["metodo_pago"], p["terminal"]): p for p in venta["pagos"]}
+        assert pagos[("01", "efectivo")]["monto"] == "10.00"
+        assert pagos[("04", "clip")]["proveedor"] == "clip"
+        assert pagos[("28", "bbva")]["proveedor"] == "bbva"
+        assert pagos[("03", "efectivo")]["monto"] == "40.00"
+
+        resumen = client.get("/api/v1/punto-de-venta/corte-caja/resumen", headers=auth_headers)
+        assert resumen.status_code == 200
+        corte = resumen.json()
+        assert corte["total_ventas_efectivo"] == "10.00"
+        assert corte["total_ventas_clip"] == "20.00"
+        assert corte["total_ventas_bbva"] == "30.00"
+        assert corte["total_ventas_transferencia"] == "40.00"
+        assert Decimal(str(corte["total_ventas_tarjeta"])) == Decimal("0.00")
+
+        hoy = date.today()
+        reporte = client.get(
+            f"/api/v1/reportes/ventas?fecha_inicio={hoy.isoformat()}&fecha_fin={hoy.isoformat()}",
+            headers=auth_headers,
+        )
+        assert reporte.status_code == 200
+        por_metodo = reporte.json()["por_metodo_pago"]
+        assert por_metodo["efectivo"]["total"] == 10.0
+        assert por_metodo["clip"]["label"] == "CLIP"
+        assert por_metodo["bbva"]["total"] == 30.0
+        assert por_metodo["transferencia"]["total"] == 40.0
+
+        kpis = client.get("/api/v1/kpis/metodos-pago?dias=7", headers=auth_headers)
+        assert kpis.status_code == 200
+        labels = {item["metodo"]: item for item in kpis.json()}
+        assert labels["clip"]["label"] == "CLIP"
+        assert labels["bbva"]["total"] == 30.0
+
+        conciliacion = client.get(
+            f"/api/v1/contabilidad/banco/conciliacion?mes={hoy.month}&anio={hoy.year}",
+            headers=auth_headers,
+        )
+        assert conciliacion.status_code == 200
+        assert conciliacion.json()["saldo_sistema"] == 90.0
+
+    def test_rechaza_terminal_tarjeta_con_forma_sat_incorrecta(self, client, auth_headers):
+        pid = self._crear_producto(client, auth_headers, "PAN-PAY-INVALID", "20.00")
+        self._agregar_stock(client, auth_headers, pid)
+
+        resp = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "terminal": "clip",
+            "monto_recibido": "20.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert resp.status_code == 400
+        assert "CLIP/BBVA" in resp.json()["detail"]
 
     def test_venta_idempotente_no_duplica_stock(self, client, auth_headers):
         pid = self._crear_producto(client, auth_headers, "PAN-IDEMP")
@@ -648,8 +726,10 @@ class TestVentas:
         client,
         auth_headers,
         monkeypatch,
+        db,
     ):
         from app.core.config import settings
+        from app.models.auditoria import LogAuditoria
 
         monkeypatch.setattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "SN-TEST")
         monkeypatch.setattr(settings, "BACKEND_PUBLIC_URL", "https://web-production-b51486.up.railway.app")
@@ -688,6 +768,7 @@ class TestVentas:
         )
         assert pinpad.status_code == 200, pinpad.text
         assert pinpad.json()["payment_id"] == "clip-pay-1"
+        assert pinpad.json()["estado"] == "pendiente"
 
         webhook_payload = {
             "id": "evt_clip_1",
@@ -700,15 +781,17 @@ class TestVentas:
             },
         }
         webhook = client.post(
-            "/api/v1/pagos/clip/webhook?secret=test-secret",
+            "/api/v1/pagos/clip/webhook",
             json=webhook_payload,
+            headers={"x-clip-webhook-secret": "test-secret"},
         )
         assert webhook.status_code == 200, webhook.text
         assert webhook.json()["processed"] is True
 
         replay = client.post(
-            "/api/v1/pagos/clip/webhook?secret=test-secret",
+            "/api/v1/pagos/clip/webhook",
             json=webhook_payload,
+            headers={"x-clip-webhook-secret": "test-secret"},
         )
         assert replay.status_code == 200
         assert replay.json()["duplicate"] is True
@@ -723,11 +806,202 @@ class TestVentas:
         assert venta_confirmada_data["pago_externo_id"] == "clip-pay-1"
         assert venta_confirmada_data["pago_externo_estado"] == "pagado"
         assert len(venta_confirmada_data["pagos"]) == 1
+        assert venta_confirmada_data["pagos"][0]["terminal"] == "clip"
+        assert venta_confirmada_data["pagos"][0]["proveedor"] == "clip"
+        assert venta_confirmada_data["pagos"][0]["estado"] == "pagado"
+        assert venta_confirmada_data["pagos"][0]["pago_externo_id"] == "clip-pay-1"
 
         resumen = client.get("/api/v1/punto-de-venta/corte-caja/resumen", headers=auth_headers)
         assert resumen.status_code == 200
         assert resumen.json()["total_ventas_clip"] == "30.00"
         assert resumen.json()["total_ventas"] == "30.00"
+        acciones = {
+            row.accion
+            for row in db.query(LogAuditoria).filter(LogAuditoria.modulo == "pagos").all()
+        }
+        assert "crear_intento_pago" in acciones
+        assert "confirmar_pago_integrado" in acciones
+
+    def test_clip_pinpad_idempotente_no_crea_doble_intento(
+        self,
+        client,
+        auth_headers,
+        monkeypatch,
+    ):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "SN-IDEMP")
+        monkeypatch.setattr(settings, "CLIP_WEBHOOK_SECRET", "test-secret")
+        monkeypatch.setattr(settings, "CLIP_ALLOW_UNSIGNED_WEBHOOKS", False)
+
+        pid = self._crear_producto(client, auth_headers, "CLIP-IDEMP", "30.00")
+        self._agregar_stock(client, auth_headers, pid, 5)
+        venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "04",
+            "terminal": "clip",
+            "pago_integrado": True,
+            "monto_recibido": "0.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert venta.status_code == 201, venta.text
+        venta_data = venta.json()
+
+        llamadas = []
+
+        def fake_pinpad(monto, referencia, descripcion="", serial_number_pos=None, webhook_url=None):
+            llamadas.append(referencia)
+            return {
+                "pinpad_request_id": "clip-idempotente-1",
+                "status": "pending",
+                "reference": referencia,
+            }
+
+        monkeypatch.setattr("app.services.clip_service.enviar_cobro_pinpad", fake_pinpad)
+
+        primero = client.post(
+            "/api/v1/pagos/clip/pinpad",
+            json={"venta_id": venta_data["id"]},
+            headers=auth_headers,
+        )
+        segundo = client.post(
+            "/api/v1/pagos/clip/pinpad",
+            json={"venta_id": venta_data["id"]},
+            headers=auth_headers,
+        )
+        assert primero.status_code == 200, primero.text
+        assert segundo.status_code == 200, segundo.text
+        assert primero.json()["payment_id"] == "clip-idempotente-1"
+        assert segundo.json()["idempotent"] is True
+        assert segundo.json()["payment_id"] == "clip-idempotente-1"
+        assert llamadas == [venta_data["folio"]]
+
+    def test_clip_pinpad_mock_sin_credenciales_no_marca_pagado(
+        self,
+        client,
+        auth_headers,
+        monkeypatch,
+    ):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "CLIP_PINPAD_MOCK_MODE", True)
+        monkeypatch.setattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "")
+        monkeypatch.setattr(settings, "CLIP_PINPAD_AUTHORIZATION", "")
+        monkeypatch.setattr(settings, "CLIP_API_KEY", "")
+        monkeypatch.setattr(settings, "CLIP_API_SECRET", "")
+        monkeypatch.setattr(settings, "BACKEND_PUBLIC_URL", "")
+
+        pid = self._crear_producto(client, auth_headers, "CLIP-MOCK", "30.00")
+        self._agregar_stock(client, auth_headers, pid, 5)
+        venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "28",
+            "terminal": "clip",
+            "pago_integrado": True,
+            "monto_recibido": "0.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert venta.status_code == 201, venta.text
+        venta_data = venta.json()
+
+        pinpad = client.post(
+            "/api/v1/pagos/clip/pinpad",
+            json={"venta_id": venta_data["id"]},
+            headers=auth_headers,
+        )
+        assert pinpad.status_code == 200, pinpad.text
+        data = pinpad.json()
+        assert data["payment_id"].startswith("mock-pinpad-")
+        assert data["estado"] == "pendiente"
+        assert data["respuesta"]["mock"] is True
+
+        pendiente = client.get(
+            f"/api/v1/punto-de-venta/ventas/{venta_data['id']}",
+            headers=auth_headers,
+        )
+        assert pendiente.status_code == 200
+        assert pendiente.json()["estado"] == "pendiente"
+        assert pendiente.json()["pagos"] == []
+
+        resumen = client.get("/api/v1/punto-de-venta/corte-caja/resumen", headers=auth_headers)
+        assert resumen.status_code == 200
+        assert Decimal(str(resumen.json()["total_ventas_clip"])) == Decimal("0.00")
+
+    def test_clip_webhook_fallido_audita_y_no_entra_corte(
+        self,
+        client,
+        auth_headers,
+        monkeypatch,
+        db,
+    ):
+        from app.core.config import settings
+        from app.models.auditoria import LogAuditoria
+
+        monkeypatch.setattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "SN-FAIL")
+        monkeypatch.setattr(settings, "CLIP_WEBHOOK_SECRET", "test-secret")
+        monkeypatch.setattr(settings, "CLIP_ALLOW_UNSIGNED_WEBHOOKS", False)
+
+        pid = self._crear_producto(client, auth_headers, "CLIP-FAIL", "30.00")
+        self._agregar_stock(client, auth_headers, pid, 5)
+        venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "04",
+            "terminal": "clip",
+            "pago_integrado": True,
+            "monto_recibido": "0.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert venta.status_code == 201, venta.text
+        venta_data = venta.json()
+
+        monkeypatch.setattr(
+            "app.services.clip_service.enviar_cobro_pinpad",
+            lambda *args, **kwargs: {
+                "pinpad_request_id": "clip-fail-1",
+                "status": "pending",
+                "reference": venta_data["folio"],
+            },
+        )
+        pinpad = client.post(
+            "/api/v1/pagos/clip/pinpad",
+            json={"venta_id": venta_data["id"]},
+            headers=auth_headers,
+        )
+        assert pinpad.status_code == 200, pinpad.text
+
+        webhook = client.post(
+            "/api/v1/pagos/clip/webhook",
+            json={
+                "id": "evt_clip_fail_1",
+                "type": "payment.declined",
+                "data": {
+                    "id": "clip-fail-1",
+                    "reference": venta_data["folio"],
+                    "status": "declined",
+                    "amount": "30.00",
+                },
+            },
+            headers={"x-clip-webhook-secret": "test-secret"},
+        )
+        assert webhook.status_code == 200, webhook.text
+        assert webhook.json()["processed"] is True
+
+        pendiente = client.get(
+            f"/api/v1/punto-de-venta/ventas/{venta_data['id']}",
+            headers=auth_headers,
+        )
+        assert pendiente.status_code == 200
+        venta_fallida = pendiente.json()
+        assert venta_fallida["estado"] == "pendiente"
+        assert venta_fallida["pago_externo_estado"] == "fallido"
+        assert venta_fallida["pagos"] == []
+
+        resumen = client.get("/api/v1/punto-de-venta/corte-caja/resumen", headers=auth_headers)
+        assert resumen.status_code == 200
+        assert Decimal(str(resumen.json()["total_ventas"])) == Decimal("0.00")
+
+        auditoria = db.query(LogAuditoria).filter(
+            LogAuditoria.modulo == "pagos",
+            LogAuditoria.accion == "fallar_pago_integrado",
+        ).first()
+        assert auditoria is not None
 
     def test_cancelar_venta_clip_pendiente_cancela_terminal(
         self,
@@ -802,6 +1076,20 @@ class TestVentas:
             "notas": "Faltante revisado en caja",
         }, headers=auth_headers)
         assert con_nota.status_code == 201, con_nota.text
+
+
+def test_frontend_pagos_sprint6_surface():
+    html = Path("docs/index.html").read_text(encoding="utf-8")
+
+    assert 'id="mc-clip-tipo"' in html
+    assert 'id="mc-sp-bbva"' in html
+    assert 'id="mc-sp-clip-tipo"' in html
+    assert "pagos.push({metodo_pago:clipTipo, terminal:'clip'" in html
+    assert "pagos.push({metodo_pago:bbvaTipoSplit, terminal:'bbva'" in html
+    assert "var labelMetodo = m.label || k" in html
+    assert "d.label||d.metodo" in html
+    assert "confirm(" not in html
+    assert "alert(" not in html
 
 
 class TestInventarioMovimientos:

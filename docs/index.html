@@ -2419,6 +2419,13 @@ h2{font-size:1.1rem}
 <option value="04">Tarjeta cr&eacute;dito</option>
 </select>
 </div>
+<div id="mc-clip-tipo-wrap" class="fg" style="display:none;margin-bottom:.7rem">
+<label>Tipo de tarjeta CLIP</label>
+<select id="mc-clip-tipo">
+<option value="28">Tarjeta d&eacute;bito</option>
+<option value="04">Tarjeta cr&eacute;dito</option>
+</select>
+</div>
 <!-- Single payment mode -->
 <div id="mc-single">
 <div id="mc-efectivo">
@@ -2438,7 +2445,14 @@ h2{font-size:1.1rem}
 <div class="fg"><label>&#128181; Efectivo</label><input type="number" id="mc-sp-ef" step="0.01" oninput="calcSplit()" style="font-weight:700;text-align:center" placeholder="0"></div>
 <div class="fg"><label>&#128179; Tarjeta (CLIP)</label><input type="number" id="mc-sp-tar" step="0.01" oninput="calcSplit()" style="font-weight:700;text-align:center" placeholder="0"></div>
 </div>
-<div class="fg"><label>&#127974; Transferencia</label><input type="number" id="mc-sp-trans" step="0.01" oninput="calcSplit()" style="font-weight:700;text-align:center;max-width:50%" placeholder="0"></div>
+<div class="frow" style="margin-bottom:.4rem">
+<div class="fg"><label>&#127974; BBVA tarjeta</label><input type="number" id="mc-sp-bbva" step="0.01" oninput="calcSplit()" style="font-weight:700;text-align:center" placeholder="0"></div>
+<div class="fg"><label>&#127974; Transferencia</label><input type="number" id="mc-sp-trans" step="0.01" oninput="calcSplit()" style="font-weight:700;text-align:center" placeholder="0"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Tipo CLIP</label><select id="mc-sp-clip-tipo"><option value="28">D&eacute;bito</option><option value="04">Cr&eacute;dito</option></select></div>
+<div class="fg"><label>Tipo BBVA</label><select id="mc-sp-bbva-tipo"><option value="28">D&eacute;bito</option><option value="04">Cr&eacute;dito</option></select></div>
+</div>
 </div>
 <div style="text-align:center;margin-bottom:.5rem">
 <div style="font-size:.85rem;color:var(--mut)">Falta: <span id="mc-sp-falta" style="font-weight:700">$0.00</span></div>
@@ -3939,11 +3953,15 @@ function cobrar() {
   var refLabel = document.getElementById('mc-referencia-label');
   var tipoBbvaWrap = document.getElementById('mc-bbva-tipo-wrap');
   var tipoBbva = document.getElementById('mc-bbva-tipo');
+  var tipoClipWrap = document.getElementById('mc-clip-tipo-wrap');
+  var tipoClip = document.getElementById('mc-clip-tipo');
   refInput.value = '';
   refWrap.style.display = (pm === 'bbva' || pm === 'trans') ? 'block' : 'none';
   refLabel.textContent = pm === 'bbva' ? 'Autorizacion BBVA / voucher' : 'Referencia transferencia';
   if (tipoBbva) tipoBbva.value = '28';
+  if (tipoClip) tipoClip.value = '28';
   if (tipoBbvaWrap) tipoBbvaWrap.style.display = pm === 'bbva' ? 'block' : 'none';
+  if (tipoClipWrap) tipoClipWrap.style.display = pm === 'clip' ? 'block' : 'none';
   document.getElementById('mc-single').style.display = 'block';
   document.getElementById('mc-split').style.display = 'none';
   var efDiv = document.getElementById('mc-efectivo');
@@ -3966,11 +3984,16 @@ function toggleSplit() {
   document.getElementById('mc-metodo').textContent = _splitMode ? 'Pago dividido' : {ef:'Efectivo',clip:'Tarjeta (CLIP)',trans:'Transferencia',bbva:'BBVA'}[pm];
   document.getElementById('mc-referencia-wrap').style.display = _splitMode ? 'none' : ((pm === 'bbva' || pm === 'trans') ? 'block' : 'none');
   var tipoBbvaWrap = document.getElementById('mc-bbva-tipo-wrap');
+  var tipoClipWrap = document.getElementById('mc-clip-tipo-wrap');
   if (tipoBbvaWrap) tipoBbvaWrap.style.display = (!_splitMode && pm === 'bbva') ? 'block' : 'none';
+  if (tipoClipWrap) tipoClipWrap.style.display = (!_splitMode && pm === 'clip') ? 'block' : 'none';
   if (_splitMode) {
     document.getElementById('mc-sp-ef').value = '';
     document.getElementById('mc-sp-tar').value = '';
+    document.getElementById('mc-sp-bbva').value = '';
     document.getElementById('mc-sp-trans').value = '';
+    document.getElementById('mc-sp-clip-tipo').value = '28';
+    document.getElementById('mc-sp-bbva-tipo').value = '28';
     calcSplit();
   }
 }
@@ -4004,14 +4027,15 @@ function calcSplit() {
   var total = parseFloat(document.getElementById('mc-total').textContent.replace(/[^0-9.-]/g,'')) || 0;
   var ef = parseFloat(document.getElementById('mc-sp-ef').value) || 0;
   var tar = parseFloat(document.getElementById('mc-sp-tar').value) || 0;
+  var bbva = parseFloat(document.getElementById('mc-sp-bbva').value) || 0;
   var trans = parseFloat(document.getElementById('mc-sp-trans').value) || 0;
-  var suma = ef + tar + trans;
+  var suma = ef + tar + bbva + trans;
   var falta = total - suma;
   var faltaEl = document.getElementById('mc-sp-falta');
   faltaEl.textContent = falta > 0 ? '$' + fmt(falta) : '$0.00';
   faltaEl.style.color = falta > 0 ? '#b91c1c' : 'var(--grn)';
   // Change is only from cash portion: cash given minus what cash needs to cover
-  var noEf = tar + trans;
+  var noEf = tar + bbva + trans;
   var cashNeeded = Math.max(0, total - noEf);
   var cambio = ef > cashNeeded ? ef - cashNeeded : 0;
   var cambioEl = document.getElementById('mc-sp-cambio');
@@ -4060,20 +4084,26 @@ function procesarVenta() {
 
   if (_splitMode) {
     var ef = parseFloat(document.getElementById('mc-sp-ef').value) || 0;
-    var tar = parseFloat(document.getElementById('mc-sp-tar').value) || 0;
+    var clip = parseFloat(document.getElementById('mc-sp-tar').value) || 0;
+    var bbva = parseFloat(document.getElementById('mc-sp-bbva').value) || 0;
     var trans = parseFloat(document.getElementById('mc-sp-trans').value) || 0;
-    if (ef + tar + trans < total) { _ventaEnProceso = false; toast('La suma de pagos es menor al total', true); return; }
+    if (ef + clip + bbva + trans < total) { _ventaEnProceso = false; toast('La suma de pagos es menor al total', true); return; }
+    var clipTipo = document.getElementById('mc-sp-clip-tipo').value === '04' ? '04' : '28';
+    var bbvaTipoSplit = document.getElementById('mc-sp-bbva-tipo').value === '04' ? '04' : '28';
     var pagos = [];
-    if (ef > 0) pagos.push({metodo_pago:'01', monto:ef});
-    if (tar > 0) pagos.push({metodo_pago:'04', monto:tar});
-    if (trans > 0) pagos.push({metodo_pago:'03', monto:trans});
+    if (ef > 0) pagos.push({metodo_pago:'01', terminal:'efectivo', monto:ef});
+    if (clip > 0) pagos.push({metodo_pago:clipTipo, terminal:'clip', monto:clip});
+    if (bbva > 0) pagos.push({metodo_pago:bbvaTipoSplit, terminal:'bbva', monto:bbva});
+    if (trans > 0) pagos.push({metodo_pago:'03', terminal:'efectivo', monto:trans});
     body.pagos = pagos;
     body.metodo_pago = '01'; // fallback, backend picks largest
-    body.monto_recibido = ef + tar + trans;
+    body.monto_recibido = ef + clip + bbva + trans;
   } else {
     var bbvaTipo = document.getElementById('mc-bbva-tipo');
+    var clipTipoSingle = document.getElementById('mc-clip-tipo');
     var metodoBbva = bbvaTipo && bbvaTipo.value === '04' ? '04' : '28';
-    var metodos = {ef:'01', clip:'04', trans:'03', bbva:metodoBbva};
+    var metodoClip = clipTipoSingle && clipTipoSingle.value === '04' ? '04' : '28';
+    var metodos = {ef:'01', clip:metodoClip, trans:'03', bbva:metodoBbva};
     var terminales = {ef:'efectivo', clip:'clip', trans:'efectivo', bbva:'bbva'};
     var monto = total;
     if (pm === 'ef') {
@@ -8285,11 +8315,18 @@ function terminalVenta(v) {
   return String((v && v.terminal) || '').toLowerCase();
 }
 
+function terminalPagoDetalle(p) {
+  return String((p && p.terminal) || '').toLowerCase();
+}
+
 function etiquetaPagoDetalle(p) {
   var metodo = String((p && p.metodo_pago) || '');
+  var terminal = terminalPagoDetalle(p);
+  if (terminal === 'clip') return 'CLIP';
+  if (terminal === 'bbva') return 'BBVA';
   if (metodo === '01') return 'Efectivo';
-  if (metodo === '04' || metodo === '28') return 'CLIP';
   if (metodo === '03') return 'Transferencia';
+  if (metodo === '04' || metodo === '28') return 'Otra tarjeta';
   return 'Otro';
 }
 
@@ -8302,8 +8339,8 @@ function etiquetaPagoVenta(v) {
   if (terminal === 'clip') return 'CLIP';
   if (terminal === 'bbva') return 'BBVA';
   if (metodo === '01') return 'Efectivo';
-  if (metodo === '04' || metodo === '28') return 'CLIP';
   if (metodo === '03') return 'Transferencia';
+  if (metodo === '04' || metodo === '28') return 'Otra tarjeta';
   return metodo || 'Otro';
 }
 
@@ -8363,7 +8400,7 @@ function cargarCorte() {
             var pm2 = v.pagos[j].metodo_pago;
             var pm2m = parseFloat(v.pagos[j].monto) || 0;
             var parciales = {ef:0, tar:0, trans:0, clip:0, bbva:0};
-            sumarPagoCorte(parciales, pm2, pm2m, (pm2 === '04' || pm2 === '28') ? 'clip' : '');
+            sumarPagoCorte(parciales, pm2, pm2m, terminalPagoDetalle(v.pagos[j]));
             efTotal += parciales.ef;
             tarTotal += parciales.tar;
             transTotal += parciales.trans;
@@ -9924,11 +9961,11 @@ function cargarReporteVentas() {
     document.getElementById('rep-tickets').textContent = res.numero_ventas;
     document.getElementById('rep-promedio').textContent = '$' + fmt(res.ticket_promedio);
     // Por método
-    var metodos = {'01':'Efectivo','04':'Tarjeta','28':'Tarjeta D.','03':'Transferencia'};
     var hm = '';
     for (var k in r.por_metodo_pago) {
       var m = r.por_metodo_pago[k];
-      hm += '<div class="srow"><span>' + (metodos[k]||k) + ' (' + m.cantidad + ')</span><span class="green">$' + fmt(m.total) + '</span></div>';
+      var labelMetodo = m.label || k;
+      hm += '<div class="srow"><span>' + escHtml(labelMetodo) + ' (' + m.cantidad + ')</span><span class="green">$' + fmt(m.total) + '</span></div>';
     }
     document.getElementById('rep-metodo').innerHTML = hm || '<p style="color:var(--mut);font-size:.83rem">Sin datos</p>';
     // Por día
@@ -12772,7 +12809,7 @@ function cargarKPIPagos() {
   api('GET', '/kpis/metodos-pago').then(function(data) {
     var items = Array.isArray(data) ? data : (data.datos||[]);
     var colores = ['#c4988a','#10b981','#f59e0b','#3b82f6','#ec4899','#8b5cf6','#ef4444'];
-    _makeChart('chart-metodos-pago', { type:'doughnut', data:{ labels:items.map(function(d){return d.metodo||''}), datasets:[{data:items.map(function(d){return d.total||0}),backgroundColor:colores.slice(0,items.length)}] }, options:{responsive:true,plugins:{title:{display:true,text:'M\u00e9todos de pago'}}} });
+    _makeChart('chart-metodos-pago', { type:'doughnut', data:{ labels:items.map(function(d){return d.label||d.metodo||''}), datasets:[{data:items.map(function(d){return d.total||0}),backgroundColor:colores.slice(0,items.length)}] }, options:{responsive:true,plugins:{title:{display:true,text:'M\u00e9todos de pago'}}} });
   }).catch(function(){});
 }
 

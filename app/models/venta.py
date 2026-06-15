@@ -150,6 +150,10 @@ class PagoVenta(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     venta_id: Mapped[int] = mapped_column(ForeignKey("ventas.id"))
     metodo_pago: Mapped[MetodoPago] = mapped_column(SAEnum(MetodoPago))
+    terminal: Mapped[TerminalPago | None] = mapped_column(SAEnum(TerminalPago))
+    proveedor: Mapped[str | None] = mapped_column(String(30), index=True)
+    estado: Mapped[str] = mapped_column(String(20), default="pagado")
+    pago_externo_id: Mapped[str | None] = mapped_column(String(120), index=True)
     monto: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     referencia: Mapped[str | None] = mapped_column(String(100))
 

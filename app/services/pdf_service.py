@@ -174,7 +174,8 @@ def generar_reporte_ventas_pdf(reporte: dict) -> io.BytesIO:
         story.append(Paragraph("<b>Por método de pago</b>", styles["Heading3"]))
         met_data = [["Método", "Cantidad", "Total"]]
         for k, v in por_metodo.items():
-            met_data.append([metodo_nombres.get(k, k), str(v["cantidad"]), f"${v['total']:,.2f}"])
+            label = v.get("label") or metodo_nombres.get(k, k)
+            met_data.append([label, str(v["cantidad"]), f"${v['total']:,.2f}"])
         story.append(_tabla(met_data, col_widths=[6*cm, 4*cm, 5*cm]))
         story.append(Spacer(1, 6*mm))
 
@@ -215,6 +216,8 @@ def generar_corte_caja_pdf(corte: dict) -> io.BytesIO:
         ["Concepto", "Monto"],
         ["Fondo inicial", f"${corte.get('fondo_inicial', 0):,.2f}"],
         ["Ventas efectivo", f"${corte.get('total_ventas_efectivo', 0):,.2f}"],
+        ["Ventas CLIP", f"${corte.get('total_ventas_clip', 0):,.2f}"],
+        ["Ventas BBVA", f"${corte.get('total_ventas_bbva', 0):,.2f}"],
         ["Ventas tarjeta", f"${corte.get('total_ventas_tarjeta', 0):,.2f}"],
         ["Ventas transferencia", f"${corte.get('total_ventas_transferencia', 0):,.2f}"],
         ["Total ventas", f"${corte.get('total_ventas', 0):,.2f}"],
