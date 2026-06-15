@@ -273,6 +273,7 @@ class TestVentas:
 
         from app.models.auditoria import LogAuditoria
         from app.models.cliente import Cliente
+        from app.models.lealtad import HistorialPuntos
 
         cliente = client.post("/api/v1/clientes/", json={
             "nombre": "Cliente Recompensa",
@@ -314,6 +315,15 @@ class TestVentas:
         assert evento is not None
         datos_nuevos = json.loads(evento.datos_nuevos)
         assert datos_nuevos["producto"] == "Producto PASTEL-CHICO"
+        assert datos_nuevos["motivo"] == "Test canje"
+        movimiento = db.query(HistorialPuntos).filter(
+            HistorialPuntos.cliente_id == cliente["id"],
+            HistorialPuntos.venta_id == venta["id"],
+            HistorialPuntos.puntos == 0,
+            HistorialPuntos.concepto.like("Recompensa canjeada:%"),
+        ).first()
+        assert movimiento is not None
+        assert "Test canje" in movimiento.concepto
 
         cancel = client.post(
             f"/api/v1/punto-de-venta/ventas/{venta['id']}/cancelar",
@@ -322,6 +332,59 @@ class TestVentas:
         assert cancel.status_code == 200, cancel.text
         db.refresh(cliente_db)
         assert cliente_db.recompensas_lealtad_canjeadas == 0
+        restauracion = db.query(HistorialPuntos).filter(
+            HistorialPuntos.cliente_id == cliente["id"],
+            HistorialPuntos.venta_id == venta["id"],
+            HistorialPuntos.concepto.like("Recompensa restaurada%"),
+        ).first()
+        assert restauracion is not None
+
+    def test_venta_rechaza_recompensa_sin_motivo(self, client, auth_headers, db):
+        from decimal import Decimal
+
+        from app.models.cliente import Cliente
+
+        cliente = client.post("/api/v1/clientes/", json={
+            "nombre": "Cliente Sin Motivo",
+            "telefono": "4420001212",
+            "cliente_frecuente": True,
+        }, headers=auth_headers).json()
+        cliente_db = db.query(Cliente).filter(Cliente.id == cliente["id"]).first()
+        cliente_db.monto_lealtad_acumulado = Decimal("10000.00")
+        db.commit()
+
+        pid = self._crear_producto(client, auth_headers, "PASTEL-MOTIVO-CHICO", "400.00")
+        self._agregar_stock(client, auth_headers, pid, 2)
+
+        resp = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "0.00",
+            "cliente_id": cliente["id"],
+            "canjear_recompensa_lealtad": True,
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert resp.status_code == 400
+        assert "motivo" in resp.json()["detail"].lower()
+
+    def test_venta_rechaza_recompensa_sin_saldo(self, client, auth_headers):
+        cliente = client.post("/api/v1/clientes/", json={
+            "nombre": "Cliente Sin Saldo",
+            "telefono": "4420001313",
+            "cliente_frecuente": True,
+        }, headers=auth_headers).json()
+        pid = self._crear_producto(client, auth_headers, "PASTEL-SALDO-CHICO", "400.00")
+        self._agregar_stock(client, auth_headers, pid, 2)
+
+        resp = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "400.00",
+            "cliente_id": cliente["id"],
+            "canjear_recompensa_lealtad": True,
+            "recompensa_lealtad_motivo": "Cliente solicita premio",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert resp.status_code == 400
+        assert "no tiene recompensas" in resp.json()["detail"].lower()
 
     def test_venta_rechaza_recompensa_sin_producto_chico(self, client, auth_headers, db):
         from decimal import Decimal
@@ -346,6 +409,7 @@ class TestVentas:
             "monto_recibido": "70.00",
             "cliente_id": cliente["id"],
             "canjear_recompensa_lealtad": True,
+            "recompensa_lealtad_motivo": "Test sin pastel chico",
             "detalles": [{"producto_id": pid, "cantidad": "1"}],
         }, headers=auth_headers)
         assert resp.status_code == 400

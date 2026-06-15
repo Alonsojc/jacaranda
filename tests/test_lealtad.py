@@ -1,7 +1,8 @@
 """Tests para el sistema de lealtad avanzado."""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
+from pathlib import Path
 import pytest
 
 
@@ -36,6 +37,24 @@ class TestLealtad:
         resp = client.post("/api/v1/lealtad/cupones", json=payload, headers=auth_headers)
         assert resp.status_code == 201, f"Crear cupón falló: {resp.json()}"
         return resp.json()
+
+    def _crear_producto(self, client, auth_headers, codigo="LOY-001", precio="100.00"):
+        resp = client.post("/api/v1/inventario/productos", json={
+            "codigo": codigo,
+            "nombre": f"Producto {codigo}",
+            "precio_unitario": precio,
+            "tasa_iva": "0.00",
+        }, headers=auth_headers)
+        assert resp.status_code == 201, resp.text
+        producto_id = resp.json()["id"]
+        mov = client.post("/api/v1/inventario/movimientos", json={
+            "tipo": "entrada_ajuste",
+            "producto_id": producto_id,
+            "cantidad": "20",
+            "referencia": "Stock lealtad test",
+        }, headers=auth_headers)
+        assert mov.status_code == 201, mov.text
+        return producto_id
 
     # ── Niveles ──
 
@@ -90,7 +109,13 @@ class TestLealtad:
         assert resp2.json()["recompensa"]["disponibles"] == 0
 
     def test_tarjeta_publica_no_expone_datos_sensibles(self, client, auth_headers):
-        cid = self._crear_cliente(client, auth_headers, cliente_frecuente=True)
+        cid = self._crear_cliente(
+            client,
+            auth_headers,
+            cliente_frecuente=True,
+            rfc="XAXX010101000",
+            fecha_cumpleanos="1991-04-12",
+        )
         resp = client.get(f"/api/v1/lealtad/tarjeta/{cid}", headers=auth_headers)
         assert resp.status_code == 200
         qr_code = resp.json()["tarjeta_qr"]
@@ -103,6 +128,8 @@ class TestLealtad:
         assert data["url_publica"].endswith(f"#cliente/{qr_code}")
         assert "telefono" not in data
         assert "email" not in data
+        assert "rfc" not in data
+        assert "fecha_cumpleanos" not in data
 
     def test_tarjeta_publica_qr_svg(self, client, auth_headers):
         cid = self._crear_cliente(client, auth_headers, cliente_frecuente=True)
@@ -237,6 +264,80 @@ class TestLealtad:
         assert resp.status_code == 200
         assert resp.json() == []
 
+    def test_historial_cliente_completo_incluye_compras_puntos_y_recompensas(
+        self,
+        client,
+        auth_headers,
+        db,
+    ):
+        from app.models.cliente import Cliente
+
+        cid = self._crear_cliente(client, auth_headers, cliente_frecuente=True)
+        producto_id = self._crear_producto(client, auth_headers, "LOY-HIST", "100.00")
+
+        venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "100.00",
+            "cliente_id": cid,
+            "detalles": [{"producto_id": producto_id, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert venta.status_code == 201, venta.text
+
+        cliente = db.query(Cliente).filter(Cliente.id == cid).first()
+        cliente.monto_lealtad_acumulado = Decimal("10000.00")
+        db.commit()
+        pastel_id = self._crear_producto(client, auth_headers, "LOY-PASTEL-CHICO", "250.00")
+        premio = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "0.00",
+            "cliente_id": cid,
+            "canjear_recompensa_lealtad": True,
+            "recompensa_lealtad_motivo": "Historial cliente",
+            "detalles": [{"producto_id": pastel_id, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert premio.status_code == 201, premio.text
+
+        resp = client.get(f"/api/v1/clientes/{cid}/historial-completo", headers=auth_headers)
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["cliente"]["id"] == cid
+        assert data["resumen"]["numero_visitas"] >= 2
+        assert len(data["compras"]) >= 2
+        assert any(m["puntos"] > 0 for m in data["puntos"])
+        assert any("Recompensa canjeada" in m["concepto"] for m in data["puntos"])
+        assert data["recompensas"][0]["nombre"] == "Pastel chico gratis"
+
+    def test_expiracion_configurable_de_puntos(self, client, auth_headers, db):
+        from app.models.cliente import Cliente
+        from app.models.lealtad import HistorialPuntos
+
+        cid = self._crear_cliente(client, auth_headers, cliente_frecuente=True)
+        cliente = db.query(Cliente).filter(Cliente.id == cid).first()
+        cliente.puntos_acumulados = 20
+        cliente.puntos_totales_historicos = 20
+        db.add(HistorialPuntos(
+            cliente_id=cid,
+            puntos=20,
+            concepto="Compra antigua",
+            venta_id=None,
+            saldo_anterior=0,
+            saldo_nuevo=20,
+            creado_en=datetime.now(timezone.utc) - timedelta(days=45),
+        ))
+        db.commit()
+
+        cfg = client.put("/api/v1/lealtad/configuracion", json={
+            "puntos_expiran_dias": 30,
+        }, headers=auth_headers)
+        assert cfg.status_code == 200, cfg.text
+
+        resp = client.get(f"/api/v1/clientes/{cid}/puntos", headers=auth_headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["puntos"] == 0
+        historial = client.get(f"/api/v1/lealtad/historial/{cid}", headers=auth_headers)
+        assert historial.status_code == 200
+        assert any("Expiracion de puntos" in m["concepto"] for m in historial.json())
+
     # ── Configuracion ──
 
     def test_configuracion_lealtad_default_y_update(self, client, auth_headers):
@@ -340,3 +441,40 @@ class TestLealtad:
         assert multiplicador_puntos(NivelLealtad.BRONCE) == 1.0
         assert multiplicador_puntos(NivelLealtad.PLATA) == 1.5
         assert multiplicador_puntos(NivelLealtad.ORO) == 2.0
+
+    def test_progreso_recompensa_despues_de_canje_en_meta_exacta(self):
+        from types import SimpleNamespace
+
+        from app.services.lealtad_service import progreso_recompensa
+
+        cliente = SimpleNamespace(
+            monto_lealtad_acumulado=Decimal("10000.00"),
+            recompensas_lealtad_canjeadas=1,
+        )
+        progreso = progreso_recompensa(cliente)
+        assert progreso["disponibles"] == 0
+        assert progreso["monto_restante"] == 10000.0
+        assert progreso["progreso_porcentaje"] == 0.0
+
+
+def test_frontend_lealtad_surface_sprint4():
+    html = Path("docs/index.html").read_text()
+    assert "pos-recompensa-motivo" in html
+    assert "historial-completo" in html
+    assert "lcd-recompensa-disp" in html
+    assert "cargarClientesPOS(true)" in html
+    assert "descargarQRClientePublico" in html
+    assert "Apple Wallet" in html
+    assert "Google Wallet" in html
+
+    pos_slice = html.split("// ─── Puntos de lealtad en POS", 1)[1].split(
+        "// ─── Exportar reportes a CSV", 1
+    )[0]
+    clientes_slice = html.split("// ─── Clientes", 1)[1].split(
+        "// ─── Gastos fijos", 1
+    )[0]
+    assert "alert(" not in pos_slice
+    assert "confirm(" not in pos_slice
+    assert "prompt(" not in pos_slice
+    assert "alert(" not in clientes_slice
+    assert "confirm(" not in clientes_slice

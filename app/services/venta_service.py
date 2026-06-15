@@ -186,7 +186,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     cliente_lealtad = None
     lealtad_config = None
     if data.cliente_id:
-        from app.services.lealtad_service import obtener_configuracion
+        from app.services.lealtad_service import aplicar_expiracion_puntos, obtener_configuracion
 
         lealtad_config = obtener_configuracion(db)
         cliente_lealtad = db.query(Cliente).filter(
@@ -194,6 +194,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         ).with_for_update().first()
         if not cliente_lealtad:
             raise ValueError("Cliente no encontrado")
+        aplicar_expiracion_puntos(db, cliente_lealtad, lealtad_config)
     if data.puntos_canjeados:
         if not cliente_lealtad:
             raise ValueError("El canje de puntos requiere cliente asociado")
@@ -207,9 +208,13 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     recompensa_producto_nombre = None
     recompensa_monto = Decimal("0")
     recompensas_canjeadas_antes = None
+    recompensa_motivo = None
     if data.canjear_recompensa_lealtad:
         if not cliente_lealtad:
             raise ValueError("El canje de recompensa requiere cliente asociado")
+        recompensa_motivo = (data.recompensa_lealtad_motivo or "").strip()
+        if not recompensa_motivo:
+            raise ValueError("Indica el motivo del canje de recompensa")
         from app.services.lealtad_service import (
             obtener_configuracion,
             recompensas_disponibles,
@@ -222,7 +227,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         )
         if recompensas_disponibles_antes <= 0:
             raise ValueError("El cliente no tiene recompensas disponibles")
-        recompensa_nombre = lealtad_config.recompensa_nombre
+        recompensa_nombre = (lealtad_config.recompensa_nombre or "Pastel chico gratis").strip()
         recompensas_canjeadas_antes = int(cliente_lealtad.recompensas_lealtad_canjeadas or 0)
 
     subtotal_total = Decimal("0")
@@ -430,7 +435,18 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         ))
 
     if recompensa_canjeada and cliente_lealtad:
+        from app.models.lealtad import HistorialPuntos
+
         cliente_lealtad.recompensas_lealtad_canjeadas += 1
+        saldo_puntos = int(cliente_lealtad.puntos_acumulados or 0)
+        db.add(HistorialPuntos(
+            cliente_id=cliente_lealtad.id,
+            puntos=0,
+            concepto=f"Recompensa canjeada: {recompensa_nombre} ({recompensa_motivo})",
+            venta_id=venta.id,
+            saldo_anterior=saldo_puntos,
+            saldo_nuevo=saldo_puntos,
+        ))
         registrar_evento(
             db,
             usuario_id=usuario_id,
@@ -449,7 +465,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
                 "recompensa": recompensa_nombre,
                 "producto": recompensa_producto_nombre,
                 "monto": str(recompensa_monto),
-                "motivo": data.recompensa_lealtad_motivo or "Canje en punto de venta",
+                "motivo": recompensa_motivo,
                 "recompensas_canjeadas": cliente_lealtad.recompensas_lealtad_canjeadas,
             },
             commit=False,
@@ -750,6 +766,14 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
                     int(cliente.recompensas_lealtad_canjeadas or 0) - 1,
                 )
                 recompensas_restauradas = 1
+                db.add(HistorialPuntos(
+                    cliente_id=cliente.id,
+                    puntos=0,
+                    concepto=f"Recompensa restaurada por cancelacion venta {venta.folio}",
+                    venta_id=venta.id,
+                    saldo_anterior=saldo_actual,
+                    saldo_nuevo=saldo_actual,
+                ))
             cliente.nivel_lealtad = calcular_nivel(cliente.puntos_totales_historicos).value
             if puntos_revertidos:
                 saldo_despues_reversion = saldo_actual - puntos_revertidos

@@ -133,6 +133,55 @@ def valor_punto(config: LealtadConfiguracion | None = None) -> Decimal:
     return _decimal_config(getattr(config, "valor_punto", None), VALOR_PUNTO_DEFAULT)
 
 
+def aplicar_expiracion_puntos(
+    db: Session,
+    cliente: Cliente,
+    config: LealtadConfiguracion | None = None,
+    ahora: datetime | None = None,
+) -> dict:
+    """Expira puntos vencidos usando FIFO conservador sin cambiar el esquema."""
+    config = config or obtener_configuracion(db)
+    dias = int(getattr(config, "puntos_expiran_dias", None) or 0)
+    if dias <= 0:
+        return {"puntos_expirados": 0, "saldo": int(cliente.puntos_acumulados or 0)}
+
+    ahora = ahora or datetime.now(timezone.utc)
+    corte = ahora - timedelta(days=dias)
+    puntos_vencidos = db.query(func.coalesce(func.sum(HistorialPuntos.puntos), 0)).filter(
+        HistorialPuntos.cliente_id == cliente.id,
+        HistorialPuntos.puntos > 0,
+        HistorialPuntos.creado_en < corte,
+    ).scalar() or 0
+    puntos_ya_expirados = db.query(func.coalesce(func.sum(HistorialPuntos.puntos), 0)).filter(
+        HistorialPuntos.cliente_id == cliente.id,
+        HistorialPuntos.puntos < 0,
+        HistorialPuntos.concepto.like("Expiracion de puntos%"),
+    ).scalar() or 0
+    puntos_consumidos = db.query(func.coalesce(func.sum(HistorialPuntos.puntos), 0)).filter(
+        HistorialPuntos.cliente_id == cliente.id,
+        HistorialPuntos.puntos < 0,
+        HistorialPuntos.concepto.notlike("Expiracion de puntos%"),
+    ).scalar() or 0
+    por_expirar = int(puntos_vencidos or 0) - abs(int(puntos_ya_expirados or 0))
+    por_expirar -= abs(int(puntos_consumidos or 0))
+    por_expirar = min(max(0, por_expirar), int(cliente.puntos_acumulados or 0))
+    if por_expirar <= 0:
+        return {"puntos_expirados": 0, "saldo": int(cliente.puntos_acumulados or 0)}
+
+    saldo_anterior = int(cliente.puntos_acumulados or 0)
+    cliente.puntos_acumulados = max(0, saldo_anterior - por_expirar)
+    db.add(HistorialPuntos(
+        cliente_id=cliente.id,
+        puntos=-por_expirar,
+        concepto=f"Expiracion de puntos ({dias} dias)",
+        venta_id=None,
+        saldo_anterior=saldo_anterior,
+        saldo_nuevo=cliente.puntos_acumulados,
+    ))
+    db.flush()
+    return {"puntos_expirados": por_expirar, "saldo": cliente.puntos_acumulados}
+
+
 # ── Niveles ──────────────────────────────────────────────────────────
 
 NIVELES_CONFIG = {
@@ -175,6 +224,7 @@ def acumular_puntos(
         raise ValueError("Cliente no encontrado")
 
     config = obtener_configuracion(db)
+    aplicar_expiracion_puntos(db, cliente, config)
     nivel = calcular_nivel(cliente.puntos_totales_historicos)
     mult = multiplicador_puntos(nivel)
 
@@ -253,16 +303,20 @@ def progreso_recompensa(
 ) -> dict:
     monto = Decimal(str(cliente.monto_lealtad_acumulado or 0))
     meta = _monto_meta(config)
-    restante = meta - (monto % meta)
-    if restante == meta and monto > 0:
+    disponibles = recompensas_disponibles(cliente, config)
+    avance_actual = monto % meta
+    restante = meta - avance_actual
+    if disponibles > 0:
         restante = Decimal("0")
+    elif avance_actual == 0 and monto > 0:
+        restante = meta
     progreso = Decimal("0")
     if meta > 0:
         progreso = min(
             Decimal("100"),
-            ((monto % meta) / meta) * Decimal("100"),
+            (avance_actual / meta) * Decimal("100"),
         )
-        if recompensas_disponibles(cliente, config) > 0:
+        if disponibles > 0:
             progreso = Decimal("100")
     return {
         "nombre": _nombre_recompensa(config),
@@ -270,7 +324,7 @@ def progreso_recompensa(
         "monto_acumulado": float(monto),
         "monto_restante": float(max(Decimal("0"), restante)),
         "progreso_porcentaje": float(progreso.quantize(Decimal("0.01"))),
-        "disponibles": recompensas_disponibles(cliente, config),
+        "disponibles": disponibles,
         "canjeadas": int(cliente.recompensas_lealtad_canjeadas or 0),
     }
 
@@ -309,6 +363,7 @@ def obtener_tarjeta(db: Session, cliente_id: int) -> dict:
     if not cliente:
         raise ValueError("Cliente no encontrado")
     config = obtener_configuracion(db)
+    aplicar_expiracion_puntos(db, cliente, config)
 
     return {
         "cliente_id": cliente.id,
@@ -340,14 +395,118 @@ def obtener_tarjeta_publica(db: Session, qr_code: str) -> dict:
     if not cliente:
         raise ValueError("Tarjeta no encontrada")
     config = obtener_configuracion(db)
+    aplicar_expiracion_puntos(db, cliente, config)
     return {
         "nombre": cliente.nombre,
         "nivel": cliente.nivel_lealtad,
         "puntos_acumulados": cliente.puntos_acumulados,
         "monto_lealtad_acumulado": float(cliente.monto_lealtad_acumulado or 0),
         "recompensa": progreso_recompensa(cliente, config),
+        "programa": {
+            "recompensa_nombre": _nombre_recompensa(config),
+            "puntos_expiran_dias": config.puntos_expiran_dias,
+            "cumpleanos_promo_activa": bool(config.cumpleanos_promo_activa),
+        },
         "tarjeta_qr": cliente.tarjeta_qr,
         "url_publica": _url_tarjeta_cliente(cliente.tarjeta_qr),
+    }
+
+
+def historial_cliente_completo(db: Session, cliente_id: int) -> dict:
+    """Vista operativa del cliente: compras, puntos y recompensas."""
+    from app.models.venta import Venta, EstadoVenta
+
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
+    if not cliente:
+        raise ValueError("Cliente no encontrado")
+
+    config = obtener_configuracion(db)
+    aplicar_expiracion_puntos(db, cliente, config)
+    valor = valor_punto(config)
+
+    ventas = (
+        db.query(Venta)
+        .filter(
+            Venta.cliente_id == cliente_id,
+            Venta.estado == EstadoVenta.COMPLETADA,
+        )
+        .order_by(Venta.fecha.desc())
+        .limit(50)
+        .all()
+    )
+    movimientos = (
+        db.query(HistorialPuntos)
+        .filter(HistorialPuntos.cliente_id == cliente_id)
+        .order_by(HistorialPuntos.creado_en.desc())
+        .limit(100)
+        .all()
+    )
+    recompensas = [v for v in ventas if v.recompensa_lealtad_canjeada]
+    total_compras = sum(v.total for v in ventas)
+
+    return {
+        "cliente": {
+            "id": cliente.id,
+            "nombre": cliente.nombre,
+            "telefono": cliente.telefono,
+            "email": cliente.email,
+            "rfc": cliente.rfc,
+            "fecha_cumpleanos": (
+                cliente.fecha_cumpleanos.isoformat() if cliente.fecha_cumpleanos else None
+            ),
+            "cliente_frecuente": cliente.cliente_frecuente,
+            "tarjeta_qr": cliente.tarjeta_qr,
+            "nivel": cliente.nivel_lealtad,
+            "puntos": cliente.puntos_acumulados,
+        },
+        "resumen": {
+            "total_compras": float(total_compras),
+            "numero_visitas": len(ventas),
+            "ticket_promedio": float(total_compras / len(ventas)) if ventas else 0,
+            "ultima_visita": ventas[0].fecha.isoformat() if ventas else None,
+            "descuento_disponible": float(Decimal(str(cliente.puntos_acumulados)) * valor),
+            "valor_punto": float(valor),
+            "recompensa": progreso_recompensa(cliente, config),
+        },
+        "total_compras": float(total_compras),
+        "numero_visitas": len(ventas),
+        "ticket_promedio": float(total_compras / len(ventas)) if ventas else 0,
+        "ultima_visita": ventas[0].fecha.isoformat() if ventas else None,
+        "compras": [
+            {
+                "id": v.id,
+                "folio": v.folio,
+                "total": float(v.total),
+                "fecha": v.fecha.strftime("%Y-%m-%d %H:%M"),
+                "metodo_pago": v.metodo_pago.value,
+                "recompensa_lealtad_canjeada": v.recompensa_lealtad_canjeada,
+                "recompensa_lealtad_nombre": v.recompensa_lealtad_nombre,
+                "recompensa_lealtad_monto": float(v.recompensa_lealtad_monto or 0),
+            }
+            for v in ventas
+        ],
+        "puntos": [
+            {
+                "id": m.id,
+                "puntos": m.puntos,
+                "concepto": m.concepto,
+                "venta_id": m.venta_id,
+                "saldo_anterior": m.saldo_anterior,
+                "saldo_nuevo": m.saldo_nuevo,
+                "fecha": m.creado_en.isoformat() if m.creado_en else None,
+            }
+            for m in movimientos
+        ],
+        "recompensas": [
+            {
+                "venta_id": v.id,
+                "folio": v.folio,
+                "fecha": v.fecha.strftime("%Y-%m-%d %H:%M"),
+                "nombre": v.recompensa_lealtad_nombre,
+                "monto": float(v.recompensa_lealtad_monto or 0),
+            }
+            for v in recompensas
+        ],
     }
 
 

@@ -71,6 +71,41 @@ class TestClientes:
         assert data["notas"] == "Prefiere pastel chico"
         assert data["cliente_frecuente"] is True
 
+    def test_actualizar_cliente_datos_frecuente_y_fiscales(self, client, auth_headers):
+        resp = self._crear_cliente(client, auth_headers)
+        cid = resp.json()["id"]
+
+        resp2 = client.put(
+            f"/api/v1/clientes/{cid}",
+            json={
+                "nombre": "Juan Lealtad",
+                "telefono": "4421112233",
+                "email": "juan.lealtad@example.com",
+                "rfc": "XAXX010101000",
+                "regimen_fiscal": "616",
+                "domicilio_fiscal_cp": "76146",
+                "fecha_cumpleanos": "1988-11-20",
+                "cliente_frecuente": True,
+            },
+            headers=auth_headers,
+        )
+        assert resp2.status_code == 200, resp2.text
+        data = resp2.json()
+        assert data["nombre"] == "Juan Lealtad"
+        assert data["telefono"] == "4421112233"
+        assert data["email"] == "juan.lealtad@example.com"
+        assert data["rfc"] == "XAXX010101000"
+        assert data["fecha_cumpleanos"] == "1988-11-20"
+        assert data["cliente_frecuente"] is True
+        assert data["tarjeta_qr"]
+
+        invalido = client.put(
+            f"/api/v1/clientes/{cid}",
+            json={"rfc": "RFC-MAL"},
+            headers=auth_headers,
+        )
+        assert invalido.status_code == 422
+
     def test_actualizar_no_permite_campos_prohibidos(self, client, auth_headers):
         """Verificar que el whitelist de setattr funciona."""
         resp = self._crear_cliente(client, auth_headers)

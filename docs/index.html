@@ -653,10 +653,14 @@ h2{font-size:1.1rem}
 <div id="pos-recompensa" style="display:none;border:1px solid #bbf7d0;background:#f0fdf4;color:#14532d;border-radius:10px;padding:.5rem .6rem;margin:.35rem 0 .55rem;font-size:.78rem">
 <label style="display:flex;align-items:center;gap:.45rem;font-weight:800;cursor:pointer">
 <input type="checkbox" id="pos-recompensa-check" onchange="toggleRecompensaLealtad()" style="width:18px;height:18px;accent-color:var(--grn)">
-<span id="pos-recompensa-title">Canjear pastel chico gratis</span>
-</label>
-<div id="pos-recompensa-msg" style="font-size:.72rem;color:#166534;margin-top:.25rem"></div>
-</div>
+	<span id="pos-recompensa-title">Canjear pastel chico gratis</span>
+	</label>
+	<div id="pos-recompensa-msg" style="font-size:.72rem;color:#166534;margin-top:.25rem"></div>
+	<div id="pos-recompensa-motivo-wrap" style="display:none;margin-top:.45rem">
+	<label style="display:block;font-size:.7rem;color:#166534;font-weight:800;margin-bottom:.2rem">Motivo del canje</label>
+	<input id="pos-recompensa-motivo" value="Canje en punto de venta" maxlength="160" style="width:100%;padding:.42rem .5rem;border:1px solid #86efac;border-radius:8px;font-size:.78rem;font-family:inherit;background:#fff;color:#14532d">
+	</div>
+	</div>
 <div style="font-size:.78rem;color:var(--mut);margin:.4rem 0 .3rem;font-weight:600">M&eacute;todo de pago:</div>
 <div class="pmt" style="grid-template-columns:1fr 1fr">
 <div class="pbtn sel" id="pm-ef" onclick="setPm('ef')">&#128181; Efectivo</div>
@@ -1126,9 +1130,10 @@ h2{font-size:1.1rem}
 <div id="lcd-loyalty" style="display:none;background:linear-gradient(135deg,#faf5ff,#f3e8ff);border:1px solid #ddd6fe;border-radius:10px;padding:.7rem .8rem;margin-bottom:.7rem">
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem">
 <div>
-<div style="font-weight:600;font-size:.85rem;color:#7c3aed">Programa de Lealtad</div>
-<div style="font-size:.78rem;color:var(--mut)">Descuento disponible: <strong id="lcd-desc-disp">$0</strong> &bull; <span id="lcd-valor-punto">1 pto = $0.50</span></div>
-</div>
+	<div style="font-weight:600;font-size:.85rem;color:#7c3aed">Programa de Lealtad</div>
+	<div style="font-size:.78rem;color:var(--mut)">Descuento disponible: <strong id="lcd-desc-disp">$0</strong> &bull; <span id="lcd-valor-punto">1 pto = $0.50</span></div>
+	<div id="lcd-recompensa-disp" style="font-size:.78rem;color:#6d28d9;margin-top:.15rem;font-weight:700"></div>
+	</div>
 <div style="display:flex;gap:.3rem;align-items:center">
 <input type="number" id="lcd-canjear-pts" placeholder="Puntos" min="1" style="width:80px;padding:.3rem .5rem;border:1px solid #c4b5fd;border-radius:6px;font-size:.8rem">
 <button onclick="canjearPuntosCliente()" class="cobrar" style="width:auto;padding:.35rem .7rem;font-size:.78rem;margin:0;background:#7c3aed">Canjear</button>
@@ -3518,16 +3523,21 @@ function actualizarCajaRecompensa() {
   var chk = document.getElementById('pos-recompensa-check');
   var msg = document.getElementById('pos-recompensa-msg');
   var title = document.getElementById('pos-recompensa-title');
+  var motivoWrap = document.getElementById('pos-recompensa-motivo-wrap');
+  var motivoInput = document.getElementById('pos-recompensa-motivo');
   var disponibles = _clienteRecompensaActual ? parseInt(_clienteRecompensaActual.disponibles || 0, 10) : 0;
   if (!box || !chk || !msg) return;
   if (disponibles <= 0) {
     box.style.display = 'none';
     chk.checked = false;
     _canjearRecompensaLealtad = false;
+    if (motivoWrap) motivoWrap.style.display = 'none';
     return;
   }
   box.style.display = 'block';
   if (title) title.textContent = 'Canjear ' + (_clienteRecompensaActual.nombre || 'pastel chico gratis');
+  if (motivoWrap) motivoWrap.style.display = _canjearRecompensaLealtad ? 'block' : 'none';
+  if (_canjearRecompensaLealtad && motivoInput && !motivoInput.value.trim()) motivoInput.value = 'Canje en punto de venta';
   var desc = descuentoRecompensaCarrito();
   if (_canjearRecompensaLealtad && desc.total > 0) {
     msg.textContent = 'Se descontará ' + desc.nombre + ' (-$' + fmt(desc.total) + ').';
@@ -4027,8 +4037,16 @@ function procesarVenta() {
       toast('Agrega un pastel chico al ticket para canjear la recompensa', true);
       return;
     }
+    var motivoRecompensaEl = document.getElementById('pos-recompensa-motivo');
+    var motivoRecompensa = motivoRecompensaEl ? motivoRecompensaEl.value.trim() : '';
+    if (!motivoRecompensa) {
+      _ventaEnProceso = false;
+      toast('Escribe el motivo del canje de recompensa', true);
+      if (motivoRecompensaEl) motivoRecompensaEl.focus();
+      return;
+    }
     body.canjear_recompensa_lealtad = true;
-    body.recompensa_lealtad_motivo = 'Canje en punto de venta';
+    body.recompensa_lealtad_motivo = motivoRecompensa;
   }
 
   if (_splitMode) {
@@ -4089,6 +4107,7 @@ function procesarVenta() {
     limpiar();
     mostrarTicket(venta);
     cargarPOSProductos();
+    cargarClientesPOS(true);
     _ventaEnProceso = false;
     _ventaIdempotencyKey = null;
   }).catch(function(e) {
@@ -4135,10 +4154,12 @@ function esperarPagoClip(ventaId, intentos) {
         mostrarTicket(venta);
         cargarCorte();
         cargarPOSProductos();
+        cargarClientesPOS(true);
         cargarDashboard();
       }).catch(function() {
         cargarCorte();
         cargarPOSProductos();
+        cargarClientesPOS(true);
       });
       return;
     }
@@ -4438,6 +4459,10 @@ function limpiar() {
   _canjearRecompensaLealtad = false;
   var chk = document.getElementById('pos-recompensa-check');
   if (chk) chk.checked = false;
+  var motivoWrap = document.getElementById('pos-recompensa-motivo-wrap');
+  if (motivoWrap) motivoWrap.style.display = 'none';
+  var motivo = document.getElementById('pos-recompensa-motivo');
+  if (motivo) motivo.value = 'Canje en punto de venta';
   ren();
 }
 async function confirmarLimpiar() {
@@ -4516,9 +4541,10 @@ function renderPOSFromData(prods) {
       var clickAttr;
       if (single) {
         var p = items[0], iv = p.tasa_iva === '0.16' ? 0.16 : 0;
-        clickAttr = 'onclick="add(' + p.id + ',' + jsArg(p.nombre) + ',' + (parseFloat(p.precio_unitario)||0) + ',' + iv + ')"';
+        var clickCode = 'add(' + p.id + ',' + jsArg(p.nombre) + ',' + (parseFloat(p.precio_unitario)||0) + ',' + iv + ')';
+        clickAttr = 'onclick="' + escHtml(clickCode) + '"';
       } else {
-        clickAttr = 'onclick="abrirVariantes(' + jsArg(orden[gi]) + ')"';
+        clickAttr = 'onclick="' + escHtml('abrirVariantes(' + jsArg(orden[gi]) + ')') + '"';
       }
       h += '<div class="pi' + (allOut ? ' pi-out' : '') + '" role="button" tabindex="0" title="' + (single ? 'Agregar producto' : 'Elegir presentación') + '" ' + clickAttr + '>';
       if (g.imagen) {
@@ -4581,11 +4607,12 @@ function abrirVariantes(key) {
     var agotado = stock <= 0;
     var stkCls = agotado ? 'pi-stk-out' : (stock <= min ? 'pi-stk-low' : 'pi-stk-ok');
     var stkTxt = agotado ? 'Agotado' : Math.round(stock) + ' pzas';
+    var variantClick = 'add(' + p.id + ',' + jsArg(p.nombre) + ',' + precio + ',' + iv + ');cerrarModal(\'modal-variante\')';
     h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem .8rem;border:1px solid var(--brd);border-radius:10px;cursor:pointer;transition:all .15s'
       + (agotado ? ';opacity:.72' : '') + '" '
       + 'onmouseover="this.style.borderColor=\'var(--v)\';this.style.background=\'#faf3f0\'" '
       + 'onmouseout="this.style.borderColor=\'\';this.style.background=\'\'" '
-      + 'onclick="add(' + p.id + ',' + jsArg(p.nombre) + ',' + precio + ',' + iv + ');cerrarModal(\'modal-variante\')">';
+      + 'onclick="' + escHtml(variantClick) + '">';
     h += '<div><strong style="font-size:.9rem">' + escHtml(label) + '</strong>';
     h += '<span style="margin-left:.5rem;color:var(--v);font-weight:700;font-size:.95rem">$' + fmt(precio) + '</span></div>';
     h += '<span class="pi-stock-chip ' + stkCls + '">' + stkTxt + '</span>';
@@ -8744,39 +8771,51 @@ function cargarListaClientes() {
 
 function verHistorialCliente(id) {
   _lcdClienteId = id;
-  api('GET', '/clientes/' + id + '/historial').then(function(d) {
-    document.getElementById('lcd-nombre').textContent = d.cliente.nombre + (d.cliente.telefono ? ' — ' + d.cliente.telefono : '');
-    document.getElementById('lcd-total').textContent = '$' + fmt(d.total_compras);
-    document.getElementById('lcd-visitas').textContent = d.numero_visitas;
-    document.getElementById('lcd-promedio').textContent = '$' + fmt(d.ticket_promedio);
-    // Loyalty points
+  api('GET', '/clientes/' + id + '/historial-completo').then(function(d) {
+    var resumen = d.resumen || {};
+    var recompensa = resumen.recompensa || {};
+    document.getElementById('lcd-nombre').textContent = d.cliente.nombre + (d.cliente.telefono ? ' - ' + d.cliente.telefono : '');
+    document.getElementById('lcd-total').textContent = '$' + fmt(resumen.total_compras || d.total_compras || 0);
+    document.getElementById('lcd-visitas').textContent = resumen.numero_visitas || d.numero_visitas || 0;
+    document.getElementById('lcd-promedio').textContent = '$' + fmt(resumen.ticket_promedio || d.ticket_promedio || 0);
     var pts = d.cliente.puntos || 0;
-    _lcdValorPunto = 0.5;
+    _lcdValorPunto = resumen.valor_punto || 0.5;
     document.getElementById('lcd-puntos').textContent = pts;
-    api('GET', '/clientes/' + id + '/puntos').then(function(p) {
-      _lcdValorPunto = p.valor_punto || 0.5;
-      document.getElementById('lcd-valor-punto').textContent = '1 pto = $' + fmt(_lcdValorPunto);
-      document.getElementById('lcd-desc-disp').textContent = '$' + fmt(p.descuento_disponible || 0);
-    }).catch(function() {
-      _lcdValorPunto = 0.5;
-      document.getElementById('lcd-valor-punto').textContent = '1 pto = $0.50';
-    });
+    document.getElementById('lcd-valor-punto').textContent = '1 pto = $' + fmt(_lcdValorPunto);
+    document.getElementById('lcd-desc-disp').textContent = '$' + fmt(resumen.descuento_disponible || 0);
+    var repEl = document.getElementById('lcd-recompensa-disp');
+    if (repEl) {
+      var disp = parseInt(recompensa.disponibles || 0, 10);
+      repEl.textContent = disp > 0
+        ? disp + ' recompensa disponible: ' + (recompensa.nombre || 'Recompensa')
+        : 'Siguiente recompensa: faltan $' + fmt(recompensa.monto_restante || 0);
+    }
     var loyaltyEl = document.getElementById('lcd-loyalty');
-    if (pts > 0) {
-      loyaltyEl.style.display = 'block';
-      document.getElementById('lcd-desc-disp').textContent = '$' + fmt(pts * _lcdValorPunto);
-      document.getElementById('lcd-canjear-pts').value = '';
-      document.getElementById('lcd-canjear-pts').max = pts;
-    } else {
-      loyaltyEl.style.display = 'block';
-      document.getElementById('lcd-desc-disp').textContent = '$0';
-    }
+    loyaltyEl.style.display = 'block';
+    document.getElementById('lcd-canjear-pts').value = '';
+    document.getElementById('lcd-canjear-pts').max = pts;
     var h = '';
-    for (var i = 0; i < d.compras.length; i++) {
-      var c = d.compras[i];
-      h += '<div class="srow"><span>' + c.folio + ' &bull; ' + c.fecha + '</span><span class="green">$' + fmt(c.total) + '</span></div>';
+    if (d.recompensas && d.recompensas.length) {
+      h += '<h4 style="font-size:.82rem;margin:.2rem 0 .35rem;color:#6d28d9">Recompensas</h4>';
+      for (var rix = 0; rix < d.recompensas.length; rix++) {
+        var r = d.recompensas[rix];
+        h += '<div class="srow"><span>' + escHtml(r.folio) + ' &bull; ' + escHtml(r.fecha) + '<br><small style="color:var(--mut)">' + escHtml(r.nombre || 'Recompensa') + '</small></span><span style="color:#6d28d9;font-weight:700">-$' + fmt(r.monto || 0) + '</span></div>';
+      }
     }
-    if (!h) h = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin compras registradas</p>';
+    if (d.puntos && d.puntos.length) {
+      h += '<h4 style="font-size:.82rem;margin:.65rem 0 .35rem">Movimientos de puntos</h4>';
+      for (var pix = 0; pix < Math.min(d.puntos.length, 8); pix++) {
+        var p = d.puntos[pix];
+        var signo = p.puntos > 0 ? '+' : '';
+        h += '<div class="srow"><span>' + escHtml(p.concepto || 'Movimiento') + '<br><small style="color:var(--mut)">' + escHtml((p.fecha || '').slice(0, 16).replace('T', ' ')) + '</small></span><span class="' + (p.puntos >= 0 ? 'green' : '') + '">' + signo + p.puntos + '</span></div>';
+      }
+    }
+    h += '<h4 style="font-size:.82rem;margin:.65rem 0 .35rem">Compras</h4>';
+    for (var i = 0; i < (d.compras || []).length; i++) {
+      var c = d.compras[i];
+      h += '<div class="srow"><span>' + escHtml(c.folio) + ' &bull; ' + escHtml(c.fecha) + (c.recompensa_lealtad_canjeada ? '<br><small style="color:#6d28d9">Incluye recompensa</small>' : '') + '</span><span class="green">$' + fmt(c.total) + '</span></div>';
+    }
+    if (!(d.compras || []).length && !(d.puntos || []).length) h = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin historial registrado</p>';
     document.getElementById('lcd-compras').innerHTML = h;
     document.getElementById('l-cliente-detalle').style.display = 'block';
   }).catch(function() { toast('Error al cargar historial', true); });
@@ -10390,16 +10429,25 @@ var _posClientes = [];
 var _clienteScanner = null;
 var _clienteScanEnProceso = false;
 
-function cargarClientesPOS() {
-  api('GET', '/clientes/').then(function(clientes) {
+function cargarClientesPOS(refrescarSeleccion) {
+  return api('GET', '/clientes/').then(function(clientes) {
     _posClientes = clientes;
     var sel = document.getElementById('pos-cliente');
+    var seleccionado = sel ? sel.value : '';
     var opts = '<option value="">P\u00fablico general</option>';
     for (var i = 0; i < clientes.length; i++) {
       var c = clientes[i];
       opts += '<option value="' + c.id + '">' + c.nombre + (c.puntos_acumulados ? ' (' + c.puntos_acumulados + ' pts)' : '') + '</option>';
     }
     sel.innerHTML = opts;
+    if (seleccionado) {
+      var existe = false;
+      for (var j = 0; j < sel.options.length; j++) {
+        if (sel.options[j].value === seleccionado) { existe = true; break; }
+      }
+      if (existe) sel.value = seleccionado;
+    }
+    if (refrescarSeleccion && sel.value) selClientePOS();
   }).catch(function(e){ console.warn('Error cargando datos:', e); });
 }
 
