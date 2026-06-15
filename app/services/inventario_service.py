@@ -164,6 +164,7 @@ def crear_producto(db: Session, data: ProductoCreate) -> Producto:
 
 def actualizar_producto(db: Session, id: int, data: ProductoUpdate, usuario_id: int | None = None) -> Producto:
     from app.models.inventario import HistorialPrecio
+    from app.services.auditoria_service import registrar_evento
     producto = db.query(Producto).filter(Producto.id == id).first()
     if not producto:
         raise ValueError("Producto no encontrado")
@@ -179,6 +180,25 @@ def actualizar_producto(db: Session, id: int, data: ProductoUpdate, usuario_id: 
             usuario_id=usuario_id,
         )
         db.add(historial)
+    if (
+        "precio_cafeteria" in updates
+        and updates["precio_cafeteria"] != producto.precio_cafeteria
+    ):
+        registrar_evento(
+            db,
+            usuario_id=usuario_id,
+            usuario_nombre=None,
+            accion="actualizar_precio_cafeteria",
+            modulo="inventario",
+            entidad="producto",
+            entidad_id=producto.id,
+            datos_anteriores={"precio_cafeteria": producto.precio_cafeteria},
+            datos_nuevos={
+                "precio_cafeteria": updates["precio_cafeteria"],
+                "producto": producto.nombre,
+            },
+            commit=False,
+        )
     for key, value in updates.items():
         setattr(producto, key, value)
     db.commit()

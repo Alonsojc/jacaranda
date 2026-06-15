@@ -5,7 +5,7 @@ from decimal import Decimal
 import enum
 
 from sqlalchemy import (
-    Date, DateTime, Enum as SAEnum, ForeignKey, Numeric, String, Text,
+    Boolean, Date, DateTime, Enum as SAEnum, ForeignKey, Integer, Numeric, String, Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,8 +15,35 @@ from app.models.venta import MetodoPago, TerminalPago
 
 class EstadoCuentaCafeteria(str, enum.Enum):
     PENDIENTE = "pendiente"
+    PARCIAL = "parcial"
     PAGADA = "pagada"
     CANCELADA = "cancelada"
+
+
+class CafeteriaCliente(Base):
+    """Catálogo operativo de cafeterías B2B."""
+
+    __tablename__ = "cafeteria_clientes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    nombre: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    contacto_nombre: Mapped[str | None] = mapped_column(String(150))
+    telefono: Mapped[str | None] = mapped_column(String(30))
+    dias_credito: Mapped[int] = mapped_column(Integer, default=7)
+    activo: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    creado_por_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    actualizado_por_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    creado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+    actualizado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    ventas: Mapped[list["CafeteriaVenta"]] = relationship(back_populates="cafeteria")
 
 
 class CafeteriaVenta(Base):
@@ -29,6 +56,7 @@ class CafeteriaVenta(Base):
     idempotency_key: Mapped[str | None] = mapped_column(String(80), unique=True, index=True)
 
     cafeteria_nombre: Mapped[str] = mapped_column(String(200), index=True)
+    cafeteria_id: Mapped[int | None] = mapped_column(ForeignKey("cafeteria_clientes.id"), index=True)
     contacto_nombre: Mapped[str | None] = mapped_column(String(150))
     telefono: Mapped[str | None] = mapped_column(String(30))
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
@@ -50,9 +78,16 @@ class CafeteriaVenta(Base):
         default=lambda: datetime.now(timezone.utc),
         index=True,
     )
+    dias_credito: Mapped[int] = mapped_column(Integer, default=7)
     fecha_credito: Mapped[date | None] = mapped_column(Date)
+    actualizado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
     notas: Mapped[str | None] = mapped_column(Text)
 
+    cafeteria: Mapped["CafeteriaCliente | None"] = relationship(back_populates="ventas")
     detalles: Mapped[list["DetalleCafeteriaVenta"]] = relationship(
         back_populates="venta",
         cascade="all, delete-orphan",

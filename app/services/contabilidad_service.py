@@ -13,11 +13,13 @@ from app.models.contabilidad import (
     TipoCuenta, NaturalezaCuenta, TipoAsiento,
 )
 from app.models.venta import Venta, DetalleVenta, EstadoVenta
+from app.models.cafeteria import CafeteriaVenta, EstadoCuentaCafeteria
 from app.models.inventario import (
     Ingrediente, Producto, MovimientoInventario, TipoMovimiento,
 )
 from app.models.gasto_fijo import GastoFijo
 from app.models.empleado import RegistroNomina
+from app.services.venta_service import _normalizar_fecha_db, _zona_operacion
 
 ZERO = Decimal("0")
 
@@ -358,22 +360,41 @@ def _saldos_cuentas(db: Session, fecha_corte: date) -> dict[str, Decimal]:
 
 def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
     """Estado de resultados (P&L) para un periodo."""
-    inicio_dt = datetime.combine(fecha_inicio, datetime.min.time(), tzinfo=timezone.utc)
-    fin_dt = datetime.combine(fecha_fin, datetime.max.time(), tzinfo=timezone.utc)
+    zona = _zona_operacion()
+    inicio_dt = _normalizar_fecha_db(datetime.combine(fecha_inicio, datetime.min.time(), tzinfo=zona))
+    fin_dt = _normalizar_fecha_db(datetime.combine(fecha_fin, datetime.max.time(), tzinfo=zona))
 
-    # Ingresos: ventas completadas en el periodo
+    # Ingresos: mostrador + entregas B2B de cafetería no canceladas.
     ventas = db.query(Venta).filter(
         and_(Venta.estado == EstadoVenta.COMPLETADA,
              Venta.fecha >= inicio_dt, Venta.fecha <= fin_dt)
     ).all()
-    ingresos_brutos = sum((v.total or ZERO) for v in ventas)
-    iva_cobrado = sum((v.iva_16 or ZERO) for v in ventas)
+    entregas_cafeteria = db.query(CafeteriaVenta).filter(
+        and_(
+            CafeteriaVenta.estado != EstadoCuentaCafeteria.CANCELADA,
+            CafeteriaVenta.fecha >= inicio_dt,
+            CafeteriaVenta.fecha <= fin_dt,
+        )
+    ).all()
+    ingresos_mostrador = sum((v.total or ZERO) for v in ventas)
+    ingresos_cafeteria = sum((v.total or ZERO) for v in entregas_cafeteria)
+    cobrado_cafeteria = sum((v.monto_pagado or ZERO) for v in entregas_cafeteria)
+    saldo_cafeteria = sum((v.saldo_pendiente or ZERO) for v in entregas_cafeteria)
+    ingresos_brutos = ingresos_mostrador + ingresos_cafeteria
+    iva_cobrado = sum((v.iva_16 or ZERO) for v in ventas) + sum(
+        (v.iva_16 or ZERO) for v in entregas_cafeteria
+    )
     ingresos_netos = ingresos_brutos - iva_cobrado
 
     # Costo de ventas: sum(cantidad * costo_produccion) de los detalles
     costo_ventas = ZERO
     for v in ventas:
         for d in v.detalles:
+            producto = db.query(Producto).filter(Producto.id == d.producto_id).first()
+            if producto and producto.costo_produccion:
+                costo_ventas += d.cantidad * producto.costo_produccion
+    for entrega in entregas_cafeteria:
+        for d in entrega.detalles:
             producto = db.query(Producto).filter(Producto.id == d.producto_id).first()
             if producto and producto.costo_produccion:
                 costo_ventas += d.cantidad * producto.costo_produccion
@@ -418,6 +439,15 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
     return {
         "periodo": {"inicio": fecha_inicio.isoformat(), "fin": fecha_fin.isoformat()},
         "ingresos_brutos": float(ingresos_brutos),
+        "ingresos_mostrador": float(ingresos_mostrador),
+        "ingresos_cafeteria": float(ingresos_cafeteria),
+        "cafeteria_b2b": {
+            "entregas": len(entregas_cafeteria),
+            "llevado": float(ingresos_cafeteria),
+            "cobrado": float(cobrado_cafeteria),
+            "cuentas_por_cobrar": float(saldo_cafeteria),
+            "separado_corte_diario_mostrador": True,
+        },
         "iva_cobrado": float(iva_cobrado),
         "ingresos_netos": float(ingresos_netos),
         "costo_ventas": float(costo_ventas),
@@ -431,6 +461,7 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
         "utilidad_neta": float(utilidad_neta),
         "margen_neto_pct": round(float(utilidad_neta / ingresos_netos * 100), 1) if ingresos_netos else 0,
         "numero_ventas": len(ventas),
+        "numero_entregas_cafeteria": len(entregas_cafeteria),
     }
 
 
