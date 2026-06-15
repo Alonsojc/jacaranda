@@ -961,16 +961,21 @@ h2{font-size:1.1rem}
 <div class="page-header">
   <div class="page-title">
     <h2>Egresos</h2>
-    <p style="font-size:.83rem;color:var(--mut);margin:0">Registra gastos operativos del d&iacute;a sin entrar al m&oacute;dulo completo de compras.</p>
+    <p style="font-size:.83rem;color:var(--mut);margin:0">Registra gastos del d&iacute;a, recurrentes y tickets escaneados con proveedor y auditor&iacute;a.</p>
   </div>
   <div class="page-actions">
     <button class="limpiar" style="width:auto;margin:0;padding:.45rem .8rem" onclick="abrirNuevoGasto()">Gasto mensual</button>
     <button class="limpiar" style="width:auto;margin:0;padding:.45rem .8rem" onclick="go('inv');setTimeout(function(){invTab('compras')},120)">Compra de ingredientes</button>
   </div>
 </div>
+<div class="row r3">
+<div class="card kpi"><div class="n" id="eg-kpi-hoy">$0</div><div class="l">Hoy</div></div>
+<div class="card kpi a"><div class="n" id="eg-kpi-mes">$0</div><div class="l">Mes actual</div></div>
+<div class="card kpi p"><div class="n" id="eg-kpi-rec">$0</div><div class="l">Recurrentes / mes</div></div>
+</div>
 <div class="row r2">
 <div class="card">
-<h3>Nuevo egreso</h3>
+<h3>Gasto r&aacute;pido del d&iacute;a</h3>
 <div class="frow">
 <div class="fg"><label>Concepto</label><input id="eg-concepto" placeholder="Gas, empaque, flete..."></div>
 <div class="fg"><label>Monto</label><input type="number" id="eg-monto" min="0" step="0.01" placeholder="250.00"></div>
@@ -982,6 +987,11 @@ h2{font-size:1.1rem}
 <option value="servicio">Servicio</option>
 <option value="flete">Flete</option>
 <option value="mantenimiento">Mantenimiento</option>
+<option value="renta">Renta</option>
+<option value="nomina">N&oacute;mina</option>
+<option value="impuestos">Impuestos</option>
+<option value="publicidad">Publicidad</option>
+<option value="insumos">Insumos</option>
 <option value="otro">Otro</option>
 </select></div>
 <div class="fg"><label>Forma de pago</label><select id="eg-metodo">
@@ -990,14 +1000,20 @@ h2{font-size:1.1rem}
 <option value="bbva">BBVA</option>
 <option value="clip">CLIP</option>
 <option value="tarjeta">Tarjeta</option>
+<option value="credito">Cr&eacute;dito</option>
+<option value="debito">D&eacute;bito</option>
+<option value="mixto">Mixto</option>
 </select></div>
 </div>
 <div class="frow">
 <div class="fg"><label>Fecha</label><input type="date" id="eg-fecha"></div>
-<div class="fg"><label>Proveedor / persona</label><input id="eg-proveedor" list="eg-proveedores-list" placeholder="Nombre opcional"></div>
+<div class="fg"><label>Proveedor / persona</label><input id="eg-proveedor" list="eg-proveedores-list" placeholder="Nombre requerido"></div>
 </div>
 <div class="fg"><label>Notas</label><input id="eg-notas" placeholder="Motivo o referencia"></div>
 <datalist id="eg-proveedores-list"></datalist>
+<label style="display:flex;align-items:center;gap:.45rem;margin:.15rem 0 .8rem;color:var(--txt);font-size:.82rem;font-weight:600">
+<input type="checkbox" id="eg-guardar-proveedor" checked style="width:18px;height:18px;accent-color:var(--v)"> Guardar proveedor si es nuevo
+</label>
 <button class="cobrar" onclick="guardarEgreso()">Guardar egreso</button>
 </div>
 <div class="card">
@@ -1965,7 +1981,7 @@ h2{font-size:1.1rem}
 
 <!-- MODAL: Gasto Fijo -->
 <div class="modal-bg" id="modal-gasto">
-<div class="modal" style="max-width:380px">
+<div class="modal" style="max-width:460px">
 <h3 id="mg-title">Nuevo gasto fijo</h3>
 <input type="hidden" id="mg-id" value="">
 <div class="fg"><label>Concepto</label><input id="mg-concepto" placeholder="Renta, Luz, Gas, N&oacute;mina..."></div>
@@ -1973,10 +1989,86 @@ h2{font-size:1.1rem}
 <div class="fg"><label>Monto ($)</label><input type="number" id="mg-monto" step="0.01" placeholder="5000"></div>
 <div class="fg"><label>Periodicidad</label><select id="mg-periodicidad"><option value="mensual">Mensual</option><option value="quincenal">Quincenal</option><option value="semanal">Semanal</option></select></div>
 </div>
+<div class="frow">
+<div class="fg"><label>Categor&iacute;a</label><select id="mg-categoria">
+<option value="servicio">Servicio</option>
+<option value="renta">Renta</option>
+<option value="nomina">N&oacute;mina</option>
+<option value="mantenimiento">Mantenimiento</option>
+<option value="publicidad">Publicidad</option>
+<option value="operativo">Operativo</option>
+<option value="otro">Otro</option>
+</select></div>
+<div class="fg"><label>Forma de pago</label><select id="mg-metodo">
+<option value="transferencia">Transferencia</option>
+<option value="bbva">BBVA</option>
+<option value="efectivo">Efectivo</option>
+<option value="clip">CLIP</option>
+<option value="tarjeta">Tarjeta</option>
+</select></div>
+</div>
+<div class="frow">
+<div class="fg"><label>D&iacute;a de pago</label><input type="number" id="mg-dia-pago" min="1" max="31" placeholder="5"></div>
+<div class="fg"><label>Proveedor / persona</label><input id="mg-proveedor" list="eg-proveedores-list" placeholder="Nombre requerido"></div>
+</div>
 <div class="fg"><label>Notas (opcional)</label><input id="mg-notas" placeholder=""></div>
+<div class="fg" id="mg-motivo-wrap" style="display:none"><label>Motivo de cambio</label><input id="mg-motivo" placeholder="Actualizaci&oacute;n de monto, proveedor..."></div>
+<label style="display:flex;align-items:center;gap:.45rem;margin:.1rem 0 .8rem;color:var(--txt);font-size:.82rem;font-weight:600">
+<input type="checkbox" id="mg-guardar-proveedor" checked style="width:18px;height:18px;accent-color:var(--v)"> Guardar proveedor si es nuevo
+</label>
 <div style="display:flex;gap:.5rem;margin-top:1rem">
 <button class="cobrar" style="flex:1" onclick="guardarGasto()">Guardar</button>
 <button class="limpiar" style="flex:1" onclick="cerrarModal('modal-gasto')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Editar Egreso -->
+<div class="modal-bg" id="modal-egreso-editar">
+<div class="modal" style="max-width:520px">
+<h3>Editar egreso</h3>
+<input type="hidden" id="mee-id" value="">
+<div class="frow">
+<div class="fg"><label>Concepto</label><input id="mee-concepto"></div>
+<div class="fg"><label>Monto</label><input type="number" id="mee-monto" min="0" step="0.01"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Categor&iacute;a</label><select id="mee-categoria">
+<option value="operativo">Operativo</option>
+<option value="empaque">Empaque</option>
+<option value="servicio">Servicio</option>
+<option value="flete">Flete</option>
+<option value="mantenimiento">Mantenimiento</option>
+<option value="renta">Renta</option>
+<option value="nomina">N&oacute;mina</option>
+<option value="impuestos">Impuestos</option>
+<option value="publicidad">Publicidad</option>
+<option value="insumos">Insumos</option>
+<option value="otro">Otro</option>
+</select></div>
+<div class="fg"><label>Forma de pago</label><select id="mee-metodo">
+<option value="efectivo">Efectivo</option>
+<option value="transferencia">Transferencia</option>
+<option value="bbva">BBVA</option>
+<option value="clip">CLIP</option>
+<option value="tarjeta">Tarjeta</option>
+<option value="credito">Cr&eacute;dito</option>
+<option value="debito">D&eacute;bito</option>
+<option value="mixto">Mixto</option>
+</select></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Fecha</label><input type="date" id="mee-fecha"></div>
+<div class="fg"><label>Proveedor / persona</label><input id="mee-proveedor" list="eg-proveedores-list"></div>
+</div>
+<div class="fg"><label>Notas</label><input id="mee-notas"></div>
+<div class="fg"><label>Motivo de edici&oacute;n</label><textarea id="mee-motivo" rows="3" placeholder="Correcci&oacute;n de monto, proveedor equivocado..."></textarea></div>
+<label style="display:flex;align-items:center;gap:.45rem;margin:.1rem 0 .8rem;color:var(--txt);font-size:.82rem;font-weight:600">
+<input type="checkbox" id="mee-guardar-proveedor" checked style="width:18px;height:18px;accent-color:var(--v)"> Guardar proveedor si es nuevo
+</label>
+<div style="display:flex;gap:.5rem;margin-top:1rem">
+<button class="cobrar" style="flex:1" onclick="guardarEdicionEgreso()">Guardar cambios</button>
+<button class="limpiar" style="flex:1" onclick="cerrarModal('modal-egreso-editar')">Cancelar</button>
 </div>
 </div>
 </div>
@@ -8115,10 +8207,23 @@ function cargarGastos(fecha) {
   });
 }
 
+var _egresoOrigen = 'manual';
+var _egresoOcrPayload = null;
+var _egresosCache = {};
+
 function initEgresos() {
   var fecha = document.getElementById('eg-fecha');
   if (fecha && !fecha.value) fecha.value = fechaHoyISO();
-  return Promise.all([cargarEgresos(), cargarProveedoresEgresos(), cargarGastosFijosEgresos()]);
+  return Promise.all([cargarResumenEgresosApi(), cargarEgresos(), cargarProveedoresEgresos(), cargarGastosFijosEgresos()]);
+}
+
+function validarFechaEgreso(fechaStr) {
+  if (!fechaStr) { toast('Selecciona la fecha del egreso', true); return false; }
+  var fecha = new Date(fechaStr + 'T12:00:00');
+  var max = new Date();
+  max.setDate(max.getDate() + 30);
+  if (fecha > max) { toast('La fecha no puede estar mas de 30 dias en el futuro', true); return false; }
+  return true;
 }
 
 function limpiarEgresoForm() {
@@ -8129,61 +8234,72 @@ function limpiarEgresoForm() {
   document.getElementById('eg-fecha').value = fechaHoyISO();
   document.getElementById('eg-proveedor').value = '';
   document.getElementById('eg-notas').value = '';
+  var guardar = document.getElementById('eg-guardar-proveedor');
+  if (guardar) guardar.checked = true;
+  _egresoOrigen = 'manual';
+  _egresoOcrPayload = null;
   var status = document.getElementById('eg-ocr-status');
   var result = document.getElementById('eg-ocr-result');
   if (status) status.textContent = '';
   if (result) { result.style.display = 'none'; result.innerHTML = ''; }
 }
 
-function guardarEgreso() {
-  var concepto = document.getElementById('eg-concepto').value.trim();
-  var monto = parseFloat(document.getElementById('eg-monto').value);
-  if (!concepto) { toast('Escribe el concepto del egreso', true); return; }
-  if (!monto || monto <= 0) { toast('Escribe un monto mayor a cero', true); return; }
+function datosFormularioEgreso(prefix) {
   var data = {
-    concepto: concepto,
-    monto: monto,
-    categoria: document.getElementById('eg-categoria').value,
-    metodo_pago: document.getElementById('eg-metodo').value,
-    fecha: document.getElementById('eg-fecha').value || fechaHoyISO(),
-    proveedor: document.getElementById('eg-proveedor').value.trim() || null,
-    notas: document.getElementById('eg-notas').value.trim() || null
+    concepto: document.getElementById(prefix + '-concepto').value.trim(),
+    monto: parseFloat(document.getElementById(prefix + '-monto').value),
+    categoria: document.getElementById(prefix + '-categoria').value,
+    metodo_pago: document.getElementById(prefix + '-metodo').value,
+    fecha: document.getElementById(prefix + '-fecha').value || fechaHoyISO(),
+    proveedor: document.getElementById(prefix + '-proveedor').value.trim() || null,
+    notas: document.getElementById(prefix + '-notas').value.trim() || null
   };
+  if (!data.concepto || data.concepto.length < 2) { toast('Escribe el concepto del egreso', true); return null; }
+  if (!data.monto || data.monto <= 0) { toast('Escribe un monto mayor a cero', true); return null; }
+  if (!validarFechaEgreso(data.fecha)) return null;
+  if (!data.proveedor) { toast('Escribe proveedor o persona', true); return null; }
+  return data;
+}
+
+function guardarEgreso() {
+  var data = datosFormularioEgreso('eg');
+  if (!data) return;
+  var guardar = document.getElementById('eg-guardar-proveedor');
+  data.guardar_proveedor = !guardar || guardar.checked;
+  data.origen = _egresoOrigen || 'manual';
+  if (_egresoOcrPayload) data.ocr_payload = {tickets: _egresoOcrPayload};
   api('POST', '/egresos/', data).then(function() {
     toast('Egreso guardado');
     limpiarEgresoForm();
     cargarEgresos();
+    cargarResumenEgresosApi();
     cargarProveedoresEgresos();
+    cargarGastos(document.getElementById('c-fecha') ? document.getElementById('c-fecha').value : null);
   }).catch(function(e) { toast(e.message || 'Error al guardar egreso', true); });
 }
 
 function cargarEgresos() {
   return api('GET', '/egresos/?limit=80').then(function(items) {
     renderEgresos(items || []);
-    renderResumenEgresos(items || []);
   }).catch(function(e) {
     document.getElementById('eg-list').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">' + escHtml(e.message || 'Error al cargar egresos') + '</p>';
-    document.getElementById('eg-resumen').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">No se pudo cargar resumen</p>';
+  });
+}
+
+function cargarResumenEgresosApi() {
+  return api('GET', '/egresos/resumen').then(function(data) {
+    renderResumenEgresos(data || {});
+  }).catch(function(e) {
+    document.getElementById('eg-resumen').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">' + escHtml(e.message || 'No se pudo cargar resumen') + '</p>';
   });
 }
 
 function cargarProveedoresEgresos() {
   var dl = document.getElementById('eg-proveedores-list');
   if (!dl) return Promise.resolve();
-  return Promise.all([
-    api('GET', '/inventario/proveedores?limit=500').catch(function() { return []; }),
-    api('GET', '/compras/proveedores').catch(function() { return []; }),
-    api('GET', '/egresos/?limit=200').catch(function() { return []; })
-  ]).then(function(res) {
-    var nombres = {};
-    (res[0] || []).concat(res[1] || []).forEach(function(p) {
-      if (p && p.nombre) nombres[p.nombre.trim()] = true;
-    });
-    (res[2] || []).forEach(function(e) {
-      if (e && e.proveedor) nombres[e.proveedor.trim()] = true;
-    });
-    dl.innerHTML = Object.keys(nombres).sort(function(a, b) { return a.localeCompare(b, 'es'); }).map(function(n) {
-      return '<option value="' + escHtml(n) + '"></option>';
+  return api('GET', '/egresos/proveedores?limit=1000').then(function(proveedores) {
+    dl.innerHTML = (proveedores || []).map(function(p) {
+      return '<option value="' + escHtml(p.nombre) + '"></option>';
     }).join('');
   }).catch(function() { return null; });
 }
@@ -8213,27 +8329,53 @@ function _categoriaDesdeTicketOCR(data) {
   return 'operativo';
 }
 
-function _llenarEgresoDesdeOCR(tickets) {
+function _enviarOCREgreso(file) {
+  var formData = new FormData();
+  formData.append('archivo', file);
+  var opts = {method: 'POST', headers: {}, body: formData};
+  if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
+  return fetch(API_URL + '/api/v1/egresos/ocr-ticket', opts).then(function(r) {
+    return r.json().catch(function(){ return {}; }).then(function(body) {
+      if (!r.ok) {
+        var e = new Error(body.detail || body.message || 'Error al procesar OCR');
+        e.status = r.status;
+        throw e;
+      }
+      return body;
+    });
+  });
+}
+
+function _llenarEgresoDesdeSugerencias(respuestas) {
   var total = 0;
   var proveedores = {};
   var fechas = [];
   var notas = [];
   var categoria = 'operativo';
-  tickets.forEach(function(data) {
-    total += _totalTicketOCR(data);
-    if (data.proveedor) proveedores[data.proveedor.trim()] = true;
-    if (data.fecha) fechas.push(data.fecha);
-    var cat = _categoriaDesdeTicketOCR(data);
+  var conceptos = [];
+  var tickets = [];
+  respuestas.forEach(function(resp) {
+    var sugerido = resp && resp.suggested_egreso;
+    var data = resp && resp.ocr;
+    if (!sugerido) return;
+    total += parseFloat(sugerido.monto || 0) || 0;
+    if (sugerido.proveedor) proveedores[sugerido.proveedor.trim()] = true;
+    if (sugerido.fecha) fechas.push(sugerido.fecha);
+    if (sugerido.concepto) conceptos.push(sugerido.concepto);
+    var cat = sugerido.categoria || (data ? _categoriaDesdeTicketOCR(data) : 'operativo');
     if (cat !== 'operativo') categoria = cat;
-    notas.push((data.proveedor || 'Ticket') + ': ' + _resumenItemsOCR(data.items || []));
+    if (sugerido.notas) notas.push(sugerido.notas);
+    if (data) tickets.push(data);
   });
   var provs = Object.keys(proveedores);
-  document.getElementById('eg-concepto').value = tickets.length > 1 ? 'Tickets escaneados' : ('Ticket ' + (provs[0] || 'escaneado'));
+  document.getElementById('eg-concepto').value = respuestas.length > 1 ? 'Tickets escaneados' : (conceptos[0] || ('Ticket ' + (provs[0] || 'escaneado')));
   document.getElementById('eg-monto').value = total ? total.toFixed(2) : '';
   document.getElementById('eg-categoria').value = categoria;
   if (fechas[0]) document.getElementById('eg-fecha').value = fechas[0];
   document.getElementById('eg-proveedor').value = provs.join(', ');
   document.getElementById('eg-notas').value = notas.join(' | ').slice(0, 900);
+  _egresoOrigen = 'ocr';
+  _egresoOcrPayload = tickets;
 }
 
 function escanearTicketEgreso() {
@@ -8246,21 +8388,22 @@ function escanearTicketEgreso() {
   status.style.color = 'var(--amb)';
   result.style.display = 'none';
   var promesas = [];
-  for (var i = 0; i < files.length; i++) promesas.push(_enviarOCR(files[i]).catch(function() { return {error:'No se pudo leer'}; }));
+  for (var i = 0; i < files.length; i++) promesas.push(_enviarOCREgreso(files[i]).catch(function(e) { return {error:e.message || 'No se pudo leer'}; }));
   Promise.all(promesas).then(function(res) {
-    var tickets = res.filter(function(t) { return t && !t.error; });
-    if (!tickets.length) {
+    var leidos = res.filter(function(r) { return r && !r.error && r.suggested_egreso; });
+    if (!leidos.length) {
       status.textContent = 'No se pudo leer el ticket';
       status.style.color = '#b91c1c';
       return;
     }
-    _llenarEgresoDesdeOCR(tickets);
-    var total = tickets.reduce(function(sum, t) { return sum + _totalTicketOCR(t); }, 0);
-    status.textContent = tickets.length + ' ticket' + (tickets.length === 1 ? '' : 's') + ' le\u00eddo' + (tickets.length === 1 ? '' : 's') + '. Revisa y guarda el egreso.';
+    _llenarEgresoDesdeSugerencias(leidos);
+    var total = leidos.reduce(function(sum, r) { return sum + (parseFloat(r.suggested_egreso.monto || 0) || 0); }, 0);
+    status.textContent = leidos.length + ' ticket' + (leidos.length === 1 ? '' : 's') + ' le\u00eddo' + (leidos.length === 1 ? '' : 's') + '. Revisa y guarda el egreso.';
     status.style.color = 'var(--grn)';
     var h = '<div style="display:flex;justify-content:space-between;gap:.5rem;align-items:center;margin-bottom:.4rem"><strong>Resultado OCR</strong><strong>$' + fmt(total) + '</strong></div>';
-    tickets.forEach(function(t) {
-      h += '<div style="padding:.4rem 0;border-top:1px solid #f0e8e5"><strong>' + escHtml(t.proveedor || 'Ticket') + '</strong><br><span style="color:var(--mut)">' + escHtml(_resumenItemsOCR(t.items || []) || 'Sin partidas detectadas') + '</span></div>';
+    leidos.forEach(function(resp) {
+      var t = resp.ocr || {};
+      h += '<div style="padding:.4rem 0;border-top:1px solid #f0e8e5"><strong>' + escHtml(t.proveedor || resp.suggested_egreso.proveedor || 'Ticket') + '</strong><br><span style="color:var(--mut)">' + escHtml(_resumenItemsOCR(t.items || []) || resp.suggested_egreso.notas || 'Sin partidas detectadas') + '</span></div>';
     });
     result.innerHTML = h;
     result.style.display = 'block';
@@ -8272,59 +8415,119 @@ function escanearTicketEgreso() {
   fileInput.value = '';
 }
 
-function renderResumenEgresos(items) {
-  var hoy = fechaHoyISO();
-  var totalHoy = 0;
-  var totalMes = 0;
-  var mes = hoy.slice(0, 7);
-  var porMetodo = {};
-  items.forEach(function(e) {
-    var monto = parseFloat(e.monto || 0);
-    if (e.fecha === hoy) totalHoy += monto;
-    if ((e.fecha || '').slice(0, 7) === mes) totalMes += monto;
-    var metodo = e.metodo_pago || 'otro';
-    porMetodo[metodo] = (porMetodo[metodo] || 0) + monto;
-  });
-  var h = '<div class="srow"><span>Hoy</span><span style="font-weight:700;color:#b91c1c">$' + fmt(totalHoy) + '</span></div>';
-  h += '<div class="srow"><span>Mes actual</span><span>$' + fmt(totalMes) + '</span></div>';
-  Object.keys(porMetodo).slice(0, 5).forEach(function(m) {
-    h += '<div class="srow"><span>' + escHtml(m) + '</span><span>$' + fmt(porMetodo[m]) + '</span></div>';
+function renderResumenEgresos(data) {
+  var hoy = data.hoy || {};
+  var mes = data.mes_actual || {};
+  var rec = data.recurrentes || {};
+  var kHoy = document.getElementById('eg-kpi-hoy');
+  var kMes = document.getElementById('eg-kpi-mes');
+  var kRec = document.getElementById('eg-kpi-rec');
+  if (kHoy) kHoy.textContent = '$' + fmt(hoy.total || 0);
+  if (kMes) kMes.textContent = '$' + fmt(mes.total || 0);
+  if (kRec) kRec.textContent = '$' + fmt(rec.total_mensual || 0);
+  var h = '<div class="srow"><span>Hoy</span><span style="font-weight:700;color:#b91c1c">$' + fmt(hoy.total || 0) + '</span></div>';
+  h += '<div class="srow"><span>Movimientos hoy</span><span>' + (hoy.cantidad || 0) + '</span></div>';
+  h += '<div class="srow"><span>Mes actual</span><span>$' + fmt(mes.total || 0) + '</span></div>';
+  h += '<div class="srow"><span>Recurrentes mensuales</span><span>$' + fmt(rec.total_mensual || 0) + '</span></div>';
+  var porCategoria = mes.por_categoria || {};
+  Object.keys(porCategoria).slice(0, 5).forEach(function(cat) {
+    h += '<div class="srow"><span>' + escHtml(cat) + '</span><span>$' + fmt(porCategoria[cat]) + '</span></div>';
   });
   document.getElementById('eg-resumen').innerHTML = h;
 }
 
 function renderEgresos(items) {
+  _egresosCache = {};
   if (!items.length) {
     document.getElementById('eg-list').innerHTML = '<p style="color:var(--mut);font-size:.83rem">A&uacute;n no hay egresos registrados.</p>';
     return;
   }
-  var h = '<table class="tbl"><tr><th>Fecha</th><th>Concepto</th><th>Categor&iacute;a</th><th>Pago</th><th>Monto</th><th class="actions-th">Acciones</th></tr>';
+  var h = '<table class="tbl"><tr><th>Fecha</th><th>Concepto</th><th>Proveedor</th><th>Categor&iacute;a</th><th>Pago</th><th>Monto</th><th class="actions-th">Acciones</th></tr>';
   items.forEach(function(e) {
+    _egresosCache[e.id] = e;
     var fecha = e.fecha ? new Date(e.fecha + 'T12:00:00').toLocaleDateString('es-MX', {day:'2-digit',month:'short'}) : '';
     h += '<tr><td>' + escHtml(fecha) + '</td>';
-    h += '<td><strong>' + escHtml(e.concepto) + '</strong>' + (e.proveedor ? '<br><small style="color:var(--mut)">' + escHtml(e.proveedor) + '</small>' : '') + '</td>';
+    h += '<td><strong>' + escHtml(e.concepto) + '</strong>' + (e.origen === 'ocr' ? '<br><small style="color:var(--mut)">OCR</small>' : '') + '</td>';
+    h += '<td>' + escHtml(e.proveedor || '-') + '</td>';
     h += '<td>' + escHtml(e.categoria || '') + '</td>';
     h += '<td>' + escHtml(e.metodo_pago || '') + '</td>';
     h += '<td style="font-weight:700;color:#b91c1c">$' + fmt(e.monto) + '</td>';
-    h += '<td class="actions-cell"><div class="action-buttons">' + actionBtn('Borrar', '&#10005;', 'borrarEgreso(' + e.id + ')', 'danger') + '</div></td></tr>';
+    h += '<td class="actions-cell"><div class="action-buttons">';
+    h += actionBtn('Editar', '&#9998;', 'abrirEditarEgreso(' + e.id + ')');
+    h += actionBtn('Anular', '&#10005;', 'anularEgreso(' + e.id + ')', 'danger');
+    h += '</div></td></tr>';
   });
   h += '</table>';
   document.getElementById('eg-list').innerHTML = h;
 }
 
-async function borrarEgreso(id) {
+function abrirEditarEgreso(id) {
+  var e = _egresosCache[id];
+  if (!e) { toast('No se encontro el egreso', true); return; }
+  document.getElementById('mee-id').value = e.id;
+  document.getElementById('mee-concepto').value = e.concepto || '';
+  document.getElementById('mee-monto').value = e.monto || '';
+  document.getElementById('mee-categoria').value = e.categoria || 'operativo';
+  document.getElementById('mee-metodo').value = e.metodo_pago || 'efectivo';
+  document.getElementById('mee-fecha').value = e.fecha || fechaHoyISO();
+  document.getElementById('mee-proveedor').value = e.proveedor || '';
+  document.getElementById('mee-notas').value = e.notas || '';
+  document.getElementById('mee-motivo').value = '';
+  var guardar = document.getElementById('mee-guardar-proveedor');
+  if (guardar) guardar.checked = true;
+  document.getElementById('modal-egreso-editar').classList.add('on');
+}
+
+function guardarEdicionEgreso() {
+  var id = document.getElementById('mee-id').value;
+  var data = datosFormularioEgreso('mee');
+  if (!data) return;
+  var motivo = document.getElementById('mee-motivo').value.trim();
+  if (motivo.length < 5) { toast('Escribe el motivo de edicion', true); return; }
+  var guardar = document.getElementById('mee-guardar-proveedor');
+  data.guardar_proveedor = !guardar || guardar.checked;
+  data.motivo = motivo;
+  apiProtegida('PUT', '/egresos/' + id, data, 'editar egreso').then(function() {
+    toast('Egreso actualizado');
+    cerrarModal('modal-egreso-editar');
+    cargarEgresos();
+    cargarResumenEgresosApi();
+    cargarProveedoresEgresos();
+    cargarGastos(document.getElementById('c-fecha') ? document.getElementById('c-fecha').value : null);
+  }).catch(function(e) { if (e.message !== 'Autorizacion cancelada') toast(e.message || 'Error al editar egreso', true); });
+}
+
+async function anularEgreso(id) {
+  var motivo = await solicitarEntrada({
+    title: 'Anular egreso',
+    message: 'Escribe el motivo de anulacion.',
+    detail: 'El movimiento queda inactivo y se registra en auditoria.',
+    label: 'Motivo',
+    placeholder: 'Captura duplicada, monto equivocado...',
+    acceptText: 'Continuar',
+    tone: 'danger'
+  });
+  if (motivo == null) return;
+  motivo = motivo.trim();
+  if (motivo.length < 5) { toast('Escribe un motivo mas claro', true); return; }
   var ok = await confirmarAccion({
-    title: 'Borrar egreso',
-    message: '¿Borrar este egreso?',
-    detail: 'Se desactivará y quedará en auditoría.',
-    acceptText: 'Borrar',
+    title: 'Confirmar anulacion',
+    message: 'Este egreso se anulara.',
+    detail: motivo,
+    acceptText: 'Anular',
     tone: 'danger'
   });
   if (!ok) return;
-  apiProtegida('DELETE', '/egresos/' + id, null, 'borrar egreso').then(function() {
-    toast('Egreso borrado');
+  apiProtegida('POST', '/egresos/' + id + '/anular', {motivo: motivo}, 'anular egreso').then(function() {
+    toast('Egreso anulado');
     cargarEgresos();
-  }).catch(function(e) { if (e.message !== 'Autorización cancelada') toast(e.message || 'Error al borrar egreso', true); });
+    cargarResumenEgresosApi();
+    cargarGastos(document.getElementById('c-fecha') ? document.getElementById('c-fecha').value : null);
+  }).catch(function(e) { if (e.message !== 'Autorizacion cancelada') toast(e.message || 'Error al anular egreso', true); });
+}
+
+function borrarEgreso(id) {
+  return anularEgreso(id);
 }
 
 function actualizarUtilidad() {
@@ -8533,7 +8736,7 @@ function cargarGastosFijos() {
   var listEl = document.getElementById('c-gastos-fijos-list');
   var totalBox = document.getElementById('c-gastos-fijos-total');
   if (!listEl || !totalBox) return Promise.resolve();
-  api('GET', '/punto-de-venta/gastos-fijos').then(function(gastos) {
+  api('GET', '/egresos/gastos-fijos').then(function(gastos) {
     if (!gastos.length) {
       listEl.innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin gastos fijos. Agrega renta, luz, etc.</p>';
       totalBox.style.display = 'none';
@@ -8546,11 +8749,11 @@ function cargarGastosFijos() {
       var m = montoMensualGastoFijo(g);
       total += m;
       h += '<div class="srow">';
-      h += '<span>' + g.concepto + ' <span style="font-size:.72rem;color:var(--mut)">(' + g.periodicidad + ')</span></span>';
+      h += '<span>' + escHtml(g.concepto) + ' <span style="font-size:.72rem;color:var(--mut)">(' + escHtml(g.periodicidad) + ')</span></span>';
       h += '<span style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;justify-content:flex-end">';
       h += '<span style="color:#b91c1c;font-weight:600">$' + fmt(g.monto) + '</span>';
-      h += actionBtn('Editar', '&#9998;', 'editarGasto(' + g.id + ',' + jsArg(g.concepto) + ',' + g.monto + ',' + jsArg(g.periodicidad) + ',' + jsArg(g.notas || '') + ')');
-      h += actionBtn('Eliminar', '&times;', 'eliminarGasto(' + g.id + ')', 'danger');
+      h += actionBtn('Editar', '&#9998;', 'editarGasto(' + g.id + ',' + jsArg(g.concepto) + ',' + g.monto + ',' + jsArg(g.periodicidad) + ',' + jsArg(g.notas || '') + ',' + jsArg(g.categoria || 'servicio') + ',' + jsArg(g.metodo_pago || 'transferencia') + ',' + jsArg(g.proveedor || '') + ',' + (g.dia_pago || 0) + ')');
+      h += actionBtn('Anular', '&times;', 'eliminarGasto(' + g.id + ')', 'danger');
       h += '</span></div>';
     }
     listEl.innerHTML = h;
@@ -8568,7 +8771,7 @@ function cargarGastosFijosEgresos() {
   var listEl = document.getElementById('eg-gastos-fijos-list');
   var resumenEl = document.getElementById('eg-gastos-fijos-resumen');
   if (!listEl || !resumenEl) return Promise.resolve();
-  return api('GET', '/punto-de-venta/gastos-fijos').then(function(gastos) {
+  return api('GET', '/egresos/gastos-fijos').then(function(gastos) {
     if (!gastos.length) {
       resumenEl.innerHTML = '';
       listEl.innerHTML = '<p style="color:var(--mut);font-size:.83rem">Sin gastos mensuales. Agrega renta, servicios, suscripciones o pagos recurrentes.</p>';
@@ -8580,10 +8783,10 @@ function cargarGastosFijosEgresos() {
       var mensual = montoMensualGastoFijo(g);
       total += mensual;
       h += '<div class="srow">';
-      h += '<span><strong>' + escHtml(g.concepto || 'Gasto') + '</strong><br><small style="color:var(--mut)">' + escHtml(g.periodicidad || 'mensual') + (g.notas ? ' &bull; ' + escHtml(g.notas) : '') + '</small></span>';
+      h += '<span><strong>' + escHtml(g.concepto || 'Gasto') + '</strong><br><small style="color:var(--mut)">' + escHtml(g.periodicidad || 'mensual') + (g.dia_pago ? ' &bull; d&iacute;a ' + g.dia_pago : '') + (g.proveedor ? ' &bull; ' + escHtml(g.proveedor) : '') + (g.notas ? ' &bull; ' + escHtml(g.notas) : '') + '</small></span>';
       h += '<span style="display:flex;align-items:center;gap:.35rem;justify-content:flex-end;flex-wrap:wrap"><span style="color:#b91c1c;font-weight:700">$' + fmt(g.monto) + '</span>';
-      h += actionBtn('Editar', '&#9998;', 'editarGasto(' + g.id + ',' + jsArg(g.concepto) + ',' + g.monto + ',' + jsArg(g.periodicidad) + ',' + jsArg(g.notas || '') + ')');
-      h += actionBtn('Eliminar', '&times;', 'eliminarGasto(' + g.id + ')', 'danger') + '</span></div>';
+      h += actionBtn('Editar', '&#9998;', 'editarGasto(' + g.id + ',' + jsArg(g.concepto) + ',' + g.monto + ',' + jsArg(g.periodicidad) + ',' + jsArg(g.notas || '') + ',' + jsArg(g.categoria || 'servicio') + ',' + jsArg(g.metodo_pago || 'transferencia') + ',' + jsArg(g.proveedor || '') + ',' + (g.dia_pago || 0) + ')');
+      h += actionBtn('Anular', '&times;', 'eliminarGasto(' + g.id + ')', 'danger') + '</span></div>';
     });
     resumenEl.innerHTML = '<div class="srow"><span>Total mensual estimado</span><span style="font-weight:800;color:#b91c1c">$' + fmt(total) + '</span></div><div class="srow"><span>Promedio diario</span><span>$' + fmt(total / 30) + '</span></div>';
     listEl.innerHTML = h;
@@ -8599,53 +8802,99 @@ function abrirNuevoGasto() {
   document.getElementById('mg-concepto').value = '';
   document.getElementById('mg-monto').value = '';
   document.getElementById('mg-periodicidad').value = 'mensual';
+  document.getElementById('mg-categoria').value = 'servicio';
+  document.getElementById('mg-metodo').value = 'transferencia';
+  document.getElementById('mg-dia-pago').value = '';
+  document.getElementById('mg-proveedor').value = '';
   document.getElementById('mg-notas').value = '';
+  document.getElementById('mg-motivo').value = '';
+  document.getElementById('mg-motivo-wrap').style.display = 'none';
+  var guardar = document.getElementById('mg-guardar-proveedor');
+  if (guardar) guardar.checked = true;
   document.getElementById('modal-gasto').classList.add('on');
 }
 
-function editarGasto(id, concepto, monto, periodicidad, notas) {
+function editarGasto(id, concepto, monto, periodicidad, notas, categoria, metodo, proveedor, diaPago) {
   document.getElementById('mg-id').value = id;
   document.getElementById('mg-title').textContent = 'Editar gasto fijo';
   document.getElementById('mg-concepto').value = concepto;
   document.getElementById('mg-monto').value = monto;
   document.getElementById('mg-periodicidad').value = periodicidad;
+  document.getElementById('mg-categoria').value = categoria || 'servicio';
+  document.getElementById('mg-metodo').value = metodo || 'transferencia';
+  document.getElementById('mg-dia-pago').value = diaPago || '';
+  document.getElementById('mg-proveedor').value = proveedor || '';
   document.getElementById('mg-notas').value = notas;
+  document.getElementById('mg-motivo').value = '';
+  document.getElementById('mg-motivo-wrap').style.display = 'block';
+  var guardar = document.getElementById('mg-guardar-proveedor');
+  if (guardar) guardar.checked = true;
   document.getElementById('modal-gasto').classList.add('on');
 }
 
 function guardarGasto() {
   var id = document.getElementById('mg-id').value;
+  var diaPago = parseInt(document.getElementById('mg-dia-pago').value, 10);
+  var proveedor = document.getElementById('mg-proveedor').value.trim();
+  var motivo = document.getElementById('mg-motivo').value.trim();
   var data = {
     concepto: document.getElementById('mg-concepto').value.trim(),
     monto: parseFloat(document.getElementById('mg-monto').value) || 0,
+    categoria: document.getElementById('mg-categoria').value,
+    metodo_pago: document.getElementById('mg-metodo').value,
+    proveedor: proveedor || null,
     periodicidad: document.getElementById('mg-periodicidad').value,
+    dia_pago: diaPago ? diaPago : null,
     notas: document.getElementById('mg-notas').value.trim() || null,
   };
+  var guardar = document.getElementById('mg-guardar-proveedor');
+  data.guardar_proveedor = !guardar || guardar.checked;
   if (!data.concepto || !data.monto) { toast('Llena concepto y monto', true); return; }
+  if (!data.proveedor) { toast('Escribe proveedor o persona', true); return; }
+  if (data.dia_pago && (data.dia_pago < 1 || data.dia_pago > 31)) { toast('El dia de pago debe ser 1 a 31', true); return; }
+  if (id) {
+    if (motivo.length < 5) { toast('Escribe el motivo de cambio', true); return; }
+    data.motivo = motivo;
+  }
   var method = id ? 'PUT' : 'POST';
-  var url = id ? '/punto-de-venta/gastos-fijos/' + id : '/punto-de-venta/gastos-fijos';
+  var url = id ? '/egresos/gastos-fijos/' + id : '/egresos/gastos-fijos';
   var req = id ? apiProtegida(method, url, data, 'editar gasto fijo') : api(method, url, data);
   req.then(function() {
     toast('Gasto guardado');
     cerrarModal('modal-gasto');
     cargarGastosFijos();
     cargarGastosFijosEgresos();
+    cargarResumenEgresosApi();
+    cargarProveedoresEgresos();
   }).catch(function(e) { toast(e.message || 'Error', true); });
 }
 
 async function eliminarGasto(id) {
+  var motivo = await solicitarEntrada({
+    title: 'Anular gasto fijo',
+    message: 'Escribe el motivo de anulacion.',
+    detail: 'Ya no se tomara para gastos recurrentes.',
+    label: 'Motivo',
+    placeholder: 'Cambio de contrato, pago duplicado...',
+    acceptText: 'Continuar',
+    tone: 'danger'
+  });
+  if (motivo == null) return;
+  motivo = motivo.trim();
+  if (motivo.length < 5) { toast('Escribe un motivo mas claro', true); return; }
   var ok = await confirmarAccion({
-    title: 'Eliminar gasto fijo',
-    message: '¿Eliminar este gasto fijo?',
-    detail: 'Ya no se tomará para gastos recurrentes.',
-    acceptText: 'Eliminar',
+    title: 'Confirmar anulacion',
+    message: 'Este gasto fijo se anulara.',
+    detail: motivo,
+    acceptText: 'Anular',
     tone: 'danger'
   });
   if (!ok) return;
-  apiProtegida('DELETE', '/punto-de-venta/gastos-fijos/' + id, null, 'desactivar gasto fijo').then(function() {
-    toast('Gasto eliminado');
+  apiProtegida('POST', '/egresos/gastos-fijos/' + id + '/anular', {motivo: motivo}, 'anular gasto fijo').then(function() {
+    toast('Gasto fijo anulado');
     cargarGastosFijos();
     cargarGastosFijosEgresos();
+    cargarResumenEgresosApi();
   }).catch(function(e) { toast(e.message || 'Error', true); });
 }
 
@@ -12563,7 +12812,7 @@ function initWebSocket() {
   }
   limpiarTimersWebSocket();
   var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  var host = API_BASE.replace(/^https?:/, proto).replace(/\/api\/v1$/, '');
+  var host = API_URL.replace(/^https?:/, proto).replace(/\/api\/v1$/, '');
   try {
     _ws = new WebSocket(host + '/api/v1/notificaciones/ws?token=' + TOKEN);
     _ws.onopen = function() {
