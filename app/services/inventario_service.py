@@ -10,7 +10,7 @@ from sqlalchemy import and_
 
 from app.models.inventario import (
     Ingrediente, Producto, MovimientoInventario, LoteIngrediente,
-    CategoriaProducto, Proveedor, TipoMovimiento,
+    CategoriaProducto, Proveedor, TipoMovimiento, UnidadMedida,
 )
 from app.schemas.inventario import (
     IngredienteCreate, IngredienteUpdate, ProductoCreate, ProductoUpdate,
@@ -89,19 +89,34 @@ def obtener_ingrediente(db: Session, id: int) -> Ingrediente:
     return ingrediente
 
 
+def _ids_empaques_usados(db: Session) -> set[int]:
+    rows = db.query(Producto.caja_ingrediente_id).filter(
+        Producto.activo.is_(True),
+        Producto.caja_ingrediente_id.isnot(None),
+    ).all()
+    return {int(row[0]) for row in rows if row[0] is not None}
+
+
 def alertas_stock_bajo(db: Session) -> list[dict]:
     """Ingredientes y productos por debajo del stock mínimo."""
     alertas = []
+    empaques_usados = _ids_empaques_usados(db)
 
     ingredientes = db.query(Ingrediente).filter(
         and_(
             Ingrediente.activo.is_(True),
-            Ingrediente.stock_actual < Ingrediente.stock_minimo,
+            (
+                (Ingrediente.stock_actual < Ingrediente.stock_minimo)
+                | (
+                    Ingrediente.id.in_(list(empaques_usados) or [-1])
+                    & (Ingrediente.stock_actual <= 0)
+                )
+            ),
         )
     ).all()
     for ing in ingredientes:
         alertas.append({
-            "tipo": "ingrediente",
+            "tipo": "empaque" if ing.id in empaques_usados else "ingrediente",
             "id": ing.id,
             "nombre": ing.nombre,
             "stock_actual": float(ing.stock_actual),
@@ -128,6 +143,52 @@ def alertas_stock_bajo(db: Session) -> list[dict]:
     return alertas
 
 
+def alertas_empaques(db: Session) -> list[dict]:
+    """Empaques/cajas usados por productos que están agotados o debajo del mínimo."""
+    productos = db.query(Producto).filter(
+        Producto.activo.is_(True),
+        Producto.caja_ingrediente_id.isnot(None),
+    ).all()
+    productos_por_empaque: dict[int, list[Producto]] = {}
+    for producto in productos:
+        if producto.caja_ingrediente_id is None:
+            continue
+        productos_por_empaque.setdefault(producto.caja_ingrediente_id, []).append(producto)
+
+    if not productos_por_empaque:
+        return []
+
+    ingredientes = db.query(Ingrediente).filter(
+        Ingrediente.id.in_(list(productos_por_empaque.keys())),
+    ).all()
+    alertas = []
+    for ingrediente in ingredientes:
+        stock = Decimal(str(ingrediente.stock_actual or 0))
+        minimo = Decimal(str(ingrediente.stock_minimo or 0))
+        if stock > 0 and stock > minimo:
+            continue
+        productos_ligados = productos_por_empaque.get(ingrediente.id, [])
+        alertas.append({
+            "tipo": "empaque",
+            "id": ingrediente.id,
+            "nombre": ingrediente.nombre,
+            "stock_actual": float(stock),
+            "stock_minimo": float(minimo),
+            "unidad": ingrediente.unidad_medida.value,
+            "severidad": "sin_stock" if stock <= 0 else "bajo",
+            "productos": [
+                {
+                    "id": producto.id,
+                    "nombre": producto.nombre,
+                    "caja_cantidad": float(producto.caja_cantidad or 0),
+                }
+                for producto in productos_ligados
+            ],
+        })
+    alertas.sort(key=lambda item: (item["severidad"] != "sin_stock", item["nombre"]))
+    return alertas
+
+
 def ingredientes_por_caducar(db: Session, dias: int = 7) -> list[LoteIngrediente]:
     """Lotes de ingredientes que caducan en los próximos N días."""
     from datetime import timedelta
@@ -143,18 +204,30 @@ def ingredientes_por_caducar(db: Session, dias: int = 7) -> list[LoteIngrediente
 
 # --- Productos ---
 
-def _validar_caja_ingrediente(db: Session, ingrediente_id: int | None) -> None:
+def _validar_caja_ingrediente(
+    db: Session,
+    ingrediente_id: int | None,
+    caja_cantidad: Decimal | None = None,
+) -> None:
     if ingrediente_id is None:
         return
     ingrediente = db.query(Ingrediente).filter(Ingrediente.id == ingrediente_id).first()
     if not ingrediente or not ingrediente.activo:
         raise ValueError("Caja/empaque no encontrado o inactivo")
+    if ingrediente.unidad_medida not in (
+        UnidadMedida.CAJA,
+        UnidadMedida.BOLSA,
+        UnidadMedida.PIEZA,
+    ):
+        raise ValueError("El empaque debe usar unidad caja, bolsa o pieza")
+    if caja_cantidad is not None and Decimal(str(caja_cantidad)) <= 0:
+        raise ValueError("La cantidad de cajas/empaques por pieza debe ser mayor a cero")
 
 
 def crear_producto(db: Session, data: ProductoCreate) -> Producto:
     if db.query(Producto).filter(Producto.codigo == data.codigo).first():
         raise ValueError(f"Ya existe un producto con código '{data.codigo}'")
-    _validar_caja_ingrediente(db, data.caja_ingrediente_id)
+    _validar_caja_ingrediente(db, data.caja_ingrediente_id, data.caja_cantidad)
     producto = Producto(**data.model_dump())
     db.add(producto)
     db.commit()
@@ -169,8 +242,10 @@ def actualizar_producto(db: Session, id: int, data: ProductoUpdate, usuario_id: 
     if not producto:
         raise ValueError("Producto no encontrado")
     updates = data.model_dump(exclude_unset=True)
-    if "caja_ingrediente_id" in updates:
-        _validar_caja_ingrediente(db, updates["caja_ingrediente_id"])
+    caja_id = updates.get("caja_ingrediente_id", producto.caja_ingrediente_id)
+    caja_cantidad = updates.get("caja_cantidad", producto.caja_cantidad)
+    if "caja_ingrediente_id" in updates or "caja_cantidad" in updates:
+        _validar_caja_ingrediente(db, caja_id, caja_cantidad)
     # Log price change
     if "precio_unitario" in updates and updates["precio_unitario"] != producto.precio_unitario:
         historial = HistorialPrecio(
@@ -276,12 +351,32 @@ def registrar_movimiento(
         **data.model_dump(), usuario_id=usuario_id,
     )
     db.add(movimiento)
+    db.flush()
+    if usuario_id:
+        from app.services.auditoria_service import registrar_evento
+
+        registrar_evento(
+            db,
+            usuario_id=usuario_id,
+            usuario_nombre=None,
+            accion=data.tipo.value,
+            modulo="inventario",
+            entidad="movimiento_inventario",
+            entidad_id=movimiento.id,
+            datos_nuevos={
+                "ingrediente_id": data.ingrediente_id,
+                "producto_id": data.producto_id,
+                "cantidad": data.cantidad,
+                "costo_unitario": data.costo_unitario,
+                "referencia": data.referencia,
+                "notas": data.notas,
+            },
+            commit=False,
+        )
 
     if commit:
         db.commit()
         db.refresh(movimiento)
-    else:
-        db.flush()
     return movimiento
 
 
@@ -302,6 +397,7 @@ def registrar_empaque_producto(
     cantidad_productos = Decimal(str(cantidad_productos or 0))
     if not caja_id or caja_cantidad <= 0 or cantidad_productos <= 0:
         return None
+    _validar_caja_ingrediente(db, caja_id, caja_cantidad)
     return registrar_movimiento(
         db,
         MovimientoCreate(

@@ -1,5 +1,8 @@
 """Tests para el módulo de recetas y producción."""
 
+import json
+from pathlib import Path
+
 import pytest
 
 
@@ -94,7 +97,9 @@ class TestRecetas:
         data = resp2.json()
         assert "disponible" in data
 
-    def test_horneado_masivo_registra_varias_recetas(self, client, auth_headers):
+    def test_horneado_masivo_registra_varias_recetas(self, client, auth_headers, db):
+        from app.models.auditoria import LogAuditoria
+
         prod_1 = self._crear_producto(client, auth_headers, "REC-BATCH-1")
         prod_2 = self._crear_producto(client, auth_headers, "REC-BATCH-2")
         ing_id = self._crear_ingrediente(client, auth_headers, "Harina batch", "kg")
@@ -133,6 +138,16 @@ class TestRecetas:
         assert float(prod_2_data["stock_actual"]) == 24
         assert float(ing_data["stock_actual"]) == 42
 
+        evento = db.query(LogAuditoria).filter(
+            LogAuditoria.modulo == "produccion",
+            LogAuditoria.entidad == "horneado_masivo",
+        ).first()
+        assert evento is not None
+        datos = json.loads(evento.datos_nuevos)
+        assert datos["total_recetas"] == 2
+        assert datos["total_tandas"] == 5
+        assert datos["total_piezas"] == 44
+
     def test_horneado_masivo_no_deja_produccion_parcial_si_faltan_ingredientes(self, client, auth_headers):
         prod_1 = self._crear_producto(client, auth_headers, "REC-BATCH-3")
         prod_2 = self._crear_producto(client, auth_headers, "REC-BATCH-4")
@@ -168,3 +183,45 @@ class TestRecetas:
         assert float(prod_1_data["stock_actual"]) == 0
         assert float(prod_2_data["stock_actual"]) == 0
         assert float(ing_data["stock_actual"]) == 50
+
+    def test_horneado_rechaza_receta_sin_ingredientes(self, client, auth_headers):
+        prod_id = self._crear_producto(client, auth_headers, "REC-SIN-ING")
+        receta_id = client.post("/api/v1/recetas/", json={
+            "producto_id": prod_id,
+            "nombre": "Receta incompleta",
+            "rendimiento": 6,
+            "ingredientes": [],
+        }, headers=auth_headers).json()["id"]
+
+        individual = client.post(
+            f"/api/v1/recetas/{receta_id}/hornear?cantidad=1",
+            headers=auth_headers,
+        )
+        assert individual.status_code == 400
+        assert "no tiene ingredientes" in individual.json()["detail"].lower()
+
+        masivo = client.post("/api/v1/recetas/hornear-masivo", json={
+            "items": [{"receta_id": receta_id, "cantidad": 1}],
+        }, headers=auth_headers)
+        assert masivo.status_code == 400
+        assert "sin ingredientes" in masivo.json()["detail"].lower()
+
+        prod = client.get(f"/api/v1/inventario/productos/{prod_id}", headers=auth_headers)
+        assert float(prod.json()["stock_actual"]) == 0
+
+
+def test_inventario_sprint5_frontend_contract():
+    html_path = Path(__file__).resolve().parents[1] / "docs" / "index.html"
+    with html_path.open(encoding="utf-8") as fh:
+        html = fh.read()
+
+    assert "inv-empaque-alertas" in html
+    assert "/inventario/alertas/empaques" in html
+    assert "function cargarAlertasEmpaques" in html
+    assert "function sugerirCajaParaProducto" in html
+    assert "@media(pointer:coarse)" in html
+    assert '<option value="caja">caja</option>' in html
+    assert '<option value="bolsa">bolsa</option>' in html
+    assert 'id="d-ai-card" data-module="prod"' not in html
+    assert 'id="d-ai-card" style="display:none"' in html
+    assert "deferDashboard(cargarPronosticoHero" not in html

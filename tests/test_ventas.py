@@ -188,7 +188,10 @@ class TestVentas:
         prod = client.get(f"/api/v1/inventario/productos/{pid}", headers=auth_headers).json()
         assert float(prod["stock_actual"]) == 20.0
 
-    def test_venta_descuenta_y_cancela_empaque(self, client, auth_headers):
+    def test_venta_descuenta_y_cancela_empaque(self, client, auth_headers, db):
+        from app.models.auditoria import LogAuditoria
+        from app.models.inventario import MovimientoInventario, TipoMovimiento
+
         caja_id = self._crear_caja(client, auth_headers, "Caja POS")
         pid = self._crear_producto(
             client,
@@ -207,6 +210,19 @@ class TestVentas:
 
         caja = client.get(f"/api/v1/inventario/ingredientes/{caja_id}", headers=auth_headers)
         assert float(caja.json()["stock_actual"]) == 17.0
+        salida_empaque = db.query(MovimientoInventario).filter(
+            MovimientoInventario.ingrediente_id == caja_id,
+            MovimientoInventario.tipo == TipoMovimiento.SALIDA_VENTA,
+            MovimientoInventario.referencia == f"Venta {venta.json()['folio']}",
+        ).first()
+        assert salida_empaque is not None
+        assert float(salida_empaque.cantidad) == 3.0
+        audit_salida = db.query(LogAuditoria).filter(
+            LogAuditoria.modulo == "inventario",
+            LogAuditoria.accion == "salida_venta",
+            LogAuditoria.entidad_id == salida_empaque.id,
+        ).first()
+        assert audit_salida is not None
 
         cancel = client.post(
             f"/api/v1/punto-de-venta/ventas/{venta.json()['id']}/cancelar",
@@ -215,6 +231,77 @@ class TestVentas:
         assert cancel.status_code == 200, cancel.text
         caja = client.get(f"/api/v1/inventario/ingredientes/{caja_id}", headers=auth_headers)
         assert float(caja.json()["stock_actual"]) == 20.0
+        entrada_empaque = db.query(MovimientoInventario).filter(
+            MovimientoInventario.ingrediente_id == caja_id,
+            MovimientoInventario.tipo == TipoMovimiento.ENTRADA_DEVOLUCION,
+            MovimientoInventario.referencia == f"Cancelación venta {venta.json()['folio']}",
+        ).first()
+        assert entrada_empaque is not None
+
+    def test_producto_valida_empaque_compatible_y_en_uso(self, client, auth_headers):
+        kg_resp = client.post("/api/v1/inventario/ingredientes", json={
+            "nombre": "Harina no empaque",
+            "unidad_medida": "kg",
+            "stock_minimo": "0",
+            "costo_unitario": "10.00",
+        }, headers=auth_headers)
+        assert kg_resp.status_code == 201
+        invalido = client.post("/api/v1/inventario/productos", json={
+            "codigo": "PACK-KG",
+            "nombre": "Pastel con empaque invalido",
+            "precio_unitario": "100.00",
+            "tasa_iva": "0.00",
+            "caja_ingrediente_id": kg_resp.json()["id"],
+            "caja_cantidad": "1",
+        }, headers=auth_headers)
+        assert invalido.status_code == 400
+        assert "caja, bolsa o pieza" in invalido.json()["detail"]
+
+        caja_id = self._crear_caja(client, auth_headers, "Caja chica validacion")
+        cantidad_cero = client.post("/api/v1/inventario/productos", json={
+            "codigo": "PACK-CERO",
+            "nombre": "Pastel caja cero",
+            "precio_unitario": "100.00",
+            "tasa_iva": "0.00",
+            "caja_ingrediente_id": caja_id,
+            "caja_cantidad": "0",
+        }, headers=auth_headers)
+        assert cantidad_cero.status_code == 400
+        assert "mayor a cero" in cantidad_cero.json()["detail"]
+
+        pid = self._crear_producto(
+            client,
+            auth_headers,
+            "PACK-OK",
+            caja_ingrediente_id=caja_id,
+            caja_cantidad="1",
+        )
+        assert pid
+        borrar = client.delete(f"/api/v1/inventario/ingredientes/{caja_id}", headers=auth_headers)
+        assert borrar.status_code == 400
+        assert "caja/empaque" in borrar.json()["detail"]
+
+    def test_alertas_empaques(self, client, auth_headers):
+        caja_id = self._crear_caja(client, auth_headers, "Caja mediana alerta", stock=1, minimo=3)
+        pid = self._crear_producto(
+            client,
+            auth_headers,
+            "PACK-ALERTA",
+            caja_ingrediente_id=caja_id,
+            caja_cantidad="1",
+        )
+        assert pid
+
+        empaques = client.get("/api/v1/inventario/alertas/empaques", headers=auth_headers)
+        assert empaques.status_code == 200
+        alerta = [item for item in empaques.json() if item["id"] == caja_id][0]
+        assert alerta["tipo"] == "empaque"
+        assert alerta["severidad"] == "bajo"
+        assert alerta["productos"][0]["nombre"] == "Producto PACK-ALERTA"
+
+        stock_bajo = client.get("/api/v1/inventario/alertas/stock-bajo", headers=auth_headers)
+        assert stock_bajo.status_code == 200
+        assert any(item["id"] == caja_id and item["tipo"] == "empaque" for item in stock_bajo.json())
 
     def test_cancelar_venta_revierte_puntos_y_audita(self, client, auth_headers, db):
         from app.models.auditoria import LogAuditoria
@@ -720,7 +807,9 @@ class TestVentas:
 class TestInventarioMovimientos:
     """Tests para movimientos de inventario."""
 
-    def test_entrada_compra(self, client, auth_headers):
+    def test_entrada_compra(self, client, auth_headers, db):
+        from app.models.auditoria import LogAuditoria
+
         # Create ingredient
         resp = client.post("/api/v1/inventario/ingredientes", json={
             "nombre": "Harina",
@@ -741,8 +830,15 @@ class TestInventarioMovimientos:
         # Verify stock
         ing = client.get(f"/api/v1/inventario/ingredientes/{ing_id}", headers=auth_headers).json()
         assert float(ing["stock_actual"]) == 25.0
+        evento = db.query(LogAuditoria).filter(
+            LogAuditoria.modulo == "inventario",
+            LogAuditoria.accion == "entrada_compra",
+        ).first()
+        assert evento is not None
 
-    def test_merma_producto(self, client, auth_headers):
+    def test_merma_producto(self, client, auth_headers, db):
+        from app.models.auditoria import LogAuditoria
+
         resp = client.post("/api/v1/inventario/productos", json={
             "codigo": "MERMA-001",
             "nombre": "Pan para merma",
@@ -765,6 +861,11 @@ class TestInventarioMovimientos:
         # Verify stock decreased
         prod = client.get(f"/api/v1/inventario/productos/{pid}", headers=auth_headers).json()
         assert float(prod["stock_actual"]) == 17.0
+        evento = db.query(LogAuditoria).filter(
+            LogAuditoria.modulo == "inventario",
+            LogAuditoria.accion == "salida_merma",
+        ).first()
+        assert evento is not None
 
     def test_merma_no_permite_stock_negativo(self, client, auth_headers):
         resp = client.post("/api/v1/inventario/productos", json={
@@ -787,7 +888,9 @@ class TestInventarioMovimientos:
         prod = client.get(f"/api/v1/inventario/productos/{pid}", headers=auth_headers).json()
         assert float(prod["stock_actual"]) == 2.0
 
-    def test_ajuste_stock_rechaza_negativo_y_registra_movimiento(self, client, auth_headers):
+    def test_ajuste_stock_rechaza_negativo_y_registra_movimiento(self, client, auth_headers, db):
+        from app.models.auditoria import LogAuditoria
+
         resp = client.post("/api/v1/inventario/productos", json={
             "codigo": "AJUSTE-001",
             "nombre": "Pan ajuste",
@@ -812,6 +915,11 @@ class TestInventarioMovimientos:
             headers=auth_headers,
         ).json()
         assert movimientos[0]["tipo"] == "entrada_ajuste"
+        evento = db.query(LogAuditoria).filter(
+            LogAuditoria.modulo == "inventario",
+            LogAuditoria.accion == "entrada_ajuste",
+        ).first()
+        assert evento is not None
 
     def test_movimientos_listado(self, client, auth_headers):
         resp = client.post("/api/v1/inventario/ingredientes", json={

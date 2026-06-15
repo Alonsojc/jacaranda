@@ -181,7 +181,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .tbl tr:hover td{background:#fdf9f7}
 .tbl th.actions-th,.tbl td.actions-cell{width:330px}
 .action-buttons{display:flex;gap:.35rem;align-items:center;justify-content:center;flex-wrap:wrap}
-.action-btn{min-height:44px;min-width:44px;padding:.5rem .66rem;border:1px solid var(--brd);border-radius:9px;background:#fff;color:var(--txt);font:600 .76rem 'Inter',sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:.28rem;cursor:pointer;text-decoration:none;line-height:1.1;transition:background .15s,border-color .15s,transform .1s,box-shadow .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.action-btn{min-height:46px;min-width:46px;padding:.54rem .7rem;border:1px solid var(--brd);border-radius:9px;background:#fff;color:var(--txt);font:600 .76rem 'Inter',sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:.28rem;cursor:pointer;text-decoration:none;line-height:1.1;transition:background .15s,border-color .15s,transform .1s,box-shadow .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .action-btn:hover{background:#faf3f0;border-color:var(--v);color:var(--v)}
 .action-btn:active{transform:scale(.97)}
 .action-btn:focus{outline:none;box-shadow:0 0 0 3px rgba(196,152,138,.2)}
@@ -209,7 +209,15 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .batch-bake-input:focus{outline:none;border-color:var(--v);box-shadow:0 0 0 3px rgba(196,152,138,.15)}
 .batch-bake-total{display:flex;justify-content:space-between;align-items:center;gap:.8rem;margin-top:.8rem;padding:.7rem .8rem;border-radius:10px;background:#faf3f0;font-size:.86rem}
 .batch-bake-total strong{color:var(--v);font-size:1rem}
+.pack-alerts{display:none;margin-bottom:1rem;border-left:4px solid #f59e0b}
+.pack-alerts.on{display:block}
+.pack-alert-row{display:flex;justify-content:space-between;align-items:center;gap:.75rem;padding:.55rem 0;border-bottom:1px solid #f0e8e5;font-size:.84rem}
+.pack-alert-row:last-child{border-bottom:none}
+.pack-alert-name{font-weight:800;color:var(--dk)}
+.pack-alert-meta{color:var(--mut);font-size:.76rem;margin-top:.12rem}
+.pack-alert-stock{font-weight:900;color:#b91c1c;white-space:nowrap;text-align:right}
 @media(max-width:900px){.tbl th.actions-th,.tbl td.actions-cell{width:390px}.product-actions-table th.actions-th,.product-actions-table td.actions-cell{width:470px}.action-btn{padding:.55rem .7rem;font-size:.78rem}.product-actions-table .action-btn{padding:.46rem .55rem;font-size:.74rem}.action-icon{font-size:1rem}}
+@media(pointer:coarse){.action-btn{min-height:50px;min-width:50px;padding:.62rem .78rem}.action-buttons{gap:.45rem}.product-actions-table .action-btn{padding:.56rem .66rem}}
 /* Pedidos */
 .ped{background:#fff;border-radius:12px;padding:1rem;border:1px solid var(--brd);margin-bottom:.7rem;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .ped:hover{box-shadow:0 4px 12px rgba(196,152,138,.12);border-color:#e2cec8}
@@ -549,7 +557,7 @@ h2{font-size:1.1rem}
 </div>
 
 <!-- AI hero card -->
-<div class="ai-hero" id="d-ai-card" data-module="prod">
+<div class="ai-hero" id="d-ai-card" style="display:none">
   <div class="ah-head">
     <div class="ah-title">&#129302; Producir hoy <span class="ah-tag">IA</span></div>
     <div class="ah-total" id="d-ai-total">Cargando sugerencia...</div>
@@ -792,6 +800,7 @@ h2{font-size:1.1rem}
 <span class="tab" onclick="invTab('hornear')">Hornear</span>
 <span class="tab" onclick="invTab('conteo')">Conteo nocturno</span>
 </div>
+<div id="inv-empaque-alertas" class="card pack-alerts"></div>
 
 <div id="inv-productos">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;gap:.4rem">
@@ -2180,7 +2189,7 @@ h2{font-size:1.1rem}
 <h3>Nuevo Producto</h3>
 <div class="frow">
 <div class="fg"><label>C&oacute;digo</label><input id="mnp-codigo" placeholder="IN-007"></div>
-<div class="fg"><label>Nombre</label><input id="mnp-nombre" placeholder="Galletas de chocolate"></div>
+<div class="fg"><label>Nombre</label><input id="mnp-nombre" placeholder="Galletas de chocolate" oninput="sugerirCajaParaProducto('mnp')"></div>
 </div>
 <div class="frow">
 <div class="fg"><label>Precio venta</label><input type="number" id="mnp-precio" step="0.01" placeholder="100"></div>
@@ -2210,7 +2219,7 @@ h2{font-size:1.1rem}
 <h3>Nuevo Ingrediente</h3>
 <div class="frow">
 <div class="fg"><label>Nombre</label><input id="mni-nombre" placeholder="Vainilla"></div>
-<div class="fg"><label>Unidad</label><select id="mni-unidad"><option value="kg">kg</option><option value="g">g</option><option value="l">litro</option><option value="ml">ml</option><option value="pz">pieza</option></select></div>
+<div class="fg"><label>Unidad</label><select id="mni-unidad"><option value="kg">kg</option><option value="g">g</option><option value="l">litro</option><option value="ml">ml</option><option value="pz">pieza</option><option value="caja">caja</option><option value="bolsa">bolsa</option></select></div>
 </div>
 <div class="frow">
 <div class="fg"><label>Costo unitario ($)</label><input type="number" id="mni-costo" step="0.01" placeholder="50"></div>
@@ -2276,7 +2285,7 @@ h2{font-size:1.1rem}
 <span id="mep-img-status" style="font-size:.7rem;color:var(--mut)"></span>
 </div>
 <div class="frow">
-<div class="fg"><label>Nombre</label><input id="mep-nombre"></div>
+<div class="fg"><label>Nombre</label><input id="mep-nombre" oninput="sugerirCajaParaProducto('mep')"></div>
 <div class="fg"><label>C&oacute;digo</label><input id="mep-codigo" disabled style="background:#f5eeeb"></div>
 </div>
 <div class="frow">
@@ -6565,6 +6574,7 @@ function registrarCompra() {
   .then(function(r) {
     toast(r.mensaje + ' - Stock: ' + r.stock_actual);
     cargarIngredientes();
+    cargarAlertasEmpaques();
     document.getElementById('compra-cant').value = '';
     document.getElementById('compra-costo').value = '';
     document.getElementById('compra-prov').value = '';
@@ -6801,6 +6811,7 @@ function registrarTodoOCR() {
           document.getElementById('ocr-status').textContent = '';
           _ocrItems = [];
           cargarIngredientes();
+          cargarAlertasEmpaques();
         }
       })
       .catch(function() {
@@ -6822,6 +6833,7 @@ function hornear() {
     toast(r.mensaje + ' - ' + r.piezas_producidas + ' pzas, stock: ' + r.stock_producto);
     cargarProductos();
     cargarIngredientes();
+    cargarAlertasEmpaques();
   })
   .catch(function(e) {
     toast('Error al hornear. Verifica ingredientes disponibles.', true);
@@ -6920,6 +6932,7 @@ async function hornearMasivo() {
     limpiarHorneadoMasivo();
     cargarProductos();
     cargarIngredientes();
+    cargarAlertasEmpaques();
     cargarPOSProductos();
   })
   .catch(function(e) {
@@ -7172,15 +7185,51 @@ function nombreCajaProducto(p) {
   return 'Insumo #' + p.caja_ingrediente_id;
 }
 
+function esIngredienteEmpaque(ing) {
+  if (!ing || !ing.activo) return false;
+  var unidad = String(ing.unidad_medida || '').toLowerCase();
+  return unidad === 'caja' || unidad === 'bolsa' || unidad === 'pz';
+}
+
 function opcionesCajaProducto(selectedId) {
   selectedId = selectedId ? String(selectedId) : '';
   var h = '<option value="">Sin caja asignada</option>';
   for (var i = 0; i < _allIngs.length; i++) {
     var ing = _allIngs[i];
+    if (!esIngredienteEmpaque(ing) && String(ing.id) !== selectedId) continue;
     var selected = String(ing.id) === selectedId ? ' selected' : '';
     h += '<option value="' + ing.id + '"' + selected + '>' + escHtml(ing.nombre) + ' (' + escHtml(ing.unidad_medida) + ')</option>';
   }
   return h;
+}
+
+function tamanoCajaPorNombre(nombre) {
+  var n = String(nombre || '').toLowerCase();
+  if (/(grande|gde|large)/.test(n)) return 'grande';
+  if (/(mediano|mediana|med|medium)/.test(n)) return 'mediana';
+  if (/(chico|chica|peq|peque)/.test(n)) return 'chica';
+  return '';
+}
+
+function sugerirCajaParaProducto(prefix) {
+  var nombreEl = document.getElementById(prefix + '-nombre');
+  var cajaEl = document.getElementById(prefix + '-caja');
+  var cantidadEl = document.getElementById(prefix + '-caja-cant');
+  if (!nombreEl || !cajaEl || cajaEl.value) return;
+  var tamano = tamanoCajaPorNombre(nombreEl.value);
+  if (!tamano) return;
+  for (var i = 0; i < _allIngs.length; i++) {
+    var ing = _allIngs[i];
+    if (!esIngredienteEmpaque(ing)) continue;
+    var nombre = String(ing.nombre || '').toLowerCase();
+    if (nombre.indexOf('caja') >= 0 && nombre.indexOf(tamano) >= 0) {
+      cajaEl.value = ing.id;
+      if (cantidadEl && (!parseFloat(cantidadEl.value) || parseFloat(cantidadEl.value) <= 0)) {
+        cantidadEl.value = '1';
+      }
+      return;
+    }
+  }
 }
 
 function llenarOpcionesCajaProducto(selectedEdit, selectedNew) {
@@ -7188,6 +7237,8 @@ function llenarOpcionesCajaProducto(selectedEdit, selectedNew) {
   if (edit) edit.innerHTML = opcionesCajaProducto(selectedEdit);
   var nuevo = document.getElementById('mnp-caja');
   if (nuevo) nuevo.innerHTML = opcionesCajaProducto(selectedNew);
+  sugerirCajaParaProducto('mnp');
+  sugerirCajaParaProducto('mep');
 }
 
 function cargarIngredientesParaCajas(selectedEdit, selectedNew) {
@@ -7208,7 +7259,38 @@ function payloadCajaProducto(prefix) {
   var cajaId = cajaEl && cajaEl.value ? parseInt(cajaEl.value, 10) : null;
   var cantidad = cantidadEl ? parseFloat(cantidadEl.value) : 1;
   if (!cajaId) return { caja_ingrediente_id: null, caja_cantidad: 0 };
-  return { caja_ingrediente_id: cajaId, caja_cantidad: cantidad > 0 ? cantidad : 1 };
+  return { caja_ingrediente_id: cajaId, caja_cantidad: cantidad };
+}
+
+function cajaProductoValida(payload) {
+  return !payload.caja_ingrediente_id || (isFinite(payload.caja_cantidad) && payload.caja_cantidad > 0);
+}
+
+function cargarAlertasEmpaques() {
+  var box = document.getElementById('inv-empaque-alertas');
+  if (!box) return;
+  api('GET', '/inventario/alertas/empaques').then(function(items) {
+    items = items || [];
+    if (!items.length) {
+      box.classList.remove('on');
+      box.innerHTML = '';
+      return;
+    }
+    var h = '<h3 style="margin-bottom:.35rem">Cajas y empaques por reponer</h3>';
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      var productos = (it.productos || []).map(function(p) { return p.nombre; }).join(', ');
+      h += '<div class="pack-alert-row">';
+      h += '<div><div class="pack-alert-name">' + escHtml(it.nombre) + '</div>';
+      h += '<div class="pack-alert-meta">' + escHtml(productos || 'Sin productos ligados') + '</div></div>';
+      h += '<div class="pack-alert-stock">' + fmt(it.stock_actual) + ' / min ' + fmt(it.stock_minimo) + '</div>';
+      h += '</div>';
+    }
+    box.innerHTML = h;
+    box.classList.add('on');
+  }).catch(function() {
+    box.classList.remove('on');
+  });
 }
 
 function cargarProductos() {
@@ -7216,9 +7298,13 @@ function cargarProductos() {
     _invProds = prods;
     _invProdPage = 0;
     renderInvProductos();
+    cargarAlertasEmpaques();
     if (!_allIngs.length && !_cajasProductoFetchIntentado && prods.some(function(p) { return p.caja_ingrediente_id; })) {
       _cajasProductoFetchIntentado = true;
-      cargarIngredientesParaCajas().then(renderInvProductos).catch(function() {});
+      cargarIngredientesParaCajas().then(function() {
+        renderInvProductos();
+        cargarAlertasEmpaques();
+      }).catch(function() {});
     }
   }).catch(function() {
     document.getElementById('tbl-productos').innerHTML = '<p style="color:var(--mut);padding:.5rem">Error al cargar productos</p>';
@@ -7427,6 +7513,7 @@ function cargarInventarioCompleto() {
   cargarProductos();
   cargarIngredientes();
   cargarRecetas();
+  cargarAlertasEmpaques();
 }
 
 // ─── Edit modals ─────────────────────────────────────────────────
@@ -7638,6 +7725,10 @@ function guardarProducto() {
   var id = document.getElementById('mep-id').value;
   var precioCafeRaw = document.getElementById('mep-precio-caf').value;
   var cajaPayload = payloadCajaProducto('mep');
+  if (!cajaProductoValida(cajaPayload)) {
+    toast('Indica cajas/empaques por pieza mayor a cero', true);
+    return;
+  }
   var data = {
     nombre: document.getElementById('mep-nombre').value,
     precio_unitario: parseFloat(document.getElementById('mep-precio').value),
@@ -8112,6 +8203,10 @@ function crearProducto() {
   var precio = parseFloat(document.getElementById('mnp-precio').value);
   if (!codigo || !nombre || !precio) { toast('Llena código, nombre y precio', true); return; }
   var cajaPayload = payloadCajaProducto('mnp');
+  if (!cajaProductoValida(cajaPayload)) {
+    toast('Indica cajas/empaques por pieza mayor a cero', true);
+    return;
+  }
   var data = {
     codigo: codigo,
     nombre: nombre,
@@ -8131,7 +8226,7 @@ function crearProducto() {
     cargarProductos();
     cargarPOSProductos();
     cargarCafeteriaProductos();
-  }).catch(function() { toast('Error al crear producto', true); });
+  }).catch(function(e) { toast(e.message || 'Error al crear producto', true); });
 }
 
 function nuevoIngrediente() {
@@ -8156,6 +8251,7 @@ function crearIngrediente() {
     cerrarModal('modal-new-ing');
     cargarListaIngredientes();
     cargarIngredientes();
+    cargarAlertasEmpaques();
   }).catch(function() { toast('Error al crear ingrediente', true); });
 }
 
@@ -9471,8 +9567,7 @@ function cargarDashboard() {
 
   deferDashboard(cargarAlertasPracticas, 1400);
 
-  // Pron&oacute;stico de producci&oacute;n (IA) → tarjeta hero
-  deferDashboard(cargarPronosticoHero, 350);
+  // La predicci&oacute;n operativa vive en la pantalla Predicci&oacute;n; se evita duplicar Pron&oacute;stico aqu&iacute;.
 }
 
 function dashAction(label, targetFn) {
