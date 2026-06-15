@@ -3,15 +3,30 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.cafeteria import EstadoCuentaCafeteria
 from app.models.venta import MetodoPago, TerminalPago
 
 
+def _cantidad_entera(v) -> int:
+    try:
+        cantidad = Decimal(str(v))
+    except Exception as exc:
+        raise ValueError("La cantidad debe ser un entero") from exc
+    if cantidad != cantidad.to_integral_value():
+        raise ValueError("La cantidad debe ser un entero")
+    return int(cantidad)
+
+
 class DetalleCafeteriaCreate(BaseModel):
     producto_id: int = Field(..., gt=0)
-    cantidad: Decimal = Field(..., gt=0)
+    cantidad: int = Field(..., gt=0)
+
+    @field_validator("cantidad", mode="before")
+    @classmethod
+    def validar_cantidad_entera(cls, v) -> int:
+        return _cantidad_entera(v)
 
 
 class CafeteriaVentaCreate(BaseModel):

@@ -124,16 +124,16 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .pi-stk-low{background:#fef3c7;color:#92400e}
 .pi-stk-out{background:#fee2e2;color:#b91c1c}
 .pi-multi{font-size:.6rem;color:var(--mut);font-style:italic}
-.pi.pi-out{opacity:.72}
+.pi.pi-out{opacity:.9}
 .pi-action{margin-top:.35rem;min-height:34px;padding:.42rem .8rem;border:none;border-radius:9px;background:linear-gradient(135deg,#c4988a,#b8877a);color:#fff;font-weight:700;font-size:.75rem;cursor:pointer;box-shadow:0 2px 8px rgba(196,152,138,.2)}
 .pi-action.secondary{background:#f5eeeb;color:var(--v);box-shadow:none}
 .pi-action:active{transform:scale(.97)}
 .tkt{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd)}
 .tkt h3{font-size:.9rem;margin-bottom:.6rem}
 .ti{display:flex;justify-content:space-between;font-size:.82rem;padding:.35rem 0;border-bottom:1px solid #f0e8e5}
-.qty-btn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:#f5eeeb;color:var(--v);font-weight:700;font-size:.8rem;cursor:pointer;user-select:none;transition:all .15s;border:none;line-height:1}
+.qty-btn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:9px;background:#f5eeeb;color:var(--v);font-weight:700;font-size:.95rem;cursor:pointer;user-select:none;transition:all .15s;border:none;line-height:1;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .qty-btn:hover{background:#ede3df}.qty-btn:active{transform:scale(.9)}
-.qty-btn.rm{background:#fee2e2;color:#b91c1c;font-size:.7rem}.qty-btn.rm:hover{background:#fecaca}
+.qty-btn.rm{background:#fee2e2;color:#b91c1c;font-size:.9rem}.qty-btn.rm:hover{background:#fecaca}
 .ttot{display:flex;justify-content:space-between;font-size:1.1rem;font-weight:700;color:var(--v);padding:.5rem 0;border-top:2px solid var(--v);margin-top:.4rem}
 .pmt{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.7rem}
 .pbtn{padding:.7rem;border:2px solid var(--brd);border-radius:10px;background:#fff;cursor:pointer;text-align:center;font-weight:600;font-size:.82rem;transition:all .2s;user-select:none}
@@ -164,12 +164,12 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .caf-account h3{font-size:1rem;margin-bottom:.7rem}
 .caf-ticket-empty{color:var(--mut);font-size:.83rem;margin:.4rem 0;padding:.75rem;border:1px dashed var(--brd);border-radius:10px;text-align:center;background:#fdf9f7}
 .caf-ticket-list{display:flex;flex-direction:column;gap:.45rem;margin-bottom:.75rem}
-.caf-ticket-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.55rem;align-items:center;padding:.55rem .6rem;border:1px solid #f0e8e5;border-radius:10px;background:#fdf9f7}
-.caf-ticket-qty{display:flex;align-items:center;gap:.25rem}
-.caf-ticket-qty b{min-width:1.35rem;text-align:center;color:var(--dk);font-size:.9rem}
-.caf-ticket-name{min-width:0;font-weight:700;color:var(--dk);font-size:.83rem;line-height:1.2;word-break:break-word}
-.caf-ticket-right{display:flex;align-items:center;gap:.35rem;justify-content:flex-end}
-.caf-ticket-price{font-weight:800;color:var(--v);white-space:nowrap;font-size:.86rem}
+.caf-ticket-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.7rem;align-items:center;padding:.65rem .7rem;border:1px solid #f0e8e5;border-radius:10px;background:#fdf9f7}
+.caf-ticket-qty{display:flex;align-items:center;gap:.3rem}
+.caf-ticket-qty b{min-width:1.45rem;text-align:center;color:var(--dk);font-size:.95rem}
+.caf-ticket-name{min-width:0;font-weight:700;color:var(--dk);font-size:.88rem;line-height:1.22;word-break:break-word}
+.caf-ticket-right{display:flex;align-items:center;gap:.45rem;justify-content:flex-end}
+.caf-ticket-price{font-weight:800;color:var(--v);white-space:nowrap;font-size:.9rem}
 /* Tabla */
 .card table th,.card table td{text-align:center;vertical-align:middle}
 .tbl{width:100%;border-collapse:collapse;font-size:.82rem;table-layout:fixed;word-break:break-word}
@@ -244,9 +244,15 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .confirm-message{color:var(--dk);font-weight:700;font-size:.98rem;line-height:1.35;margin:.1rem 0 .5rem}
 .confirm-detail{color:var(--mut);font-size:.84rem;line-height:1.45;margin:0 auto 1rem;max-width:310px}
 .confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:1rem}
+.confirm-actions.single{grid-template-columns:1fr}
 .confirm-actions .cobrar,.confirm-actions .limpiar{margin:0;min-height:44px}
 .confirm-actions .confirm-danger{background:linear-gradient(135deg,#ef4444,#b91c1c);box-shadow:0 3px 10px rgba(239,68,68,.24)}
 .confirm-actions .confirm-danger:hover{box-shadow:0 5px 18px rgba(239,68,68,.28)}
+.input-modal{text-align:left;max-width:430px}
+.input-modal h3{text-align:center}
+.input-modal .confirm-message{text-align:left;max-width:none}
+.prompt-input{width:100%;padding:.78rem;border:1px solid var(--brd);border-radius:10px;font-size:1rem;margin-top:.35rem}
+.prompt-input:focus{outline:none;border-color:var(--v);box-shadow:0 0 0 3px rgba(196,152,138,.18)}
 /* Toast notification */
 .toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);background:#c4988a;color:#fff;padding:.8rem 1.5rem;border-radius:12px;font-weight:600;font-size:.9rem;box-shadow:0 8px 25px rgba(196,152,138,.35);z-index:200;transition:transform .3s ease-out;display:flex;align-items:center;gap:.5rem}
 .toast.show{transform:translateX(-50%) translateY(0)}
@@ -1861,6 +1867,22 @@ h2{font-size:1.1rem}
 </div>
 </div>
 
+<!-- MODAL: Entrada -->
+<div class="modal-bg" id="modal-entrada">
+<div class="modal confirm-modal input-modal" id="entrada-modal-box">
+<div class="confirm-icon" id="entrada-icon">i</div>
+<h3 id="entrada-title">Ingresar dato</h3>
+<p class="confirm-message" id="entrada-message"></p>
+<p class="confirm-detail" id="entrada-detail"></p>
+<label id="entrada-label" style="display:block;font-size:.82rem;font-weight:700;color:var(--mut);margin-top:.7rem"></label>
+<input class="prompt-input" id="entrada-input" autocomplete="off">
+<div class="confirm-actions">
+<button class="limpiar" id="entrada-cancel" onclick="resolverEntrada(false)">Cancelar</button>
+<button class="cobrar" id="entrada-accept" onclick="resolverEntrada(true)">Aceptar</button>
+</div>
+</div>
+</div>
+
 <!-- MODAL: Nueva Orden Producción -->
 <div class="modal-bg" id="modal-orden-prod">
 <div class="modal" style="max-width:420px">
@@ -2407,7 +2429,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v74';
+var APP_BUILD = 'jacaranda-v76';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -3429,7 +3451,7 @@ function ren() {
     h += '<div class="ti" style="align-items:center">';
     h += '<span style="display:flex;align-items:center;gap:.4rem">';
     h += '<span class="qty-btn" onclick="cartQty(' + i + ',-1)">-</span>';
-    h += '<strong>' + c.q + '</strong>';
+    h += '<strong>' + fmtQty(c.q) + '</strong>';
     h += '<span class="qty-btn" onclick="cartQty(' + i + ',1)">+</span>';
     h += ' ' + c.n;
     if (d > 0) h += ' <span style="font-size:.65rem;color:#b91c1c">-$' + fmt(d) + '</span>';
@@ -3486,7 +3508,12 @@ function mdAplicar() {
   ren();
 }
 
-function cartQty(i, d) { cart[i].q += d; if (cart[i].q < 1) cart.splice(i, 1); ren(); }
+function cartQty(i, d) {
+  if (!cart[i]) return;
+  cart[i].q = Math.max(0, (parseInt(cart[i].q, 10) || 0) + d);
+  if (cart[i].q < 1) cart.splice(i, 1);
+  ren();
+}
 function cartRm(i) { cart.splice(i, 1); ren(); }
 
 function setPm(m) {
@@ -3879,7 +3906,7 @@ function procesarVenta() {
 
   var total = _cartTotal();
   var detalles = cart.map(function(c) {
-    return {producto_id: c.id, cantidad: c.q, descuento: c.desc || 0};
+    return {producto_id: c.id, cantidad: Math.max(1, parseInt(c.q, 10) || 1), descuento: c.desc || 0};
   });
   var body = {detalles: detalles, forma_pago: 'PUE', idempotency_key: _ventaIdempotencyKey};
   var clienteId = document.getElementById('pos-cliente').value;
@@ -4385,18 +4412,18 @@ function renderPOSFromData(prods) {
       var clickAttr;
       if (single) {
         var p = items[0], iv = p.tasa_iva === '0.16' ? 0.16 : 0;
-        clickAttr = 'onclick="add(' + p.id + ',\'' + p.nombre.replace(/'/g,"\\'") + '\',' + (parseFloat(p.precio_unitario)||0) + ',' + iv + ')"';
+        clickAttr = 'onclick="add(' + p.id + ',' + jsArg(p.nombre) + ',' + (parseFloat(p.precio_unitario)||0) + ',' + iv + ')"';
       } else {
-        clickAttr = 'onclick="abrirVariantes(\'' + orden[gi].replace(/'/g,"\\'") + '\')"';
+        clickAttr = 'onclick="abrirVariantes(' + jsArg(orden[gi]) + ')"';
       }
-      h += '<div class="pi' + (allOut ? ' pi-out' : '') + '" ' + clickAttr + '>';
+      h += '<div class="pi' + (allOut ? ' pi-out' : '') + '" role="button" tabindex="0" title="' + (single ? 'Agregar producto' : 'Elegir presentación') + '" ' + clickAttr + '>';
       if (g.imagen) {
         h += '<img class="pi-img" src="' + g.imagen + '">';
       } else {
         h += '<div class="pi-noimg">\uD83C\uDF5E</div>';
       }
       h += '<div class="pi-body">';
-      h += '<span class="pn">' + g.nombre + '</span>';
+      h += '<span class="pn">' + escHtml(g.nombre) + '</span>';
       if (!single) {
         h += '<span class="pi-var">' + items.length + ' presentaciones</span>';
         h += '<span class="pp">$' + fmt(pMin) + (pMin !== pMax ? ' - $' + fmt(pMax) : '') + '</span>';
@@ -4454,8 +4481,8 @@ function abrirVariantes(key) {
       + (agotado ? ';opacity:.72' : '') + '" '
       + 'onmouseover="this.style.borderColor=\'var(--v)\';this.style.background=\'#faf3f0\'" '
       + 'onmouseout="this.style.borderColor=\'\';this.style.background=\'\'" '
-      + 'onclick="add(' + p.id + ',\'' + p.nombre.replace(/'/g,"\\'") + '\',' + precio + ',' + iv + ');cerrarModal(\'modal-variante\')">';
-    h += '<div><strong style="font-size:.9rem">' + label + '</strong>';
+      + 'onclick="add(' + p.id + ',' + jsArg(p.nombre) + ',' + precio + ',' + iv + ');cerrarModal(\'modal-variante\')">';
+    h += '<div><strong style="font-size:.9rem">' + escHtml(label) + '</strong>';
     h += '<span style="margin-left:.5rem;color:var(--v);font-weight:700;font-size:.95rem">$' + fmt(precio) + '</span></div>';
     h += '<span class="pi-stock-chip ' + stkCls + '">' + stkTxt + '</span>';
     h += '</div>';
@@ -4600,7 +4627,7 @@ function abrirVariantesCafeteria(key) {
       + 'onclick="cafAddProducto(' + p.id + ');cerrarModal(\'modal-variante\')">';
     h += '<div><strong style="font-size:.9rem">' + escHtml(label) + '</strong>';
     h += '<span style="margin-left:.5rem;color:var(--v);font-weight:700;font-size:.95rem">$' + fmt(precio) + '</span></div>';
-    h += '<span class="pi-stock-chip ' + stkCls + '">' + stkTxt + (agotado ? ' - agregar igual' : '') + '</span>';
+    h += '<span class="pi-stock-chip ' + stkCls + '">' + stkTxt + '</span>';
     h += '</div>';
   }
   document.getElementById('mv-options').innerHTML = h;
@@ -4619,14 +4646,14 @@ function cafAddProducto(id) {
 
 function cafAdd(id, n, p, iv) {
   var it = cafCart.find(function(x) { return x.id === id; });
-  if (it) it.q += 1;
+  if (it) it.q = Math.max(1, parseInt(it.q, 10) || 1) + 1;
   else cafCart.push({id:id, n:n, p:p, iv:iv, q:1});
   cafRen();
 }
 
 function cafQty(i, d) {
   if (!cafCart[i]) return;
-  cafCart[i].q += d;
+  cafCart[i].q = Math.max(0, (parseInt(cafCart[i].q, 10) || 0) + d);
   if (cafCart[i].q <= 0) cafCart.splice(i, 1);
   cafRen();
 }
@@ -4816,11 +4843,21 @@ function renderCafeteriaVentas(items) {
   el.innerHTML = h;
 }
 
-function pagarCafeteria(id) {
+async function pagarCafeteria(id) {
   var venta = _cafVentas.find(function(v) { return v.id === id; });
   if (!venta) return;
   var saldo = parseFloat(venta.saldo_pendiente) || 0;
-  var txt = prompt('Monto a registrar como pagado', fmt(saldo));
+  var txt = await solicitarEntrada({
+    title: 'Registrar pago',
+    message: venta.folio + ' · ' + venta.cafeteria_nombre,
+    detail: 'Saldo pendiente: $' + fmt(saldo),
+    label: 'Monto pagado',
+    value: fmt(saldo),
+    type: 'number',
+    min: '0.01',
+    step: '0.01',
+    acceptText: 'Registrar pago'
+  });
   if (txt === null) return;
   var monto = parseFloat(String(txt).replace(/,/g, ''));
   if (!monto || monto <= 0) { toast('Monto inválido', true); return; }
@@ -6700,7 +6737,12 @@ function guardarConteo() {
     var difs = r.resultados.filter(function(x) { return x.diferencia !== 0; });
     if (difs.length) {
       var msg = 'Diferencias: ' + difs.map(function(d) { return d.producto + ' (' + (d.diferencia > 0 ? '+' : '') + d.diferencia + ')'; }).join(', ');
-      alert(msg);
+      mostrarAviso({
+        title: 'Diferencias de conteo',
+        message: 'Conteo guardado con diferencias.',
+        detail: msg,
+        icon: '!'
+      });
     }
     cargarProductos();
     cargarPOSProductos();
@@ -6843,7 +6885,12 @@ function subirFotosMasivo() {
       if (data.resultados) {
         var noMatch = data.resultados.filter(function(r) { return !r.ok; });
         if (noMatch.length) {
-          alert('Sin coincidencia:\n' + noMatch.map(function(r) { return r.archivo; }).join('\n'));
+          mostrarAviso({
+            title: 'Fotos sin coincidencia',
+            message: 'Estas fotos no coincidieron con productos.',
+            detail: noMatch.map(function(r) { return r.archivo; }).join('\n'),
+            icon: '!'
+          });
         }
       }
       cargarPOSProductos();
@@ -6857,13 +6904,18 @@ function subirFotosMasivo() {
 function verHistorialPrecio(productoId, nombre) {
   api('GET', '/inventario/productos/' + productoId + '/historial-precios').then(function(hist) {
     if (!hist.length) { toast('Sin cambios de precio registrados'); return; }
-    var msg = 'Historial de precios: ' + nombre + '\n\n';
+    var msg = '';
     for (var i = 0; i < hist.length; i++) {
       var h = hist[i];
       var fecha = h.fecha ? new Date(h.fecha).toLocaleDateString('es-MX') : '';
       msg += fecha + ': $' + h.precio_anterior + ' \u2192 $' + h.precio_nuevo + '\n';
     }
-    alert(msg);
+    mostrarAviso({
+      title: 'Historial de precios',
+      message: nombre,
+      detail: msg,
+      icon: '$'
+    });
   }).catch(function() { toast('Error al cargar historial', true); });
 }
 
@@ -7165,6 +7217,7 @@ function confirmarAccion(opts) {
     var detail = document.getElementById('confirm-detail');
     var cancel = document.getElementById('confirm-cancel');
     var accept = document.getElementById('confirm-accept');
+    var actions = cancel ? cancel.parentElement : null;
     if (box) box.className = 'modal confirm-modal' + (opts.tone === 'danger' ? ' danger' : '');
     if (icon) icon.textContent = opts.icon || (opts.tone === 'danger' ? '!' : '?');
     if (title) title.textContent = opts.title || 'Confirmar acci\u00f3n';
@@ -7173,7 +7226,11 @@ function confirmarAccion(opts) {
       detail.textContent = opts.detail || '';
       detail.style.display = opts.detail ? 'block' : 'none';
     }
-    if (cancel) cancel.textContent = opts.cancelText || 'Cancelar';
+    if (actions) actions.className = 'confirm-actions' + (opts.hideCancel ? ' single' : '');
+    if (cancel) {
+      cancel.textContent = opts.cancelText || 'Cancelar';
+      cancel.style.display = opts.hideCancel ? 'none' : '';
+    }
     if (accept) {
       accept.textContent = opts.acceptText || 'Aceptar';
       accept.className = 'cobrar' + (opts.tone === 'danger' ? ' confirm-danger' : '');
@@ -7184,8 +7241,84 @@ function confirmarAccion(opts) {
   });
 }
 
+function mostrarAviso(opts) {
+  opts = opts || {};
+  return confirmarAccion({
+    title: opts.title || 'Aviso',
+    message: opts.message || '',
+    detail: opts.detail || '',
+    icon: opts.icon || 'i',
+    acceptText: opts.acceptText || 'Entendido',
+    hideCancel: true
+  });
+}
+
+var _entradaResolver = null;
+function cerrarEntrada() {
+  var modal = document.getElementById('modal-entrada');
+  if (modal) modal.classList.remove('on');
+}
+function resolverEntrada(ok) {
+  var resolver = _entradaResolver;
+  var input = document.getElementById('entrada-input');
+  _entradaResolver = null;
+  cerrarEntrada();
+  if (resolver) resolver(ok ? (input ? input.value : '') : null);
+}
+function solicitarEntrada(opts) {
+  opts = opts || {};
+  return new Promise(function(resolve) {
+    if (_entradaResolver) resolverEntrada(false);
+    _entradaResolver = resolve;
+    var box = document.getElementById('entrada-modal-box');
+    var icon = document.getElementById('entrada-icon');
+    var title = document.getElementById('entrada-title');
+    var message = document.getElementById('entrada-message');
+    var detail = document.getElementById('entrada-detail');
+    var label = document.getElementById('entrada-label');
+    var input = document.getElementById('entrada-input');
+    var cancel = document.getElementById('entrada-cancel');
+    var accept = document.getElementById('entrada-accept');
+    if (box) box.className = 'modal confirm-modal input-modal' + (opts.tone === 'danger' ? ' danger' : '');
+    if (icon) icon.textContent = opts.icon || 'i';
+    if (title) title.textContent = opts.title || 'Ingresar dato';
+    if (message) message.textContent = opts.message || '';
+    if (detail) {
+      detail.textContent = opts.detail || '';
+      detail.style.display = opts.detail ? 'block' : 'none';
+    }
+    if (label) label.textContent = opts.label || '';
+    if (input) {
+      input.type = opts.type || 'text';
+      input.value = opts.value == null ? '' : String(opts.value);
+      input.placeholder = opts.placeholder || '';
+      input.min = opts.min == null ? '' : String(opts.min);
+      input.max = opts.max == null ? '' : String(opts.max);
+      input.step = opts.step == null ? '' : String(opts.step);
+    }
+    if (cancel) cancel.textContent = opts.cancelText || 'Cancelar';
+    if (accept) {
+      accept.textContent = opts.acceptText || 'Aceptar';
+      accept.className = 'cobrar' + (opts.tone === 'danger' ? ' confirm-danger' : '');
+    }
+    var modal = document.getElementById('modal-entrada');
+    if (modal) modal.classList.add('on');
+    setTimeout(function() { if (input) { input.focus(); input.select(); } }, 60);
+  });
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    var modal = document.getElementById('modal-entrada');
+    if (modal && modal.classList.contains('on')) {
+      e.preventDefault();
+      resolverEntrada(true);
+    }
+  }
+});
+
 function cerrarModal(id) {
   if (id === 'modal-confirmacion') { resolverConfirmacion(false); return; }
+  if (id === 'modal-entrada') { resolverEntrada(false); return; }
   if (id === 'modal-admin-auth') { cancelarAdminAuth(); return; }
   if (id === 'modal-scan-cliente') detenerEscanerCliente();
   document.getElementById(id).classList.remove('on');
@@ -7198,6 +7331,7 @@ document.addEventListener('keydown', function(e) {
       if (m.id === 'modal-admin-auth') cancelarAdminAuth();
       else if (m.id === 'modal-scan-cliente') cerrarModal('modal-scan-cliente');
       else if (m.id === 'modal-confirmacion') resolverConfirmacion(false);
+      else if (m.id === 'modal-entrada') resolverEntrada(false);
       else m.classList.remove('on');
     });
   }
@@ -7207,8 +7341,16 @@ document.addEventListener('click', function(e) {
     if (e.target.id === 'modal-admin-auth') cancelarAdminAuth();
     else if (e.target.id === 'modal-scan-cliente') cerrarModal('modal-scan-cliente');
     else if (e.target.id === 'modal-confirmacion') resolverConfirmacion(false);
+    else if (e.target.id === 'modal-entrada') resolverEntrada(false);
     else e.target.classList.remove('on');
   }
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  var target = e.target && e.target.closest ? e.target.closest('.pi[role="button"]') : null;
+  if (!target) return;
+  e.preventDefault();
+  target.click();
 });
 
 function editarProducto(id) {
@@ -7389,8 +7531,17 @@ async function eliminarIngrediente(id, nombre) {
 // ─── Recipe editing ──────────────────────────────────────────────
 var _recIng = []; // Current recipe ingredients being edited
 
-function crearRecetaRapida(productoId, nombre) {
-  var rend = prompt('¿Cuántas piezas rinde una tanda de "' + nombre + '"?', '1');
+async function crearRecetaRapida(productoId, nombre) {
+  var rend = await solicitarEntrada({
+    title: 'Crear receta rápida',
+    message: nombre,
+    label: 'Piezas por tanda',
+    value: '1',
+    type: 'number',
+    min: '1',
+    step: '1',
+    acceptText: 'Crear receta'
+  });
   if (!rend) return;
   rend = parseInt(rend) || 1;
   api('POST', '/recetas/', {
@@ -11417,8 +11568,15 @@ async function toggleUsuario(id) {
   }).catch(function(e) { toast(e.message || 'Error', true); });
 }
 
-function resetPassword(id, nombre) {
-  var pass = prompt('Nueva contraseña para ' + nombre + ' (mínimo 8 caracteres):');
+async function resetPassword(id, nombre) {
+  var pass = await solicitarEntrada({
+    title: 'Nueva contraseña',
+    message: nombre,
+    detail: 'Mínimo 8 caracteres.',
+    label: 'Contraseña nueva',
+    type: 'password',
+    acceptText: 'Actualizar contraseña'
+  });
   if (!pass) return;
   if (pass.length < 8) { toast('Mínimo 8 caracteres', true); return; }
   api('PUT', '/auth/usuarios/' + id + '/password', {password:pass}).then(function() {
@@ -11644,8 +11802,16 @@ function cargarCalendarioPagos() {
     document.getElementById('c-calendario-tbl').innerHTML = h;
   }).catch(function() { document.getElementById('c-calendario-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
 }
-function pagarCuenta(id) {
-  var monto = prompt('Monto a pagar:');
+async function pagarCuenta(id) {
+  var monto = await solicitarEntrada({
+    title: 'Registrar pago',
+    message: 'Cuenta por pagar',
+    label: 'Monto a pagar',
+    type: 'number',
+    min: '0.01',
+    step: '0.01',
+    acceptText: 'Registrar pago'
+  });
   if (!monto) return;
   api('POST', '/compras/cuentas-pagar/' + id + '/pago', { monto: monto, metodo_pago: 'transferencia', fecha_pago: new Date().toISOString().slice(0,10) }).then(function() { toast('Pago registrado'); cargarCuentasPagar(); }).catch(function(e) { toast(e.message || 'Error', true); });
 }

@@ -94,6 +94,19 @@ def test_cafeteria_usa_precio_especial_y_credito(client, auth_headers):
     assert duplicate.json()["id"] == data["id"]
 
 
+def test_cafeteria_rechaza_cantidad_fraccionaria(client, auth_headers):
+    producto = _crear_producto_cafeteria(client, auth_headers, codigo="CAF-FRAC")
+    resp = client.post(
+        "/api/v1/cafeteria/ventas",
+        json={
+            "cafeteria_nombre": "Café Fracción",
+            "detalles": [{"producto_id": producto["id"], "cantidad": "1.5"}],
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422
+
+
 def test_cafeteria_pago_y_reportes(client, auth_headers):
     producto = _crear_producto_cafeteria(client, auth_headers, codigo="CAF-002")
     venta = client.post(

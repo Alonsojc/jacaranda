@@ -1,16 +1,31 @@
 """Schemas de punto de venta."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from decimal import Decimal
 from datetime import datetime
 
 from app.models.venta import MetodoPago, FormaPago, EstadoVenta, TerminalPago
 
 
+def _cantidad_entera(v) -> int:
+    try:
+        cantidad = Decimal(str(v))
+    except Exception as exc:
+        raise ValueError("La cantidad debe ser un entero") from exc
+    if cantidad != cantidad.to_integral_value():
+        raise ValueError("La cantidad debe ser un entero")
+    return int(cantidad)
+
+
 class DetalleVentaCreate(BaseModel):
     producto_id: int
-    cantidad: Decimal = Field(..., gt=0)
+    cantidad: int = Field(..., gt=0)
     descuento: Decimal = Field(default=Decimal("0"), ge=0)
+
+    @field_validator("cantidad", mode="before")
+    @classmethod
+    def validar_cantidad_entera(cls, v) -> int:
+        return _cantidad_entera(v)
 
 
 class PagoVentaCreate(BaseModel):

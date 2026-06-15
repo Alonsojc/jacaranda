@@ -148,6 +148,16 @@ class TestVentas:
         assert evento is not None
         assert "stock_despues" in evento.datos_nuevos
 
+    def test_venta_rechaza_cantidad_fraccionaria(self, client, auth_headers):
+        pid = self._crear_producto(client, auth_headers, "PAN-FRAC")
+        self._agregar_stock(client, auth_headers, pid, 10)
+        resp = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "100.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1.5"}],
+        }, headers=auth_headers)
+        assert resp.status_code == 422
+
     def test_venta_producto_inexistente(self, client, auth_headers):
         resp = client.post("/api/v1/punto-de-venta/ventas", json={
             "metodo_pago": "01",
