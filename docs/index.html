@@ -266,6 +266,13 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);background:#c4988a;color:#fff;padding:.8rem 1.5rem;border-radius:12px;font-weight:600;font-size:.9rem;box-shadow:0 8px 25px rgba(196,152,138,.35);z-index:200;transition:transform .3s ease-out;display:flex;align-items:center;gap:.5rem}
 .toast.show{transform:translateX(-50%) translateY(0)}
 .toast.err{background:#ef4444;box-shadow:0 8px 25px rgba(239,68,68,.3)}
+.app-status{position:fixed;top:0;left:0;right:0;height:3px;z-index:220;pointer-events:none;opacity:0;transition:opacity .16s ease;background:linear-gradient(90deg,transparent,var(--v),transparent);background-size:180% 100%;animation:statusSlide 1.1s linear infinite}
+.app-status.on{opacity:1}
+@keyframes statusSlide{from{background-position:180% 0}to{background-position:-180% 0}}
+.page-load-chip{position:sticky;top:58px;z-index:40;margin:0 0 .65rem auto;width:max-content;max-width:100%;display:none;align-items:center;gap:.4rem;background:rgba(255,255,255,.95);border:1px solid var(--brd);border-radius:999px;padding:.36rem .62rem;color:var(--mut);font-size:.76rem;font-weight:700;box-shadow:0 4px 14px rgba(75,53,47,.08)}
+.page.is-loading .page-load-chip{display:flex}
+.load-dot{width:7px;height:7px;border-radius:999px;background:var(--v);box-shadow:0 0 0 0 rgba(196,152,138,.35);animation:pulseDot 1s ease-out infinite}
+@keyframes pulseDot{to{box-shadow:0 0 0 8px rgba(196,152,138,0)}}
 .modal h3{font-family:'DM Serif Display',serif;font-size:1.2rem;margin-bottom:1rem;color:var(--dk);font-weight:400}
 .fg{margin-bottom:.8rem}
 .fg label{display:block;font-size:.78rem;font-weight:600;color:var(--mut);margin-bottom:.25rem}
@@ -380,7 +387,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .mn-item{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-width:58px;min-height:54px;text-decoration:none;color:var(--mut);font-size:.72rem;line-height:1.15;padding:.25rem .3rem;cursor:pointer;transition:color .15s;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none}
 .mn-item.on{color:var(--v)}
 .mn-icon{font-size:1.38rem;line-height:1.25}
-.mn-label{font-weight:500}
+.mn-label{font-weight:500;white-space:nowrap}
 .mobile-menu{display:none;position:fixed;inset:0;z-index:70}
 .mobile-menu.on{display:block}
 .mm-overlay{position:absolute;inset:0;background:rgba(0,0,0,.3);touch-action:manipulation}
@@ -396,6 +403,12 @@ nav .nav-links a[data-pg]{display:none!important}
 nav .nav-links .nav-group{display:none!important}
 nav .nav-links #btn-notif,nav .nav-links #btn-logout{display:none!important}
 body{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))}
+.toast{bottom:calc(5.7rem + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 1.5rem);text-align:center}
+.page-load-chip{top:.5rem}
+}
+@media(hover:none){
+.nav-group:hover .nav-dd{display:none}
+.nav-group.open .nav-dd{display:block}
 }
 @media(max-width:400px){
 .r4{grid-template-columns:1fr!important}
@@ -2529,6 +2542,7 @@ h2{font-size:1.1rem}
 </div>
 </div>
 
+<div class="app-status" id="app-status" aria-hidden="true"></div>
 <div class="toast" id="toast"></div>
 <div class="footer">
 <strong style="font-family:'DM Serif Display',serif;letter-spacing:.2em;color:var(--v);font-weight:400">Jacaranda</strong> <span style="color:var(--mut);font-size:.75rem">sharing flavors</span><br>
@@ -2563,7 +2577,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v76';
+var APP_BUILD = 'jacaranda-v77';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -2703,6 +2717,105 @@ var FIREBASE_MSG_SRC = 'https://www.gstatic.com/firebasejs/12.7.0/firebase-messa
 var FCM_TOKEN_KEY = 'jacaranda_fcm_token';
 var _scriptLoads = {};
 var _apiGetInFlight = {};
+var _apiGetCache = {};
+var _refreshPromise = null;
+var _ultimoAvisoServidor = 0;
+
+function cloneJsonSeguro(data) {
+  try { return JSON.parse(JSON.stringify(data)); } catch(e) { return data; }
+}
+
+function apiGetCacheTtl(path) {
+  var clean = String(path || '').split('?')[0];
+  if (clean === '/inventario/productos') return 45000;
+  if (clean === '/inventario/ingredientes') return 45000;
+  if (clean === '/recetas/') return 45000;
+  if (clean === '/clientes/') return 45000;
+  if (clean === '/pedidos/reservas') return 15000;
+  if (clean.indexOf('/cafeteria/clientes') === 0) return 60000;
+  return 0;
+}
+
+function apiGetCacheRead(path) {
+  var entry = _apiGetCache[path];
+  if (!entry || Date.now() > entry.expiresAt) {
+    delete _apiGetCache[path];
+    return null;
+  }
+  return cloneJsonSeguro(entry.data);
+}
+
+function apiGetCacheWrite(path, data) {
+  var ttl = apiGetCacheTtl(path);
+  if (!ttl) return;
+  _apiGetCache[path] = {data: cloneJsonSeguro(data), expiresAt: Date.now() + ttl};
+}
+
+function apiCacheInvalidate(prefix) {
+  if (!prefix) {
+    _apiGetCache = {};
+    return;
+  }
+  Object.keys(_apiGetCache).forEach(function(key) {
+    if (key.indexOf(prefix) === 0) delete _apiGetCache[key];
+  });
+}
+
+function marcarApiDisponible() {
+  if (!_offline) return;
+  _offline = false;
+  actualizarBannerOffline();
+  if (TOKEN && typeof setConnected === 'function') setConnected(true);
+}
+
+function marcarApiTemporalmenteNoDisponible(e) {
+  if (!esErrorTemporal(e)) return;
+  _offline = true;
+  actualizarBannerOffline();
+  if (TOKEN && typeof setConnected === 'function') setConnected(false);
+  var now = Date.now();
+  if (TOKEN && now - _ultimoAvisoServidor > 30000) {
+    _ultimoAvisoServidor = now;
+    toast('Servidor temporalmente no disponible. Mantengo tu sesión.', true);
+  }
+}
+
+function guardarCacheLocalJson(key, data, ttlMs) {
+  try {
+    localStorage.setItem(key, JSON.stringify({
+      savedAt: Date.now(),
+      ttlMs: ttlMs || 0,
+      data: data
+    }));
+  } catch(e) {}
+}
+
+function leerCacheLocalJson(key, maxAgeMs) {
+  try {
+    var raw = localStorage.getItem(key);
+    if (!raw) return null;
+    var parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+    if (!parsed || !Object.prototype.hasOwnProperty.call(parsed, 'data')) return null;
+    var age = Date.now() - (parsed.savedAt || 0);
+    var ttl = maxAgeMs || parsed.ttlMs || 0;
+    if (ttl && age > ttl) return null;
+    return parsed.data;
+  } catch(e) {
+    return null;
+  }
+}
+
+function leerRespuestaJson(r) {
+  return r.text().then(function(texto) {
+    if (!texto) return {};
+    try {
+      return JSON.parse(texto);
+    } catch(e) {
+      return {};
+    }
+  });
+}
 
 function loadScriptOnce(src, readyFn) {
   if (readyFn && readyFn()) return Promise.resolve();
@@ -2744,11 +2857,24 @@ function ensureHtml5QrCode() {
 function api(method, path, body, _retry, extraHeaders) {
   if (!API_URL) return Promise.reject('offline');
   var dedupeKey = null;
+  var cacheTtl = (!_retry && method === 'GET' && !body && !extraHeaders) ? apiGetCacheTtl(path) : 0;
+  if (cacheTtl) {
+    var cachedData = apiGetCacheRead(path);
+    if (cachedData !== null) return Promise.resolve(cachedData);
+  }
   if (!_retry && method === 'GET' && !body && !extraHeaders) {
     dedupeKey = path;
     if (_apiGetInFlight[dedupeKey]) return _apiGetInFlight[dedupeKey];
   }
-  var opts = {method: method, headers: {'Content-Type':'application/json'}};
+  var opts = {
+    method: method,
+    cache: 'no-store',
+    headers: {
+      'Content-Type':'application/json',
+      'Cache-Control':'no-store',
+      'Pragma':'no-cache'
+    }
+  };
   var controller = window.AbortController ? new AbortController() : null;
   var timeoutId = null;
   if (controller) {
@@ -2777,7 +2903,7 @@ function api(method, path, body, _retry, extraHeaders) {
       authErr.status = 401;
       return Promise.reject(authErr);
     }
-    if (!r.ok) return r.json().catch(function(){return {};}).then(function(body){
+    if (!r.ok) return leerRespuestaJson(r).then(function(body){
       var msg = r.status;
       if (typeof body.detail === 'string') msg = body.detail;
       else if (body.detail && body.detail.mensaje) msg = body.detail.mensaje;
@@ -2788,16 +2914,28 @@ function api(method, path, body, _retry, extraHeaders) {
       e.detail = body.detail;
       throw e;
     });
-    return r.json();
+    return leerRespuestaJson(r).then(function(data) {
+      if (method === 'GET') apiGetCacheWrite(path, data);
+      else apiCacheInvalidate();
+      marcarApiDisponible();
+      return data;
+    });
   }).catch(function(e) {
     if (timeoutId) clearTimeout(timeoutId);
-    if (e && e.name === 'AbortError') throw new Error('El servidor tardó demasiado en responder');
+    if (e && e.name === 'AbortError') {
+      var timeoutErr = new Error('El servidor tardó demasiado en responder');
+      timeoutErr.status = 504;
+      marcarApiTemporalmenteNoDisponible(timeoutErr);
+      throw timeoutErr;
+    }
     if (e && (e.name === 'TypeError' || /failed to fetch/i.test(e.message || ''))) {
       var netErr = new Error('No se pudo conectar al servidor');
       netErr.status = 0;
       netErr.original = e;
+      marcarApiTemporalmenteNoDisponible(netErr);
       throw netErr;
     }
+    marcarApiTemporalmenteNoDisponible(e);
     throw e;
   });
   if (dedupeKey) {
@@ -2814,7 +2952,15 @@ function api(method, path, body, _retry, extraHeaders) {
 }
 
 function apiPublic(method, path, body) {
-  var opts = {method: method, headers: {'Content-Type':'application/json'}};
+  var opts = {
+    method: method,
+    cache: 'no-store',
+    headers: {
+      'Content-Type':'application/json',
+      'Cache-Control':'no-store',
+      'Pragma':'no-cache'
+    }
+  };
   var controller = window.AbortController ? new AbortController() : null;
   var timeoutId = null;
   if (controller) {
@@ -2824,13 +2970,13 @@ function apiPublic(method, path, body) {
   if (body) opts.body = JSON.stringify(body);
   return fetch(API_URL + '/api/v1' + path, opts).then(function(r) {
     if (timeoutId) clearTimeout(timeoutId);
-    if (!r.ok) return r.json().catch(function(){return {};}).then(function(body){
+    if (!r.ok) return leerRespuestaJson(r).then(function(body){
       var msg = typeof body.detail === 'string' ? body.detail : (body.message || r.status);
       var e = new Error(msg);
       e.status = r.status;
       throw e;
     });
-    return r.json();
+    return leerRespuestaJson(r);
   }).catch(function(e) {
     if (timeoutId) clearTimeout(timeoutId);
     if (e && e.name === 'AbortError') throw new Error('El servidor tardó demasiado en responder');
@@ -3246,18 +3392,24 @@ function apiCritica(method, path, body, accion, motivo) {
 }
 
 function refreshAccessToken() {
+  if (_refreshPromise) return _refreshPromise;
   var controller = window.AbortController ? new AbortController() : null;
   var timeoutId = null;
   var opts = {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    cache: 'no-store',
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      'Pragma': 'no-cache'
+    },
     body: JSON.stringify({refresh_token: REFRESH_TOKEN})
   };
   if (controller) {
     opts.signal = controller.signal;
     timeoutId = setTimeout(function() { controller.abort(); }, API_TIMEOUT_MS);
   }
-  return fetch(API_URL + '/api/v1/auth/refresh', opts).then(function(r) {
+  _refreshPromise = fetch(API_URL + '/api/v1/auth/refresh', opts).then(function(r) {
     if (timeoutId) clearTimeout(timeoutId);
     if (!r.ok) {
       var refreshErr = new Error(r.status === 429 ? 'Demasiadas peticiones, reintentando sesión' : 'Refresh falló');
@@ -3265,10 +3417,11 @@ function refreshAccessToken() {
       if (r.status === 401 || r.status === 403) cerrarSesion();
       return Promise.reject(refreshErr);
     }
-    return r.json();
+    return leerRespuestaJson(r);
   }).then(function(d) {
     TOKEN = d.access_token;
     localStorage.setItem('jacaranda_token', TOKEN);
+    return TOKEN;
   }).catch(function(e) {
     if (timeoutId) clearTimeout(timeoutId);
     if (e && e.name === 'AbortError') {
@@ -3277,7 +3430,10 @@ function refreshAccessToken() {
       throw timeoutErr;
     }
     throw e;
+  }).finally(function() {
+    _refreshPromise = null;
   });
+  return _refreshPromise;
 }
 
 function filenameFromDisposition(disposition, fallback) {
@@ -3289,7 +3445,12 @@ function filenameFromDisposition(disposition, fallback) {
 function descargarArchivoAutenticado(path, filename, successMsg, errorMsg, _retry) {
   if (!API_URL) { toast('Servidor no disponible', true); return Promise.resolve(false); }
   return fetch(API_URL + path, {
-    headers: {'Authorization': 'Bearer ' + TOKEN}
+    cache: 'no-store',
+    headers: {
+      'Authorization': 'Bearer ' + TOKEN,
+      'Cache-Control': 'no-store',
+      'Pragma': 'no-cache'
+    }
   }).then(function(r) {
     if (r.status === 401 && !_retry && REFRESH_TOKEN) {
       return refreshAccessToken().then(function() {
@@ -3301,7 +3462,7 @@ function descargarArchivoAutenticado(path, filename, successMsg, errorMsg, _retr
       throw new Error('Sesión expirada');
     }
     if (!r.ok) {
-      return r.json().catch(function(){ return {}; }).then(function(body) {
+      return leerRespuestaJson(r).then(function(body) {
         throw new Error(body.detail || errorMsg || 'Error al descargar');
       });
     }
@@ -3323,11 +3484,16 @@ function descargarArchivoAutenticado(path, filename, successMsg, errorMsg, _retr
 function login(email, pass) {
   return fetch(API_URL + '/api/v1/auth/login', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    cache: 'no-store',
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      'Pragma': 'no-cache'
+    },
     body: JSON.stringify({email: email, password: pass})
   }).then(function(r) {
     if (!r.ok) throw new Error('Login failed');
-    return r.json();
+    return leerRespuestaJson(r);
   }).then(function(d) {
     TOKEN = d.access_token;
     localStorage.setItem('jacaranda_token', TOKEN);
@@ -3396,7 +3562,51 @@ function reportarErrorPagina(p, err) {
   if (typeof toast === 'function') toast('Error al abrir la pantalla. Intenta recargar.', true);
 }
 
-function cargarPagina(p) {
+var _pageLoadSeq = 0;
+var _pageLoadTimer = null;
+
+function asegurarChipCargaPagina(pageEl) {
+  if (!pageEl || pageEl.querySelector('.page-load-chip')) return;
+  var chip = document.createElement('div');
+  chip.className = 'page-load-chip';
+  chip.innerHTML = '<span class="load-dot"></span><span>Cargando</span>';
+  pageEl.insertBefore(chip, pageEl.firstChild);
+}
+
+function mostrarCargaPagina(p) {
+  var pageEl = document.getElementById(p);
+  var globalEl = document.getElementById('app-status');
+  if (globalEl) globalEl.classList.add('on');
+  if (!pageEl) return;
+  asegurarChipCargaPagina(pageEl);
+  pageEl.classList.add('is-loading');
+}
+
+function ocultarCargaPagina(p) {
+  var pageEl = document.getElementById(p);
+  var globalEl = document.getElementById('app-status');
+  if (globalEl) globalEl.classList.remove('on');
+  if (pageEl) pageEl.classList.remove('is-loading');
+}
+
+function programarCargaPagina(p) {
+  var seq = ++_pageLoadSeq;
+  if (_pageLoadTimer) clearTimeout(_pageLoadTimer);
+  _pageLoadTimer = setTimeout(function() {
+    if (seq === _pageLoadSeq) mostrarCargaPagina(p);
+  }, 140);
+  return function() {
+    if (seq !== _pageLoadSeq) return;
+    if (_pageLoadTimer) {
+      clearTimeout(_pageLoadTimer);
+      _pageLoadTimer = null;
+    }
+    ocultarCargaPagina(p);
+  };
+}
+
+function cargarPagina(p, opts) {
+  opts = opts || {};
   if (moduloDesactivado(p) || paginaDesactivada(p)) return null;
   if (p === 'ped') {
     setCalPedVisible(true);
@@ -3406,7 +3616,7 @@ function cargarPagina(p) {
   if (p === 'dash') return cargarDashboard();
   if (p === 'pos') return Promise.all([cargarPOSProductos(), cargarClientesPOS()]);
   if (p === 'cafeteria') return initCafeteria();
-  if (p === 'inv') return cargarInventarioCompleto();
+  if (p === 'inv') return cargarInventarioCompleto(opts);
   if (p === 'corte') return cargarCorte();
   if (p === 'egresos') return initEgresos();
   if (p === 'listas') return cargarListas();
@@ -3456,20 +3666,30 @@ function activarPagina(p) {
   return p;
 }
 
-function go(p) {
+function go(p, opts) {
+  opts = opts || {};
   if (moduloDesactivado(p) || paginaDesactivada(p)) {
     toast(nombrePaginaDesactivada(p) + ' est\u00e1 desactivado', true);
     p = moduloFallbackActivo();
   }
   p = activarPagina(p);
   if (!p) return;
+  if (opts.force) apiCacheInvalidate();
   setTimeout(function() {
+    var finalizarCarga = null;
     try {
-      var carga = cargarPagina(p);
+      var carga = cargarPagina(p, opts);
       if (carga && typeof carga.catch === 'function') {
-        carga.catch(function(err) { reportarErrorPagina(p, err); });
+        finalizarCarga = programarCargaPagina(p);
+        carga.then(function() {
+          finalizarCarga();
+        }, function(err) {
+          finalizarCarga();
+          reportarErrorPagina(p, err);
+        });
       }
     } catch (err) {
+      if (finalizarCarga) finalizarCarga();
       reportarErrorPagina(p, err);
     }
   }, 0);
@@ -4235,6 +4455,7 @@ function esperarPagoClip(ventaId, intentos) {
 function actualizarBannerOffline() {
   var banner = document.getElementById('pos-offline-banner');
   var count = document.getElementById('pos-pending-count');
+  if (!banner || !count) return;
   if (_offline || _ventasPendientes.length > 0) {
     banner.style.display = 'block';
     count.textContent = _ventasPendientes.length;
@@ -4287,7 +4508,7 @@ function guardarVentaIndexedDB(body) {
     var tx = db.transaction('pending-sales', 'readwrite');
     tx.objectStore('pending-sales').add({
       url: API_URL + '/api/v1/punto-de-venta/ventas',
-      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN},
+      headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({detalles: body.detalles, forma_pago: body.forma_pago, metodo_pago: body.metodo_pago, terminal: body.terminal, monto_recibido: body.monto_recibido, pagos: body.pagos, cliente_id: body.cliente_id, idempotency_key: body.idempotency_key, canjear_recompensa_lealtad: body.canjear_recompensa_lealtad, recompensa_lealtad_motivo: body.recompensa_lealtad_motivo, pago_integrado: body.pago_integrado, referencia_pago: body.referencia_pago}),
       timestamp: new Date().toISOString(),
     });
@@ -4299,6 +4520,33 @@ function guardarVentaIndexedDB(body) {
     }
   };
 }
+
+function sanearVentasIndexedDB() {
+  if (!window.indexedDB) return;
+  var req = indexedDB.open('jacaranda-offline', 1);
+  req.onupgradeneeded = function(e) {
+    var db = e.target.result;
+    if (!db.objectStoreNames.contains('pending-sales')) {
+      db.createObjectStore('pending-sales', { keyPath: 'id', autoIncrement: true });
+    }
+  };
+  req.onsuccess = function(e) {
+    var db = e.target.result;
+    if (!db.objectStoreNames.contains('pending-sales')) return;
+    var tx = db.transaction('pending-sales', 'readwrite');
+    var store = tx.objectStore('pending-sales');
+    var getReq = store.getAll();
+    getReq.onsuccess = function() {
+      (getReq.result || []).forEach(function(item) {
+        if (!item.headers) return;
+        if (item.headers.Authorization) delete item.headers.Authorization;
+        if (item.headers.authorization) delete item.headers.authorization;
+        store.put(item);
+      });
+    };
+  };
+}
+sanearVentasIndexedDB();
 
 // Auto-sync when coming back online
 window.addEventListener('online', function() {
@@ -4634,17 +4882,17 @@ function renderPOSFromData(prods) {
 
 function cargarPOSProductos() {
   api('GET', '/inventario/productos').then(function(prods) {
-    localStorage.setItem('jacaranda_prods_cache', JSON.stringify(prods));
+    guardarCacheLocalJson('jacaranda_prods_cache', prods, 86400000);
     _offline = false;
     actualizarBannerOffline();
     renderPOSFromData(prods);
   }).catch(function() {
     // Offline: use cached products
-    var cached = localStorage.getItem('jacaranda_prods_cache');
+    var cached = leerCacheLocalJson('jacaranda_prods_cache', 86400000);
     if (cached) {
       _offline = true;
       actualizarBannerOffline();
-      renderPOSFromData(JSON.parse(cached));
+      renderPOSFromData(cached);
       toast('Modo offline — usando productos en cach\u00e9');
     } else {
       document.getElementById('pos-products').innerHTML = '<p style="color:var(--mut);text-align:center;padding:2rem">Sin conexi\u00f3n y sin cach\u00e9 de productos.</p>';
@@ -4774,11 +5022,11 @@ function renderCafeteriaProductos(prods) {
 
 function cargarCafeteriaProductos() {
   return api('GET', '/inventario/productos').then(function(prods) {
-    localStorage.setItem('jacaranda_prods_cache', JSON.stringify(prods));
+    guardarCacheLocalJson('jacaranda_prods_cache', prods, 86400000);
     renderCafeteriaProductos(prods);
   }).catch(function() {
-    var cached = localStorage.getItem('jacaranda_prods_cache');
-    if (cached) renderCafeteriaProductos(JSON.parse(cached));
+    var cached = leerCacheLocalJson('jacaranda_prods_cache', 86400000);
+    if (cached) renderCafeteriaProductos(cached);
     else document.getElementById('caf-products').innerHTML = '<p style="color:var(--mut);text-align:center;padding:2rem">No se pudieron cargar productos.</p>';
   });
 }
@@ -5392,16 +5640,16 @@ function renderCatalogoPedido() {
 }
 
 function cargarCatalogoPedido() {
-  var cached = localStorage.getItem('jacaranda_prods_cache');
+  var cached = leerCacheLocalJson('jacaranda_prods_cache', 86400000);
   if (cached && !_pedidoCatalogo.length) {
     try {
-      _pedidoCatalogo = JSON.parse(cached) || [];
+      _pedidoCatalogo = cached || [];
       renderCatalogoPedido();
     } catch(e) {}
   }
   return api('GET', '/inventario/productos').then(function(prods) {
     _pedidoCatalogo = prods || [];
-    localStorage.setItem('jacaranda_prods_cache', JSON.stringify(_pedidoCatalogo));
+    guardarCacheLocalJson('jacaranda_prods_cache', _pedidoCatalogo, 86400000);
     renderCatalogoPedido();
   }).catch(function() {
     renderCatalogoPedido();
@@ -6681,9 +6929,14 @@ function escanearTicket() {
 function _enviarOCR(file) {
   var formData = new FormData();
   formData.append('archivo', file);
-  var opts = {method: 'POST', headers: {}, body: formData};
+  var opts = {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {'Cache-Control':'no-store', 'Pragma':'no-cache'},
+    body: formData
+  };
   if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
-  return fetch(API_URL + '/api/v1/inventario/ocr-ticket', opts).then(function(r) { return r.json(); });
+  return fetch(API_URL + '/api/v1/inventario/ocr-ticket', opts).then(function(r) { return leerRespuestaJson(r); });
 }
 
 function escanearTickets() {
@@ -7203,9 +7456,10 @@ function subirFotosMasivo() {
     toast('Subiendo ' + input.files.length + ' fotos...');
     fetch(API_URL + '/api/v1/inventario/productos/imagenes-masivo', {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + TOKEN },
+      cache: 'no-store',
+      headers: { 'Authorization': 'Bearer ' + TOKEN, 'Cache-Control': 'no-store', 'Pragma': 'no-cache' },
       body: fd
-    }).then(function(r) { return r.json(); }).then(function(data) {
+    }).then(function(r) { return leerRespuestaJson(r); }).then(function(data) {
       toast(data.mensaje);
       if (data.resultados) {
         var noMatch = data.resultados.filter(function(r) { return !r.ok; });
@@ -7344,8 +7598,8 @@ function cajaProductoValida(payload) {
 
 function cargarAlertasEmpaques() {
   var box = document.getElementById('inv-empaque-alertas');
-  if (!box) return;
-  api('GET', '/inventario/alertas/empaques').then(function(items) {
+  if (!box) return Promise.resolve([]);
+  return api('GET', '/inventario/alertas/empaques').then(function(items) {
     items = items || [];
     if (!items.length) {
       box.classList.remove('on');
@@ -7370,7 +7624,7 @@ function cargarAlertasEmpaques() {
 }
 
 function cargarProductos() {
-  api('GET', '/inventario/productos').then(function(prods) {
+  return api('GET', '/inventario/productos').then(function(prods) {
     _invProds = prods;
     _invProdPage = 0;
     renderInvProductos();
@@ -7451,7 +7705,7 @@ function renderInvProductos() {
 }
 
 function cargarIngredientes() {
-  api('GET', '/inventario/ingredientes').then(function(ings) {
+  return api('GET', '/inventario/ingredientes').then(function(ings) {
     _allIngs = ings;
     llenarOpcionesCajaProducto();
     renderInvIngredientes();
@@ -7509,7 +7763,7 @@ function renderInvIngredientes() {
 }
 
 function cargarRecetas() {
-  api('GET', '/recetas/').then(function(recs) {
+  return api('GET', '/recetas/').then(function(recs) {
     _recetasCache = recs || [];
     renderHorneadoMasivo(_recetasCache);
 
@@ -7585,11 +7839,18 @@ function cargarRecetas() {
   });
 }
 
-function cargarInventarioCompleto() {
-  cargarProductos();
-  cargarIngredientes();
-  cargarRecetas();
-  cargarAlertasEmpaques();
+var _invCargaDiferidaTimer = null;
+function cargarInventarioCompleto(opts) {
+  opts = opts || {};
+  if (_invCargaDiferidaTimer) clearTimeout(_invCargaDiferidaTimer);
+  var esenciales = Promise.all([
+    cargarProductos(),
+    cargarIngredientes()
+  ]);
+  _invCargaDiferidaTimer = setTimeout(function() {
+    cargarRecetas().catch(function(e){ console.warn('Error cargando recetas:', e); });
+  }, opts.force ? 0 : 220);
+  return esenciales;
 }
 
 // ─── Edit modals ─────────────────────────────────────────────────
@@ -7822,11 +8083,12 @@ function guardarProducto() {
     if (imgInput.files && imgInput.files[0]) {
       var fd = new FormData();
       fd.append('archivo', imgInput.files[0]);
-      var imgHeaders = { 'Authorization': 'Bearer ' + TOKEN };
+      var imgHeaders = { 'Authorization': 'Bearer ' + TOKEN, 'Cache-Control': 'no-store', 'Pragma': 'no-cache' };
       if (headers['X-Admin-Override-Password']) imgHeaders['X-Admin-Override-Password'] = headers['X-Admin-Override-Password'];
       if (headers['X-Admin-Override-Motivo']) imgHeaders['X-Admin-Override-Motivo'] = headers['X-Admin-Override-Motivo'];
       imgPromise = fetch(API_URL + '/api/v1/inventario/productos/' + id + '/imagen', {
         method: 'PUT',
+        cache: 'no-store',
         headers: imgHeaders,
         body: fd
       }).then(function(r) {
@@ -8679,10 +8941,15 @@ function _categoriaDesdeTicketOCR(data) {
 function _enviarOCREgreso(file) {
   var formData = new FormData();
   formData.append('archivo', file);
-  var opts = {method: 'POST', headers: {}, body: formData};
+  var opts = {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {'Cache-Control':'no-store', 'Pragma':'no-cache'},
+    body: formData
+  };
   if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
   return fetch(API_URL + '/api/v1/egresos/ocr-ticket', opts).then(function(r) {
-    return r.json().catch(function(){ return {}; }).then(function(body) {
+    return leerRespuestaJson(r).then(function(body) {
       if (!r.ok) {
         var e = new Error(body.detail || body.message || 'Error al procesar OCR');
         e.status = r.status;
@@ -11761,6 +12028,7 @@ function detenerEvento(e) {
   if (!e) { return; }
   if (e.preventDefault) { e.preventDefault(); }
   if (e.stopPropagation) { e.stopPropagation(); }
+  if (e.stopImmediatePropagation) { e.stopImmediatePropagation(); }
 }
 
 function abrirMobileMenu(e) {
@@ -11793,7 +12061,7 @@ function toggleMobileMenu(e) {
 
 function mobileMenuPuedeTocar(e) {
   detenerEvento(e);
-  return Date.now() - mobileMenuOpenedAt > 350;
+  return Date.now() - mobileMenuOpenedAt > 450;
 }
 
 function navegarMobile(pg, e) {
@@ -11927,6 +12195,11 @@ function cerrarSesion() {
   revocarFCMPushActual();
   TOKEN = '';
   REFRESH_TOKEN = '';
+  _apiGetCache = {};
+  _apiGetInFlight = {};
+  _ventasPendientes = [];
+  _pedidosPendientes = [];
+  _pedidoContactos = [];
   localStorage.removeItem('jacaranda_token');
   localStorage.removeItem('jacaranda_refresh_token');
   localStorage.removeItem('jacaranda_user');
@@ -11943,6 +12216,9 @@ function cerrarSesion() {
   setConnected(false);
   if (window.JacarandaCore && JacarandaCore.clearSensitiveCaches) {
     JacarandaCore.clearSensitiveCaches().catch(function() {});
+  }
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({type: 'CLEAR_AUTH_DATA'});
   }
 }
 
@@ -13251,16 +13527,30 @@ document.addEventListener('visibilitychange', function() {
 
 // Pull-to-refresh for mobile
 var _pullStart = 0;
+var _pullStartX = 0;
+function esTargetPullRefreshSeguro(target) {
+  if (!target) return true;
+  if (target.closest && target.closest('input, textarea, select, button, a, .modal-bg, .mobile-menu, .nav-dd, .tkt, .tbl')) return false;
+  return true;
+}
 document.addEventListener('touchstart', function(e) {
-  if (window.scrollY === 0) _pullStart = e.touches[0].clientY;
+  if (!e.touches || !e.touches.length) return;
+  if (window.scrollY === 0 && esTargetPullRefreshSeguro(e.target)) {
+    _pullStart = e.touches[0].clientY;
+    _pullStartX = e.touches[0].clientX;
+  }
 }, {passive: true});
 document.addEventListener('touchend', function(e) {
-  if (_pullStart > 0 && e.changedTouches[0].clientY - _pullStart > 100 && window.scrollY === 0) {
+  if (!e.changedTouches || !e.changedTouches.length) return;
+  var deltaY = e.changedTouches[0].clientY - _pullStart;
+  var deltaX = Math.abs(e.changedTouches[0].clientX - _pullStartX);
+  if (_pullStart > 0 && deltaY > 110 && deltaX < 60 && window.scrollY === 0) {
     var pg = localStorage.getItem('jacaranda_tab') || 'dash';
-    go(pg);
+    go(pg, {force: true});
     toast('Actualizado');
   }
   _pullStart = 0;
+  _pullStartX = 0;
 }, {passive: true});
 
 // Auto-hide desktop nav on small screens, show bottom nav
@@ -13281,12 +13571,12 @@ window.addEventListener('resize', adaptiveNav);
 adaptiveNav();
 
 // Register Service Worker for PWA
+if ((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone) {
+  document.body.classList.add('is-pwa');
+}
 if ('serviceWorker' in navigator) {
-  var _swReloading = false;
   navigator.serviceWorker.addEventListener('controllerchange', function() {
-    if (_swReloading) return;
-    _swReloading = true;
-    window.location.reload();
+    console.log('SW controller updated');
   });
   navigator.serviceWorker.register('sw.js?v=' + encodeURIComponent(APP_BUILD), {updateViaCache: 'none'}).then(function(reg) {
     console.log('SW registered', reg.scope);
