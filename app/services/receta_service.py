@@ -14,7 +14,45 @@ from app.schemas.inventario import MovimientoCreate
 from app.services.inventario_service import registrar_movimiento
 
 
+def validar_producto_e_ingredientes(
+    db: Session,
+    producto_id: int,
+    ingredientes: list,
+) -> None:
+    producto = db.query(Producto).filter(
+        Producto.id == producto_id,
+        Producto.activo.is_(True),
+    ).first()
+    if not producto:
+        raise ValueError("Producto de la receta no encontrado o inactivo")
+
+    ids = [int(item.ingrediente_id) for item in ingredientes]
+    if len(ids) != len(set(ids)):
+        raise ValueError("La receta no puede repetir ingredientes")
+    if not ids:
+        return
+
+    encontrados = db.query(Ingrediente).filter(
+        Ingrediente.id.in_(ids),
+        Ingrediente.activo.is_(True),
+    ).all()
+    encontrados_ids = {ingrediente.id for ingrediente in encontrados}
+    faltantes = [str(ingrediente_id) for ingrediente_id in ids if ingrediente_id not in encontrados_ids]
+    if faltantes:
+        raise ValueError(
+            "Ingredientes no encontrados o inactivos: " + ", ".join(faltantes)
+        )
+
+
+def validar_receta_horneable(receta: Receta) -> None:
+    if not receta.activo:
+        raise ValueError("La receta está inactiva")
+    if not receta.ingredientes:
+        raise ValueError("La receta no tiene ingredientes configurados")
+
+
 def crear_receta(db: Session, data: RecetaCreate) -> Receta:
+    validar_producto_e_ingredientes(db, data.producto_id, data.ingredientes)
     receta = Receta(
         producto_id=data.producto_id,
         nombre=data.nombre,

@@ -13,6 +13,7 @@ from app.models.venta import Venta, DetalleVenta, EstadoVenta
 from app.models.empleado import RegistroNomina
 from app.models.inventario import MovimientoInventario, TipoMovimiento, Ingrediente
 from app.models.egreso import Egreso
+from app.services.pago_metodos import CANAL_PAGO_LABELS, canal_pago
 
 
 def gastos_hoy(db: Session, fecha: date | None = None) -> dict:
@@ -99,12 +100,28 @@ def reporte_ventas_periodo(db: Session, fecha_inicio: date, fecha_fin: date) -> 
     total_iva_16 = sum(v.iva_16 for v in ventas)
     total_descuentos = sum(v.descuento for v in ventas)
 
-    # Desglose por método de pago
+    # Desglose por canal operativo de pago, separado de la forma SAT.
     por_metodo = {}
     for v in ventas:
-        metodo = v.metodo_pago.value
+        if v.pagos:
+            for pago in v.pagos:
+                metodo = canal_pago(pago.metodo_pago, pago.terminal)
+                if metodo not in por_metodo:
+                    por_metodo[metodo] = {
+                        "label": CANAL_PAGO_LABELS.get(metodo, "Otro"),
+                        "cantidad": 0,
+                        "total": Decimal("0"),
+                    }
+                por_metodo[metodo]["cantidad"] += 1
+                por_metodo[metodo]["total"] += pago.monto
+            continue
+        metodo = canal_pago(v.metodo_pago, v.terminal)
         if metodo not in por_metodo:
-            por_metodo[metodo] = {"cantidad": 0, "total": Decimal("0")}
+            por_metodo[metodo] = {
+                "label": CANAL_PAGO_LABELS.get(metodo, "Otro"),
+                "cantidad": 0,
+                "total": Decimal("0"),
+            }
         por_metodo[metodo]["cantidad"] += 1
         por_metodo[metodo]["total"] += v.total
 
@@ -129,7 +146,11 @@ def reporte_ventas_periodo(db: Session, fecha_inicio: date, fecha_fin: date) -> 
             "ticket_promedio": float(total_ventas / len(ventas)) if ventas else 0,
         },
         "por_metodo_pago": {
-            k: {"cantidad": v["cantidad"], "total": float(v["total"])}
+            k: {
+                "label": v["label"],
+                "cantidad": v["cantidad"],
+                "total": float(v["total"]),
+            }
             for k, v in por_metodo.items()
         },
         "por_dia": {

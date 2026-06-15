@@ -3,6 +3,7 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -10,6 +11,9 @@ from app.core.dependencies import require_admin_or_override, require_permission
 from app.models.cafeteria import EstadoCuentaCafeteria
 from app.models.usuario import Usuario
 from app.schemas.cafeteria import (
+    CafeteriaClienteCreate,
+    CafeteriaClienteResponse,
+    CafeteriaClienteUpdate,
     CafeteriaVentaCreate,
     CafeteriaVentaResponse,
     PagoCafeteriaCreate,
@@ -19,10 +23,49 @@ from app.services import cafeteria_service as svc
 router = APIRouter()
 
 
+class MotivoCriticoRequest(BaseModel):
+    motivo: str = Field(..., min_length=5, max_length=300)
+
+
 def _http_error(exc: ValueError) -> HTTPException:
     mensaje = str(exc)
     status = 404 if "no encontrada" in mensaje.lower() else 400
     return HTTPException(status_code=status, detail=mensaje)
+
+
+@router.get("/clientes", response_model=list[CafeteriaClienteResponse])
+def listar_clientes_cafeteria(
+    q: str | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=500),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("cafeteria", "ver")),
+):
+    return svc.listar_cafeterias(db, q=q, limit=limit)
+
+
+@router.post("/clientes", response_model=CafeteriaClienteResponse, status_code=201)
+def crear_cliente_cafeteria(
+    data: CafeteriaClienteCreate,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_permission("cafeteria", "editar")),
+):
+    try:
+        return svc.crear_cafeteria(db, data, user.id)
+    except ValueError as exc:
+        raise _http_error(exc)
+
+
+@router.put("/clientes/{cliente_id}", response_model=CafeteriaClienteResponse)
+def actualizar_cliente_cafeteria(
+    cliente_id: int,
+    data: CafeteriaClienteUpdate,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_permission("cafeteria", "editar")),
+):
+    try:
+        return svc.actualizar_cafeteria(db, cliente_id, data, user.id)
+    except ValueError as exc:
+        raise _http_error(exc)
 
 
 @router.post("/ventas", response_model=CafeteriaVentaResponse, status_code=201)
@@ -77,11 +120,12 @@ def registrar_pago_cafeteria(
 @router.post("/ventas/{venta_id}/cancelar", response_model=CafeteriaVentaResponse)
 def cancelar_venta_cafeteria(
     venta_id: int,
+    data: MotivoCriticoRequest,
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_admin_or_override("cafeteria", "cancelar venta de cafetería")),
 ):
     try:
-        return svc.cancelar_venta(db, venta_id, user.id)
+        return svc.cancelar_venta(db, venta_id, user.id, data.motivo.strip())
     except ValueError as exc:
         raise _http_error(exc)
 

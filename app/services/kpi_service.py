@@ -12,6 +12,7 @@ from app.core.db_compat import db_extract_hour, db_extract_dow
 from app.models.venta import Venta, DetalleVenta, EstadoVenta
 from app.models.inventario import Producto, Ingrediente
 from app.models.cliente import Cliente
+from app.services.pago_metodos import CANAL_PAGO_LABELS, canal_pago
 
 
 def _rango_dia(dia: date):
@@ -278,25 +279,37 @@ def distribucion_metodos_pago(db: Session, dias: int = 30) -> list[dict]:
     )
     fin = datetime.combine(date.today(), datetime.max.time())
 
-    rows = db.query(
-        Venta.metodo_pago,
-        func.count(Venta.id).label("cantidad"),
-        func.sum(Venta.total).label("total"),
-    ).filter(
+    ventas = db.query(Venta).filter(
         and_(
             Venta.fecha >= inicio,
             Venta.fecha <= fin,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
-    ).group_by(Venta.metodo_pago).all()
+    ).all()
+
+    acumulado: dict[str, dict] = {}
+    for venta in ventas:
+        if venta.pagos:
+            for pago in venta.pagos:
+                canal = canal_pago(pago.metodo_pago, pago.terminal)
+                item = acumulado.setdefault(
+                    canal,
+                    {"metodo": canal, "label": CANAL_PAGO_LABELS.get(canal, "Otro"), "cantidad": 0, "total": Decimal("0")},
+                )
+                item["cantidad"] += 1
+                item["total"] += pago.monto
+            continue
+        canal = canal_pago(venta.metodo_pago, venta.terminal)
+        item = acumulado.setdefault(
+            canal,
+            {"metodo": canal, "label": CANAL_PAGO_LABELS.get(canal, "Otro"), "cantidad": 0, "total": Decimal("0")},
+        )
+        item["cantidad"] += 1
+        item["total"] += venta.total
 
     return [
-        {
-            "metodo": r.metodo_pago.value if hasattr(r.metodo_pago, "value") else str(r.metodo_pago),
-            "cantidad": r.cantidad,
-            "total": _float(r.total),
-        }
-        for r in rows
+        {**item, "total": _float(item["total"])}
+        for item in sorted(acumulado.values(), key=lambda row: row["total"], reverse=True)
     ]
 
 

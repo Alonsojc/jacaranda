@@ -52,6 +52,18 @@ def require_role(*roles: RolUsuario):
     return role_checker
 
 
+def require_admin_financials(
+    current_user: Usuario = Depends(get_current_user),
+) -> Usuario:
+    """Restrict sensitive financial reports to administrators."""
+    if current_user.rol != RolUsuario.ADMINISTRADOR:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Este reporte financiero requiere administrador",
+        )
+    return current_user
+
+
 _PERMISSION_LEVELS = {"oculto": 0, "ver": 1, "editar": 2}
 _PRODUCTION_DISABLED_MODULES = {
     "compras",
@@ -146,6 +158,7 @@ def require_admin_or_override(module: str, action: str):
                 accion="autorizar_fallida",
                 modulo=module,
                 entidad="admin_override",
+                motivo=unquote(motivo or "").strip() or None,
                 datos_nuevos={"accion": action, "motivo": unquote(motivo or "").strip()},
             )
             raise HTTPException(
@@ -167,6 +180,7 @@ def require_admin_or_override(module: str, action: str):
             accion="autorizar",
             modulo=module,
             entidad="admin_override",
+            motivo=motivo_limpio,
             datos_nuevos={
                 "accion": action,
                 "admin_id": authorizing_admin.id,

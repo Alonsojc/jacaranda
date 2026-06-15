@@ -103,6 +103,20 @@ def historial_cliente(
     return historial_compras_cliente(db, id)
 
 
+@router.get("/{id}/historial-completo")
+def historial_cliente_completo(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("listas", "ver")),
+):
+    try:
+        data = lealtad_service.historial_cliente_completo(db, id)
+        db.commit()
+        return data
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.get("/{id}/puntos")
 def consultar_puntos(
     id: int,
@@ -114,6 +128,10 @@ def consultar_puntos(
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     config = lealtad_service.obtener_configuracion(db)
+    expiracion = lealtad_service.aplicar_expiracion_puntos(db, cliente, config)
+    if expiracion["puntos_expirados"]:
+        db.commit()
+        db.refresh(cliente)
     valor_punto = lealtad_service.valor_punto(config)
     return {
         "puntos": cliente.puntos_acumulados,
@@ -136,6 +154,11 @@ def canjear_puntos(
     cliente = db.query(Cliente).filter(Cliente.id == id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    config = lealtad_service.obtener_configuracion(db)
+    expiracion = lealtad_service.aplicar_expiracion_puntos(db, cliente, config)
+    if expiracion["puntos_expirados"]:
+        db.commit()
+        db.refresh(cliente)
     if puntos > cliente.puntos_acumulados:
         raise HTTPException(
             status_code=400,
@@ -143,7 +166,7 @@ def canjear_puntos(
         )
     descuento = float(
         Decimal(str(puntos))
-        * lealtad_service.valor_punto(lealtad_service.obtener_configuracion(db))
+        * lealtad_service.valor_punto(config)
     )
     return {
         "puntos_canjeados": puntos,

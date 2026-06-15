@@ -98,6 +98,7 @@ def desactivar_ingrediente(
     _user: Usuario = Depends(require_admin_or_override("inv", "desactivar ingrediente")),
 ):
     from app.models.inventario import Ingrediente
+    from app.models.inventario import Producto
     from app.models.receta import Receta, RecetaIngrediente
 
     ingrediente = db.query(Ingrediente).filter(Ingrediente.id == id).first()
@@ -116,6 +117,15 @@ def desactivar_ingrediente(
         raise HTTPException(
             status_code=400,
             detail="No se puede desactivar: está usado en una receta activa",
+        )
+    producto_con_empaque = db.query(Producto).filter(
+        Producto.caja_ingrediente_id == id,
+        Producto.activo.is_(True),
+    ).first()
+    if producto_con_empaque:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede desactivar: está usado como caja/empaque de un producto activo",
         )
     if ingrediente.stock_actual and ingrediente.stock_actual > 0:
         raise HTTPException(
@@ -348,6 +358,11 @@ def registrar_lote(data: LoteCreate, db: Session = Depends(get_db), _user: Usuar
 @router.get("/alertas/stock-bajo")
 def alertas_stock_bajo(db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "ver"))):
     return svc.alertas_stock_bajo(db)
+
+
+@router.get("/alertas/empaques")
+def alertas_empaques(db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "ver"))):
+    return svc.alertas_empaques(db)
 
 
 @router.get("/alertas/por-caducar")

@@ -21,12 +21,22 @@ from app.schemas.venta import VentaCreate, CorteCajaCreate
 from app.schemas.inventario import MovimientoCreate
 from app.services.inventario_service import registrar_empaque_producto, registrar_movimiento
 from app.services.auditoria_service import registrar_evento
+from app.services.pago_metodos import (
+    canal_pago,
+    etiqueta_canal_pago,
+    normalizar_metodo_terminal,
+    proveedor_por_terminal,
+    validar_metodo_terminal,
+)
 from app.core.config import settings
 
 # Loyalty: 1 punto por cada $10 MXN gastados, 100 puntos = $50 descuento
 PUNTOS_POR_PESO = Decimal("0.1")  # 1 punto por $10
 VALOR_PUNTO = Decimal("0.5")      # cada punto vale $0.50
 CENTAVO = Decimal("0.01")
+
+# Compatibilidad con módulos previos que importaban el helper privado desde POS.
+_normalizar_metodo_terminal = normalizar_metodo_terminal
 
 
 def _zona_operacion() -> ZoneInfo:
@@ -47,11 +57,13 @@ def _normalizar_fecha_db(valor: datetime) -> datetime:
     return valor_utc
 
 
-def _normalizar_metodo_terminal(metodo: MetodoPago, terminal: TerminalPago) -> MetodoPago:
-    """Corrige payloads viejos donde BBVA llegaba como transferencia SAT 03."""
-    if terminal == TerminalPago.BBVA and metodo == MetodoPago.TRANSFERENCIA:
-        return MetodoPago.TARJETA_DEBITO
-    return metodo
+def _terminal_por_defecto_pago(metodo: MetodoPago, terminal: TerminalPago | None) -> TerminalPago:
+    if terminal:
+        return terminal
+    if metodo in (MetodoPago.TARJETA_CREDITO, MetodoPago.TARJETA_DEBITO):
+        # Compatibilidad con UI previa: el campo "Tarjeta" en pago dividido era CLIP.
+        return TerminalPago.CLIP
+    return TerminalPago.EFECTIVO
 
 
 def _generar_folio(db: Session, serie: str = "T") -> str:
@@ -186,7 +198,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     cliente_lealtad = None
     lealtad_config = None
     if data.cliente_id:
-        from app.services.lealtad_service import obtener_configuracion
+        from app.services.lealtad_service import aplicar_expiracion_puntos, obtener_configuracion
 
         lealtad_config = obtener_configuracion(db)
         cliente_lealtad = db.query(Cliente).filter(
@@ -194,6 +206,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         ).with_for_update().first()
         if not cliente_lealtad:
             raise ValueError("Cliente no encontrado")
+        aplicar_expiracion_puntos(db, cliente_lealtad, lealtad_config)
     if data.puntos_canjeados:
         if not cliente_lealtad:
             raise ValueError("El canje de puntos requiere cliente asociado")
@@ -207,9 +220,13 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     recompensa_producto_nombre = None
     recompensa_monto = Decimal("0")
     recompensas_canjeadas_antes = None
+    recompensa_motivo = None
     if data.canjear_recompensa_lealtad:
         if not cliente_lealtad:
             raise ValueError("El canje de recompensa requiere cliente asociado")
+        recompensa_motivo = (data.recompensa_lealtad_motivo or "").strip()
+        if not recompensa_motivo:
+            raise ValueError("Indica el motivo del canje de recompensa")
         from app.services.lealtad_service import (
             obtener_configuracion,
             recompensas_disponibles,
@@ -222,7 +239,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         )
         if recompensas_disponibles_antes <= 0:
             raise ValueError("El cliente no tiene recompensas disponibles")
-        recompensa_nombre = lealtad_config.recompensa_nombre
+        recompensa_nombre = (lealtad_config.recompensa_nombre or "Pastel chico gratis").strip()
         recompensas_canjeadas_antes = int(cliente_lealtad.recompensas_lealtad_canjeadas or 0)
 
     subtotal_total = Decimal("0")
@@ -309,8 +326,10 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     # Validar pago
     cambio = Decimal("0")
     monto_recibido = data.monto_recibido
-    metodo_principal = _normalizar_metodo_terminal(data.metodo_pago, data.terminal)
+    metodo_principal = normalizar_metodo_terminal(data.metodo_pago, data.terminal)
+    terminal_principal = data.terminal
     estado_venta = EstadoVenta.COMPLETADA
+    pagos_normalizados: list[dict] = []
 
     if data.pago_integrado:
         if data.pagos:
@@ -319,13 +338,23 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             raise ValueError("Por ahora el cobro integrado solo está disponible para CLIP")
         if data.puntos_canjeados or data.canjear_recompensa_lealtad:
             raise ValueError("El canje de lealtad requiere cerrar la venta en caja")
-        metodo_principal = _normalizar_metodo_terminal(data.metodo_pago, data.terminal)
+        metodo_principal = normalizar_metodo_terminal(data.metodo_pago, data.terminal)
+        validar_metodo_terminal(metodo_principal, data.terminal)
         monto_recibido = total
         cambio = Decimal("0")
         estado_venta = EstadoVenta.PENDIENTE
     elif data.pagos:
-        # Split payment: validate sum covers total
-        suma_pagos = sum(p.monto for p in data.pagos)
+        for pago_data in data.pagos:
+            terminal_pago = _terminal_por_defecto_pago(pago_data.metodo_pago, pago_data.terminal)
+            metodo_pago = normalizar_metodo_terminal(pago_data.metodo_pago, terminal_pago)
+            validar_metodo_terminal(metodo_pago, terminal_pago)
+            pagos_normalizados.append({
+                "metodo_pago": metodo_pago,
+                "terminal": terminal_pago,
+                "monto": pago_data.monto,
+                "referencia": pago_data.referencia,
+            })
+        suma_pagos = sum(p["monto"] for p in pagos_normalizados)
         if suma_pagos < total:
             raise ValueError(
                 f"Suma de pagos ({suma_pagos}) menor al total ({total})"
@@ -333,7 +362,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         # Set monto_recibido to sum, cambio from cash portion
         monto_recibido = suma_pagos
         efectivo_recibido = sum(
-            p.monto for p in data.pagos if p.metodo_pago == MetodoPago.EFECTIVO
+            p["monto"] for p in pagos_normalizados if p["metodo_pago"] == MetodoPago.EFECTIVO
         )
         no_efectivo = suma_pagos - efectivo_recibido
         # Change = cash given - (total - card/transfer portion)
@@ -343,10 +372,15 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         elif efectivo_recibido > total:
             cambio = efectivo_recibido - total
         # Primary method = largest payment
-        metodo_principal = max(data.pagos, key=lambda p: p.monto).metodo_pago
+        pago_principal = max(pagos_normalizados, key=lambda p: p["monto"])
+        metodo_principal = pago_principal["metodo_pago"]
+        terminal_principal = pago_principal["terminal"]
     else:
+        metodo_principal = normalizar_metodo_terminal(data.metodo_pago, data.terminal)
+        terminal_principal = data.terminal
+        validar_metodo_terminal(metodo_principal, data.terminal)
         # Single payment
-        if data.metodo_pago == MetodoPago.EFECTIVO:
+        if metodo_principal == MetodoPago.EFECTIVO:
             if data.monto_recibido < total:
                 raise ValueError(
                     f"Monto recibido ({data.monto_recibido}) menor al total ({total})"
@@ -372,7 +406,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             recompensa_lealtad_nombre=recompensa_nombre,
             recompensa_lealtad_monto=recompensa_monto,
             metodo_pago=metodo_principal,
-            terminal=data.terminal,
+            terminal=terminal_principal,
             forma_pago=data.forma_pago,
             monto_recibido=monto_recibido,
             cambio=cambio,
@@ -430,7 +464,18 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         ))
 
     if recompensa_canjeada and cliente_lealtad:
+        from app.models.lealtad import HistorialPuntos
+
         cliente_lealtad.recompensas_lealtad_canjeadas += 1
+        saldo_puntos = int(cliente_lealtad.puntos_acumulados or 0)
+        db.add(HistorialPuntos(
+            cliente_id=cliente_lealtad.id,
+            puntos=0,
+            concepto=f"Recompensa canjeada: {recompensa_nombre} ({recompensa_motivo})",
+            venta_id=venta.id,
+            saldo_anterior=saldo_puntos,
+            saldo_nuevo=saldo_puntos,
+        ))
         registrar_evento(
             db,
             usuario_id=usuario_id,
@@ -449,7 +494,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
                 "recompensa": recompensa_nombre,
                 "producto": recompensa_producto_nombre,
                 "monto": str(recompensa_monto),
-                "motivo": data.recompensa_lealtad_motivo or "Canje en punto de venta",
+                "motivo": recompensa_motivo,
                 "recompensas_canjeadas": cliente_lealtad.recompensas_lealtad_canjeadas,
             },
             commit=False,
@@ -457,13 +502,16 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
 
     # Agregar pagos (split payment records). Los pagos integrados se agregan al
     # confirmarse por webhook para que no entren al corte antes de tiempo.
-    if data.pagos:
-        for pago_data in data.pagos:
+    if pagos_normalizados:
+        for pago_data in pagos_normalizados:
             pago = PagoVenta(
                 venta_id=venta.id,
-                metodo_pago=pago_data.metodo_pago,
-                monto=pago_data.monto,
-                referencia=pago_data.referencia,
+                metodo_pago=pago_data["metodo_pago"],
+                terminal=pago_data["terminal"],
+                proveedor=proveedor_por_terminal(pago_data["terminal"]),
+                estado="pagado",
+                monto=pago_data["monto"],
+                referencia=pago_data["referencia"],
             )
             db.add(pago)
     else:
@@ -472,6 +520,9 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             db.add(PagoVenta(
                 venta_id=venta.id,
                 metodo_pago=metodo_principal,
+                terminal=terminal_principal,
+                proveedor=proveedor_por_terminal(terminal_principal),
+                estado="pagado",
                 monto=total,
                 referencia=referencia_pago,
             ))
@@ -578,6 +629,10 @@ def finalizar_pago_integrado(
             db.add(PagoVenta(
                 venta_id=venta.id,
                 metodo_pago=venta.metodo_pago,
+                terminal=venta.terminal,
+                proveedor=proveedor,
+                estado="pagado",
+                pago_externo_id=payment_id,
                 monto=venta.total,
                 referencia=payment_id,
             ))
@@ -638,10 +693,29 @@ def marcar_pago_integrado_fallido(
         raise ValueError("Venta no encontrada")
     if not venta.pago_integrado:
         raise ValueError("La venta no usa pago integrado")
+    estado_anterior = venta.pago_externo_estado
     venta.pago_proveedor = proveedor
     venta.pago_externo_id = payment_id or venta.pago_externo_id
     venta.pago_externo_estado = estado or "fallido"
     venta.pago_externo_payload = json.dumps(payload or {}, default=str)
+    registrar_evento(
+        db,
+        usuario_id=None,
+        usuario_nombre=None,
+        accion="fallar_pago_integrado",
+        modulo="pagos",
+        entidad="ventas",
+        entidad_id=venta.id,
+        datos_anteriores={
+            "pago_externo_estado": estado_anterior,
+        },
+        datos_nuevos={
+            "proveedor": proveedor,
+            "payment_id": payment_id,
+            "estado": venta.pago_externo_estado,
+        },
+        commit=False,
+    )
     if commit:
         db.commit()
         db.refresh(venta)
@@ -650,8 +724,16 @@ def marcar_pago_integrado_fallido(
     return venta
 
 
-def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
+def cancelar_venta(
+    db: Session,
+    venta_id: int,
+    usuario_id: int,
+    motivo: str,
+) -> Venta:
     """Cancela una venta y devuelve el inventario."""
+    motivo_limpio = (motivo or "").strip()
+    if len(motivo_limpio) < 5:
+        raise ValueError("El motivo de cancelación es obligatorio")
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
         raise ValueError("Venta no encontrada")
@@ -750,6 +832,14 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
                     int(cliente.recompensas_lealtad_canjeadas or 0) - 1,
                 )
                 recompensas_restauradas = 1
+                db.add(HistorialPuntos(
+                    cliente_id=cliente.id,
+                    puntos=0,
+                    concepto=f"Recompensa restaurada por cancelacion venta {venta.folio}",
+                    venta_id=venta.id,
+                    saldo_anterior=saldo_actual,
+                    saldo_nuevo=saldo_actual,
+                ))
             cliente.nivel_lealtad = calcular_nivel(cliente.puntos_totales_historicos).value
             if puntos_revertidos:
                 saldo_despues_reversion = saldo_actual - puntos_revertidos
@@ -796,7 +886,9 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
             "recompensas_restauradas": recompensas_restauradas,
             "recompensa_lealtad_canjeada": venta.recompensa_lealtad_canjeada,
             "puntos_acumulados": puntos_despues,
+            "motivo": motivo_limpio,
         },
+        motivo=motivo_limpio,
         commit=False,
     )
 
@@ -858,31 +950,18 @@ def generar_ticket(db: Session, venta_id: int) -> dict:
             "iva": float(d.monto_iva),
         })
 
-    def etiqueta_pago(metodo: MetodoPago, terminal: TerminalPago | None = None) -> str:
-        if terminal == TerminalPago.CLIP:
-            return "CLIP"
-        if terminal == TerminalPago.BBVA:
-            return "BBVA"
-        if metodo == MetodoPago.EFECTIVO:
-            return "Efectivo"
-        if metodo in (MetodoPago.TARJETA_CREDITO, MetodoPago.TARJETA_DEBITO):
-            return "CLIP"
-        if metodo == MetodoPago.TRANSFERENCIA:
-            return "Transferencia"
-        return "Otro"
-
     # Build payment description
     pagos_info = []
     if venta.pagos:
         for p in venta.pagos:
-            terminal_pago = venta.terminal if len(venta.pagos) == 1 else None
-            desc = etiqueta_pago(p.metodo_pago, terminal_pago)
+            terminal_pago = p.terminal or (venta.terminal if len(venta.pagos) == 1 else None)
+            desc = etiqueta_canal_pago(p.metodo_pago, terminal_pago)
             pagos_info.append({
                 "metodo": desc,
                 "monto": float(p.monto),
                 "referencia": p.referencia,
             })
-    metodo_str = etiqueta_pago(venta.metodo_pago, venta.terminal)
+    metodo_str = etiqueta_canal_pago(venta.metodo_pago, venta.terminal)
     if pagos_info and len(pagos_info) > 1:
         metodo_str = " + ".join(
             f"{p['metodo']} ${p['monto']:,.2f}"
@@ -947,28 +1026,26 @@ def _totales_corte(db: Session, fecha: date) -> dict:
     total_transferencia = Decimal("0")
     total_clip = Decimal("0")
     total_bbva = Decimal("0")
+
+    def sumar(canal: str, monto: Decimal) -> None:
+        nonlocal total_efectivo, total_tarjeta, total_transferencia, total_clip, total_bbva
+        if canal == "efectivo":
+            total_efectivo += monto
+        elif canal == "clip":
+            total_clip += monto
+        elif canal == "bbva":
+            total_bbva += monto
+        elif canal == "transferencia":
+            total_transferencia += monto
+        else:
+            total_tarjeta += monto
+
     for v in ventas:
         if v.pagos:
-            # Split payment: sum each method's portion
             for p in v.pagos:
-                if p.metodo_pago == MetodoPago.EFECTIVO:
-                    total_efectivo += p.monto
-                elif p.metodo_pago in (MetodoPago.TARJETA_CREDITO, MetodoPago.TARJETA_DEBITO):
-                    total_clip += p.monto
-                elif p.metodo_pago == MetodoPago.TRANSFERENCIA:
-                    total_transferencia += p.monto
+                sumar(canal_pago(p.metodo_pago, p.terminal), p.monto)
         else:
-            # Single payment
-            if v.metodo_pago == MetodoPago.EFECTIVO:
-                total_efectivo += v.total
-            elif v.terminal == TerminalPago.CLIP:
-                total_clip += v.total
-            elif v.terminal == TerminalPago.BBVA:
-                total_bbva += v.total
-            elif v.metodo_pago in (MetodoPago.TARJETA_CREDITO, MetodoPago.TARJETA_DEBITO):
-                total_clip += v.total
-            elif v.metodo_pago == MetodoPago.TRANSFERENCIA:
-                total_transferencia += v.total
+            sumar(canal_pago(v.metodo_pago, v.terminal), v.total)
     total_ventas = total_efectivo + total_tarjeta + total_transferencia + total_clip + total_bbva
 
     cancelaciones = db.query(func.count(Venta.id)).filter(

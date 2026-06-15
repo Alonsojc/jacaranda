@@ -115,6 +115,7 @@ class Settings(BaseSettings):
     CLIP_PINPAD_API_URL: str = "https://api.payclip.io"
     CLIP_PINPAD_AUTHORIZATION: str = ""
     CLIP_PINPAD_SERIAL_NUMBER: str = ""
+    CLIP_PINPAD_MOCK_MODE: bool = False
     CLIP_WEBHOOK_SECRET: str = ""
     CLIP_ALLOW_UNSIGNED_WEBHOOKS: bool = False
     BACKEND_PUBLIC_URL: str = ""

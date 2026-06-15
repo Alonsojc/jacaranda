@@ -13,6 +13,8 @@ class RolUsuario(str, enum.Enum):
     ADMINISTRADOR = "administrador"
     GERENTE = "gerente"
     CAJERO = "cajero"
+    PRODUCCION = "produccion"
+    CONSULTA = "consulta"
     PANADERO = "panadero"
     ALMACENISTA = "almacenista"
     CONTADOR = "contador"
@@ -37,7 +39,7 @@ def permisos_default_por_rol(rol: RolUsuario) -> dict:
     elif rol == RolUsuario.CAJERO:
         return {
             "dash": "ver", "pos": "editar", "cafeteria": "editar", "ped": "editar",
-            "corte": "ver", "egresos": "editar", "listas": "ver",
+            "corte": "editar", "listas": "ver",
         }
     elif rol == RolUsuario.CONTADOR:
         return {
@@ -45,16 +47,23 @@ def permisos_default_por_rol(rol: RolUsuario) -> dict:
             "compras": "ver", "conta": "editar",
             "fiscal": "editar", "kpis": "ver",
         }
-    elif rol == RolUsuario.PANADERO:
+    elif rol in (RolUsuario.PANADERO, RolUsuario.PRODUCCION):
         return {
             "dash": "ver", "inv": "editar", "ped": "ver",
             "prod": "editar", "merma": "editar", "calidad": "editar",
+            "listas": "ver",
         }
     elif rol == RolUsuario.ALMACENISTA:
         return {
             "dash": "ver", "inv": "editar", "listas": "ver",
             "compras": "ver", "sucursales": "ver", "merma": "editar",
             "calidad": "editar",
+        }
+    elif rol == RolUsuario.CONSULTA:
+        return {
+            "dash": "ver", "pos": "ver", "cafeteria": "ver", "ped": "ver",
+            "inv": "ver", "corte": "ver", "listas": "ver", "prod": "ver",
+            "merma": "ver", "calidad": "ver", "rep": "ver",
         }
     return {"dash": "ver", "pos": "ver"}
 

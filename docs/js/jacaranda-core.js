@@ -21,14 +21,39 @@
   }
 
   function clearSensitiveCaches() {
-    if (!('caches' in window)) return Promise.resolve();
-    return caches.keys().then(function(names) {
-      return Promise.all(
-        names
-          .filter(function(name) { return name.indexOf('jacaranda-') === 0; })
-          .map(function(name) { return caches.delete(name); })
-      );
-    });
+    var localKeys = [
+      'jacaranda_prods_cache',
+      'jacaranda_ventas_pendientes',
+      'jacaranda_pedidos_pendientes',
+      'jacaranda_pedido_contactos',
+      'jacaranda_tab'
+    ];
+    try {
+      localKeys.forEach(function(key) { localStorage.removeItem(key); });
+    } catch (e) {}
+
+    var cachePromise = Promise.resolve();
+    if ('caches' in window) {
+      cachePromise = caches.keys().then(function(names) {
+        return Promise.all(
+          names
+            .filter(function(name) {
+              return /^jacaranda-(auth|api|data|offline)/.test(name);
+            })
+            .map(function(name) { return caches.delete(name); })
+        );
+      });
+    }
+
+    var dbPromise = Promise.resolve();
+    if (window.indexedDB && indexedDB.deleteDatabase) {
+      dbPromise = new Promise(function(resolve) {
+        var req = indexedDB.deleteDatabase('jacaranda-offline');
+        req.onsuccess = req.onerror = req.onblocked = function() { resolve(); };
+      });
+    }
+
+    return Promise.all([cachePromise, dbPromise]);
   }
 
   window.JacarandaCore = {

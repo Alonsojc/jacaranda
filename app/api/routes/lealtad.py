@@ -140,6 +140,8 @@ def obtener_tarjeta(
         tarjeta = lealtad_service.generar_tarjeta_qr(db, cliente_id)
         db.commit()
         tarjeta = lealtad_service.obtener_tarjeta(db, cliente_id)
+    else:
+        db.commit()
 
     return tarjeta
 
@@ -151,7 +153,9 @@ def obtener_tarjeta_publica(
 ):
     """Obtiene la tarjeta publica del cliente sin exponer datos sensibles."""
     try:
-        return lealtad_service.obtener_tarjeta_publica(db, qr_code)
+        tarjeta = lealtad_service.obtener_tarjeta_publica(db, qr_code)
+        db.commit()
+        return tarjeta
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -234,6 +238,11 @@ def buscar_por_qr(
     cliente = lealtad_service.buscar_por_qr(db, qr_code)
     if not cliente:
         raise HTTPException(status_code=404, detail="Tarjeta QR no encontrada")
+    config = lealtad_service.obtener_configuracion(db)
+    expiracion = lealtad_service.aplicar_expiracion_puntos(db, cliente, config)
+    if expiracion["puntos_expirados"]:
+        db.commit()
+        db.refresh(cliente)
     return {
         "cliente_id": cliente.id,
         "nombre": cliente.nombre,
@@ -242,7 +251,7 @@ def buscar_por_qr(
         "monto_lealtad_acumulado": float(cliente.monto_lealtad_acumulado or 0),
         "recompensa": lealtad_service.progreso_recompensa(
             cliente,
-            lealtad_service.obtener_configuracion(db),
+            config,
         ),
     }
 
@@ -394,6 +403,15 @@ def historial_puntos(
     _user: Usuario = Depends(require_permission("listas", "ver")),
 ):
     """Historial de movimientos de puntos de un cliente."""
+    from app.models.cliente import Cliente
+
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    config = lealtad_service.obtener_configuracion(db)
+    expiracion = lealtad_service.aplicar_expiracion_puntos(db, cliente, config)
+    if expiracion["puntos_expirados"]:
+        db.commit()
     registros = (
         db.query(HistorialPuntos)
         .filter(HistorialPuntos.cliente_id == cliente_id)

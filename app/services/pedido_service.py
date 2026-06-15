@@ -315,6 +315,9 @@ def cancelar_pedido(
     usuario_id: int | None = None,
     motivo: str | None = None,
 ) -> Pedido:
+    motivo_limpio = (motivo or "").strip()
+    if len(motivo_limpio) < 5:
+        raise ValueError("El motivo de cancelación es obligatorio")
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).with_for_update().first()
     if not pedido:
         raise ValueError("Pedido no encontrado")
@@ -334,7 +337,8 @@ def cancelar_pedido(
         entidad="pedidos",
         entidad_id=pedido.id,
         datos_anteriores={"estado": estado_anterior.value},
-        datos_nuevos={"estado": EstadoPedido.CANCELADO.value, "motivo": motivo},
+        datos_nuevos={"estado": EstadoPedido.CANCELADO.value, "motivo": motivo_limpio},
+        motivo=motivo_limpio,
         commit=False,
     )
     db.commit()

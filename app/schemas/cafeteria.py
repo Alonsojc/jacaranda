@@ -31,6 +31,7 @@ class DetalleCafeteriaCreate(BaseModel):
 
 class CafeteriaVentaCreate(BaseModel):
     idempotency_key: str | None = Field(default=None, max_length=80)
+    cafeteria_id: int | None = Field(default=None, gt=0)
     cafeteria_nombre: str = Field(..., min_length=1, max_length=200)
     contacto_nombre: str | None = Field(default=None, max_length=150)
     telefono: str | None = Field(default=None, max_length=30)
@@ -48,6 +49,35 @@ class PagoCafeteriaCreate(BaseModel):
     metodo_pago: MetodoPago = MetodoPago.TRANSFERENCIA
     terminal: TerminalPago = TerminalPago.EFECTIVO
     referencia: str | None = Field(default=None, max_length=120)
+    motivo: str | None = Field(default=None, max_length=200)
+
+
+class CafeteriaClienteCreate(BaseModel):
+    nombre: str = Field(..., min_length=1, max_length=200)
+    contacto_nombre: str | None = Field(default=None, max_length=150)
+    telefono: str | None = Field(default=None, max_length=30)
+    dias_credito: int = Field(default=7, ge=0, le=60)
+
+
+class CafeteriaClienteUpdate(BaseModel):
+    nombre: str | None = Field(default=None, min_length=1, max_length=200)
+    contacto_nombre: str | None = Field(default=None, max_length=150)
+    telefono: str | None = Field(default=None, max_length=30)
+    dias_credito: int | None = Field(default=None, ge=0, le=60)
+    activo: bool | None = None
+
+
+class CafeteriaClienteResponse(BaseModel):
+    id: int
+    nombre: str
+    contacto_nombre: str | None
+    telefono: str | None
+    dias_credito: int
+    activo: bool
+    creado_en: datetime
+    actualizado_en: datetime
+
+    model_config = {"from_attributes": True}
 
 
 class DetalleCafeteriaResponse(BaseModel):
@@ -77,6 +107,7 @@ class PagoCafeteriaResponse(BaseModel):
 class CafeteriaVentaResponse(BaseModel):
     id: int
     folio: str
+    cafeteria_id: int | None
     cafeteria_nombre: str
     contacto_nombre: str | None
     telefono: str | None
@@ -89,7 +120,9 @@ class CafeteriaVentaResponse(BaseModel):
     saldo_pendiente: Decimal
     estado: EstadoCuentaCafeteria
     fecha: datetime
+    dias_credito: int
     fecha_credito: date | None
+    actualizado_en: datetime
     notas: str | None
     detalles: list[DetalleCafeteriaResponse] = []
     pagos: list[PagoCafeteriaResponse] = []

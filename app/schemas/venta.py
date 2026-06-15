@@ -30,6 +30,7 @@ class DetalleVentaCreate(BaseModel):
 
 class PagoVentaCreate(BaseModel):
     metodo_pago: MetodoPago
+    terminal: TerminalPago | None = None
     monto: Decimal = Field(..., gt=0)
     referencia: str | None = None
 
@@ -68,6 +69,10 @@ class DetalleVentaResponse(BaseModel):
 class PagoVentaResponse(BaseModel):
     id: int
     metodo_pago: MetodoPago
+    terminal: TerminalPago | None = None
+    proveedor: str | None = None
+    estado: str = "pagado"
+    pago_externo_id: str | None = None
     monto: Decimal
     referencia: str | None
 

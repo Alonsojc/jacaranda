@@ -22,6 +22,7 @@ class LogAuditoria(Base):
     entidad_id: Mapped[int | None] = mapped_column(Integer)
     datos_anteriores: Mapped[str | None] = mapped_column(Text)  # JSON valores anteriores
     datos_nuevos: Mapped[str | None] = mapped_column(Text)  # JSON valores nuevos
+    motivo: Mapped[str | None] = mapped_column(Text)
     ip_address: Mapped[str | None] = mapped_column(String(45))
     user_agent: Mapped[str | None] = mapped_column(Text)
     creado_en: Mapped[datetime] = mapped_column(

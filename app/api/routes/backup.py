@@ -1,6 +1,8 @@
 """Rutas de backup y restauración."""
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from urllib.parse import unquote
+
+from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -143,7 +145,11 @@ def eliminar_backup(
     filename: str,
     user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
     db: Session = Depends(get_db),
+    motivo: str = Header(..., alias="X-Admin-Override-Motivo", min_length=5),
 ):
+    motivo_limpio = unquote(motivo or "").strip()
+    if len(motivo_limpio) < 5:
+        raise HTTPException(status_code=422, detail="El motivo debe tener al menos 5 caracteres")
     try:
         info = backup_service.eliminar_backup(filename)
         registrar_evento(
@@ -154,6 +160,7 @@ def eliminar_backup(
             modulo="backup",
             entidad="backup",
             datos_anteriores={"filename": info["filename"], "size_bytes": info["size_bytes"]},
+            motivo=motivo_limpio,
         )
         return {"ok": True, "filename": info["filename"]}
     except FileNotFoundError as e:

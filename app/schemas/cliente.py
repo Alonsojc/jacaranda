@@ -67,7 +67,7 @@ class ClienteCreate(BaseModel):
 
 
 class ClienteUpdate(BaseModel):
-    nombre: str | None = None
+    nombre: str | None = Field(None, min_length=2, max_length=200)
     telefono: str | None = None
     email: EmailStr | None = None
     rfc: str | None = None
@@ -79,6 +79,21 @@ class ClienteUpdate(BaseModel):
     cliente_frecuente: bool | None = None
     notas: str | None = None
     activo: bool | None = None
+
+    @field_validator("rfc")
+    @classmethod
+    def validar_rfc(cls, v: str | None) -> str | None:
+        return ClienteCreate.validar_rfc(v)
+
+    @field_validator("regimen_fiscal")
+    @classmethod
+    def validar_regimen(cls, v: str | None) -> str | None:
+        return ClienteCreate.validar_regimen(v)
+
+    @field_validator("domicilio_fiscal_cp")
+    @classmethod
+    def validar_cp(cls, v: str | None) -> str | None:
+        return ClienteCreate.validar_cp(v)
 
 
 class ClienteResponse(BaseModel):

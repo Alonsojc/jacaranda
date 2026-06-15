@@ -202,6 +202,12 @@ def _cors_headers_for_origin(origin: str | None) -> dict[str, str]:
     return {}
 
 
+def _mark_api_response_uncacheable(request: Request, response) -> None:
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start = _time.time()
@@ -217,7 +223,11 @@ async def log_requests(request: Request, call_next):
             return JSONResponse(
                 status_code=500,
                 content={"detail": "Error interno del servidor"},
-                headers=_cors_headers_for_origin(request.headers.get("origin")),
+                headers={
+                    **_cors_headers_for_origin(request.headers.get("origin")),
+                    "Cache-Control": "no-store",
+                    "Pragma": "no-cache",
+                },
             )
         raise
     ms = round((_time.time() - start) * 1000)
@@ -226,6 +236,7 @@ async def log_requests(request: Request, call_next):
             "%s %s %s %dms",
             request.method, request.url.path, response.status_code, ms,
         )
+    _mark_api_response_uncacheable(request, response)
     return response
 
 

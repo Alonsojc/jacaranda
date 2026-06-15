@@ -9,6 +9,7 @@ import logging
 import time
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
+from urllib.parse import unquote
 
 from app.core.database import SessionLocal
 from app.core.security import decode_access_token, JWTError
@@ -103,6 +104,9 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 accion = METHOD_ACTION_MAP.get(method, method.lower())
                 ip = _get_client_ip(request)
                 user_agent = request.headers.get("user-agent", "")
+                motivo = unquote(
+                    request.headers.get("x-admin-override-motivo", "")
+                ).strip() or None
 
                 # Registrar en BD en un session aparte (no bloquea la respuesta)
                 from app.models.auditoria import LogAuditoria
@@ -124,6 +128,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                         modulo=modulo,
                         entidad=entidad,
                         entidad_id=entidad_id,
+                        motivo=motivo,
                         ip_address=ip,
                         user_agent=user_agent[:500] if user_agent else None,
                     )

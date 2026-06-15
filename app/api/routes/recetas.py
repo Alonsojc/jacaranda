@@ -26,7 +26,10 @@ def crear_receta(
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_permission("prod", "editar")),
 ):
-    return svc.crear_receta(db, data)
+    try:
+        return svc.crear_receta(db, data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/", response_model=list[RecetaResponse])
@@ -68,6 +71,11 @@ def actualizar_receta(
     receta = db.query(Receta).filter(Receta.id == id).first()
     if not receta:
         raise HTTPException(status_code=404, detail="Receta no encontrada")
+    if data.ingredientes is not None:
+        try:
+            svc.validar_producto_e_ingredientes(db, receta.producto_id, data.ingredientes)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
     for field in ["nombre", "instrucciones", "rendimiento",
                   "tiempo_preparacion_min", "tiempo_horneado_min",
                   "temperatura_horneado_c", "activo"]:
@@ -280,6 +288,28 @@ def hornear_masivo(
             detail="Recetas sin producto terminado: " + ", ".join(recetas_sin_producto),
         )
 
+    recetas_sin_ingredientes = []
+    recetas_inactivas = []
+    for receta in recetas:
+        try:
+            svc.validar_receta_horneable(receta)
+        except ValueError as exc:
+            if "inactiva" in str(exc):
+                recetas_inactivas.append(receta.nombre)
+            else:
+                recetas_sin_ingredientes.append(receta.nombre)
+    if recetas_inactivas:
+        raise HTTPException(
+            status_code=400,
+            detail="Recetas inactivas: " + ", ".join(recetas_inactivas),
+        )
+    if recetas_sin_ingredientes:
+        raise HTTPException(
+            status_code=400,
+            detail="Recetas sin ingredientes configurados: "
+            + ", ".join(recetas_sin_ingredientes),
+        )
+
     requeridos_por_ingrediente: dict[int, Decimal] = {}
     for receta in recetas:
         cantidad = cantidades_por_receta[receta.id]
@@ -394,7 +424,7 @@ def hornear_masivo(
 @router.post("/{receta_id}/hornear")
 def hornear(
     receta_id: int,
-    cantidad: int = Query(1, description="Cuántas tandas hornear"),
+    cantidad: int = Query(1, gt=0, le=500, description="Cuántas tandas hornear"),
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_permission("prod", "editar")),
 ):
@@ -410,6 +440,10 @@ def hornear(
     receta = db.query(Receta).filter(Receta.id == receta_id).first()
     if not receta:
         raise HTTPException(status_code=404, detail="Receta no encontrada")
+    try:
+        svc.validar_receta_horneable(receta)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     # Verificar que hay suficientes ingredientes
     faltantes = []
@@ -466,6 +500,23 @@ def hornear(
         commit=False,
     )
 
+    registrar_evento(
+        db,
+        usuario_id=user.id,
+        usuario_nombre=user.nombre,
+        accion="crear",
+        modulo="produccion",
+        entidad="horneado",
+        datos_nuevos={
+            "receta_id": receta.id,
+            "receta": receta.nombre,
+            "producto_id": producto.id,
+            "producto": producto.nombre,
+            "tandas": cantidad,
+            "piezas_producidas": piezas,
+        },
+        commit=False,
+    )
     db.commit()
     db.refresh(producto)
 

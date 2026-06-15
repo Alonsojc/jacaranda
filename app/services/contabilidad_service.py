@@ -13,13 +13,37 @@ from app.models.contabilidad import (
     TipoCuenta, NaturalezaCuenta, TipoAsiento,
 )
 from app.models.venta import Venta, DetalleVenta, EstadoVenta
+from app.models.cafeteria import CafeteriaVenta, EstadoCuentaCafeteria
 from app.models.inventario import (
     Ingrediente, Producto, MovimientoInventario, TipoMovimiento,
 )
 from app.models.gasto_fijo import GastoFijo
 from app.models.empleado import RegistroNomina
+from app.services.pago_metodos import canal_pago, etiqueta_canal_pago
+from app.services.venta_service import _normalizar_fecha_db, _zona_operacion
 
 ZERO = Decimal("0")
+
+
+def _pagos_operativos_venta(venta: Venta) -> list[dict]:
+    """Devuelve pagos reales por canal; evita inflar bancos en ventas divididas."""
+    if venta.pagos:
+        return [
+            {
+                "canal": canal_pago(pago.metodo_pago, pago.terminal),
+                "label": etiqueta_canal_pago(pago.metodo_pago, pago.terminal),
+                "monto": pago.monto or ZERO,
+                "referencia": pago.referencia,
+            }
+            for pago in venta.pagos
+            if getattr(pago, "estado", "pagado") == "pagado"
+        ]
+    return [{
+        "canal": canal_pago(venta.metodo_pago, venta.terminal),
+        "label": etiqueta_canal_pago(venta.metodo_pago, venta.terminal),
+        "monto": venta.total or ZERO,
+        "referencia": venta.pago_externo_referencia,
+    }]
 
 
 # ─── Catálogo de cuentas ──────────────────────────────────────────
@@ -250,11 +274,16 @@ def balance_general(db: Session, fecha_corte: date | None = None) -> dict:
     saldos_polizas = _saldos_cuentas(db, corte)
 
     # 2. Estimaciones directas de datos operativos
-    # Caja: ventas en efectivo no conciliadas
-    efectivo = db.query(func.coalesce(func.sum(Venta.total), 0)).filter(
-        and_(Venta.estado == EstadoVenta.COMPLETADA,
-             Venta.metodo_pago == "01", Venta.fecha <= corte_dt)
-    ).scalar()
+    # Caja: solo la porción en efectivo, incluso cuando la venta fue dividida.
+    ventas_corte = db.query(Venta).filter(
+        and_(Venta.estado == EstadoVenta.COMPLETADA, Venta.fecha <= corte_dt)
+    ).all()
+    efectivo = sum(
+        pago["monto"]
+        for venta in ventas_corte
+        for pago in _pagos_operativos_venta(venta)
+        if pago["canal"] == "efectivo"
+    )
 
     # Inventario materia prima
     inv_mp = ZERO
@@ -358,22 +387,41 @@ def _saldos_cuentas(db: Session, fecha_corte: date) -> dict[str, Decimal]:
 
 def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
     """Estado de resultados (P&L) para un periodo."""
-    inicio_dt = datetime.combine(fecha_inicio, datetime.min.time(), tzinfo=timezone.utc)
-    fin_dt = datetime.combine(fecha_fin, datetime.max.time(), tzinfo=timezone.utc)
+    zona = _zona_operacion()
+    inicio_dt = _normalizar_fecha_db(datetime.combine(fecha_inicio, datetime.min.time(), tzinfo=zona))
+    fin_dt = _normalizar_fecha_db(datetime.combine(fecha_fin, datetime.max.time(), tzinfo=zona))
 
-    # Ingresos: ventas completadas en el periodo
+    # Ingresos: mostrador + entregas B2B de cafetería no canceladas.
     ventas = db.query(Venta).filter(
         and_(Venta.estado == EstadoVenta.COMPLETADA,
              Venta.fecha >= inicio_dt, Venta.fecha <= fin_dt)
     ).all()
-    ingresos_brutos = sum((v.total or ZERO) for v in ventas)
-    iva_cobrado = sum((v.iva_16 or ZERO) for v in ventas)
+    entregas_cafeteria = db.query(CafeteriaVenta).filter(
+        and_(
+            CafeteriaVenta.estado != EstadoCuentaCafeteria.CANCELADA,
+            CafeteriaVenta.fecha >= inicio_dt,
+            CafeteriaVenta.fecha <= fin_dt,
+        )
+    ).all()
+    ingresos_mostrador = sum((v.total or ZERO) for v in ventas)
+    ingresos_cafeteria = sum((v.total or ZERO) for v in entregas_cafeteria)
+    cobrado_cafeteria = sum((v.monto_pagado or ZERO) for v in entregas_cafeteria)
+    saldo_cafeteria = sum((v.saldo_pendiente or ZERO) for v in entregas_cafeteria)
+    ingresos_brutos = ingresos_mostrador + ingresos_cafeteria
+    iva_cobrado = sum((v.iva_16 or ZERO) for v in ventas) + sum(
+        (v.iva_16 or ZERO) for v in entregas_cafeteria
+    )
     ingresos_netos = ingresos_brutos - iva_cobrado
 
     # Costo de ventas: sum(cantidad * costo_produccion) de los detalles
     costo_ventas = ZERO
     for v in ventas:
         for d in v.detalles:
+            producto = db.query(Producto).filter(Producto.id == d.producto_id).first()
+            if producto and producto.costo_produccion:
+                costo_ventas += d.cantidad * producto.costo_produccion
+    for entrega in entregas_cafeteria:
+        for d in entrega.detalles:
             producto = db.query(Producto).filter(Producto.id == d.producto_id).first()
             if producto and producto.costo_produccion:
                 costo_ventas += d.cantidad * producto.costo_produccion
@@ -418,6 +466,15 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
     return {
         "periodo": {"inicio": fecha_inicio.isoformat(), "fin": fecha_fin.isoformat()},
         "ingresos_brutos": float(ingresos_brutos),
+        "ingresos_mostrador": float(ingresos_mostrador),
+        "ingresos_cafeteria": float(ingresos_cafeteria),
+        "cafeteria_b2b": {
+            "entregas": len(entregas_cafeteria),
+            "llevado": float(ingresos_cafeteria),
+            "cobrado": float(cobrado_cafeteria),
+            "cuentas_por_cobrar": float(saldo_cafeteria),
+            "separado_corte_diario_mostrador": True,
+        },
         "iva_cobrado": float(iva_cobrado),
         "ingresos_netos": float(ingresos_netos),
         "costo_ventas": float(costo_ventas),
@@ -431,6 +488,7 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
         "utilidad_neta": float(utilidad_neta),
         "margen_neto_pct": round(float(utilidad_neta / ingresos_netos * 100), 1) if ingresos_netos else 0,
         "numero_ventas": len(ventas),
+        "numero_entregas_cafeteria": len(entregas_cafeteria),
     }
 
 
@@ -500,21 +558,29 @@ def conciliacion_bancaria(db: Session, mes: int, anio: int) -> dict:
              MovimientoBancario.fecha < ultimo_dia)
     ).order_by(MovimientoBancario.fecha).all()
 
-    # Ventas con tarjeta/transferencia del mes (depósitos esperados)
-    ventas_electronicas = db.query(Venta).filter(
+    # Ventas con tarjeta/transferencia del mes (depósitos esperados).
+    # Se calcula por pago para no mezclar efectivo en ventas divididas.
+    ventas_mes = db.query(Venta).filter(
         and_(Venta.estado == EstadoVenta.COMPLETADA,
-             Venta.metodo_pago.in_(["03", "04", "28"]),
              Venta.fecha >= inicio_dt, Venta.fecha < fin_dt)
     ).all()
+    pagos_electronicos = []
+    for venta in ventas_mes:
+        for pago in _pagos_operativos_venta(venta):
+            if pago["canal"] in {"transferencia", "clip", "bbva", "tarjeta"}:
+                pagos_electronicos.append({"venta": venta, **pago})
 
     # Identify conciliadas vs pendientes
     ventas_conciliadas_ids = {m.venta_id for m in movs_banco if m.venta_id and m.conciliado}
-    ventas_no_conciliadas = [v for v in ventas_electronicas if v.id not in ventas_conciliadas_ids]
+    pagos_no_conciliados = [
+        item for item in pagos_electronicos
+        if item["venta"].id not in ventas_conciliadas_ids
+    ]
 
     total_depositos = sum(float(m.deposito or 0) for m in movs_banco)
     total_retiros = sum(float(m.retiro or 0) for m in movs_banco)
     saldo_banco = total_depositos - total_retiros
-    saldo_sistema = sum(float(v.total) for v in ventas_electronicas)
+    saldo_sistema = sum(float(item["monto"]) for item in pagos_electronicos)
     conciliados = sum(1 for m in movs_banco if m.conciliado)
 
     movs_list = []
@@ -532,14 +598,16 @@ def conciliacion_bancaria(db: Session, mes: int, anio: int) -> dict:
         })
 
     ventas_pend = []
-    for v in ventas_no_conciliadas:
-        metodos = {"03": "Transferencia", "04": "Tarjeta crédito", "28": "Tarjeta débito"}
+    for item in pagos_no_conciliados:
+        v = item["venta"]
         ventas_pend.append({
             "id": v.id,
             "folio": v.folio,
             "fecha": v.fecha.isoformat() if v.fecha else "",
-            "total": float(v.total),
-            "metodo": metodos.get(v.metodo_pago, v.metodo_pago),
+            "total": float(item["monto"]),
+            "metodo": item["label"],
+            "canal": item["canal"],
+            "referencia": item.get("referencia") or "",
         })
 
     return {

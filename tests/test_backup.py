@@ -107,8 +107,12 @@ class TestBackup:
         time.sleep(0.01)
         latest = client.post("/api/v1/backup/crear", headers=auth_headers).json()["filename"]
 
-        protected = client.delete(f"/api/v1/backup/{latest}", headers=auth_headers)
-        removed = client.delete(f"/api/v1/backup/{old}", headers=auth_headers)
+        delete_headers = {
+            **auth_headers,
+            "X-Admin-Override-Motivo": "Rotacion manual de respaldo",
+        }
+        protected = client.delete(f"/api/v1/backup/{latest}", headers=delete_headers)
+        removed = client.delete(f"/api/v1/backup/{old}", headers=delete_headers)
         items = client.get("/api/v1/backup/listar", headers=auth_headers).json()
 
         assert protected.status_code == 400

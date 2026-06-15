@@ -180,6 +180,46 @@ def ensure_runtime_schema(engine: Engine) -> None:
                     nullable=nullable,
                 )
 
+        if "pagos_venta" in tables:
+            pago_columns = {col["name"] for col in inspector.get_columns("pagos_venta")}
+            for column_name, column_type, default, nullable in (
+                ("terminal", String(20), None, True),
+                ("proveedor", String(30), None, True),
+                ("estado", String(20), "'pagado'", False),
+                ("pago_externo_id", String(120), None, True),
+            ):
+                _add_column_if_missing(
+                    conn,
+                    engine,
+                    "pagos_venta",
+                    pago_columns,
+                    column_name,
+                    column_type,
+                    server_default=default,
+                    nullable=nullable,
+                )
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_pagos_venta_proveedor "
+                "ON pagos_venta (proveedor)"
+            ))
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_pagos_venta_pago_externo_id "
+                "ON pagos_venta (pago_externo_id)"
+            ))
+
+        if "log_auditoria" in tables:
+            auditoria_columns = {
+                col["name"] for col in inspector.get_columns("log_auditoria")
+            }
+            _add_column_if_missing(
+                conn,
+                engine,
+                "log_auditoria",
+                auditoria_columns,
+                "motivo",
+                Text(),
+            )
+
         if "clientes" in tables:
             cliente_columns = {col["name"] for col in inspector.get_columns("clientes")}
             for column_name, column_type, default, nullable in (

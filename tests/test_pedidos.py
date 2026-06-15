@@ -159,7 +159,10 @@ class TestPedidos:
     def test_borrar_pedido_lo_cancela(self, client, auth_headers):
         resp = self._crear_pedido(client, auth_headers)
         pid = resp.json()["id"]
-        resp2 = client.delete(f"/api/v1/pedidos/{pid}", headers=auth_headers)
+        resp2 = client.delete(
+            f"/api/v1/pedidos/{pid}",
+            headers={**auth_headers, "X-Admin-Override-Motivo": "Cliente cancela pedido"},
+        )
         assert resp2.status_code == 200, resp2.text
         assert resp2.json()["estado"] == "cancelado"
 

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.services import pdf_service
 from app.core.database import get_db
-from app.core.dependencies import require_permission, require_role
+from app.core.dependencies import require_admin_financials, require_permission, require_role
 from app.models.usuario import Usuario, RolUsuario
 from app.services import reportes_service as svc
 from app.services import alertas_service
@@ -30,7 +30,7 @@ def dashboard(
 def gastos_hoy(
     fecha: date | None = None,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
+    _user: Usuario = Depends(require_admin_financials),
 ):
     return svc.gastos_hoy(db, fecha)
 
@@ -79,7 +79,7 @@ def reporte_isr(
 @router.get("/margenes-producto")
 def margenes_producto(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_permission("rep", "ver")),
+    _user: Usuario = Depends(require_admin_financials),
 ):
     """Margen de ganancia por producto (precio - costo)."""
     return svc.reporte_margenes_producto(db)
@@ -120,7 +120,7 @@ def alertas_caducidad(
 @router.get("/gastos-fijos-resumen")
 def gastos_fijos_resumen(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
+    _user: Usuario = Depends(require_admin_financials),
 ):
     """Resumen de gastos fijos mensuales."""
     return svc.resumen_gastos_fijos(db)
@@ -203,7 +203,7 @@ def analisis_estacionalidad(
 @router.get("/dashboard-avanzado")
 def dashboard_avanzado(
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_permission("rep", "ver")),
+    _user: Usuario = Depends(require_admin_financials),
 ):
     """Dashboard avanzado: comparativos mensuales, proyección, clientes VIP, utilidad."""
     return svc.dashboard_avanzado(db)
@@ -213,7 +213,7 @@ def dashboard_avanzado(
 def punto_equilibrio(
     dias: int = Query(default=30, le=90),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
+    _user: Usuario = Depends(require_admin_financials),
 ):
     """Punto de equilibrio (break-even analysis) de la panadería."""
     return svc.punto_de_equilibrio(db, dias)
@@ -223,7 +223,7 @@ def punto_equilibrio(
 def flujo_efectivo(
     meses: int = Query(default=3, le=12),
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_permission("rep", "ver")),
+    _user: Usuario = Depends(require_admin_financials),
 ):
     """Proyección de flujo de efectivo a N meses."""
     return svc.flujo_efectivo_proyectado(db, meses)

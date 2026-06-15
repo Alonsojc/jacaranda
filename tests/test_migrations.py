@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "e6f7a8b9c0d1 (head)"
+ALEMBIC_HEAD = "c7d8e9f0a1b2 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:

@@ -1,5 +1,5 @@
 // Jacaranda Service Worker — Offline support + sync queue
-const CACHE_NAME = 'jacaranda-v74';
+const CACHE_NAME = 'jacaranda-v77';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -15,11 +15,37 @@ const STATIC_ASSETS = [
 self.addEventListener('install', function(event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
-      return cache.addAll(STATIC_ASSETS);
+      return Promise.all(STATIC_ASSETS.map(function(asset) {
+        return cache.add(asset).catch(function() { return null; });
+      }));
     })
   );
   self.skipWaiting();
 });
+
+function isApiRequest(request, url) {
+  return url.pathname.includes('/api/') || request.headers.has('Authorization');
+}
+
+function offlineApiResponse() {
+  return new Response(JSON.stringify({
+    error: 'offline',
+    detail: 'Servidor temporalmente no disponible'
+  }), {
+    status: 503,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      'X-Jacaranda-Offline': 'true'
+    }
+  });
+}
+
+function cacheableStaticResponse(response) {
+  return response &&
+    response.status === 200 &&
+    (response.type === 'basic' || response.type === 'cors');
+}
 
 // Activate: clean old caches
 self.addEventListener('activate', function(event) {
@@ -31,17 +57,6 @@ self.addEventListener('activate', function(event) {
       );
     }).then(function() {
       return self.clients.claim();
-    }).then(function() {
-      return clients.matchAll({type: 'window', includeUncontrolled: true});
-    }).then(function(clientList) {
-      return Promise.all(clientList.map(function(client) {
-        try {
-          var url = new URL(client.url);
-          if (url.origin === self.location.origin && url.pathname.indexOf('/jacaranda/') !== -1) {
-            return client.navigate(client.url);
-          }
-        } catch (e) {}
-      }));
     })
   );
 });
@@ -49,6 +64,17 @@ self.addEventListener('activate', function(event) {
 self.addEventListener('message', function(event) {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+  if (event.data && event.data.type === 'CLEAR_AUTH_DATA') {
+    event.waitUntil(
+      caches.keys().then(function(names) {
+        return Promise.all(
+          names
+            .filter(function(name) { return /^jacaranda-(auth|api|data|offline)/.test(name); })
+            .map(function(name) { return caches.delete(name); })
+        );
+      })
+    );
   }
 });
 
@@ -59,14 +85,12 @@ self.addEventListener('fetch', function(event) {
   // Skip non-GET for caching (POST requests handled by offline queue in app)
   if (event.request.method !== 'GET') return;
 
-  // API calls: network-only. Authenticated business data must not be cached.
-  if (url.pathname.includes('/api/')) {
+  // API calls and any Authorization-bearing request: network-only.
+  // Authenticated business data must never be placed in Cache Storage.
+  if (isApiRequest(event.request, url)) {
     event.respondWith(
       fetch(event.request, {cache: 'no-store'}).catch(function() {
-        return new Response(JSON.stringify({error: 'offline'}), {
-          status: 503,
-          headers: {'Content-Type': 'application/json'}
-        });
+        return offlineApiResponse();
       })
     );
     return;
@@ -77,7 +101,7 @@ self.addEventListener('fetch', function(event) {
       (event.request.headers.get('accept') || '').includes('text/html')) {
     event.respondWith(
       fetch(event.request).then(function(response) {
-        if (response.status === 200) {
+        if (cacheableStaticResponse(response)) {
           var clone = response.clone();
           var indexClone = response.clone();
           caches.open(CACHE_NAME).then(function(cache) {
@@ -100,7 +124,7 @@ self.addEventListener('fetch', function(event) {
     caches.match(event.request).then(function(cached) {
       if (cached) return cached;
       return fetch(event.request).then(function(response) {
-        if (response.status === 200) {
+        if (cacheableStaticResponse(response)) {
           var clone = response.clone();
           caches.open(CACHE_NAME).then(function(cache) {
             cache.put(event.request, clone);
@@ -174,9 +198,14 @@ function syncOfflineVentas() {
     return getAllPending(db);
   }).then(function(items) {
     return Promise.all(items.map(function(item) {
+      var headers = item.headers || {};
+      if (!headers.Authorization && !headers.authorization) {
+        return Promise.resolve();
+      }
       return fetch(item.url, {
         method: 'POST',
-        headers: item.headers,
+        cache: 'no-store',
+        headers: headers,
         body: item.body,
       }).then(function(resp) {
         if (resp.ok) return removePending(item.id);
