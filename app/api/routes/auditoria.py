@@ -1,5 +1,6 @@
 """Rutas de auditoría y seguridad avanzada."""
 
+import json
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
@@ -12,6 +13,35 @@ from app.services import auditoria_service as svc
 router = APIRouter()
 
 _admin = require_role(RolUsuario.ADMINISTRADOR)
+
+
+def _json_or_none(value: str | None):
+    if not value:
+        return None
+    try:
+        return json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        return value
+
+
+def _evento_response(ev) -> dict:
+    return {
+        "id": ev.id,
+        "usuario_id": ev.usuario_id,
+        "usuario_nombre": ev.usuario_nombre,
+        "accion": ev.accion,
+        "modulo": ev.modulo,
+        "entidad": ev.entidad,
+        "entidad_id": ev.entidad_id,
+        "datos_anteriores": ev.datos_anteriores,
+        "datos_nuevos": ev.datos_nuevos,
+        "antes": _json_or_none(ev.datos_anteriores),
+        "despues": _json_or_none(ev.datos_nuevos),
+        "motivo": ev.motivo,
+        "ip_address": ev.ip_address,
+        "user_agent": ev.user_agent,
+        "creado_en": ev.creado_en.isoformat() if ev.creado_en else None,
+    }
 
 
 @router.get("/")
@@ -38,23 +68,7 @@ def listar_eventos(
         skip=skip,
         limit=limit,
     )
-    return [
-        {
-            "id": ev.id,
-            "usuario_id": ev.usuario_id,
-            "usuario_nombre": ev.usuario_nombre,
-            "accion": ev.accion,
-            "modulo": ev.modulo,
-            "entidad": ev.entidad,
-            "entidad_id": ev.entidad_id,
-            "datos_anteriores": ev.datos_anteriores,
-            "datos_nuevos": ev.datos_nuevos,
-            "ip_address": ev.ip_address,
-            "user_agent": ev.user_agent,
-            "creado_en": ev.creado_en.isoformat() if ev.creado_en else None,
-        }
-        for ev in eventos
-    ]
+    return [_evento_response(ev) for ev in eventos]
 
 
 @router.get("/dashboard")
@@ -118,20 +132,7 @@ def obtener_evento(
     evento = svc.obtener_evento(db, evento_id)
     if not evento:
         raise HTTPException(status_code=404, detail="Evento no encontrado")
-    return {
-        "id": evento.id,
-        "usuario_id": evento.usuario_id,
-        "usuario_nombre": evento.usuario_nombre,
-        "accion": evento.accion,
-        "modulo": evento.modulo,
-        "entidad": evento.entidad,
-        "entidad_id": evento.entidad_id,
-        "datos_anteriores": evento.datos_anteriores,
-        "datos_nuevos": evento.datos_nuevos,
-        "ip_address": evento.ip_address,
-        "user_agent": evento.user_agent,
-        "creado_en": evento.creado_en.isoformat() if evento.creado_en else None,
-    }
+    return _evento_response(evento)
 
 
 @router.post("/backup")

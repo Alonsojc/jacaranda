@@ -103,6 +103,22 @@ def test_operational_history_requires_auth(client):
     assert client.get("/api/v1/inventario/movimientos").status_code == 401
 
 
+def test_sensitive_endpoints_reject_anonymous_while_public_surface_stays_narrow(client):
+    protected = [
+        "/api/v1/reportes/dashboard",
+        "/api/v1/reportes/gastos-hoy",
+        "/api/v1/egresos/resumen",
+        "/api/v1/auditoria/",
+        "/api/v1/auth/usuarios",
+    ]
+    for path in protected:
+        assert client.get(path).status_code in (401, 403)
+
+    assert client.get("/api/v1/whatsapp/catalogo").status_code == 200
+    assert client.get("/api/v1/delivery/tracking/NO-EXISTE").status_code == 404
+    assert client.get("/api/v1/lealtad/publico/NO-EXISTE").status_code == 404
+
+
 def test_cashier_can_use_pos_but_not_inventory_or_fiscal_reports(client, db):
     _crear_usuario(db, RolUsuario.CAJERO, "cajero-permisos@test.com")
     headers = _login(client, "cajero-permisos@test.com")
@@ -129,6 +145,49 @@ def test_cashier_cannot_read_cash_cut_financial_details(client, db):
     assert client.get("/api/v1/punto-de-venta/gastos-fijos", headers=headers).status_code == 403
     assert client.get("/api/v1/reportes/gastos-fijos-resumen", headers=headers).status_code == 403
     assert client.get("/api/v1/reportes/punto-equilibrio", headers=headers).status_code == 403
+    assert client.get("/api/v1/egresos/resumen", headers=headers).status_code == 403
+
+
+def test_sprint7_role_defaults_are_fine_grained():
+    cajero = Usuario(nombre="Cajero", email="c@test.com", hashed_password="x", rol=RolUsuario.CAJERO)
+    produccion = Usuario(nombre="Produccion", email="p@test.com", hashed_password="x", rol=RolUsuario.PRODUCCION)
+    consulta = Usuario(nombre="Consulta", email="q@test.com", hashed_password="x", rol=RolUsuario.CONSULTA)
+
+    assert cajero.permisos_modulos["pos"] == "editar"
+    assert cajero.permisos_modulos["corte"] == "editar"
+    assert "egresos" not in cajero.permisos_modulos
+    assert produccion.permisos_modulos["prod"] == "editar"
+    assert produccion.permisos_modulos["inv"] == "editar"
+    assert "pos" not in produccion.permisos_modulos
+    assert consulta.permisos_modulos["pos"] == "ver"
+    assert consulta.permisos_modulos["inv"] == "ver"
+    assert consulta.permisos_modulos["rep"] == "ver"
+
+
+def test_consulta_is_read_only_and_cannot_read_sensitive_reports(client, db):
+    _crear_usuario(db, RolUsuario.CONSULTA, "consulta-permisos@test.com")
+    headers = _login(client, "consulta-permisos@test.com")
+
+    assert client.get("/api/v1/punto-de-venta/ventas", headers=headers).status_code == 200
+    denied_sale = client.post(
+        "/api/v1/punto-de-venta/ventas",
+        json={"metodo_pago": "01", "detalles": []},
+        headers=headers,
+    )
+    assert denied_sale.status_code == 403
+    assert client.get("/api/v1/reportes/margenes-producto", headers=headers).status_code == 403
+    assert client.get("/api/v1/reportes/flujo-efectivo", headers=headers).status_code == 403
+    assert client.get("/api/v1/auditoria/", headers=headers).status_code == 403
+
+
+def test_produccion_can_operate_inventory_without_pos_or_financials(client, db):
+    _crear_usuario(db, RolUsuario.PRODUCCION, "produccion-permisos@test.com")
+    headers = _login(client, "produccion-permisos@test.com")
+
+    assert client.get("/api/v1/inventario/ingredientes", headers=headers).status_code == 200
+    assert client.get("/api/v1/recetas/", headers=headers).status_code == 200
+    assert client.get("/api/v1/punto-de-venta/ventas", headers=headers).status_code == 403
+    assert client.get("/api/v1/reportes/gastos-hoy", headers=headers).status_code == 403
 
 
 def test_legacy_admin_permissions_get_new_modules_backfilled(client, db):

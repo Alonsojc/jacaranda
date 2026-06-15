@@ -431,25 +431,25 @@ h2{font-size:1.1rem}
 <a class="logo" onclick="irInicio();return false" href="#dash" aria-label="Ir al inicio">Jacaranda<span>sharing flavors</span></a>
 <div class="nav-links">
 <a class="on" data-pg="dash" onclick="irInicio()">Inicio</a>
-<div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,PANADERO,CAJERO,CONTADOR">
+<div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,PANADERO,PRODUCCION,CONSULTA,CAJERO,CONTADOR">
   <a>Operaci&oacute;n</a>
   <div class="nav-dd">
     <a data-pg="pos" onclick="go('pos')">&#128181; Punto de venta</a>
     <a data-pg="cafeteria" onclick="go('cafeteria')">&#9749; Cafeter&iacute;a</a>
     <a data-pg="ped" onclick="go('ped')">&#128230; Pedidos <span id="ped-badge" style="display:none;background:#ef4444;color:#fff;font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;vertical-align:top;min-width:14px;text-align:center"></span></a>
     <a data-pg="inv" onclick="go('inv')">&#128230; Inventario <span id="inv-badge" style="display:none;background:#ef4444;color:#fff;font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;vertical-align:top;min-width:14px;text-align:center"></span></a>
-    <a data-pg="prod" onclick="go('prod')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO">&#127838; Producci&oacute;n</a>
+    <a data-pg="prod" onclick="go('prod')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO,PRODUCCION">&#127838; Producci&oacute;n</a>
     <a data-pg="corte" onclick="go('corte')">&#128178; Corte de caja</a>
-    <a data-pg="egresos" onclick="go('egresos')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CAJERO,CONTADOR">&#128179; Egresos</a>
-    <a data-pg="iapg" onclick="go('iapg')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO">&#128200; Predicci&oacute;n</a>
+    <a data-pg="egresos" onclick="go('egresos')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">&#128179; Egresos</a>
+    <a data-pg="iapg" onclick="go('iapg')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO,PRODUCCION">&#128200; Predicci&oacute;n</a>
     <a data-pg="compras" onclick="go('compras')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">&#128722; Compras</a>
     <a data-pg="deliveryp" onclick="go('deliveryp')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#128666; Delivery</a>
   </div>
 </div>
-<div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,CONTADOR">
-  <a class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">Gesti&oacute;n</a>
+<div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,CONTADOR,CONSULTA">
+  <a class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR,CONSULTA">Gesti&oacute;n</a>
   <div class="nav-dd">
-    <a data-pg="rep" onclick="go('rep')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">&#128202; Reportes</a>
+    <a data-pg="rep" onclick="go('rep')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR,CONSULTA">&#128202; Reportes</a>
     <a data-pg="kpis" onclick="go('kpis')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">&#128200; KPIs</a>
     <a data-pg="ejecutivo" onclick="go('ejecutivo')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#127942; Ejecutivo</a>
     <div class="nav-dd-sep"></div>
@@ -462,12 +462,12 @@ h2{font-size:1.1rem}
     <a data-pg="backup" onclick="go('backup')" class="nav-role" data-roles="ADMINISTRADOR">&#128190; Respaldos</a>
   </div>
 </div>
-<div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,PANADERO">
+<div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,PANADERO,PRODUCCION">
   <a class="nav-role" data-roles="ADMINISTRADOR,GERENTE">Calidad</a>
   <div class="nav-dd">
     <a data-pg="cofepris" onclick="go('cofepris')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#129514; COFEPRIS</a>
     <a data-pg="calidad" onclick="go('calidad')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#9989; Calidad</a>
-    <a data-pg="merma" onclick="go('merma')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO">&#128465; Merma</a>
+    <a data-pg="merma" onclick="go('merma')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO,PRODUCCION">&#128465; Merma</a>
   </div>
 </div>
 <div class="nav-group nav-right" data-roles-group="ADMINISTRADOR,GERENTE">
@@ -1196,7 +1196,7 @@ h2{font-size:1.1rem}
 <div class="section-tabs">
 <span class="tab active" onclick="repTab('rep-ventas')">Ventas</span>
 <span class="tab" onclick="repTab('rep-prod')">Productos</span>
-<span class="tab" onclick="repTab('rep-marg')">M&aacute;rgenes</span>
+<span class="tab" data-admin-finance onclick="repTab('rep-marg')">M&aacute;rgenes</span>
 <span class="tab" onclick="repTab('rep-mermas')">Mermas</span>
 <span class="tab" onclick="repTab('rep-abc')">ABC</span>
 <span class="tab" onclick="repTab('rep-horas')">Por hora</span>
@@ -2500,6 +2500,8 @@ h2{font-size:1.1rem}
 <div class="fg"><label>Contrase&ntilde;a</label><div class="password-wrap"><input type="password" id="mu-pass" placeholder="M&iacute;nimo 8 caracteres"><button type="button" class="password-toggle" onclick="togglePassword('mu-pass', this)" aria-label="Mostrar contrase&ntilde;a" title="Mostrar contrase&ntilde;a">&#128065;</button></div></div>
 <div class="fg"><label>Rol</label><select id="mu-rol">
 <option value="cajero">Cajero(a)</option>
+<option value="produccion">Producci&oacute;n</option>
+<option value="consulta">Consulta</option>
 <option value="panadero">Panadero(a)</option>
 <option value="almacenista">Almacenista</option>
 <option value="gerente">Gerente</option>
@@ -3232,6 +3234,14 @@ function cancelarAdminAuth() {
 function apiProtegida(method, path, body, accion) {
   return pedirPasswordAdminSiHaceFalta(accion).then(function(headers) {
     return api(method, path, body, false, headers);
+  });
+}
+
+function apiCritica(method, path, body, accion, motivo) {
+  return pedirPasswordAdminSiHaceFalta(accion).then(function(headers) {
+    var h = headers || {};
+    if (motivo) h['X-Admin-Override-Motivo'] = encodeURIComponent(motivo);
+    return api(method, path, body, false, h);
   });
 }
 
@@ -4415,15 +4425,27 @@ function verTicket(ventaId, cancelada) {
 
 async function cancelarVentaActual() {
   if (!_ventaActualId) return;
+  var motivo = await solicitarEntrada({
+    title: 'Cancelar venta',
+    message: 'Escribe el motivo de cancelacion.',
+    detail: 'El motivo quedara visible en auditoria.',
+    label: 'Motivo',
+    placeholder: 'Error de captura, cliente devuelve producto...',
+    acceptText: 'Continuar',
+    tone: 'danger'
+  });
+  if (motivo == null) return;
+  motivo = motivo.trim();
+  if (motivo.length < 5) { toast('Escribe un motivo mas claro', true); return; }
   var ok = await confirmarAccion({
     title: 'Cancelar venta',
     message: '¿Cancelar esta venta?',
-    detail: 'Se devolverá el inventario y la venta quedará marcada como cancelada.',
+    detail: motivo,
     acceptText: 'Cancelar venta',
     tone: 'danger'
   });
   if (!ok) return;
-  apiProtegida('POST', '/punto-de-venta/ventas/' + _ventaActualId + '/cancelar', null, 'cancelar venta').then(function() {
+  apiCritica('POST', '/punto-de-venta/ventas/' + _ventaActualId + '/cancelar', {motivo: motivo}, 'cancelar venta', motivo).then(function() {
     toast('Venta cancelada');
     cerrarModal('modal-ticket');
     cargarCorte();
@@ -5133,15 +5155,27 @@ async function pagarCafeteria(id, liquidar) {
 }
 
 async function cancelarCafeteria(id, folio) {
+  var motivo = await solicitarEntrada({
+    title: 'Cancelar entrega',
+    message: 'Escribe el motivo de cancelacion.',
+    detail: 'Se devolvera inventario y quedara en auditoria.',
+    label: 'Motivo',
+    placeholder: 'Entrega duplicada, error de captura...',
+    acceptText: 'Continuar',
+    tone: 'danger'
+  });
+  if (motivo == null) return;
+  motivo = motivo.trim();
+  if (motivo.length < 5) { toast('Escribe un motivo mas claro', true); return; }
   var ok = await confirmarAccion({
     title: 'Cancelar entrega',
     message: '¿Cancelar entrega ' + folio + '?',
-    detail: 'Se devolverá inventario y la entrega quedará marcada como cancelada.',
+    detail: motivo,
     acceptText: 'Cancelar entrega',
     tone: 'danger'
   });
   if (!ok) return;
-  apiProtegida('POST', '/cafeteria/ventas/' + id + '/cancelar', null, 'cancelar venta de cafetería').then(function() {
+  apiCritica('POST', '/cafeteria/ventas/' + id + '/cancelar', {motivo: motivo}, 'cancelar venta de cafetería', motivo).then(function() {
     toast('Entrega cancelada');
     cargarCafeteriaProductos();
     cargarCafeteriaVentas();
@@ -5926,16 +5960,28 @@ function avanzarPedido(id, nuevoEstado) {
   }).catch(function(e) { toast(e.message || 'Error', true); });
 }
 
-function borrarPedido(id, folio) {
+async function borrarPedido(id, folio) {
+  var motivo = await solicitarEntrada({
+    title: 'Anular pedido',
+    message: 'Escribe el motivo de anulacion.',
+    detail: 'No se elimina el historial. El pedido queda en auditoria.',
+    label: 'Motivo',
+    placeholder: 'Cliente cancela, duplicado, error de fecha...',
+    acceptText: 'Continuar',
+    tone: 'danger'
+  });
+  if (motivo == null) return;
+  motivo = motivo.trim();
+  if (motivo.length < 5) { toast('Escribe un motivo mas claro', true); return; }
   confirmarAccion({
     title: 'Anular pedido',
     message: '¿Seguro que quieres anular ' + (folio || 'este pedido') + '?',
-    detail: 'No se elimina el historial. El pedido quedará como cancelado y se conserva para auditoría.',
+    detail: motivo,
     acceptText: 'Anular pedido',
     tone: 'danger'
   }).then(function(ok) {
     if (!ok) return;
-    apiProtegida('DELETE', '/pedidos/' + id, null, 'borrar pedido').then(function() {
+    apiCritica('DELETE', '/pedidos/' + id, null, 'borrar pedido', motivo).then(function() {
       _pedidosCache = (_pedidosCache || []).filter(function(p) { return p.id !== id; });
       renderPedidos();
       if (_calPedVisible) renderCalPed();
@@ -12019,15 +12065,27 @@ function cargarBackup() {
 
 async function eliminarBackup(encodedFilename) {
   var filename = decodeURIComponent(encodedFilename);
+  var motivo = await solicitarEntrada({
+    title: 'Borrar respaldo',
+    message: 'Escribe el motivo de borrado.',
+    detail: filename,
+    label: 'Motivo',
+    placeholder: 'Rotacion manual, archivo duplicado...',
+    acceptText: 'Continuar',
+    tone: 'danger'
+  });
+  if (motivo == null) return;
+  motivo = motivo.trim();
+  if (motivo.length < 5) { toast('Escribe un motivo mas claro', true); return; }
   var ok = await confirmarAccion({
     title: 'Borrar respaldo',
     message: '¿Seguro que quieres borrar este respaldo?',
-    detail: filename,
+    detail: motivo,
     acceptText: 'Borrar respaldo',
     tone: 'danger'
   });
   if (!ok) return;
-  api('DELETE', '/backup/' + encodedFilename).then(function() {
+  apiCritica('DELETE', '/backup/' + encodedFilename, null, 'borrar respaldo', motivo).then(function() {
     toast('Backup borrado');
     cargarBackup();
   }).catch(function(e) {
@@ -12040,7 +12098,7 @@ function cargarUsuarios() {
     var h = '<table class="tbl"><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
     for (var i = 0; i < users.length; i++) {
       var u = users[i];
-      var rolNombres = {administrador:'Admin',gerente:'Gerente',cajero:'Cajero',panadero:'Panadero',almacenista:'Almacenista',contador:'Contador'};
+      var rolNombres = {administrador:'Admin',gerente:'Gerente',cajero:'Cajero',produccion:'Producci\u00f3n',consulta:'Consulta',panadero:'Panadero',almacenista:'Almacenista',contador:'Contador'};
       var cls = u.activo ? 'bok' : 'bout';
       var txt = u.activo ? 'Activo' : 'Inactivo';
       h += '<tr><td><strong>' + u.nombre + '</strong></td>';
@@ -12952,6 +13010,7 @@ function auditJson(raw) {
 }
 
 function auditMotivo(e) {
+  if (e && e.motivo) return e.motivo;
   var data = auditJson(e.datos_nuevos);
   return data.motivo || data.razon || data.reason || '-';
 }
@@ -12966,7 +13025,7 @@ function auditDescripcion(e) {
 function cargarAudCriticos() {
   api('GET', '/auditoria/?limit=80').then(function(items) {
     items = (Array.isArray(items) ? items : []).filter(function(e) {
-      return ['actualizar','eliminar','autorizar'].indexOf(e.accion) >= 0;
+      return ['actualizar','eliminar','autorizar','cancelar','anular'].indexOf(e.accion) >= 0;
     }).slice(0, 20);
     if (!items.length) {
       document.getElementById('audit-criticos-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin cambios cr&iacute;ticos recientes.</p></div>';
@@ -12989,8 +13048,15 @@ function cargarAudEventos() {
   api('GET', '/auditoria/?limit=100').then(function(data) {
     var items = Array.isArray(data) ? data : (data.eventos||[]);
     if (!items.length) { document.getElementById('audit-eventos-tbl').innerHTML = '<div class="card"><p style="color:var(--mut);padding:.5rem">Sin eventos.</p></div>'; return; }
-    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Fecha</th><th>Acci&oacute;n</th><th>Usuario</th><th>Entidad</th><th>IP</th></tr>';
-    items.forEach(function(e) { h += '<tr><td style="padding:.35rem">' + escHtml((e.creado_en||'').slice(0,19).replace('T',' ')) + '</td><td>' + escHtml(e.accion||'-') + '</td><td>' + escHtml(e.usuario_nombre||e.usuario_id||'-') + '</td><td>' + escHtml(e.entidad||'-') + '</td><td style="font-family:monospace;font-size:.75rem">' + escHtml(e.ip_address||'-') + '</td></tr>'; });
+    var h = '<div class="card"><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.4rem">Fecha</th><th>Acci&oacute;n</th><th>Usuario</th><th>Entidad</th><th>Motivo</th><th>Antes / despu&eacute;s</th></tr>';
+    items.forEach(function(e) {
+      var antes = e.antes || auditJson(e.datos_anteriores);
+      var despues = e.despues || auditJson(e.datos_nuevos);
+      var diff = '';
+      if (antes && typeof antes === 'object') diff += 'Antes: ' + JSON.stringify(antes).slice(0, 90);
+      if (despues && typeof despues === 'object') diff += (diff ? ' | ' : '') + 'Despues: ' + JSON.stringify(despues).slice(0, 90);
+      h += '<tr><td style="padding:.35rem">' + escHtml((e.creado_en||'').slice(0,19).replace('T',' ')) + '</td><td>' + escHtml(e.accion||'-') + '</td><td>' + escHtml(e.usuario_nombre||e.usuario_id||'-') + '</td><td>' + escHtml((e.entidad||'-') + (e.entidad_id ? ' #' + e.entidad_id : '')) + '</td><td>' + escHtml(auditMotivo(e)) + '</td><td style="font-family:monospace;font-size:.72rem;color:var(--mut)">' + escHtml(diff || '-') + '</td></tr>';
+    });
     h += '</table></div>';
     document.getElementById('audit-eventos-tbl').innerHTML = h;
   }).catch(function() { document.getElementById('audit-eventos-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });

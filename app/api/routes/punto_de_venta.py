@@ -43,6 +43,10 @@ class GastoFijoResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class MotivoCriticoRequest(BaseModel):
+    motivo: str
+
+
 @router.post("/ventas", response_model=VentaResponse, status_code=201)
 def crear_venta(
     data: VentaCreate,
@@ -112,11 +116,15 @@ def ticket_pdf(
 @router.post("/ventas/{id}/cancelar", response_model=VentaResponse)
 def cancelar_venta(
     id: int,
+    data: MotivoCriticoRequest,
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_admin_or_override("pos", "cancelar venta")),
 ):
+    motivo = data.motivo.strip()
+    if len(motivo) < 5:
+        raise HTTPException(status_code=422, detail="El motivo debe tener al menos 5 caracteres")
     try:
-        return svc.cancelar_venta(db, id, user.id)
+        return svc.cancelar_venta(db, id, user.id, motivo=motivo)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

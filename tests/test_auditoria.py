@@ -232,6 +232,28 @@ class TestAuditoria:
         assert data["accion"] == "login"
         assert data["usuario_id"] == admin_user.id
 
+    def test_evento_expone_motivo_y_antes_despues(self, client, auth_headers, db, admin_user):
+        ev = _seed_evento(
+            db,
+            usuario_id=admin_user.id,
+            usuario_nombre=admin_user.nombre,
+            modulo="ventas",
+            accion="cancelar",
+            entidad="ventas",
+            entidad_id=123,
+            datos_anteriores='{"estado":"completada"}',
+            datos_nuevos='{"estado":"cancelada","motivo":"Error de captura"}',
+            motivo="Error de captura",
+        )
+
+        resp = client.get(f"{BASE}/{ev.id}", headers=auth_headers)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["motivo"] == "Error de captura"
+        assert data["antes"] == {"estado": "completada"}
+        assert data["despues"]["estado"] == "cancelada"
+
     # ------------------------------------------------------------------
     # 13. Listar eventos con paginación (skip / limit)
     # ------------------------------------------------------------------

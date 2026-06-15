@@ -3,6 +3,7 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -20,6 +21,10 @@ from app.schemas.cafeteria import (
 from app.services import cafeteria_service as svc
 
 router = APIRouter()
+
+
+class MotivoCriticoRequest(BaseModel):
+    motivo: str = Field(..., min_length=5, max_length=300)
 
 
 def _http_error(exc: ValueError) -> HTTPException:
@@ -115,11 +120,12 @@ def registrar_pago_cafeteria(
 @router.post("/ventas/{venta_id}/cancelar", response_model=CafeteriaVentaResponse)
 def cancelar_venta_cafeteria(
     venta_id: int,
+    data: MotivoCriticoRequest,
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_admin_or_override("cafeteria", "cancelar venta de cafetería")),
 ):
     try:
-        return svc.cancelar_venta(db, venta_id, user.id)
+        return svc.cancelar_venta(db, venta_id, user.id, data.motivo.strip())
     except ValueError as exc:
         raise _http_error(exc)
 

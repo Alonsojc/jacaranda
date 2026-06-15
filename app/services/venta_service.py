@@ -724,8 +724,16 @@ def marcar_pago_integrado_fallido(
     return venta
 
 
-def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
+def cancelar_venta(
+    db: Session,
+    venta_id: int,
+    usuario_id: int,
+    motivo: str,
+) -> Venta:
     """Cancela una venta y devuelve el inventario."""
+    motivo_limpio = (motivo or "").strip()
+    if len(motivo_limpio) < 5:
+        raise ValueError("El motivo de cancelación es obligatorio")
     venta = db.query(Venta).filter(Venta.id == venta_id).first()
     if not venta:
         raise ValueError("Venta no encontrada")
@@ -878,7 +886,9 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> Venta:
             "recompensas_restauradas": recompensas_restauradas,
             "recompensa_lealtad_canjeada": venta.recompensa_lealtad_canjeada,
             "puntos_acumulados": puntos_despues,
+            "motivo": motivo_limpio,
         },
+        motivo=motivo_limpio,
         commit=False,
     )
 

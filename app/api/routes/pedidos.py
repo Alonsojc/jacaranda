@@ -148,15 +148,18 @@ def borrar_pedido(
     pedido_id: int,
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_admin_or_override("ped", "borrar pedido")),
-    motivo: str | None = Header(default=None, alias="X-Admin-Override-Motivo"),
+    motivo: str = Header(..., alias="X-Admin-Override-Motivo", min_length=5),
 ):
     """Anula un pedido de forma auditada; no elimina el histórico de la base."""
+    motivo_limpio = unquote(motivo or "").strip()
+    if len(motivo_limpio) < 5:
+        raise HTTPException(status_code=422, detail="El motivo debe tener al menos 5 caracteres")
     try:
         return pedido_service.cancelar_pedido(
             db,
             pedido_id,
             usuario_id=user.id,
-            motivo=unquote(motivo or "").strip() or None,
+            motivo=motivo_limpio,
         )
     except ValueError as e:
         raise HTTPException(status_code=_status_from_pedido_error(e), detail=str(e))

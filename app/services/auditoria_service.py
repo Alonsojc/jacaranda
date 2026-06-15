@@ -30,6 +30,7 @@ def registrar_evento(
     entidad_id: int | None = None,
     datos_anteriores: dict | None = None,
     datos_nuevos: dict | None = None,
+    motivo: str | None = None,
     ip_address: str | None = None,
     user_agent: str | None = None,
     commit: bool = True,
@@ -45,6 +46,16 @@ def registrar_evento(
         except Exception:
             usuario_nombre = None
 
+    motivo_limpio = (motivo or "").strip() or None
+    if not motivo_limpio and isinstance(datos_nuevos, dict):
+        posible_motivo = (
+            datos_nuevos.get("motivo")
+            or datos_nuevos.get("razon")
+            or datos_nuevos.get("reason")
+        )
+        if posible_motivo is not None:
+            motivo_limpio = str(posible_motivo).strip() or None
+
     evento = LogAuditoria(
         usuario_id=usuario_id,
         usuario_nombre=usuario_nombre,
@@ -54,6 +65,7 @@ def registrar_evento(
         entidad_id=entidad_id,
         datos_anteriores=json.dumps(datos_anteriores, default=str) if datos_anteriores else None,
         datos_nuevos=json.dumps(datos_nuevos, default=str) if datos_nuevos else None,
+        motivo=motivo_limpio,
         ip_address=ip_address,
         user_agent=user_agent,
     )
@@ -220,7 +232,7 @@ def detectar_anomalias(db: Session, dias: int = 7) -> list[dict]:
     # 4. Cancelaciones por encima de lo normal
     cancelaciones_por_usuario: dict[str, int] = defaultdict(int)
     for ev in eventos:
-        if ev.modulo == "ventas" and ev.accion == "eliminar":
+        if ev.modulo == "ventas" and ev.accion in ("eliminar", "cancelar", "anular"):
             nombre = ev.usuario_nombre or "desconocido"
             cancelaciones_por_usuario[nombre] += 1
 
@@ -333,6 +345,7 @@ def dashboard_auditoria(db: Session) -> dict:
                 "modulo": ev.modulo,
                 "entidad": ev.entidad,
                 "entidad_id": ev.entidad_id,
+                "motivo": ev.motivo,
                 "creado_en": ev.creado_en.isoformat() if ev.creado_en else None,
             }
             for ev in ultimos_eventos

@@ -207,6 +207,19 @@ def ensure_runtime_schema(engine: Engine) -> None:
                 "ON pagos_venta (pago_externo_id)"
             ))
 
+        if "log_auditoria" in tables:
+            auditoria_columns = {
+                col["name"] for col in inspector.get_columns("log_auditoria")
+            }
+            _add_column_if_missing(
+                conn,
+                engine,
+                "log_auditoria",
+                auditoria_columns,
+                "motivo",
+                Text(),
+            )
+
         if "clientes" in tables:
             cliente_columns = {col["name"] for col in inspector.get_columns("clientes")}
             for column_name, column_type, default, nullable in (

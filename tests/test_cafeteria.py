@@ -261,7 +261,8 @@ def test_cafeteria_cancelar_devuelve_stock(client, auth_headers):
 
     cancel = client.post(
         f"/api/v1/cafeteria/ventas/{venta.json()['id']}/cancelar",
-            headers={**auth_headers, "X-Admin-Override-Motivo": "Prueba cancelacion"},
+        json={"motivo": "Prueba cancelacion"},
+        headers={**auth_headers, "X-Admin-Override-Motivo": "Prueba cancelacion"},
     )
     assert cancel.status_code == 200, cancel.text
     assert cancel.json()["estado"] == "cancelada"
@@ -293,6 +294,7 @@ def test_cafeteria_descuenta_y_cancela_empaque(client, auth_headers):
 
     cancel = client.post(
         f"/api/v1/cafeteria/ventas/{venta.json()['id']}/cancelar",
+        json={"motivo": "Prueba empaque"},
         headers={**auth_headers, "X-Admin-Override-Motivo": "Prueba empaque"},
     )
     assert cancel.status_code == 200, cancel.text

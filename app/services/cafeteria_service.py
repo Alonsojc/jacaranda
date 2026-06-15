@@ -534,7 +534,15 @@ def registrar_pago(db: Session, venta_id: int, data: PagoCafeteriaCreate, usuari
     return obtener_venta(db, venta.id)
 
 
-def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> CafeteriaVenta:
+def cancelar_venta(
+    db: Session,
+    venta_id: int,
+    usuario_id: int,
+    motivo: str,
+) -> CafeteriaVenta:
+    motivo_limpio = (motivo or "").strip()
+    if len(motivo_limpio) < 5:
+        raise ValueError("El motivo de cancelación es obligatorio")
     venta = obtener_venta(db, venta_id)
     if venta.estado == EstadoCuentaCafeteria.CANCELADA:
         return venta
@@ -578,7 +586,8 @@ def cancelar_venta(db: Session, venta_id: int, usuario_id: int) -> CafeteriaVent
         entidad="cafeteria_venta",
         entidad_id=venta.id,
         datos_anteriores=antes,
-        datos_nuevos={"estado": venta.estado.value},
+        datos_nuevos={"estado": venta.estado.value, "motivo": motivo_limpio},
+        motivo=motivo_limpio,
         commit=False,
     )
     db.commit()

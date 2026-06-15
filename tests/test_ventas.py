@@ -258,6 +258,7 @@ class TestVentas:
         # Cancel
         resp = client.post(
             f"/api/v1/punto-de-venta/ventas/{venta['id']}/cancelar",
+            json={"motivo": "Cancelacion de prueba"},
             headers=auth_headers,
         )
         assert resp.status_code == 200
@@ -265,6 +266,28 @@ class TestVentas:
         # Stock should be restored to 20
         prod = client.get(f"/api/v1/inventario/productos/{pid}", headers=auth_headers).json()
         assert float(prod["stock_actual"]) == 20.0
+
+    def test_cancelar_venta_requiere_motivo(self, client, auth_headers):
+        pid = self._crear_producto(client, auth_headers, "PAN-MOTIVO")
+        self._agregar_stock(client, auth_headers, pid, 5)
+        venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "100.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers).json()
+
+        sin_body = client.post(
+            f"/api/v1/punto-de-venta/ventas/{venta['id']}/cancelar",
+            headers=auth_headers,
+        )
+        motivo_corto = client.post(
+            f"/api/v1/punto-de-venta/ventas/{venta['id']}/cancelar",
+            json={"motivo": "dup"},
+            headers=auth_headers,
+        )
+
+        assert sin_body.status_code == 422
+        assert motivo_corto.status_code == 422
 
     def test_venta_descuenta_y_cancela_empaque(self, client, auth_headers, db):
         from app.models.auditoria import LogAuditoria
@@ -304,6 +327,7 @@ class TestVentas:
 
         cancel = client.post(
             f"/api/v1/punto-de-venta/ventas/{venta.json()['id']}/cancelar",
+            json={"motivo": "Cancelacion de empaque"},
             headers=auth_headers,
         )
         assert cancel.status_code == 200, cancel.text
@@ -407,6 +431,7 @@ class TestVentas:
 
         resp = client.post(
             f"/api/v1/punto-de-venta/ventas/{venta['id']}/cancelar",
+            json={"motivo": "Cancelacion lealtad"},
             headers=auth_headers,
         )
         assert resp.status_code == 200
@@ -427,6 +452,7 @@ class TestVentas:
         ).first()
         assert evento is not None
         assert "puntos_revertidos" in evento.datos_nuevos
+        assert evento.motivo == "Cancelacion lealtad"
 
     def test_venta_canjea_recompensa_pastel_chico_y_cancelacion_la_restaura(
         self,
@@ -492,6 +518,7 @@ class TestVentas:
 
         cancel = client.post(
             f"/api/v1/punto-de-venta/ventas/{venta['id']}/cancelar",
+            json={"motivo": "Restaurar recompensa"},
             headers=auth_headers,
         )
         assert cancel.status_code == 200, cancel.text
@@ -588,8 +615,16 @@ class TestVentas:
             "monto_recibido": "100.00",
             "detalles": [{"producto_id": pid, "cantidad": "1"}],
         }, headers=auth_headers).json()
-        client.post(f"/api/v1/punto-de-venta/ventas/{venta['id']}/cancelar", headers=auth_headers)
-        resp = client.post(f"/api/v1/punto-de-venta/ventas/{venta['id']}/cancelar", headers=auth_headers)
+        client.post(
+            f"/api/v1/punto-de-venta/ventas/{venta['id']}/cancelar",
+            json={"motivo": "Primer cancelacion"},
+            headers=auth_headers,
+        )
+        resp = client.post(
+            f"/api/v1/punto-de-venta/ventas/{venta['id']}/cancelar",
+            json={"motivo": "Segunda cancelacion"},
+            headers=auth_headers,
+        )
         assert resp.status_code == 400
 
     def test_ticket_venta(self, client, auth_headers):
@@ -661,6 +696,7 @@ class TestVentas:
 
         cancelada = client.post(
             f"/api/v1/punto-de-venta/ventas/{segunda.json()['id']}/cancelar",
+            json={"motivo": "Cancelar canje puntos"},
             headers=auth_headers,
         )
         assert cancelada.status_code == 200
@@ -1047,6 +1083,7 @@ class TestVentas:
 
         cancel = client.post(
             f"/api/v1/punto-de-venta/ventas/{venta_data['id']}/cancelar",
+            json={"motivo": "Cancelar cobro CLIP pendiente"},
             headers=auth_headers,
         )
         assert cancel.status_code == 200, cancel.text
