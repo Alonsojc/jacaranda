@@ -193,13 +193,13 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .action-btn.danger:hover{background:#fef2f2;border-color:#ef4444}
 .action-icon{font-size:.95rem;line-height:1}
 .action-label{white-space:nowrap}
-.product-actions-table{min-width:1220px}
-.product-actions-table .col-price,.product-actions-table .col-cost{width:105px}
+.product-actions-table{min-width:1260px}
+.product-actions-table .col-price,.product-actions-table .col-caf-price,.product-actions-table .col-cost{width:105px}
 .product-actions-table .col-stock{width:120px}
 .product-actions-table .col-min,.product-actions-table .col-iva{width:72px}
 .product-actions-table .col-status{width:118px}
-.product-actions-table .col-actions{width:470px}
-.product-actions-table th.actions-th,.product-actions-table td.actions-cell{width:470px;white-space:nowrap}
+.product-actions-table .col-actions{width:390px}
+.product-actions-table th.actions-th,.product-actions-table td.actions-cell{width:390px;white-space:nowrap}
 .product-actions-table td{vertical-align:middle}
 .product-actions-table .action-buttons{flex-wrap:nowrap;gap:.28rem}
 .product-actions-table .action-btn{padding:.46rem .55rem;font-size:.74rem}
@@ -220,7 +220,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .pack-alert-name{font-weight:800;color:var(--dk)}
 .pack-alert-meta{color:var(--mut);font-size:.76rem;margin-top:.12rem}
 .pack-alert-stock{font-weight:900;color:#b91c1c;white-space:nowrap;text-align:right}
-@media(max-width:900px){.tbl th.actions-th,.tbl td.actions-cell{width:390px}.product-actions-table th.actions-th,.product-actions-table td.actions-cell{width:470px}.action-btn{padding:.55rem .7rem;font-size:.78rem}.product-actions-table .action-btn{padding:.46rem .55rem;font-size:.74rem}.action-icon{font-size:1rem}}
+@media(max-width:900px){.tbl th.actions-th,.tbl td.actions-cell{width:390px}.product-actions-table th.actions-th,.product-actions-table td.actions-cell{width:390px}.action-btn{padding:.55rem .7rem;font-size:.78rem}.product-actions-table .action-btn{padding:.46rem .55rem;font-size:.74rem}.action-icon{font-size:1rem}}
 @media(pointer:coarse){.action-btn{min-height:50px;min-width:50px;padding:.62rem .78rem}.action-buttons{gap:.45rem}.product-actions-table .action-btn{padding:.56rem .66rem}}
 /* Pedidos */
 .ped{background:#fff;border-radius:12px;padding:1rem;border:1px solid var(--brd);margin-bottom:.7rem;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.04)}
@@ -2585,7 +2585,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v79';
+var APP_BUILD = 'jacaranda-v80';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -7712,7 +7712,7 @@ function renderInvProductos() {
   var start = _invProdPage * _invProdPerPage;
   var page = filtered.slice(start, start + _invProdPerPage);
 
-  var h = '<table class="tbl product-actions-table"><colgroup><col><col class="col-price"><col class="col-stock"><col class="col-min"><col class="col-status"><col class="col-actions"></colgroup><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
+  var h = '<table class="tbl product-actions-table"><colgroup><col><col class="col-price"><col class="col-caf-price"><col class="col-stock"><col class="col-min"><col class="col-status"><col class="col-actions"></colgroup><tr><th>Producto</th><th>Precio</th><th>Cafeter&iacute;a</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
   for (var i = 0; i < page.length; i++) {
     var p = page[i];
     var stock = parseFloat(p.stock_actual) || 0;
@@ -7725,7 +7725,8 @@ function renderInvProductos() {
     var nombreArg = jsArg(p.nombre);
     var cajaNota = p.caja_ingrediente_id ? '<span class="caf-price-note">Caja: ' + escHtml(nombreCajaProducto(p)) + '</span>' : '';
     h += '<tr><td>' + escHtml(p.nombre) + cajaNota + '</td>';
-    h += '<td>$' + fmt(precio) + (precioCafe > 0 ? '<span class="caf-price-note">Caf&eacute; $' + fmt(precioCafe) + '</span>' : '') + '</td>';
+    h += '<td>$' + fmt(precio) + '</td>';
+    h += '<td>' + (precioCafe > 0 ? '$' + fmt(precioCafe) : '<span style="color:var(--mut)">&mdash;</span>') + '</td>';
     h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline;cursor:pointer">' + Math.round(stock) + ' pzas</a></td>';
     h += '<td>' + Math.round(min) + '</td>';
     h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
@@ -8404,7 +8405,7 @@ function cargarListaProductos() {
       _cajasProductoFetchIntentado = true;
       cargarIngredientesParaCajas().then(cargarListaProductos).catch(function() {});
     }
-    var h = '<table class="tbl product-actions-table"><colgroup><col><col class="col-price"><col class="col-cost"><col class="col-stock"><col class="col-min"><col class="col-iva"><col class="col-actions"></colgroup><tr><th>Producto</th><th>Precio</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th>IVA</th><th class="actions-th">Acciones</th></tr>';
+    var h = '<table class="tbl product-actions-table"><colgroup><col><col class="col-price"><col class="col-caf-price"><col class="col-cost"><col class="col-stock"><col class="col-min"><col class="col-iva"><col class="col-actions"></colgroup><tr><th>Producto</th><th>Precio</th><th>Cafeter&iacute;a</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th>IVA</th><th class="actions-th">Acciones</th></tr>';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
       var stock = parseFloat(p.stock_actual) || 0;
@@ -8418,14 +8419,14 @@ function cargarListaProductos() {
       h += '<tr>';
       var cajaNota = p.caja_ingrediente_id ? '<span class="caf-price-note">Caja: ' + escHtml(nombreCajaProducto(p)) + '</span>' : '';
       h += '<td><strong>' + escHtml(p.nombre) + '</strong>' + cajaNota + '</td>';
-      h += '<td>$' + fmt(precio) + (precioCafe > 0 ? '<span class="caf-price-note">Caf&eacute; $' + fmt(precioCafe) + '</span>' : '') + '</td>';
+      h += '<td>$' + fmt(precio) + '</td>';
+      h += '<td>' + (precioCafe > 0 ? '$' + fmt(precioCafe) : '<span style="color:var(--mut)">&mdash;</span>') + '</td>';
       h += '<td style="color:var(--mut)">$' + fmt(costo) + '</td>';
       h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline">' + Math.round(stock) + '</a></td>';
       h += '<td>' + Math.round(min) + '</td>';
       h += '<td>' + iva + '</td>';
       h += '<td class="actions-cell"><div class="action-buttons">';
       h += actionBtn('Editar', '&#9998;', 'editarProducto(' + p.id + ')');
-      h += actionBtn('Caf&eacute;', '&#9749;', 'editarPrecioCafeRapido(' + p.id + ',' + nombreArg + ',' + precioCafe + ')');
       h += actionBtn('Merma', '&#128465;', 'abrirMerma(' + p.id + ',' + nombreArg + ',' + Math.round(stock) + ')');
       h += actionBtn('Precios', '&#128200;', 'verHistorialPrecio(' + p.id + ',' + nombreArg + ')');
       h += actionBtn('Desactivar', '&#10005;', 'eliminarProducto(' + p.id + ',' + nombreArg + ')', 'danger');
@@ -8437,29 +8438,6 @@ function cargarListaProductos() {
   }).catch(function() {
     document.getElementById('l-prods-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>';
   });
-}
-
-async function editarPrecioCafeRapido(id, nombre, actual) {
-  var txt = await solicitarEntrada({
-    title: 'Precio cafeter\u00eda',
-    message: nombre,
-    detail: 'Precio especial B2B',
-    label: 'Precio',
-    value: actual > 0 ? fmt(actual) : '',
-    type: 'number',
-    min: '0.01',
-    step: '0.01',
-    acceptText: 'Guardar'
-  });
-  if (txt === null) return;
-  var precio = parseFloat(String(txt).replace(/,/g, ''));
-  if (!precio || precio <= 0) { toast('Precio inv\u00e1lido', true); return; }
-  api('PUT', '/inventario/productos/' + id, {precio_cafeteria: precio}).then(function() {
-    toast('Precio cafeter\u00eda actualizado');
-    cargarListaProductos();
-    cargarPOSProductos();
-    cargarCafeteriaProductos();
-  }).catch(function(e) { toast(e.message || 'Error al actualizar precio', true); });
 }
 
 function cargarListaIngredientes() {
