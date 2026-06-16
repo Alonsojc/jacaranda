@@ -306,7 +306,11 @@ def test_frontend_cafeteria_b2b_surface():
     html = open("docs/index.html", encoding="utf-8").read()
     assert "caf-k-llevado" in html
     assert "cargarCafeteriaClientes" in html
-    assert "editarPrecioCafeRapido" in html
+    assert "mep-precio-caf" in html
+    assert "precio_cafeteria: precioCafeRaw ? parseFloat(precioCafeRaw) : null" in html
+    assert "<th>Cafeter&iacute;a</th>" in html
+    assert "editarPrecioCafeRapido" not in html
+    assert "actionBtn('Caf&eacute;'" not in html
     assert "Pago parcial" in html
     assert "Liquidar" in html
     assert "#cafeteria .caf-account{position:static;bottom:auto;z-index:auto}" in html
