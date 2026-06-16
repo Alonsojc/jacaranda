@@ -222,13 +222,14 @@ class TestCFDI:
             "metodo_pago": "01",
             "monto_recibido": "300.00",
             "cliente_id": cliente.json()["id"],
+            "iva_factura_tasa": "0.08",
             "detalles": [
                 {"producto_id": pan_id, "cantidad": "1"},
                 {"producto_id": pastel_id, "cantidad": "1"},
             ],
         }, headers=auth_headers)
         assert venta.status_code == 201, venta.text
-        assert venta.json()["total"] == "216.00"
+        assert venta.json()["total"] == "208.00"
 
         cfdi = client.post("/api/v1/facturacion/generar", json={
             "venta_id": venta.json()["id"],
@@ -244,8 +245,8 @@ class TestCFDI:
             headers=auth_headers,
         ).text
         assert 'SubTotal="200.00"' in xml
-        assert 'Total="216.00"' in xml
-        assert 'Importe="116.00"' not in xml
+        assert 'Total="208.00"' in xml
+        assert 'Importe="108.00"' not in xml
         assert 'TasaOCuota="0.000000"' in xml
-        assert 'TasaOCuota="0.160000"' in xml
-        assert 'Base="100.00" Impuesto="002"\n        TipoFactor="Tasa" TasaOCuota="0.160000"' in xml
+        assert 'TasaOCuota="0.080000"' in xml
+        assert 'Base="100.00" Impuesto="002"\n        TipoFactor="Tasa" TasaOCuota="0.080000"' in xml

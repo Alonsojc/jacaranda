@@ -48,8 +48,22 @@ class VentaCreate(BaseModel):
     canjear_recompensa_lealtad: bool = False
     recompensa_lealtad_motivo: str | None = None
     notas: str | None = None
+    iva_factura_tasa: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("0.08"))
     detalles: list[DetalleVentaCreate] = Field(..., min_length=1)
     pagos: list[PagoVentaCreate] | None = None  # Split payments (optional)
+
+    @field_validator("iva_factura_tasa", mode="before")
+    @classmethod
+    def validar_iva_factura_tasa(cls, v) -> Decimal:
+        if v in (None, ""):
+            return Decimal("0")
+        try:
+            tasa = Decimal(str(v)).quantize(Decimal("0.01"))
+        except Exception as exc:
+            raise ValueError("La tasa de IVA para factura debe ser 0% u 8%") from exc
+        if tasa not in {Decimal("0.00"), Decimal("0.08")}:
+            raise ValueError("La tasa de IVA para factura debe ser 0% u 8%")
+        return tasa
 
 
 class DetalleVentaResponse(BaseModel):

@@ -93,6 +93,15 @@ def _obtener_tasa_iva(producto: Producto) -> Decimal:
         return Decimal("0.00")
 
 
+def _obtener_tasa_iva_pos(producto: Producto, tasa_factura: Decimal) -> Decimal:
+    """En mostrador no se cobra IVA salvo que caja active factura."""
+    if tasa_factura <= 0:
+        return Decimal("0.00")
+    if producto.tasa_iva == TasaIVA.TASA_16:
+        return tasa_factura
+    return Decimal("0.00")
+
+
 def _aplicar_descuento_global(detalles: list[DetalleVenta], descuento_bruto: Decimal) -> None:
     """Distribuye un descuento con IVA incluido entre partidas."""
     if descuento_bruto <= 0:
@@ -184,7 +193,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     """
     Procesa una venta completa:
     1. Valida productos activos
-    2. Calcula IVA por partida (0% o 16%)
+    2. Calcula IVA por partida (0% por defecto, 8% si caja activa factura)
     3. Descuenta inventario
     4. Genera ticket
     """
@@ -250,6 +259,9 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     detalles = []
     stock_por_producto: dict[int, dict] = {}
     productos_por_id: dict[int, Producto] = {}
+    tasa_factura_pos = Decimal(str(data.iva_factura_tasa or Decimal("0"))).quantize(
+        Decimal("0.01")
+    )
 
     for item in data.detalles:
         producto = db.query(Producto).filter(
@@ -275,7 +287,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
 
         precio = producto.precio_unitario
         subtotal_linea = (precio * item.cantidad) - item.descuento
-        tasa_iva = _obtener_tasa_iva(producto)
+        tasa_iva = _obtener_tasa_iva_pos(producto, tasa_factura_pos)
         monto_iva = (subtotal_linea * tasa_iva).quantize(Decimal("0.01"))
 
         subtotal_total += subtotal_linea
