@@ -160,6 +160,10 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .caf-account-strip{display:flex;justify-content:space-between;gap:.5rem;align-items:center;margin:.45rem 0 .15rem;padding:.45rem .55rem;border:1px solid #f0e8e5;border-radius:9px;background:#fdf9f7;color:var(--mut);font-size:.76rem;font-weight:700;flex-wrap:wrap}
 .quick-pay{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin:-.25rem 0 .55rem}
 .quick-pay .limpiar{margin:0;font-size:.78rem;padding:.45rem .55rem}
+.pos-tax-toggle{width:100%;margin:.55rem 0 0;padding:.58rem .75rem;border:1px solid var(--brd);border-radius:10px;background:#fff;color:var(--v);font-size:.82rem;font-weight:800;cursor:pointer;transition:all .16s}
+.pos-tax-toggle:hover{border-color:var(--v);background:#faf3f0}
+.pos-tax-toggle.active{background:#f0fdf4;border-color:#86efac;color:#047857;box-shadow:0 2px 8px rgba(4,120,87,.12)}
+.pos-tax-note{font-size:.72rem;color:var(--mut);font-weight:700;text-align:center;margin:.28rem 0 .15rem}
 #titems{margin-top:.7rem;max-height:340px;overflow-y:auto;padding-right:.1rem}
 .caf-account{background:linear-gradient(180deg,#fff,#fffaf8);border-radius:14px;padding:1rem;border:1px solid var(--brd);box-shadow:0 2px 10px rgba(75,53,47,.05)}
 .caf-account h3{font-size:1rem;margin-bottom:.7rem}
@@ -685,22 +689,24 @@ h2{font-size:1.1rem}
 <div style="font-size:.78rem;color:var(--mut);margin:.4rem 0 .3rem;font-weight:600">M&eacute;todo de pago:</div>
 <div class="pmt" style="grid-template-columns:1fr 1fr">
 <div class="pbtn sel" id="pm-ef" onclick="setPm('ef')">&#128181; Efectivo</div>
-<div class="pbtn" id="pm-clip" onclick="setPm('clip')">&#128179; CLIP</div>
-<div class="pbtn" id="pm-trans" onclick="setPm('trans')">&#127974; Transferencia</div>
-<div class="pbtn" id="pm-bbva" onclick="setPm('bbva')">&#127974; BBVA</div>
-</div>
-<button class="cobrar" onclick="cobrar()">Cobrar</button>
+	<div class="pbtn" id="pm-clip" onclick="setPm('clip')">&#128179; CLIP</div>
+	<div class="pbtn" id="pm-trans" onclick="setPm('trans')">&#127974; Transferencia</div>
+	<div class="pbtn" id="pm-bbva" onclick="setPm('bbva')">&#127974; BBVA</div>
+	</div>
+	<button type="button" id="pos-iva-factura-btn" class="pos-tax-toggle" onclick="togglePosFacturaIva()" aria-pressed="false">Agregar 8% IVA para factura</button>
+	<div id="pos-iva-factura-note" class="pos-tax-note">Sin IVA por default</div>
+	<button class="cobrar" onclick="cobrar()">Cobrar</button>
 <div class="quote-actions">
 <button class="wa-btn" onclick="enviarCotizacionWhatsApp()">Enviar cotizaci&oacute;n por WhatsApp</button>
 </div>
 <button class="limpiar" onclick="confirmarLimpiar()">Limpiar</button>
 <button class="limpiar" onclick="document.querySelector('.pos-prods').scrollIntoView({behavior:'smooth'})" id="pos-btn-prods" style="display:none;margin-top:.3rem">&uarr; Ver productos</button>
 <div id="titems"></div>
-<div id="tsum" style="display:none">
-<div class="ti"><span>Subtotal</span><span id="tsub"></span></div>
-<div class="ti"><span>IVA 16%</span><span id="tiva"></span></div>
-<div class="ttot"><span>TOTAL</span><span id="ttot"></span></div>
-</div>
+	<div id="tsum" style="display:none">
+	<div class="ti"><span>Subtotal</span><span id="tsub"></span></div>
+	<div class="ti"><span id="tiva-label">IVA</span><span id="tiva"></span></div>
+	<div class="ttot"><span>TOTAL</span><span id="ttot"></span></div>
+	</div>
 </div>
 </div>
 </div><!-- /pos -->
@@ -2417,11 +2423,13 @@ h2{font-size:1.1rem}
 <div class="modal-bg" id="modal-cobrar">
 <div class="modal">
 <h3>Cobrar</h3>
-<div style="text-align:center;margin-bottom:1rem">
-<div style="font-size:2rem;font-weight:700;color:var(--v)" id="mc-total">$0.00</div>
-<div style="font-size:.85rem;color:var(--mut)" id="mc-metodo">Efectivo</div>
-</div>
-<div id="mc-referencia-wrap" class="fg" style="display:none;margin-bottom:.7rem">
+	<div style="text-align:center;margin-bottom:1rem">
+	<div style="font-size:2rem;font-weight:700;color:var(--v)" id="mc-total">$0.00</div>
+	<div style="font-size:.85rem;color:var(--mut)" id="mc-metodo">Efectivo</div>
+	</div>
+	<button type="button" id="mc-iva-factura-btn" class="pos-tax-toggle" onclick="togglePosFacturaIva()" aria-pressed="false">Agregar 8% IVA para factura</button>
+	<div id="mc-iva-factura-resumen" class="pos-tax-note" style="margin-bottom:.7rem">Sin IVA por default</div>
+	<div id="mc-referencia-wrap" class="fg" style="display:none;margin-bottom:.7rem">
 <label id="mc-referencia-label">Referencia / autorizaci&oacute;n</label>
 <input id="mc-referencia" maxlength="100" placeholder="Autorizaci&oacute;n, voucher o &uacute;ltimos 4">
 </div>
@@ -2577,7 +2585,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v78';
+var APP_BUILD = 'jacaranda-v79';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -2591,6 +2599,7 @@ var PAGINAS_DESACTIVADAS = {
 };
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
+var POS_FACTURA_IVA_TASA = 0.08, _posFacturaIvaActiva = false;
 var _clienteRecompensaActual = null, _canjearRecompensaLealtad = false;
 var cafCart = [], cafPm = 'trans', _cafGroups = {}, _cafGroupOrder = [], _cafProductById = {}, _cafVentas = [], _cafClientes = [], _cafEnProceso = false, _cafIdempotencyKey = null;
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
@@ -3737,6 +3746,54 @@ function add(id, n, pr, iv) {
   }
 }
 
+function posIvaTasaLinea(item) {
+  return (_posFacturaIvaActiva && item && (item.iv || 0) > 0) ? POS_FACTURA_IVA_TASA : 0;
+}
+
+function actualizarIvaFacturaUI(subtotal, iva) {
+  if (typeof subtotal !== 'number' || typeof iva !== 'number') {
+    var base = 0, impuesto = 0;
+    for (var i = 0; i < cart.length; i++) {
+      var c = cart[i];
+      var linea = Math.max(0, (c.p * c.q) - (c.desc || 0));
+      base += linea;
+      impuesto += linea * posIvaTasaLinea(c);
+    }
+    var rew = descuentoRecompensaCarrito();
+    subtotal = Math.max(0, base - rew.base);
+    iva = Math.max(0, impuesto - rew.iva);
+  }
+  var activa = !!_posFacturaIvaActiva;
+  var texto = activa ? 'Quitar IVA factura 8%' : 'Agregar 8% IVA para factura';
+  var nota = activa ? 'IVA factura 8%: $' + fmt(iva) : 'Sin IVA por default';
+  ['pos-iva-factura-btn', 'mc-iva-factura-btn'].forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    btn.textContent = texto;
+    btn.classList.toggle('active', activa);
+    btn.setAttribute('aria-pressed', activa ? 'true' : 'false');
+  });
+  var label = document.getElementById('tiva-label');
+  if (label) label.textContent = activa ? 'IVA factura 8%' : 'IVA';
+  var note = document.getElementById('pos-iva-factura-note');
+  if (note) note.textContent = nota;
+  var resumen = document.getElementById('mc-iva-factura-resumen');
+  if (resumen) resumen.textContent = activa ? (nota + ' sobre $' + fmt(subtotal)) : nota;
+}
+
+function refrescarTotalCobro() {
+  var modal = document.getElementById('modal-cobrar');
+  if (!modal || !modal.classList.contains('on')) return;
+  document.getElementById('mc-total').textContent = '$' + fmt(_cartTotal());
+  if (_splitMode) calcSplit(); else calcCambio();
+}
+
+function togglePosFacturaIva() {
+  _posFacturaIvaActiva = !_posFacturaIvaActiva;
+  ren();
+  refrescarTotalCobro();
+}
+
 function recompensaLealtadActiva() {
   return !!(_canjearRecompensaLealtad && _clienteRecompensaActual && parseInt(_clienteRecompensaActual.disponibles || 0, 10) > 0);
 }
@@ -3750,10 +3807,11 @@ function descuentoRecompensaCarrito() {
     var baseDisponible = Math.max(0, (c.p * c.q) - (c.desc || 0));
     if (baseDisponible <= 0) continue;
     var base = Math.min(c.p, baseDisponible);
+    var tasaIva = posIvaTasaLinea(c);
     var candidato = {
       base: base,
-      iva: base * (c.iv || 0),
-      total: base * (1 + (c.iv || 0)),
+      iva: base * tasaIva,
+      total: base * (1 + tasaIva),
       nombre: c.n
     };
     if (!mejor || candidato.total < mejor.total) mejor = candidato;
@@ -3803,7 +3861,7 @@ function ren() {
   for (var i = 0; i < cart.length; i++) {
     var c = cart[i], l = c.p * c.q, d = c.desc || 0;
     s += l - d;
-    iv += (l - d) * c.iv;
+    iv += (l - d) * posIvaTasaLinea(c);
     dsc += d;
     h += '<div class="ti" style="align-items:center">';
     h += '<span style="display:flex;align-items:center;gap:.4rem">';
@@ -3830,6 +3888,7 @@ function ren() {
   if (notasDesc.length) document.getElementById('tsub').textContent += ' (' + notasDesc.join(' · ') + ')';
   document.getElementById('tiva').textContent = '$' + fmt(ivaFinal);
   document.getElementById('ttot').textContent = '$' + fmt((subtotalFinal + ivaFinal));
+  actualizarIvaFacturaUI(subtotalFinal, ivaFinal);
   actualizarCajaRecompensa();
   var bp = document.getElementById('pos-btn-prods');
   if (bp) bp.style.display = (cart.length && window.innerWidth <= 900) ? '' : 'none';
@@ -3887,7 +3946,7 @@ function _cartTotal() {
   var s = 0, iv = 0;
   for (var i = 0; i < cart.length; i++) {
     var l = cart[i].p * cart[i].q - (cart[i].desc || 0);
-    s += l; iv += l * cart[i].iv;
+    s += l; iv += l * posIvaTasaLinea(cart[i]);
   }
   var rew = descuentoRecompensaCarrito();
   return Math.max(0, s - rew.base) + Math.max(0, iv - rew.iva);
@@ -3899,7 +3958,7 @@ function _cartResumenCotizacion() {
     var bruto = c.p * c.q;
     var desc = c.desc || 0;
     var base = Math.max(0, bruto - desc);
-    var imp = base * c.iv;
+    var imp = base * posIvaTasaLinea(c);
     subtotal += base;
     iva += imp;
     descuento += desc;
@@ -4164,6 +4223,7 @@ function enviarCotizacionWhatsApp() {
 function cobrar() {
   if (!cart.length) return;
   _splitMode = false;
+  ren();
   var total = _cartTotal();
   document.getElementById('mc-total').textContent = '$' + fmt(total);
   var nombres = {ef:'Efectivo', clip:'Tarjeta (CLIP)', trans:'Transferencia', bbva:'BBVA'};
@@ -4182,6 +4242,7 @@ function cobrar() {
   if (tipoClip) tipoClip.value = '28';
   if (tipoBbvaWrap) tipoBbvaWrap.style.display = pm === 'bbva' ? 'block' : 'none';
   if (tipoClipWrap) tipoClipWrap.style.display = pm === 'clip' ? 'block' : 'none';
+  actualizarIvaFacturaUI();
   document.getElementById('mc-single').style.display = 'block';
   document.getElementById('mc-split').style.display = 'none';
   var efDiv = document.getElementById('mc-efectivo');
@@ -4275,7 +4336,7 @@ function procesarVenta() {
   var detalles = cart.map(function(c) {
     return {producto_id: c.id, cantidad: Math.max(1, parseInt(c.q, 10) || 1), descuento: c.desc || 0};
   });
-  var body = {detalles: detalles, forma_pago: 'PUE', idempotency_key: _ventaIdempotencyKey};
+  var body = {detalles: detalles, forma_pago: 'PUE', idempotency_key: _ventaIdempotencyKey, iva_factura_tasa: _posFacturaIvaActiva ? POS_FACTURA_IVA_TASA : 0};
   var clienteId = document.getElementById('pos-cliente').value;
   if (clienteId) body.cliente_id = parseInt(clienteId);
   if (_canjearRecompensaLealtad) {
@@ -4461,7 +4522,7 @@ function sincronizarVentas() {
   var chain = Promise.resolve();
   for (var i = 0; i < pending.length; i++) {
     (function(venta) {
-      var body = {detalles: venta.detalles, forma_pago: venta.forma_pago, metodo_pago: venta.metodo_pago, terminal: venta.terminal, monto_recibido: venta.monto_recibido};
+      var body = {detalles: venta.detalles, forma_pago: venta.forma_pago, metodo_pago: venta.metodo_pago, terminal: venta.terminal, monto_recibido: venta.monto_recibido, iva_factura_tasa: venta.iva_factura_tasa || 0};
       if (venta.idempotency_key) body.idempotency_key = venta.idempotency_key;
       if (venta.cliente_id) body.cliente_id = venta.cliente_id;
       if (venta.pagos) body.pagos = venta.pagos;
@@ -4499,7 +4560,7 @@ function guardarVentaIndexedDB(body) {
     tx.objectStore('pending-sales').add({
       url: API_URL + '/api/v1/punto-de-venta/ventas',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({detalles: body.detalles, forma_pago: body.forma_pago, metodo_pago: body.metodo_pago, terminal: body.terminal, monto_recibido: body.monto_recibido, pagos: body.pagos, cliente_id: body.cliente_id, idempotency_key: body.idempotency_key, canjear_recompensa_lealtad: body.canjear_recompensa_lealtad, recompensa_lealtad_motivo: body.recompensa_lealtad_motivo, pago_integrado: body.pago_integrado, referencia_pago: body.referencia_pago}),
+      body: JSON.stringify({detalles: body.detalles, forma_pago: body.forma_pago, metodo_pago: body.metodo_pago, terminal: body.terminal, monto_recibido: body.monto_recibido, pagos: body.pagos, cliente_id: body.cliente_id, idempotency_key: body.idempotency_key, iva_factura_tasa: body.iva_factura_tasa || 0, canjear_recompensa_lealtad: body.canjear_recompensa_lealtad, recompensa_lealtad_motivo: body.recompensa_lealtad_motivo, pago_integrado: body.pago_integrado, referencia_pago: body.referencia_pago}),
       timestamp: new Date().toISOString(),
     });
     // Request background sync
@@ -4755,6 +4816,7 @@ function fallbackCopy(txt) {
 
 function limpiar() {
   cart = [];
+  _posFacturaIvaActiva = false;
   _canjearRecompensaLealtad = false;
   var chk = document.getElementById('pos-recompensa-check');
   if (chk) chk.checked = false;

@@ -641,7 +641,7 @@ class TestVentas:
         assert ticket["folio"] == venta["folio"]
         assert len(ticket["productos"]) == 1
 
-    def test_venta_con_iva(self, client, auth_headers):
+    def test_pos_no_cobra_iva_por_default_y_agrega_8_para_factura(self, client, auth_headers):
         pid = self._crear_producto(client, auth_headers, "PASTEL-001", "100.00")
         # Update to 16% IVA
         client.put(f"/api/v1/inventario/productos/{pid}", json={
@@ -655,8 +655,34 @@ class TestVentas:
         }, headers=auth_headers)
         assert resp.status_code == 201
         data = resp.json()
-        assert float(data["total"]) == 116.00
-        assert float(data["iva_16"]) == 16.00
+        assert data["total"] == "100.00"
+        assert data["total_impuestos"] == "0.00"
+        assert data["iva_16"] == "0.00"
+        assert Decimal(data["detalles"][0]["tasa_iva"]) == Decimal("0.0000")
+
+        resp = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "200.00",
+            "iva_factura_tasa": "0.08",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+        assert data["total"] == "108.00"
+        assert data["total_impuestos"] == "8.00"
+        assert data["iva_16"] == "8.00"
+        assert Decimal(data["detalles"][0]["tasa_iva"]) == Decimal("0.0800")
+
+    def test_pos_rechaza_tasa_iva_factura_distinta_a_8(self, client, auth_headers):
+        pid = self._crear_producto(client, auth_headers, "PASTEL-IVA-INVALIDO", "100.00", tasa_iva="0.16")
+        self._agregar_stock(client, auth_headers, pid, 10)
+        resp = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "200.00",
+            "iva_factura_tasa": "0.16",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert resp.status_code == 422
 
     def test_venta_canjea_puntos_en_misma_transaccion(self, client, auth_headers):
         cliente = client.post("/api/v1/clientes/", json={
