@@ -24,10 +24,30 @@ def test_api_responses_are_not_cached(client, auth_headers):
     assert response.headers["pragma"] == "no-cache"
 
 
+def test_cors_allows_legacy_no_store_request_headers(client):
+    response = client.options(
+        "/api/v1/auth/me",
+        headers={
+            "Origin": "https://alonsojc.github.io",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": (
+                "authorization,content-type,cache-control,pragma"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    allowed = response.headers["access-control-allow-headers"].lower()
+    assert "authorization" in allowed
+    assert "content-type" in allowed
+    assert "cache-control" in allowed
+    assert "pragma" in allowed
+
+
 def test_service_worker_never_caches_authenticated_api_data():
     sw = read_text("docs/sw.js")
 
-    assert "const CACHE_NAME = 'jacaranda-v77'" in sw
+    assert "const CACHE_NAME = 'jacaranda-v78'" in sw
     assert "request.headers.has('Authorization')" in sw
     assert "offlineApiResponse" in sw
     assert "'Cache-Control': 'no-store'" in sw
@@ -40,7 +60,7 @@ def test_service_worker_never_caches_authenticated_api_data():
 def test_frontend_api_cache_is_short_lived_and_not_persistent():
     html = read_text("docs/index.html")
 
-    assert "var APP_BUILD = 'jacaranda-v77'" in html
+    assert "var APP_BUILD = 'jacaranda-v78'" in html
     assert "function apiGetCacheTtl(path)" in html
     assert "if (clean === '/inventario/productos') return 45000" in html
     assert "if (clean === '/pedidos/reservas') return 15000" in html
@@ -49,6 +69,18 @@ def test_frontend_api_cache_is_short_lived_and_not_persistent():
     assert "cache: 'no-store'" in html
     assert "function leerRespuestaJson" in html
     assert "localStorage.setItem('jacaranda_prods_cache'" not in html
+
+
+def test_frontend_no_store_does_not_add_disallowed_cors_headers():
+    html = read_text("docs/index.html")
+    api_segment = segment_between(html, "function api(method, path", "function apiPublic")
+    public_segment = segment_between(html, "function apiPublic", "function codigoTarjetaDesdeTexto")
+
+    assert "cache: 'no-store'" in api_segment
+    assert "'Cache-Control':'no-store'" not in api_segment
+    assert "'Pragma':'no-cache'" not in api_segment
+    assert "'Cache-Control':'no-store'" not in public_segment
+    assert "'Pragma':'no-cache'" not in public_segment
 
 
 def test_frontend_keeps_session_during_temporary_server_errors():

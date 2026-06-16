@@ -2577,7 +2577,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v77';
+var APP_BUILD = 'jacaranda-v78';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -2870,9 +2870,7 @@ function api(method, path, body, _retry, extraHeaders) {
     method: method,
     cache: 'no-store',
     headers: {
-      'Content-Type':'application/json',
-      'Cache-Control':'no-store',
-      'Pragma':'no-cache'
+      'Content-Type':'application/json'
     }
   };
   var controller = window.AbortController ? new AbortController() : null;
@@ -2956,9 +2954,7 @@ function apiPublic(method, path, body) {
     method: method,
     cache: 'no-store',
     headers: {
-      'Content-Type':'application/json',
-      'Cache-Control':'no-store',
-      'Pragma':'no-cache'
+      'Content-Type':'application/json'
     }
   };
   var controller = window.AbortController ? new AbortController() : null;
@@ -3399,9 +3395,7 @@ function refreshAccessToken() {
     method: 'POST',
     cache: 'no-store',
     headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
-      'Pragma': 'no-cache'
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({refresh_token: REFRESH_TOKEN})
   };
@@ -3447,9 +3441,7 @@ function descargarArchivoAutenticado(path, filename, successMsg, errorMsg, _retr
   return fetch(API_URL + path, {
     cache: 'no-store',
     headers: {
-      'Authorization': 'Bearer ' + TOKEN,
-      'Cache-Control': 'no-store',
-      'Pragma': 'no-cache'
+      'Authorization': 'Bearer ' + TOKEN
     }
   }).then(function(r) {
     if (r.status === 401 && !_retry && REFRESH_TOKEN) {
@@ -3486,9 +3478,7 @@ function login(email, pass) {
     method: 'POST',
     cache: 'no-store',
     headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
-      'Pragma': 'no-cache'
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({email: email, password: pass})
   }).then(function(r) {
@@ -6932,7 +6922,7 @@ function _enviarOCR(file) {
   var opts = {
     method: 'POST',
     cache: 'no-store',
-    headers: {'Cache-Control':'no-store', 'Pragma':'no-cache'},
+    headers: {},
     body: formData
   };
   if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
@@ -7457,7 +7447,7 @@ function subirFotosMasivo() {
     fetch(API_URL + '/api/v1/inventario/productos/imagenes-masivo', {
       method: 'POST',
       cache: 'no-store',
-      headers: { 'Authorization': 'Bearer ' + TOKEN, 'Cache-Control': 'no-store', 'Pragma': 'no-cache' },
+      headers: { 'Authorization': 'Bearer ' + TOKEN },
       body: fd
     }).then(function(r) { return leerRespuestaJson(r); }).then(function(data) {
       toast(data.mensaje);
@@ -8083,7 +8073,7 @@ function guardarProducto() {
     if (imgInput.files && imgInput.files[0]) {
       var fd = new FormData();
       fd.append('archivo', imgInput.files[0]);
-      var imgHeaders = { 'Authorization': 'Bearer ' + TOKEN, 'Cache-Control': 'no-store', 'Pragma': 'no-cache' };
+      var imgHeaders = { 'Authorization': 'Bearer ' + TOKEN };
       if (headers['X-Admin-Override-Password']) imgHeaders['X-Admin-Override-Password'] = headers['X-Admin-Override-Password'];
       if (headers['X-Admin-Override-Motivo']) imgHeaders['X-Admin-Override-Motivo'] = headers['X-Admin-Override-Motivo'];
       imgPromise = fetch(API_URL + '/api/v1/inventario/productos/' + id + '/imagen', {
@@ -8944,7 +8934,7 @@ function _enviarOCREgreso(file) {
   var opts = {
     method: 'POST',
     cache: 'no-store',
-    headers: {'Cache-Control':'no-store', 'Pragma':'no-cache'},
+    headers: {},
     body: formData
   };
   if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;

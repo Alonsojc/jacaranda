@@ -177,6 +177,8 @@ app.add_middleware(
     allow_headers=[
         "Content-Type",
         "Authorization",
+        "Cache-Control",
+        "Pragma",
         "X-Admin-Override-Password",
         "X-Admin-Override-Motivo",
         "X-Requested-With",
