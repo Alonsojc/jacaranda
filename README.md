@@ -17,4 +17,3 @@ https://janco.tech/sistemas/panaderia
 
 Conoce mas de Janco y sus sistemas para operar negocios reales:
 https://janco.tech
-
