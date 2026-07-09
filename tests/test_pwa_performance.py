@@ -47,7 +47,7 @@ def test_cors_allows_legacy_no_store_request_headers(client):
 def test_service_worker_never_caches_authenticated_api_data():
     sw = read_text("docs/sw.js")
 
-    assert "const CACHE_NAME = 'jacaranda-v81'" in sw
+    assert "const CACHE_NAME = 'jacaranda-v82'" in sw
     assert "request.headers.has('Authorization')" in sw
     assert "offlineApiResponse" in sw
     assert "'Cache-Control': 'no-store'" in sw
@@ -60,7 +60,7 @@ def test_service_worker_never_caches_authenticated_api_data():
 def test_frontend_api_cache_is_short_lived_and_not_persistent():
     html = read_text("docs/index.html")
 
-    assert "var APP_BUILD = 'jacaranda-v81'" in html
+    assert "var APP_BUILD = 'jacaranda-v82'" in html
     assert "function apiGetCacheTtl(path)" in html
     assert "if (clean === '/inventario/productos') return 45000" in html
     assert "if (clean === '/pedidos/reservas') return 15000" in html
@@ -123,7 +123,29 @@ def test_mobile_navigation_has_loading_feedback_and_guarded_pull_refresh():
     assert "function esTargetPullRefreshSeguro" in html
     assert "deltaX < 60" in html
     assert "@media(hover:none)" in html
+    assert "function initNavDropdowns" in html
+    assert "trigger.addEventListener('touchend', activar, {passive: false})" in html
+    assert "aria-expanded" in html
     assert "mobileMenuOpenedAt > 450" in html
+
+
+def test_frontend_defaults_to_pos_when_opening_app():
+    html = read_text("docs/index.html")
+    initial_segment = segment_between(
+        html,
+        "function pantallaInicialUsuario",
+        "function irInicio",
+    )
+    cached_start_segment = segment_between(
+        html,
+        "function mostrarInicioGuardado",
+        "function aplicarPostLogin",
+    )
+
+    assert "var APP_DEFAULT_PAGE = 'pos';" in html
+    assert "return moduloInicioUsuario(u);" in initial_segment
+    assert "localStorage.getItem('jacaranda_tab')" not in initial_segment
+    assert "var tab = u ? pantallaInicialUsuario(u) : APP_DEFAULT_PAGE;" in cached_start_segment
 
 
 def test_frontend_has_manual_installed_app_refresh():
