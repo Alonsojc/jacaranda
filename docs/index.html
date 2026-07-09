@@ -405,7 +405,7 @@ body.mobile-menu-open{overflow:hidden}
 .mobile-nav{display:flex}
 nav .nav-links a[data-pg]{display:none!important}
 nav .nav-links .nav-group{display:none!important}
-nav .nav-links #btn-notif,nav .nav-links #btn-logout{display:none!important}
+nav .nav-links #btn-update-app,nav .nav-links #btn-notif,nav .nav-links #btn-logout{display:none!important}
 body{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))}
 .toast{bottom:calc(5.7rem + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 1.5rem);text-align:center}
 .page-load-chip{top:.5rem}
@@ -493,8 +493,9 @@ h2{font-size:1.1rem}
     <a data-pg="crm" onclick="go('crm')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#128101; CRM / Clientes</a>
     <a data-pg="sucursales" onclick="go('sucursales')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#127978; Sucursales</a>
     <a data-pg="usuarios" onclick="go('usuarios')" class="nav-role" data-roles="ADMINISTRADOR">&#128100; Usuarios</a>
-  </div>
 </div>
+</div>
+<a onclick="actualizarAppInstalada();return false" id="btn-update-app" style="display:none;cursor:pointer;color:var(--mut);font-size:.95rem;padding:.5rem .4rem" title="Actualizar app">&#8635;</a>
 <a onclick="toggleNotifPanel()" id="btn-notif" style="display:none;cursor:pointer;color:var(--mut);font-size:.95rem;padding:.5rem .4rem;position:relative" title="Notificaciones">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:2px;right:0;background:#ef4444;color:#fff;font-size:.55rem;font-weight:700;padding:.05rem .3rem;border-radius:8px;min-width:14px;text-align:center"></span></a>
 <a onclick="confirmarCerrarSesion()" id="btn-logout" style="display:none;cursor:pointer;color:var(--mut);font-size:.78rem;padding:.5rem .6rem" title="Cerrar sesi&oacute;n">&#9211;</a>
 </div>
@@ -1908,6 +1909,7 @@ h2{font-size:1.1rem}
 <a data-pg="ejecutivo" onclick="navegarMobile('ejecutivo', event);return false" class="mm-link">&#128188; Ejecutivo</a>
 <a data-pg="deliveryp" onclick="navegarMobile('deliveryp', event);return false" class="mm-link">&#128666; Delivery</a>
 <a data-pg="usuarios" onclick="navegarMobile('usuarios', event);return false" class="mm-link">&#128101; Usuarios</a>
+<a onclick="accionMobile(function(){actualizarAppInstalada();}, event);return false" class="mm-link">&#8635; Actualizar app</a>
 <a onclick="accionMobile(function(){toggleNotifPanel();}, event);return false" class="mm-link">&#128276; Notificaciones</a>
 <a onclick="accionMobile(function(){confirmarCerrarSesion();}, event);return false" class="mm-link" style="color:#b91c1c">&#9211; Cerrar sesi&oacute;n</a>
 </div>
@@ -2585,7 +2587,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v80';
+var APP_BUILD = 'jacaranda-v81';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
   proveedores: 'Proveedores',
@@ -12106,6 +12108,90 @@ function accionMobile(fn, e) {
   setTimeout(fn, 0);
 }
 
+var _actualizandoApp = false;
+
+function mostrarBotonActualizarApp(mostrar) {
+  var btn = document.getElementById('btn-update-app');
+  if (btn) btn.style.display = mostrar ? '' : 'none';
+}
+
+function marcarActualizacionAppPendiente() {
+  try { sessionStorage.setItem('jacaranda_app_refresh_pending', '1'); } catch(e) {}
+}
+
+function avisarActualizacionAppCompletada() {
+  try {
+    if (sessionStorage.getItem('jacaranda_app_refresh_pending') !== '1') return;
+    sessionStorage.removeItem('jacaranda_app_refresh_pending');
+    setTimeout(function() { toast('App actualizada'); }, 900);
+  } catch(e) {}
+}
+
+function recargarAppConCacheBuster() {
+  marcarActualizacionAppPendiente();
+  try {
+    var url = new URL(window.location.href);
+    url.searchParams.set('_jc_refresh', String(Date.now()));
+    window.location.replace(url.toString());
+  } catch(e) {
+    window.location.reload();
+  }
+}
+
+async function limpiarCacheAppInstalada() {
+  _apiGetCache = {};
+  _apiGetInFlight = {};
+  if (window.caches && caches.keys) {
+    var names = await caches.keys();
+    await Promise.all(names.filter(function(name) {
+      return /^jacaranda-/.test(name);
+    }).map(function(name) {
+      return caches.delete(name);
+    }));
+  }
+  if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
+    var regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map(function(registration) {
+      try {
+        if (registration.waiting) registration.waiting.postMessage({type: 'SKIP_WAITING'});
+      } catch(e) {}
+      return registration.update().catch(function() {});
+    }));
+    regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map(function(registration) {
+      return registration.unregister().catch(function() {});
+    }));
+  }
+}
+
+async function actualizarAppInstalada() {
+  if (_actualizandoApp) { toast('Actualizaci\u00f3n en proceso'); return; }
+  if (navigator.onLine === false) {
+    toast('Conecta el iPad a internet para actualizar la app', true);
+    return;
+  }
+  var ok = await confirmarAccion({
+    title: 'Actualizar app',
+    message: 'Cargar la versi\u00f3n m\u00e1s reciente de Jacaranda?',
+    detail: 'Mantiene la sesi\u00f3n y solo limpia cache de la app instalada.',
+    icon: '\u21bb',
+    acceptText: 'Actualizar'
+  });
+  if (!ok) return;
+  _actualizandoApp = true;
+  toast('Actualizando app...');
+  try {
+    await limpiarCacheAppInstalada();
+    recargarAppConCacheBuster();
+  } catch(e) {
+    console.warn('No se pudo limpiar cache de app:', e);
+    toast('Recargando app con la sesi\u00f3n guardada', true);
+    setTimeout(recargarAppConCacheBuster, 800);
+  } finally {
+    setTimeout(function() { _actualizandoApp = false; }, 2500);
+  }
+}
+
 // ─── PDF Downloads ────────────────────────────────────────────────
 function descargarReporteVentasPDF() {
   var fi = document.getElementById('rep-fi').value;
@@ -12143,6 +12229,7 @@ function hacerLogin() {
   login(email, pass).then(function() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('btn-logout').style.display = '';
+    mostrarBotonActualizarApp(true);
     setConnected(true);
     postLogin();
   }).catch(function(e) {
@@ -12180,6 +12267,7 @@ function mostrarInicioGuardado(u) {
   if (u) {
     _currentUser = u;
     _userRole = u.rol || _userRole;
+    mostrarBotonActualizarApp(true);
     aplicarPermisosModulos(u.permisos_modulos || {});
   }
   if (!document.getElementById(tab)) tab = u ? moduloInicioUsuario(u) : 'dash';
@@ -12198,6 +12286,7 @@ function aplicarPostLogin(u) {
     if (_ventasPendientes.length) sincronizarVentas();
     if (_pedidosPendientes.length) deferDashboard(function() { sincronizarPedidosPendientes(false); }, 1800);
     // Notifications
+    mostrarBotonActualizarApp(true);
     document.getElementById('btn-notif').style.display = '';
     deferDashboard(function() { if (TOKEN) cargarNotificaciones(); }, 3000);
     iniciarNotifPeriodicas();
@@ -12236,6 +12325,7 @@ function cerrarSesion() {
   _currentUser = null;
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('btn-logout').style.display = 'none';
+  mostrarBotonActualizarApp(false);
   document.getElementById('btn-notif').style.display = 'none';
   document.getElementById('notif-panel').classList.remove('on');
   if (_notifInterval) { clearInterval(_notifInterval); _notifInterval = null; }
@@ -12682,6 +12772,7 @@ window.addEventListener('hashchange', function() {
   if (esRutaClientePublica()) mostrarTarjetaClientePublica();
 });
 autoConectar();
+avisarActualizacionAppCompletada();
 
 // ─── Compras y Proveedores ─────────────────────────────────────────
 function comprasTab(tab) {
