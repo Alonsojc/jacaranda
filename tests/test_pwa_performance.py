@@ -47,7 +47,7 @@ def test_cors_allows_legacy_no_store_request_headers(client):
 def test_service_worker_never_caches_authenticated_api_data():
     sw = read_text("docs/sw.js")
 
-    assert "const CACHE_NAME = 'jacaranda-v80'" in sw
+    assert "const CACHE_NAME = 'jacaranda-v81'" in sw
     assert "request.headers.has('Authorization')" in sw
     assert "offlineApiResponse" in sw
     assert "'Cache-Control': 'no-store'" in sw
@@ -60,7 +60,7 @@ def test_service_worker_never_caches_authenticated_api_data():
 def test_frontend_api_cache_is_short_lived_and_not_persistent():
     html = read_text("docs/index.html")
 
-    assert "var APP_BUILD = 'jacaranda-v80'" in html
+    assert "var APP_BUILD = 'jacaranda-v81'" in html
     assert "function apiGetCacheTtl(path)" in html
     assert "if (clean === '/inventario/productos') return 45000" in html
     assert "if (clean === '/pedidos/reservas') return 15000" in html
@@ -124,6 +124,28 @@ def test_mobile_navigation_has_loading_feedback_and_guarded_pull_refresh():
     assert "deltaX < 60" in html
     assert "@media(hover:none)" in html
     assert "mobileMenuOpenedAt > 450" in html
+
+
+def test_frontend_has_manual_installed_app_refresh():
+    html = read_text("docs/index.html")
+    refresh_segment = segment_between(
+        html,
+        "async function actualizarAppInstalada",
+        "// ─── PDF Downloads",
+    )
+
+    assert 'id="btn-update-app"' in html
+    assert "Actualizar app" in html
+    assert "function mostrarBotonActualizarApp" in html
+    assert "function limpiarCacheAppInstalada" in html
+    assert "sessionStorage.setItem('jacaranda_app_refresh_pending'" in html
+    assert "navigator.serviceWorker.getRegistrations" in html
+    assert "registration.unregister()" in html
+    assert "caches.keys()" in html
+    assert "_jc_refresh" in html
+    assert "confirmarAccion({" in refresh_segment
+    assert "confirm(" not in refresh_segment
+    assert "alert(" not in refresh_segment
 
 
 def test_inventory_loads_heavy_recipe_data_after_essential_data():
