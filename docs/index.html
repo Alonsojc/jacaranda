@@ -445,9 +445,9 @@ h2{font-size:1.1rem}
 </div>
 </div>
 <nav role="navigation" aria-label="Navegaci&oacute;n principal">
-<a class="logo" onclick="irInicio();return false" href="#dash" aria-label="Ir al inicio">Jacaranda<span>sharing flavors</span></a>
+<a class="logo" onclick="irInicio();return false" href="#dash" aria-label="Ver dashboard">Jacaranda<span>sharing flavors</span></a>
 <div class="nav-links">
-<a class="on" data-pg="dash" onclick="irInicio()">Inicio</a>
+<a class="on" data-pg="dash" onclick="irInicio()">Dashboard</a>
 <div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,PANADERO,PRODUCCION,CONSULTA,CAJERO,CONTADOR">
   <a>Operaci&oacute;n</a>
   <div class="nav-dd">
@@ -1875,7 +1875,7 @@ h2{font-size:1.1rem}
 
 <!-- MOBILE BOTTOM NAV -->
 <div class="mobile-nav" id="mobile-nav" role="navigation" aria-label="Navegaci&oacute;n m&oacute;vil">
-<a onclick="irInicio()" data-pg="dash" class="mn-item on"><span class="mn-icon">&#127968;</span><span class="mn-label">Inicio</span></a>
+<a onclick="irInicio()" data-pg="dash" class="mn-item on"><span class="mn-icon">&#127968;</span><span class="mn-label">Dashboard</span></a>
 <a onclick="go('pos')" data-pg="pos" class="mn-item"><span class="mn-icon">&#128179;</span><span class="mn-label">Venta</span></a>
 <a onclick="go('ped')" data-pg="ped" class="mn-item"><span class="mn-icon">&#128203;</span><span class="mn-label">Pedidos</span></a>
 <a onclick="go('inv')" data-pg="inv" class="mn-item"><span class="mn-icon">&#128230;</span><span class="mn-label">Inventario</span></a>
@@ -2587,7 +2587,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v82';
+var APP_BUILD = 'jacaranda-v83';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
@@ -3547,8 +3547,14 @@ function pantallaInicialUsuario(u) {
   return moduloInicioUsuario(u);
 }
 
+function moduloDashboardUsuario(u) {
+  var usuario = u || _currentUser || {};
+  if (puedeVerModuloUsuario(usuario, 'dash')) return 'dash';
+  return moduloInicioUsuario(usuario);
+}
+
 function irInicio() {
-  go(moduloInicioUsuario());
+  go(moduloDashboardUsuario());
 }
 
 var _navDropdownTouchAt = 0;
@@ -9991,12 +9997,10 @@ function cargarDashboard() {
     // Badge en nav
     var res = data.resumen || {};
     var total = (res.criticas || 0) + (res.altas || 0);
-    var navItems = document.querySelectorAll('.nav a');
-    for (var n = 0; n < navItems.length; n++) {
-      if (navItems[n].textContent.indexOf('Inicio') >= 0 && total > 0) {
-        navItems[n].setAttribute('data-badge', total);
-      }
-    }
+    document.querySelectorAll('nav a[data-pg="dash"], .mobile-nav a[data-pg="dash"]').forEach(function(item) {
+      if (total > 0) item.setAttribute('data-badge', total);
+      else item.removeAttribute('data-badge');
+    });
   }).catch(function(e){ console.warn('Error cargando datos:', e); }); }, 1000);
 
   deferDashboard(cargarAlertasPracticas, 1400);
