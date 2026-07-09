@@ -47,7 +47,7 @@ def test_cors_allows_legacy_no_store_request_headers(client):
 def test_service_worker_never_caches_authenticated_api_data():
     sw = read_text("docs/sw.js")
 
-    assert "const CACHE_NAME = 'jacaranda-v82'" in sw
+    assert "const CACHE_NAME = 'jacaranda-v83'" in sw
     assert "request.headers.has('Authorization')" in sw
     assert "offlineApiResponse" in sw
     assert "'Cache-Control': 'no-store'" in sw
@@ -60,7 +60,7 @@ def test_service_worker_never_caches_authenticated_api_data():
 def test_frontend_api_cache_is_short_lived_and_not_persistent():
     html = read_text("docs/index.html")
 
-    assert "var APP_BUILD = 'jacaranda-v82'" in html
+    assert "var APP_BUILD = 'jacaranda-v83'" in html
     assert "function apiGetCacheTtl(path)" in html
     assert "if (clean === '/inventario/productos') return 45000" in html
     assert "if (clean === '/pedidos/reservas') return 15000" in html
@@ -146,6 +146,23 @@ def test_frontend_defaults_to_pos_when_opening_app():
     assert "return moduloInicioUsuario(u);" in initial_segment
     assert "localStorage.getItem('jacaranda_tab')" not in initial_segment
     assert "var tab = u ? pantallaInicialUsuario(u) : APP_DEFAULT_PAGE;" in cached_start_segment
+
+
+def test_frontend_keeps_dashboard_access_without_making_it_default():
+    html = read_text("docs/index.html")
+    dashboard_segment = segment_between(
+        html,
+        "function moduloDashboardUsuario",
+        "function reportarErrorPagina",
+    )
+
+    assert '>Dashboard</a>' in html
+    assert '<span class="mn-label">Dashboard</span>' in html
+    assert 'aria-label="Ver dashboard"' in html
+    assert "function moduloDashboardUsuario" in html
+    assert "if (puedeVerModuloUsuario(usuario, 'dash')) return 'dash';" in dashboard_segment
+    assert "go(moduloDashboardUsuario());" in dashboard_segment
+    assert "var APP_DEFAULT_PAGE = 'pos';" in html
 
 
 def test_frontend_has_manual_installed_app_refresh():
