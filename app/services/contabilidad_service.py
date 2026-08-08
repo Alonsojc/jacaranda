@@ -468,13 +468,23 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
         total_gastos_op += total_nomina
 
     # Mermas en el periodo
-    mermas = Decimal(str(db.query(func.coalesce(
-        func.sum(MovimientoInventario.cantidad * MovimientoInventario.costo_unitario), 0
-    )).filter(
-        and_(MovimientoInventario.tipo == TipoMovimiento.SALIDA_MERMA,
-             MovimientoInventario.fecha >= inicio_dt,
-             MovimientoInventario.fecha <= fin_dt)
-    ).scalar() or 0))
+    mermas = Decimal(str(
+        db.query(func.coalesce(
+            func.sum(
+                MovimientoInventario.cantidad * MovimientoInventario.costo_unitario
+            ),
+            0,
+        )).filter(
+            and_(
+                MovimientoInventario.tipo.in_([
+                    TipoMovimiento.SALIDA_MERMA,
+                    TipoMovimiento.SALIDA_CADUCIDAD,
+                ]),
+                MovimientoInventario.fecha >= inicio_dt,
+                MovimientoInventario.fecha <= fin_dt,
+            )
+        ).scalar() or 0
+    ))
 
     utilidad_operacion = utilidad_bruta - total_gastos_op - mermas
     # Los impuestos sólo reducen la utilidad cuando fueron capturados como egreso.

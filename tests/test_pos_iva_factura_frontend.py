@@ -34,6 +34,14 @@ def test_invoice_iva_does_not_depend_on_product_tax_configuration():
     assert "(item.iv || 0) > 0" not in HTML
 
 
+def test_cafeteria_uses_the_same_sale_level_invoice_tax_rule():
+    assert 'id="caf-iva-factura-btn"' in HTML
+    assert "function toggleCafFacturaIva()" in HTML
+    assert "iva_factura_tasa: _cafFacturaIvaActiva ? POS_FACTURA_IVA_TASA : 0" in HTML
+    assert "p.tasa_iva === '0.16'" not in HTML
+    assert "cafCart[i].iv === 0.16" not in HTML
+
+
 def test_product_forms_and_table_do_not_expose_legacy_iva_selector():
     assert 'id="mnp-iva"' not in HTML
     assert 'id="mep-iva"' not in HTML

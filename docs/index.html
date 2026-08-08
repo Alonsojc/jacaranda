@@ -738,9 +738,11 @@ h2{font-size:1.1rem}
 <div class="tkt caf-account">
 <h3>Cuenta cafeter&iacute;a</h3>
 <div id="caf-items"></div>
+<button type="button" id="caf-iva-factura-btn" class="pos-tax-toggle" onclick="toggleCafFacturaIva()" aria-pressed="false">Agregar 8% IVA para factura</button>
+<div id="caf-iva-factura-note" class="pos-tax-note">Sin IVA por default</div>
 <div id="caf-sum" style="display:none">
 <div class="ti"><span>Subtotal</span><span id="caf-sub"></span></div>
-<div class="ti"><span>IVA 16%</span><span id="caf-iva"></span></div>
+<div class="ti"><span id="caf-iva-label">IVA</span><span id="caf-iva"></span></div>
 <div class="ttot"><span>TOTAL</span><span id="caf-total"></span></div>
 </div>
 <input type="hidden" id="caf-cliente-id">
@@ -2598,7 +2600,7 @@ var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var POS_FACTURA_IVA_TASA = 0.08, _posFacturaIvaActiva = false;
 var _clienteRecompensaActual = null, _canjearRecompensaLealtad = false;
-var cafCart = [], cafPm = 'trans', _cafGroups = {}, _cafGroupOrder = [], _cafProductById = {}, _cafVentas = [], _cafClientes = [], _cafEnProceso = false, _cafIdempotencyKey = null;
+var cafCart = [], cafPm = 'trans', _cafFacturaIvaActiva = false, _cafGroups = {}, _cafGroupOrder = [], _cafProductById = {}, _cafVentas = [], _cafClientes = [], _cafEnProceso = false, _cafIdempotencyKey = null;
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
 var _pedidoEnProceso = false, _pedidoIdempotencyKey = null;
 var _clienteEditId = null;
@@ -5246,14 +5248,13 @@ function cafAddProducto(id) {
     toast('Producto no disponible, actualiza cafeter\u00eda', true);
     return;
   }
-  var iv = p.tasa_iva === '0.16' ? 0.16 : 0;
-  cafAdd(p.id, p.nombre, precioCafeteriaProducto(p), iv);
+  cafAdd(p.id, p.nombre, precioCafeteriaProducto(p));
 }
 
-function cafAdd(id, n, p, iv) {
+function cafAdd(id, n, p) {
   var it = cafCart.find(function(x) { return x.id === id; });
   if (it) it.q = Math.max(1, parseInt(it.q, 10) || 1) + 1;
-  else cafCart.push({id:id, n:n, p:p, iv:iv, q:1});
+  else cafCart.push({id:id, n:n, p:p, q:1});
   cafRen();
 }
 
@@ -5270,13 +5271,31 @@ function cafRm(i) {
 }
 
 function cafTotals() {
-  var sub = 0, iva = 0;
+  var sub = 0;
   for (var i = 0; i < cafCart.length; i++) {
     var line = cafCart[i].p * cafCart[i].q;
     sub += line;
-    if (cafCart[i].iv === 0.16) iva += line * 0.16;
   }
+  var iva = _cafFacturaIvaActiva ? sub * POS_FACTURA_IVA_TASA : 0;
   return {sub: sub, iva: iva, total: sub + iva};
+}
+
+function actualizarIvaFacturaCafeteriaUI(totales) {
+  var btn = document.getElementById('caf-iva-factura-btn');
+  var note = document.getElementById('caf-iva-factura-note');
+  var label = document.getElementById('caf-iva-label');
+  if (btn) {
+    btn.textContent = _cafFacturaIvaActiva ? 'Quitar IVA factura 8%' : 'Agregar 8% IVA para factura';
+    btn.setAttribute('aria-pressed', _cafFacturaIvaActiva ? 'true' : 'false');
+    btn.classList.toggle('active', _cafFacturaIvaActiva);
+  }
+  if (note) note.textContent = _cafFacturaIvaActiva ? 'IVA factura 8%: $' + fmt((totales && totales.iva) || 0) : 'Sin IVA por default';
+  if (label) label.textContent = _cafFacturaIvaActiva ? 'IVA factura 8%' : 'IVA';
+}
+
+function toggleCafFacturaIva() {
+  _cafFacturaIvaActiva = !_cafFacturaIvaActiva;
+  cafRen();
 }
 
 function cafRen() {
@@ -5286,6 +5305,7 @@ function cafRen() {
   if (!cafCart.length) {
     list.innerHTML = '<div class="caf-ticket-empty">Agrega productos para crear una cuenta.</div>';
     sum.style.display = 'none';
+    actualizarIvaFacturaCafeteriaUI({iva:0});
     return;
   }
   var h = '<div class="caf-ticket-list">';
@@ -5303,11 +5323,13 @@ function cafRen() {
   document.getElementById('caf-sub').textContent = '$' + fmt(t.sub);
   document.getElementById('caf-iva').textContent = '$' + fmt(t.iva);
   document.getElementById('caf-total').textContent = '$' + fmt(t.total);
+  actualizarIvaFacturaCafeteriaUI(t);
   sum.style.display = 'block';
 }
 
 function cafClear() {
   cafCart = [];
+  _cafFacturaIvaActiva = false;
   _cafIdempotencyKey = null;
   ['caf-nombre','caf-contacto','caf-tel','caf-notas'].forEach(function(id) {
     var el = document.getElementById(id); if (el) el.value = '';
@@ -5371,6 +5393,7 @@ function registrarCafeteria() {
     pago_inicial: pagoInicial,
     metodo_pago: pago.metodo_pago,
     terminal: pago.terminal,
+    iva_factura_tasa: _cafFacturaIvaActiva ? POS_FACTURA_IVA_TASA : 0,
     detalles: cafCart.map(function(c) { return {producto_id: c.id, cantidad: Math.max(1, parseInt(c.q, 10) || 1)}; })
   };
   api('POST', '/cafeteria/ventas', body).then(function(v) {
@@ -10413,8 +10436,8 @@ function cargarReporteFiscal() {
   var anio = document.getElementById('rep-fanio').value;
   api('GET', '/reportes/impuestos/iva-mensual?mes=' + mes + '&anio=' + anio).then(function(r) {
     var h = '';
-    h += '<div class="srow"><span>Base gravada 16%</span><span>$' + fmt(r.iva_trasladado.tasa_16.base) + '</span></div>';
-    h += '<div class="srow"><span>IVA trasladado 16%</span><span style="font-weight:700">$' + fmt(r.iva_trasladado.tasa_16.iva) + '</span></div>';
+    h += '<div class="srow"><span>Base gravada</span><span>$' + fmt(r.iva_trasladado.tasa_16.base) + '</span></div>';
+    h += '<div class="srow"><span>IVA trasladado</span><span style="font-weight:700">$' + fmt(r.iva_trasladado.tasa_16.iva) + '</span></div>';
     h += '<div class="srow"><span>Base tasa 0%</span><span>$' + fmt(r.iva_trasladado.tasa_0.base) + '</span></div>';
     h += '<div class="srow"><span>IVA acreditable</span><span style="color:#b91c1c">$' + fmt(r.iva_acreditable) + '</span></div>';
     h += '<div class="srow" style="border-top:2px solid var(--brd);padding-top:.4rem;margin-top:.3rem;font-weight:700"><span>IVA por pagar</span><span>$' + fmt(r.iva_por_pagar) + '</span></div>';
@@ -11175,8 +11198,8 @@ function exportarFiscalCSV() {
     var csv = 'Reporte Fiscal ' + meses[mes] + ' ' + anio + '\n\n';
     csv += 'IVA Mensual\n';
     csv += 'Concepto,Monto\n';
-    csv += 'Base gravada 16%,' + iva.iva_trasladado.tasa_16.base.toFixed(2) + '\n';
-    csv += 'IVA trasladado 16%,' + iva.iva_trasladado.tasa_16.iva.toFixed(2) + '\n';
+    csv += 'Base gravada,' + iva.iva_trasladado.tasa_16.base.toFixed(2) + '\n';
+    csv += 'IVA trasladado,' + iva.iva_trasladado.tasa_16.iva.toFixed(2) + '\n';
     csv += 'Base tasa 0%,' + iva.iva_trasladado.tasa_0.base.toFixed(2) + '\n';
     csv += 'IVA acreditable,' + iva.iva_acreditable.toFixed(2) + '\n';
     csv += 'IVA por pagar,' + iva.iva_por_pagar.toFixed(2) + '\n';

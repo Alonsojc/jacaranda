@@ -208,6 +208,12 @@ class TestCFDI:
     def test_cfdi_aplica_iva_de_factura_a_toda_la_venta(self, client, auth_headers):
         pan_id = self._crear_producto(client, auth_headers, "CFDI-PAN-0", "100.00", "0.00")
         pastel_id = self._crear_producto(client, auth_headers, "CFDI-PASTEL-16", "100.00", "0.16")
+        actualizado = client.put(
+            f"/api/v1/inventario/productos/{pan_id}",
+            json={"objeto_impuesto": "01"},
+            headers=auth_headers,
+        )
+        assert actualizado.status_code == 200, actualizado.text
         cliente = client.post("/api/v1/clientes/", json={
             "nombre": "Cliente Fiscal",
             "telefono": "4422222222",
@@ -252,6 +258,9 @@ class TestCFDI:
         assert 'TasaOCuota="0.000000"' not in xml
         assert 'TasaOCuota="0.080000"' in xml
         raiz = ET.fromstring(xml)
+        conceptos = raiz.findall(".//{http://www.sat.gob.mx/cfd/4}Concepto")
+        assert conceptos
+        assert {c.attrib.get("ObjetoImp") for c in conceptos} == {"02"}
         traslados = raiz.findall(".//{http://www.sat.gob.mx/cfd/4}Traslado")
         assert traslados
         assert {t.attrib.get("TasaOCuota") for t in traslados} == {"0.080000"}

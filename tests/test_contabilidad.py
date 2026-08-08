@@ -4,6 +4,7 @@ from datetime import date
 import pytest
 
 from app.models.egreso import Egreso
+from app.services.venta_service import _hoy_operacion
 
 
 class TestContabilidad:
@@ -116,3 +117,59 @@ class TestContabilidad:
         assert data["utilidad_neta"] == -72.0
         assert data["utilidad_neta"] == data["utilidad_operacion"]
         assert "isr_estimado" not in data
+
+    def test_estado_resultados_incluye_mermas_capturadas(
+        self, client, auth_headers
+    ):
+        hoy = _hoy_operacion()
+        producto = client.post(
+            "/api/v1/inventario/productos",
+            json={
+                "codigo": "MERMA-ER-001",
+                "nombre": "Producto con merma contable",
+                "precio_unitario": "50.00",
+                "costo_produccion": "12.50",
+            },
+            headers=auth_headers,
+        )
+        assert producto.status_code == 201, producto.text
+        producto_id = producto.json()["id"]
+        stock = client.post(
+            "/api/v1/inventario/movimientos",
+            json={
+                "tipo": "entrada_ajuste",
+                "producto_id": producto_id,
+                "cantidad": "5",
+            },
+            headers=auth_headers,
+        )
+        assert stock.status_code == 201, stock.text
+
+        rapida = client.post(
+            f"/api/v1/inventario/productos/{producto_id}/merma"
+            "?cantidad=2&motivo=Producto dañado",
+            headers=auth_headers,
+        )
+        assert rapida.status_code == 200, rapida.text
+        caducidad = client.post(
+            "/api/v1/merma/",
+            json={
+                "producto_id": producto_id,
+                "tipo": "caducidad",
+                "cantidad": "1",
+                "fecha_merma": hoy.isoformat(),
+            },
+            headers=auth_headers,
+        )
+        assert caducidad.status_code == 201, caducidad.text
+
+        resp = client.get(
+            "/api/v1/contabilidad/estado-resultados"
+            f"?fecha_inicio={hoy.isoformat()}&fecha_fin={hoy.isoformat()}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["mermas"] == 37.5
+        assert data["utilidad_operacion"] == -37.5
+        assert data["utilidad_neta"] == -37.5

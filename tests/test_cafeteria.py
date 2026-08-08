@@ -67,6 +67,7 @@ def test_cafeteria_usa_precio_especial_y_credito(client, auth_headers):
             "pago_inicial": "50.00",
             "metodo_pago": "03",
             "terminal": "bbva",
+            "iva_factura_tasa": "0.08",
             "detalles": [{"producto_id": producto["id"], "cantidad": "2"}],
         },
         headers=auth_headers,
@@ -76,10 +77,10 @@ def test_cafeteria_usa_precio_especial_y_credito(client, auth_headers):
 
     assert data["cafeteria_nombre"] == "Café Distrito"
     assert Decimal(data["subtotal"]) == Decimal("160.00")
-    assert Decimal(data["total_impuestos"]) == Decimal("25.60")
-    assert Decimal(data["total"]) == Decimal("185.60")
+    assert Decimal(data["total_impuestos"]) == Decimal("12.80")
+    assert Decimal(data["total"]) == Decimal("172.80")
     assert Decimal(data["monto_pagado"]) == Decimal("50.00")
-    assert Decimal(data["saldo_pendiente"]) == Decimal("135.60")
+    assert Decimal(data["saldo_pendiente"]) == Decimal("122.80")
     assert data["estado"] == "parcial"
     assert data["cafeteria_id"] is not None
     assert data["dias_credito"] == 7
@@ -98,6 +99,48 @@ def test_cafeteria_usa_precio_especial_y_credito(client, auth_headers):
     )
     assert duplicate.status_code == 201, duplicate.text
     assert duplicate.json()["id"] == data["id"]
+
+
+def test_cafeteria_no_cobra_iva_de_producto_y_solo_agrega_8_por_venta(
+    client, auth_headers
+):
+    producto = _crear_producto_cafeteria(client, auth_headers, codigo="CAF-IVA-VENTA")
+
+    sin_iva = client.post(
+        "/api/v1/cafeteria/ventas",
+        json={
+            "cafeteria_nombre": "Café sin factura",
+            "detalles": [{"producto_id": producto["id"], "cantidad": "1"}],
+        },
+        headers=auth_headers,
+    )
+    assert sin_iva.status_code == 201, sin_iva.text
+    assert Decimal(sin_iva.json()["total_impuestos"]) == Decimal("0.00")
+    assert Decimal(sin_iva.json()["total"]) == Decimal("80.00")
+
+    con_iva = client.post(
+        "/api/v1/cafeteria/ventas",
+        json={
+            "cafeteria_nombre": "Café con factura",
+            "iva_factura_tasa": "0.08",
+            "detalles": [{"producto_id": producto["id"], "cantidad": "1"}],
+        },
+        headers=auth_headers,
+    )
+    assert con_iva.status_code == 201, con_iva.text
+    assert Decimal(con_iva.json()["total_impuestos"]) == Decimal("6.40")
+    assert Decimal(con_iva.json()["total"]) == Decimal("86.40")
+
+    tasa_invalida = client.post(
+        "/api/v1/cafeteria/ventas",
+        json={
+            "cafeteria_nombre": "Café IVA inválido",
+            "iva_factura_tasa": "0.16",
+            "detalles": [{"producto_id": producto["id"], "cantidad": "1"}],
+        },
+        headers=auth_headers,
+    )
+    assert tasa_invalida.status_code == 422
 
 
 def test_cafeteria_catalogo_autoguarda_y_reusa_cliente(client, auth_headers):
@@ -173,11 +216,11 @@ def test_cafeteria_pago_y_reportes(client, auth_headers, db):
     assert pago_parcial.status_code == 200, pago_parcial.text
     parcial = pago_parcial.json()
     assert parcial["estado"] == "parcial"
-    assert Decimal(parcial["saldo_pendiente"]) == Decimal("52.80")
+    assert Decimal(parcial["saldo_pendiente"]) == Decimal("40.00")
 
     pago = client.post(
         f"/api/v1/cafeteria/ventas/{venta['id']}/pagos",
-        json={"monto": "52.80", "metodo_pago": "04", "terminal": "clip"},
+        json={"monto": "40.00", "metodo_pago": "04", "terminal": "clip"},
         headers=auth_headers,
     )
     assert pago.status_code == 200, pago.text
@@ -199,8 +242,8 @@ def test_cafeteria_pago_y_reportes(client, auth_headers, db):
     semanal = client.get("/api/v1/cafeteria/reportes/semanal", headers=auth_headers)
     assert semanal.status_code == 200, semanal.text
     rep = semanal.json()
-    assert Decimal(str(rep["total_llevado"])) >= Decimal("92.80")
-    assert Decimal(str(rep["total_pagado"])) >= Decimal("92.80")
+    assert Decimal(str(rep["total_llevado"])) >= Decimal("80.00")
+    assert Decimal(str(rep["total_pagado"])) >= Decimal("80.00")
     assert "corte_mensual" in rep
     assert "Café Semana" in [c["cafeteria"] for c in rep["por_cafeteria"]]
     assert "Brownie cafetería" in [p["nombre"] for p in rep["productos"]]
@@ -239,7 +282,7 @@ def test_cafeteria_corte_diario_no_incluye_cafeteria_y_mensual_si(client, auth_h
     )
     assert estado.status_code == 200, estado.text
     data = estado.json()
-    assert Decimal(str(data["ingresos_cafeteria"])) == Decimal("92.8")
+    assert Decimal(str(data["ingresos_cafeteria"])) == Decimal("80.0")
     assert data["numero_entregas_cafeteria"] == 1
     assert data["cafeteria_b2b"]["separado_corte_diario_mostrador"] is True
 
