@@ -58,12 +58,12 @@ class VentaCreate(BaseModel):
         if v in (None, ""):
             return Decimal("0")
         try:
-            tasa = Decimal(str(v)).quantize(Decimal("0.01"))
+            tasa = Decimal(str(v))
         except Exception as exc:
             raise ValueError("La tasa de IVA para factura debe ser 0% u 8%") from exc
         if tasa not in {Decimal("0.00"), Decimal("0.08")}:
             raise ValueError("La tasa de IVA para factura debe ser 0% u 8%")
-        return tasa
+        return tasa.quantize(Decimal("0.01"))
 
 
 class DetalleVentaResponse(BaseModel):

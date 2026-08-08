@@ -4,6 +4,8 @@ from pathlib import Path
 
 
 HTML = Path("docs/index.html").read_text(encoding="utf-8")
+PDF_SERVICE = Path("app/services/pdf_service.py").read_text(encoding="utf-8")
+EXCEL_SERVICE = Path("app/services/excel_service.py").read_text(encoding="utf-8")
 
 
 def test_pos_ticket_iva_is_optional_by_default():
@@ -47,3 +49,9 @@ def test_product_forms_and_table_do_not_expose_legacy_iva_selector():
     assert 'id="mep-iva"' not in HTML
     assert "<th>M&iacute;n</th><th>IVA</th>" not in HTML
     assert "Precio Cafeteria,Costo,Stock,Minimo,IVA,Unidad" not in HTML
+
+
+def test_downloadable_sales_reports_do_not_label_invoice_tax_as_16_percent():
+    assert '["IVA 16%"' not in PDF_SERVICE
+    assert '["Tasa 16%"' not in PDF_SERVICE
+    assert '("Ventas gravadas 16%"' not in EXCEL_SERVICE

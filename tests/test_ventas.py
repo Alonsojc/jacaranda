@@ -670,13 +670,16 @@ class TestVentas:
         assert data["iva_16"] == "8.00"
         assert Decimal(data["detalles"][0]["tasa_iva"]) == Decimal("0.0800")
 
-    def test_pos_rechaza_tasa_iva_factura_distinta_a_8(self, client, auth_headers):
+    @pytest.mark.parametrize("tasa", ["0.16", "0.079", "0.004"])
+    def test_pos_rechaza_tasa_iva_factura_distinta_a_8(
+        self, client, auth_headers, tasa
+    ):
         pid = self._crear_producto(client, auth_headers, "PASTEL-IVA-INVALIDO", "100.00")
         self._agregar_stock(client, auth_headers, pid, 10)
         resp = client.post("/api/v1/punto-de-venta/ventas", json={
             "metodo_pago": "01",
             "monto_recibido": "200.00",
-            "iva_factura_tasa": "0.16",
+            "iva_factura_tasa": tasa,
             "detalles": [{"producto_id": pid, "cantidad": "1"}],
         }, headers=auth_headers)
         assert resp.status_code == 422

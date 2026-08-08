@@ -131,16 +131,17 @@ def test_cafeteria_no_cobra_iva_de_producto_y_solo_agrega_8_por_venta(
     assert Decimal(con_iva.json()["total_impuestos"]) == Decimal("6.40")
     assert Decimal(con_iva.json()["total"]) == Decimal("86.40")
 
-    tasa_invalida = client.post(
-        "/api/v1/cafeteria/ventas",
-        json={
-            "cafeteria_nombre": "Café IVA inválido",
-            "iva_factura_tasa": "0.16",
-            "detalles": [{"producto_id": producto["id"], "cantidad": "1"}],
-        },
-        headers=auth_headers,
-    )
-    assert tasa_invalida.status_code == 422
+    for tasa in ("0.16", "0.079", "0.004"):
+        tasa_invalida = client.post(
+            "/api/v1/cafeteria/ventas",
+            json={
+                "cafeteria_nombre": "Café IVA inválido",
+                "iva_factura_tasa": tasa,
+                "detalles": [{"producto_id": producto["id"], "cantidad": "1"}],
+            },
+            headers=auth_headers,
+        )
+        assert tasa_invalida.status_code == 422
 
 
 def test_cafeteria_catalogo_autoguarda_y_reusa_cliente(client, auth_headers):

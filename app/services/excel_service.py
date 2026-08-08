@@ -556,7 +556,7 @@ def exportar_iva_mensual(db: Session, mes: int, anio: int) -> BytesIO:
     row += 1
 
     items = [
-        ("Ventas gravadas 16%", data["ventas_gravadas_16"]),
+        ("Ventas gravadas", data["ventas_gravadas_16"]),
         ("Ventas tasa 0%", data["ventas_tasa_0"]),
         ("IVA causado", data["iva_causado"]),
         ("IVA acreditable", data["iva_acreditable"]),
