@@ -3,6 +3,8 @@
 from datetime import date
 import pytest
 
+from app.models.egreso import Egreso
+
 
 class TestContabilidad:
     """Tests de contabilidad y partida doble."""
@@ -83,4 +85,34 @@ class TestContabilidad:
         assert resp.status_code == 200
         data = resp.json()
         assert "ingresos_brutos" in data
-        assert "utilidad_neta" in data or "utilidad_antes_isr" in data
+        assert "utilidad_neta" in data
+        assert "isr_estimado" not in data
+
+    def test_estado_resultados_solo_descontar_egresos_capturados(
+        self, client, auth_headers, db
+    ):
+        hoy = date.today()
+        db.add(Egreso(
+            concepto="Pago de impuesto capturado",
+            monto="72.00",
+            categoria="impuestos",
+            metodo_pago="transferencia",
+            fecha=hoy,
+            proveedor="SAT",
+            activo=True,
+        ))
+        db.commit()
+
+        resp = client.get(
+            "/api/v1/contabilidad/estado-resultados"
+            f"?fecha_inicio={hoy.isoformat()}&fecha_fin={hoy.isoformat()}",
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["total_gastos_operacion"] == 72.0
+        assert data["gastos_operacion"]["Pago de impuesto capturado"] == 72.0
+        assert data["utilidad_neta"] == -72.0
+        assert data["utilidad_neta"] == data["utilidad_operacion"]
+        assert "isr_estimado" not in data

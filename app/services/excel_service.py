@@ -196,8 +196,6 @@ def exportar_estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date)
     row += 2
 
     final_items = [
-        ("Utilidad de operación", data["utilidad_operacion"]),
-        ("(-) ISR estimado (30%)", data["isr_estimado"]),
         ("UTILIDAD NETA", data["utilidad_neta"]),
         ("  Margen neto", f"{data['margen_neto_pct']}%"),
     ]
@@ -372,8 +370,6 @@ def exportar_reporte_mensual(db: Session, mes: int, anio: int) -> BytesIO:
     row += 2
 
     final_items = [
-        ("Utilidad de operacion", data_er["utilidad_operacion"]),
-        ("(-) ISR estimado (30%)", data_er["isr_estimado"]),
         ("UTILIDAD NETA", data_er["utilidad_neta"]),
         ("  Margen neto", f"{data_er['margen_neto_pct']}%"),
     ]

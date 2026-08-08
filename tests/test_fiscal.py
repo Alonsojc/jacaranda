@@ -1,6 +1,7 @@
 """Tests para el modulo de reportes fiscales SAT (fiscal_service / rutas /api/v1/fiscal/)."""
 
 from datetime import date
+import xml.etree.ElementTree as ET
 
 import pytest
 
@@ -204,7 +205,7 @@ class TestCFDI:
         assert stock.status_code == 201, stock.text
         return pid
 
-    def test_cfdi_agrupa_iva_por_tasa_y_conceptos_sin_iva_incluido(self, client, auth_headers):
+    def test_cfdi_aplica_iva_de_factura_a_toda_la_venta(self, client, auth_headers):
         pan_id = self._crear_producto(client, auth_headers, "CFDI-PAN-0", "100.00", "0.00")
         pastel_id = self._crear_producto(client, auth_headers, "CFDI-PASTEL-16", "100.00", "0.16")
         cliente = client.post("/api/v1/clientes/", json={
@@ -229,7 +230,7 @@ class TestCFDI:
             ],
         }, headers=auth_headers)
         assert venta.status_code == 201, venta.text
-        assert venta.json()["total"] == "208.00"
+        assert venta.json()["total"] == "216.00"
 
         cfdi = client.post("/api/v1/facturacion/generar", json={
             "venta_id": venta.json()["id"],
@@ -245,8 +246,17 @@ class TestCFDI:
             headers=auth_headers,
         ).text
         assert 'SubTotal="200.00"' in xml
-        assert 'Total="208.00"' in xml
+        assert 'Total="216.00"' in xml
+        assert 'TotalImpuestosTrasladados="16.00"' in xml
         assert 'Importe="108.00"' not in xml
-        assert 'TasaOCuota="0.000000"' in xml
+        assert 'TasaOCuota="0.000000"' not in xml
         assert 'TasaOCuota="0.080000"' in xml
-        assert 'Base="100.00" Impuesto="002"\n        TipoFactor="Tasa" TasaOCuota="0.080000"' in xml
+        raiz = ET.fromstring(xml)
+        traslados = raiz.findall(".//{http://www.sat.gob.mx/cfd/4}Traslado")
+        assert traslados
+        assert {t.attrib.get("TasaOCuota") for t in traslados} == {"0.080000"}
+        assert any(
+            t.attrib.get("Base") == "200.00"
+            and t.attrib.get("Importe") == "16.00"
+            for t in traslados
+        )

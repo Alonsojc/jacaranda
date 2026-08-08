@@ -143,7 +143,7 @@ app = FastAPI(
         "## Módulos\n"
         "- **Inventario**: Control de ingredientes, productos, lotes y proveedores\n"
         "- **Recetas y Producción**: Costeo, planificación y trazabilidad\n"
-        "- **Punto de Venta**: Ventas con desglose fiscal IVA 0%/16%, tickets, corte de caja\n"
+        "- **Punto de Venta**: Ventas sin IVA por defecto y 8% al solicitar factura, tickets, corte de caja\n"
         "- **Facturación CFDI 4.0**: Emisión de comprobantes fiscales conforme al SAT\n"
         "- **Clientes**: Gestión con datos fiscales para facturación\n"
         "- **Empleados y Nómina**: LFT, IMSS, ISR, aguinaldo, vacaciones, PTU\n"

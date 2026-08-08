@@ -643,10 +643,6 @@ class TestVentas:
 
     def test_pos_no_cobra_iva_por_default_y_agrega_8_para_factura(self, client, auth_headers):
         pid = self._crear_producto(client, auth_headers, "PASTEL-001", "100.00")
-        # Update to 16% IVA
-        client.put(f"/api/v1/inventario/productos/{pid}", json={
-            "tasa_iva": "0.16",
-        }, headers=auth_headers)
         self._agregar_stock(client, auth_headers, pid, 10)
         resp = client.post("/api/v1/punto-de-venta/ventas", json={
             "metodo_pago": "01",
@@ -674,7 +670,7 @@ class TestVentas:
         assert Decimal(data["detalles"][0]["tasa_iva"]) == Decimal("0.0800")
 
     def test_pos_rechaza_tasa_iva_factura_distinta_a_8(self, client, auth_headers):
-        pid = self._crear_producto(client, auth_headers, "PASTEL-IVA-INVALIDO", "100.00", tasa_iva="0.16")
+        pid = self._crear_producto(client, auth_headers, "PASTEL-IVA-INVALIDO", "100.00")
         self._agregar_stock(client, auth_headers, pid, 10)
         resp = client.post("/api/v1/punto-de-venta/ventas", json={
             "metodo_pago": "01",

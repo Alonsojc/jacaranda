@@ -32,6 +32,9 @@ class TestExcelExport:
         wb = load_workbook(BytesIO(resp.content))
         ws = wb.active
         assert ws.title == "Estado de Resultados"
+        valores = [str(cell.value) for row in ws.iter_rows() for cell in row if cell.value]
+        assert not any("ISR estimado" in value for value in valores)
+        assert "UTILIDAD NETA" in valores
 
     def test_polizas_excel(self, client, auth_headers):
         resp = client.get(

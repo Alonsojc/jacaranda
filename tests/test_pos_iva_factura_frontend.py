@@ -26,3 +26,16 @@ def test_pos_sale_payload_preserves_invoice_iva_rate_online_and_offline():
     assert "iva_factura_tasa: venta.iva_factura_tasa || 0" in HTML
     assert "iva_factura_tasa: body.iva_factura_tasa || 0" in HTML
     assert "posIvaTasaLinea" in HTML
+
+
+def test_invoice_iva_does_not_depend_on_product_tax_configuration():
+    assert "function posIvaTasaLinea()" in HTML
+    assert "return _posFacturaIvaActiva ? POS_FACTURA_IVA_TASA : 0;" in HTML
+    assert "(item.iv || 0) > 0" not in HTML
+
+
+def test_product_forms_and_table_do_not_expose_legacy_iva_selector():
+    assert 'id="mnp-iva"' not in HTML
+    assert 'id="mep-iva"' not in HTML
+    assert "<th>M&iacute;n</th><th>IVA</th>" not in HTML
+    assert "Precio Cafeteria,Costo,Stock,Minimo,IVA,Unidad" not in HTML

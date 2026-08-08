@@ -4,7 +4,7 @@ Genera reportes de IVA, ISR, ventas y estado financiero.
 """
 
 from decimal import Decimal
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, extract
 
@@ -14,6 +14,7 @@ from app.models.empleado import RegistroNomina
 from app.models.inventario import MovimientoInventario, TipoMovimiento, Ingrediente
 from app.models.egreso import Egreso
 from app.services.pago_metodos import CANAL_PAGO_LABELS, canal_pago
+from app.services.venta_service import _normalizar_fecha_db, _zona_operacion
 
 
 def gastos_hoy(db: Session, fecha: date | None = None) -> dict:
@@ -86,10 +87,17 @@ def gastos_hoy(db: Session, fecha: date | None = None) -> dict:
 
 def reporte_ventas_periodo(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
     """Reporte de ventas por periodo con desglose fiscal."""
+    zona = _zona_operacion()
+    inicio_dt = _normalizar_fecha_db(
+        datetime.combine(fecha_inicio, datetime.min.time(), tzinfo=zona)
+    )
+    fin_dt = _normalizar_fecha_db(
+        datetime.combine(fecha_fin, datetime.max.time(), tzinfo=zona)
+    )
     ventas = db.query(Venta).filter(
         and_(
-            Venta.fecha >= datetime.combine(fecha_inicio, datetime.min.time()),
-            Venta.fecha <= datetime.combine(fecha_fin, datetime.max.time()),
+            Venta.fecha >= inicio_dt,
+            Venta.fecha <= fin_dt,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
     ).all()
@@ -128,7 +136,10 @@ def reporte_ventas_periodo(db: Session, fecha_inicio: date, fecha_fin: date) -> 
     # Ventas por día
     por_dia = {}
     for v in ventas:
-        dia = v.fecha.strftime("%Y-%m-%d")
+        fecha_venta = v.fecha
+        if fecha_venta.tzinfo is None:
+            fecha_venta = fecha_venta.replace(tzinfo=timezone.utc)
+        dia = fecha_venta.astimezone(zona).strftime("%Y-%m-%d")
         if dia not in por_dia:
             por_dia[dia] = {"cantidad": 0, "total": Decimal("0")}
         por_dia[dia]["cantidad"] += 1

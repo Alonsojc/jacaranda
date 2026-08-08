@@ -93,13 +93,11 @@ def _obtener_tasa_iva(producto: Producto) -> Decimal:
         return Decimal("0.00")
 
 
-def _obtener_tasa_iva_pos(producto: Producto, tasa_factura: Decimal) -> Decimal:
-    """En mostrador no se cobra IVA salvo que caja active factura."""
+def _obtener_tasa_iva_pos(_producto: Producto, tasa_factura: Decimal) -> Decimal:
+    """En mostrador la tasa se decide por venta, no por la ficha del producto."""
     if tasa_factura <= 0:
         return Decimal("0.00")
-    if producto.tasa_iva == TasaIVA.TASA_16:
-        return tasa_factura
-    return Decimal("0.00")
+    return tasa_factura
 
 
 def _aplicar_descuento_global(detalles: list[DetalleVenta], descuento_bruto: Decimal) -> None:
