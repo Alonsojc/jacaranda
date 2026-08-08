@@ -670,6 +670,26 @@ class TestVentas:
         assert data["iva_16"] == "8.00"
         assert Decimal(data["detalles"][0]["tasa_iva"]) == Decimal("0.0800")
 
+    def test_pos_redondea_iva_por_partida(self, client, auth_headers):
+        primero = self._crear_producto(client, auth_headers, "IVA-LINEA-1", "10.07")
+        segundo = self._crear_producto(client, auth_headers, "IVA-LINEA-2", "10.07")
+        self._agregar_stock(client, auth_headers, primero, 1)
+        self._agregar_stock(client, auth_headers, segundo, 1)
+
+        resp = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "21.76",
+            "iva_factura_tasa": "0.08",
+            "detalles": [
+                {"producto_id": primero, "cantidad": "1"},
+                {"producto_id": segundo, "cantidad": "1"},
+            ],
+        }, headers=auth_headers)
+
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["total_impuestos"] == "1.62"
+        assert resp.json()["total"] == "21.76"
+
     @pytest.mark.parametrize("tasa", ["0.16", "0.079", "0.004"])
     def test_pos_rechaza_tasa_iva_factura_distinta_a_8(
         self, client, auth_headers, tasa

@@ -6,7 +6,7 @@ balance general, estado de resultados y conciliación bancaria.
 from decimal import Decimal
 from datetime import date, datetime, timezone
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, or_
 
 from app.models.contabilidad import (
     CuentaContable, AsientoContable, LineaAsiento, MovimientoBancario,
@@ -20,6 +20,7 @@ from app.models.inventario import (
 from app.models.gasto_fijo import GastoFijo
 from app.models.egreso import Egreso
 from app.models.empleado import RegistroNomina
+from app.models.merma import RegistroMerma
 from app.services.pago_metodos import canal_pago, etiqueta_canal_pago
 from app.services.venta_service import _normalizar_fecha_db, _zona_operacion
 
@@ -467,8 +468,17 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
         gastos_desglose_decimal["Nómina registrada"] = total_nomina
         total_gastos_op += total_nomina
 
-    # Mermas en el periodo
-    mermas = Decimal(str(
+    # Las mermas del módulo dedicado usan su fecha declarada. Los movimientos
+    # restantes cubren la captura rápida y pérdidas generadas por producción.
+    mermas_registradas = Decimal(str(
+        db.query(func.coalesce(func.sum(RegistroMerma.costo_total), 0)).filter(
+            and_(
+                RegistroMerma.fecha_merma >= fecha_inicio,
+                RegistroMerma.fecha_merma <= fecha_fin,
+            )
+        ).scalar() or 0
+    ))
+    mermas_movimientos = Decimal(str(
         db.query(func.coalesce(
             func.sum(
                 MovimientoInventario.cantidad * MovimientoInventario.costo_unitario
@@ -482,9 +492,14 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
                 ]),
                 MovimientoInventario.fecha >= inicio_dt,
                 MovimientoInventario.fecha <= fin_dt,
+                or_(
+                    MovimientoInventario.referencia.is_(None),
+                    ~MovimientoInventario.referencia.like("Merma (%): %"),
+                ),
             )
         ).scalar() or 0
     ))
+    mermas = mermas_registradas + mermas_movimientos
 
     utilidad_operacion = utilidad_bruta - total_gastos_op - mermas
     # Los impuestos sólo reducen la utilidad cuando fueron capturados como egreso.

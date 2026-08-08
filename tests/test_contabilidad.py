@@ -1,6 +1,6 @@
 """Tests para el módulo de contabilidad."""
 
-from datetime import date
+from datetime import date, timedelta
 import pytest
 
 from app.models.egreso import Egreso
@@ -173,3 +173,58 @@ class TestContabilidad:
         assert data["mermas"] == 37.5
         assert data["utilidad_operacion"] == -37.5
         assert data["utilidad_neta"] == -37.5
+
+    def test_estado_resultados_usa_fecha_declarada_de_merma(
+        self, client, auth_headers
+    ):
+        fecha_merma = _hoy_operacion() - timedelta(days=7)
+        producto = client.post(
+            "/api/v1/inventario/productos",
+            json={
+                "codigo": "MERMA-FECHA-001",
+                "nombre": "Producto con merma histórica",
+                "precio_unitario": "40.00",
+                "costo_produccion": "10.07",
+            },
+            headers=auth_headers,
+        )
+        assert producto.status_code == 201, producto.text
+        producto_id = producto.json()["id"]
+        stock = client.post(
+            "/api/v1/inventario/movimientos",
+            json={
+                "tipo": "entrada_ajuste",
+                "producto_id": producto_id,
+                "cantidad": "2",
+            },
+            headers=auth_headers,
+        )
+        assert stock.status_code == 201, stock.text
+        merma = client.post(
+            "/api/v1/merma/",
+            json={
+                "producto_id": producto_id,
+                "tipo": "dano",
+                "cantidad": "1",
+                "fecha_merma": fecha_merma.isoformat(),
+            },
+            headers=auth_headers,
+        )
+        assert merma.status_code == 201, merma.text
+
+        historico = client.get(
+            "/api/v1/contabilidad/estado-resultados"
+            f"?fecha_inicio={fecha_merma.isoformat()}&fecha_fin={fecha_merma.isoformat()}",
+            headers=auth_headers,
+        )
+        assert historico.status_code == 200, historico.text
+        assert historico.json()["mermas"] == 10.07
+
+        hoy = _hoy_operacion()
+        actual = client.get(
+            "/api/v1/contabilidad/estado-resultados"
+            f"?fecha_inicio={hoy.isoformat()}&fecha_fin={hoy.isoformat()}",
+            headers=auth_headers,
+        )
+        assert actual.status_code == 200, actual.text
+        assert actual.json()["mermas"] == 0.0

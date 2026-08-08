@@ -2583,7 +2583,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v84';
+var APP_BUILD = 'jacaranda-v85';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
@@ -3802,8 +3802,21 @@ function add(id, n, pr) {
   }
 }
 
-function posIvaTasaLinea() {
-  return _posFacturaIvaActiva ? POS_FACTURA_IVA_TASA : 0;
+function redondearCentavosMitadPar(valor) {
+  var numero = Number(valor) || 0;
+  var escalado = Math.abs(numero) * 100;
+  var entero = Math.floor(escalado);
+  var fraccion = escalado - entero;
+  var tolerancia = Number.EPSILON * Math.max(1, escalado) * 8;
+  if (fraccion > 0.5 + tolerancia || (Math.abs(fraccion - 0.5) <= tolerancia && entero % 2 === 1)) {
+    entero++;
+  }
+  return (numero < 0 ? -entero : entero) / 100;
+}
+
+function ivaFacturaPorLinea(base, activa) {
+  if (!activa || base <= 0) return 0;
+  return redondearCentavosMitadPar(base * POS_FACTURA_IVA_TASA);
 }
 
 function actualizarIvaFacturaUI(subtotal, iva) {
@@ -3813,7 +3826,7 @@ function actualizarIvaFacturaUI(subtotal, iva) {
       var c = cart[i];
       var linea = Math.max(0, (c.p * c.q) - (c.desc || 0));
       base += linea;
-      impuesto += linea * posIvaTasaLinea(c);
+      impuesto += ivaFacturaPorLinea(linea, _posFacturaIvaActiva);
     }
     var rew = descuentoRecompensaCarrito();
     subtotal = Math.max(0, base - rew.base);
@@ -3863,11 +3876,13 @@ function descuentoRecompensaCarrito() {
     var baseDisponible = Math.max(0, (c.p * c.q) - (c.desc || 0));
     if (baseDisponible <= 0) continue;
     var base = Math.min(c.p, baseDisponible);
-    var tasaIva = posIvaTasaLinea(c);
+    var ivaAntes = ivaFacturaPorLinea(baseDisponible, _posFacturaIvaActiva);
+    var ivaDespues = ivaFacturaPorLinea(baseDisponible - base, _posFacturaIvaActiva);
+    var ivaDescontado = redondearCentavosMitadPar(ivaAntes - ivaDespues);
     var candidato = {
       base: base,
-      iva: base * tasaIva,
-      total: base * (1 + tasaIva),
+      iva: ivaDescontado,
+      total: base + ivaDescontado,
       nombre: c.n
     };
     if (!mejor || candidato.total < mejor.total) mejor = candidato;
@@ -3917,7 +3932,7 @@ function ren() {
   for (var i = 0; i < cart.length; i++) {
     var c = cart[i], l = c.p * c.q, d = c.desc || 0;
     s += l - d;
-    iv += (l - d) * posIvaTasaLinea(c);
+    iv += ivaFacturaPorLinea(l - d, _posFacturaIvaActiva);
     dsc += d;
     h += '<div class="ti" style="align-items:center">';
     h += '<span style="display:flex;align-items:center;gap:.4rem">';
@@ -4002,7 +4017,7 @@ function _cartTotal() {
   var s = 0, iv = 0;
   for (var i = 0; i < cart.length; i++) {
     var l = cart[i].p * cart[i].q - (cart[i].desc || 0);
-    s += l; iv += l * posIvaTasaLinea(cart[i]);
+    s += l; iv += ivaFacturaPorLinea(l, _posFacturaIvaActiva);
   }
   var rew = descuentoRecompensaCarrito();
   return Math.max(0, s - rew.base) + Math.max(0, iv - rew.iva);
@@ -4014,7 +4029,7 @@ function _cartResumenCotizacion() {
     var bruto = c.p * c.q;
     var desc = c.desc || 0;
     var base = Math.max(0, bruto - desc);
-    var imp = base * posIvaTasaLinea(c);
+    var imp = ivaFacturaPorLinea(base, _posFacturaIvaActiva);
     subtotal += base;
     iva += imp;
     descuento += desc;
@@ -5271,13 +5286,15 @@ function cafRm(i) {
 }
 
 function cafTotals() {
-  var sub = 0;
+  var sub = 0, iva = 0;
   for (var i = 0; i < cafCart.length; i++) {
-    var line = cafCart[i].p * cafCart[i].q;
+    var line = redondearCentavosMitadPar(cafCart[i].p * cafCart[i].q);
     sub += line;
+    iva += ivaFacturaPorLinea(line, _cafFacturaIvaActiva);
   }
-  var iva = _cafFacturaIvaActiva ? sub * POS_FACTURA_IVA_TASA : 0;
-  return {sub: sub, iva: iva, total: sub + iva};
+  sub = redondearCentavosMitadPar(sub);
+  iva = redondearCentavosMitadPar(iva);
+  return {sub: sub, iva: iva, total: redondearCentavosMitadPar(sub + iva)};
 }
 
 function actualizarIvaFacturaCafeteriaUI(totales) {

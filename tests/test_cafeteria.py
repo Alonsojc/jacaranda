@@ -144,6 +144,40 @@ def test_cafeteria_no_cobra_iva_de_producto_y_solo_agrega_8_por_venta(
         assert tasa_invalida.status_code == 422
 
 
+def test_cafeteria_redondea_iva_por_partida(client, auth_headers):
+    primero = _crear_producto_cafeteria(
+        client,
+        auth_headers,
+        codigo="CAF-IVA-LINEA-1",
+        precio_cafeteria="10.07",
+    )
+    segundo = _crear_producto_cafeteria(
+        client,
+        auth_headers,
+        codigo="CAF-IVA-LINEA-2",
+        precio_cafeteria="10.07",
+    )
+
+    resp = client.post(
+        "/api/v1/cafeteria/ventas",
+        json={
+            "cafeteria_nombre": "Café redondeo por partida",
+            "iva_factura_tasa": "0.08",
+            "pago_inicial": "21.76",
+            "detalles": [
+                {"producto_id": primero["id"], "cantidad": "1"},
+                {"producto_id": segundo["id"], "cantidad": "1"},
+            ],
+        },
+        headers=auth_headers,
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert Decimal(resp.json()["total_impuestos"]) == Decimal("1.62")
+    assert Decimal(resp.json()["total"]) == Decimal("21.76")
+    assert Decimal(resp.json()["saldo_pendiente"]) == Decimal("0.00")
+
+
 def test_cafeteria_catalogo_autoguarda_y_reusa_cliente(client, auth_headers):
     producto = _crear_producto_cafeteria(client, auth_headers, codigo="CAF-CAT")
 
