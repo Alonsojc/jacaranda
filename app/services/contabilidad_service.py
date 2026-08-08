@@ -6,7 +6,7 @@ balance general, estado de resultados y conciliación bancaria.
 from decimal import Decimal
 from datetime import date, datetime, timezone
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, or_
 
 from app.models.contabilidad import (
     CuentaContable, AsientoContable, LineaAsiento, MovimientoBancario,
@@ -18,7 +18,9 @@ from app.models.inventario import (
     Ingrediente, Producto, MovimientoInventario, TipoMovimiento,
 )
 from app.models.gasto_fijo import GastoFijo
+from app.models.egreso import Egreso
 from app.models.empleado import RegistroNomina
+from app.models.merma import RegistroMerma
 from app.services.pago_metodos import canal_pago, etiqueta_canal_pago
 from app.services.venta_service import _normalizar_fecha_db, _zona_operacion
 
@@ -428,15 +430,33 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
 
     utilidad_bruta = ingresos_netos - costo_ventas
 
-    # Gastos de operación
+    # Gastos de operación configurados o capturados explícitamente.
     gastos_fijos = db.query(GastoFijo).filter(GastoFijo.activo.is_(True)).all()
     dias_periodo = max((fecha_fin - fecha_inicio).days, 1)
-    gastos_desglose = {}
+    gastos_desglose_decimal: dict[str, Decimal] = {}
     total_gastos_op = ZERO
     for g in gastos_fijos:
         monto_periodo = _prorratear_gasto(g.monto, g.periodicidad, dias_periodo)
-        gastos_desglose[g.concepto] = float(monto_periodo)
+        concepto = f"{g.concepto} (recurrente)"
+        gastos_desglose_decimal[concepto] = (
+            gastos_desglose_decimal.get(concepto, ZERO) + monto_periodo
+        )
         total_gastos_op += monto_periodo
+
+    egresos = db.query(Egreso).filter(
+        and_(
+            Egreso.activo.is_(True),
+            Egreso.fecha >= fecha_inicio,
+            Egreso.fecha <= fecha_fin,
+        )
+    ).all()
+    for egreso in egresos:
+        monto = egreso.monto or ZERO
+        concepto = egreso.concepto
+        gastos_desglose_decimal[concepto] = (
+            gastos_desglose_decimal.get(concepto, ZERO) + monto
+        )
+        total_gastos_op += monto
 
     # Nómina en el periodo
     nominas = db.query(RegistroNomina).filter(
@@ -445,23 +465,49 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
     ).all()
     total_nomina = sum((n.neto_a_pagar or ZERO) for n in nominas)
     if total_nomina > 0:
-        gastos_desglose["Nómina"] = float(total_nomina)
+        gastos_desglose_decimal["Nómina registrada"] = total_nomina
         total_gastos_op += total_nomina
 
-    utilidad_operacion = utilidad_bruta - total_gastos_op
+    # Las mermas del módulo dedicado usan su fecha declarada. Los movimientos
+    # restantes cubren la captura rápida y pérdidas generadas por producción.
+    mermas_registradas = Decimal(str(
+        db.query(func.coalesce(func.sum(RegistroMerma.costo_total), 0)).filter(
+            and_(
+                RegistroMerma.fecha_merma >= fecha_inicio,
+                RegistroMerma.fecha_merma <= fecha_fin,
+            )
+        ).scalar() or 0
+    ))
+    mermas_movimientos = Decimal(str(
+        db.query(func.coalesce(
+            func.sum(
+                MovimientoInventario.cantidad * MovimientoInventario.costo_unitario
+            ),
+            0,
+        )).filter(
+            and_(
+                MovimientoInventario.tipo.in_([
+                    TipoMovimiento.SALIDA_MERMA,
+                    TipoMovimiento.SALIDA_CADUCIDAD,
+                ]),
+                MovimientoInventario.fecha >= inicio_dt,
+                MovimientoInventario.fecha <= fin_dt,
+                or_(
+                    MovimientoInventario.referencia.is_(None),
+                    ~MovimientoInventario.referencia.like("Merma (%): %"),
+                ),
+            )
+        ).scalar() or 0
+    ))
+    mermas = mermas_registradas + mermas_movimientos
 
-    # Impuestos estimados (ISR provisional ~30% sobre utilidad positiva)
-    isr_estimado = max(utilidad_operacion * Decimal("0.30"), ZERO)
-    utilidad_neta = utilidad_operacion - isr_estimado
-
-    # Mermas en el periodo
-    mermas = db.query(func.coalesce(
-        func.sum(MovimientoInventario.cantidad * MovimientoInventario.costo_unitario), 0
-    )).filter(
-        and_(MovimientoInventario.tipo == TipoMovimiento.SALIDA_MERMA,
-             MovimientoInventario.fecha >= inicio_dt,
-             MovimientoInventario.fecha <= fin_dt)
-    ).scalar()
+    utilidad_operacion = utilidad_bruta - total_gastos_op - mermas
+    # Los impuestos sólo reducen la utilidad cuando fueron capturados como egreso.
+    utilidad_neta = utilidad_operacion
+    gastos_desglose = {
+        concepto: float(monto)
+        for concepto, monto in gastos_desglose_decimal.items()
+    }
 
     return {
         "periodo": {"inicio": fecha_inicio.isoformat(), "fin": fecha_fin.isoformat()},
@@ -484,7 +530,6 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
         "total_gastos_operacion": float(total_gastos_op),
         "mermas": float(mermas),
         "utilidad_operacion": float(utilidad_operacion),
-        "isr_estimado": float(isr_estimado),
         "utilidad_neta": float(utilidad_neta),
         "margen_neto_pct": round(float(utilidad_neta / ingresos_netos * 100), 1) if ingresos_netos else 0,
         "numero_ventas": len(ventas),

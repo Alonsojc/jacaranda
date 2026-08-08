@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from app.models.venta import (
     Venta, DetalleVenta, PagoVenta, CorteCaja, MetodoPago, EstadoVenta, TerminalPago
 )
-from app.models.inventario import Producto, TasaIVA, TipoMovimiento
+from app.models.inventario import Producto, TipoMovimiento
 from app.models.cliente import Cliente
 from app.schemas.venta import VentaCreate, CorteCajaCreate
 from app.schemas.inventario import MovimientoCreate
@@ -81,25 +81,11 @@ def _generar_folio(db: Session, serie: str = "T") -> str:
     return f"{serie}-{numero:08d}"
 
 
-def _obtener_tasa_iva(producto: Producto) -> Decimal:
-    """Determina tasa IVA según tipo de producto."""
-    if producto.tasa_iva == TasaIVA.TASA_0:
-        return Decimal("0.00")
-    elif producto.tasa_iva == TasaIVA.TASA_16:
-        if settings.ZONA_FRONTERIZA:
-            return Decimal("0.08")
-        return Decimal("0.16")
-    else:  # Exento
-        return Decimal("0.00")
-
-
-def _obtener_tasa_iva_pos(producto: Producto, tasa_factura: Decimal) -> Decimal:
-    """En mostrador no se cobra IVA salvo que caja active factura."""
+def _obtener_tasa_iva_pos(tasa_factura: Decimal) -> Decimal:
+    """En mostrador la tasa se decide por venta, no por la ficha del producto."""
     if tasa_factura <= 0:
         return Decimal("0.00")
-    if producto.tasa_iva == TasaIVA.TASA_16:
-        return tasa_factura
-    return Decimal("0.00")
+    return tasa_factura
 
 
 def _aplicar_descuento_global(detalles: list[DetalleVenta], descuento_bruto: Decimal) -> None:
@@ -287,7 +273,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
 
         precio = producto.precio_unitario
         subtotal_linea = (precio * item.cantidad) - item.descuento
-        tasa_iva = _obtener_tasa_iva_pos(producto, tasa_factura_pos)
+        tasa_iva = _obtener_tasa_iva_pos(tasa_factura_pos)
         monto_iva = (subtotal_linea * tasa_iva).quantize(Decimal("0.01"))
 
         subtotal_total += subtotal_linea
@@ -308,7 +294,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             clave_unidad_sat=producto.clave_unidad_sat,
             tasa_iva=tasa_iva,
             monto_iva=monto_iva,
-            objeto_impuesto=producto.objeto_impuesto,
+            objeto_impuesto="02",
         )
         detalles.append(detalle)
 

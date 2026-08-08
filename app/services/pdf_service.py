@@ -160,7 +160,7 @@ def generar_reporte_ventas_pdf(reporte: dict) -> io.BytesIO:
         ["Concepto", "Monto"],
         ["Subtotal", f"${resumen.get('subtotal', 0):,.2f}"],
         ["IVA 0% (base)", f"${resumen.get('iva_tasa_0_base', 0):,.2f}"],
-        ["IVA 16%", f"${resumen.get('iva_tasa_16', 0):,.2f}"],
+        ["IVA trasladado", f"${resumen.get('iva_tasa_16', 0):,.2f}"],
         ["Descuentos", f"${resumen.get('descuentos', 0):,.2f}"],
         ["Total", f"${resumen.get('total', 0):,.2f}"],
     ]
@@ -268,7 +268,7 @@ def generar_reporte_iva_pdf(iva: dict) -> io.BytesIO:
     t0 = trasl.get("tasa_0", {})
     data = [
         ["Concepto", "Base gravable", "IVA"],
-        ["Tasa 16%", f"${t16.get('base', 0):,.2f}", f"${t16.get('iva', 0):,.2f}"],
+        ["Tasa gravada", f"${t16.get('base', 0):,.2f}", f"${t16.get('iva', 0):,.2f}"],
         ["Tasa 0%", f"${t0.get('base', 0):,.2f}", f"${t0.get('iva', 0):,.2f}"],
         ["Total trasladado", "", f"${trasl.get('total_trasladado', 0):,.2f}"],
     ]

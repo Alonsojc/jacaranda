@@ -4,7 +4,7 @@ Registro, consulta, reportes y alertas de caducidad.
 """
 
 from decimal import Decimal
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
@@ -13,6 +13,7 @@ from app.models.inventario import (
     Producto, Ingrediente, MovimientoInventario, LoteIngrediente,
     TipoMovimiento,
 )
+from app.services.venta_service import _hoy_operacion, _normalizar_fecha_db, _zona_operacion
 
 
 def registrar_merma(db: Session, data: dict) -> dict:
@@ -33,7 +34,7 @@ def registrar_merma(db: Session, data: dict) -> dict:
     tipo = TipoMerma(data["tipo"])
     costo_unitario = Decimal(str(data.get("costo_unitario", 0)))
     costo_total = Decimal(str(data.get("costo_total", 0)))
-    fecha_merma = data.get("fecha_merma") or date.today()
+    fecha_merma = data.get("fecha_merma") or _hoy_operacion()
     if isinstance(fecha_merma, str):
         fecha_merma = date.fromisoformat(fecha_merma)
 
@@ -108,6 +109,9 @@ def registrar_merma(db: Session, data: dict) -> dict:
         referencia=f"Merma ({tipo.value}): {nombre_item}",
         notas=data.get("motivo"),
         usuario_id=data.get("responsable_id"),
+        fecha=_normalizar_fecha_db(
+            datetime.combine(fecha_merma, time.min, tzinfo=_zona_operacion())
+        ),
     )
     db.add(movimiento)
 

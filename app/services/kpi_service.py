@@ -13,6 +13,7 @@ from app.models.venta import Venta, DetalleVenta, EstadoVenta
 from app.models.inventario import Producto, Ingrediente
 from app.models.cliente import Cliente
 from app.services.pago_metodos import CANAL_PAGO_LABELS, canal_pago
+from app.services.venta_service import _normalizar_fecha_db, _zona_operacion
 
 
 def _rango_dia(dia: date):
@@ -274,10 +275,16 @@ def kpi_clientes(db: Session) -> dict:
 
 def distribucion_metodos_pago(db: Session, dias: int = 30) -> list[dict]:
     """Distribución de métodos de pago."""
-    inicio = datetime.combine(
-        date.today() - timedelta(days=dias - 1), datetime.min.time()
+    zona = _zona_operacion()
+    hoy = datetime.now(zona).date()
+    inicio = _normalizar_fecha_db(
+        datetime.combine(
+            hoy - timedelta(days=dias - 1), datetime.min.time(), tzinfo=zona
+        )
     )
-    fin = datetime.combine(date.today(), datetime.max.time())
+    fin = _normalizar_fecha_db(
+        datetime.combine(hoy, datetime.max.time(), tzinfo=zona)
+    )
 
     ventas = db.query(Venta).filter(
         and_(

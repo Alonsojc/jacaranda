@@ -28,7 +28,6 @@ from app.services.inventario_service import registrar_empaque_producto, registra
 from app.services.venta_service import (
     _normalizar_fecha_db,
     _normalizar_metodo_terminal,
-    _obtener_tasa_iva,
     _zona_operacion,
 )
 
@@ -287,6 +286,7 @@ def crear_venta(db: Session, data: CafeteriaVentaCreate, usuario_id: int) -> Caf
     iva_16_total = Decimal("0")
     detalles: list[DetalleCafeteriaVenta] = []
     productos_por_id: dict[int, Producto] = {}
+    tasa_factura = Decimal(str(data.iva_factura_tasa or 0)).quantize(CENTAVO)
 
     for item in data.detalles:
         producto = (
@@ -307,7 +307,7 @@ def crear_venta(db: Session, data: CafeteriaVentaCreate, usuario_id: int) -> Caf
             raise ValueError(f"Producto '{producto.nombre}' no tiene precio de cafetería válido")
 
         subtotal_linea = _q(precio * cantidad)
-        tasa_iva = _obtener_tasa_iva(producto)
+        tasa_iva = tasa_factura
         monto_iva = _q(subtotal_linea * tasa_iva)
         subtotal_total += subtotal_linea
         if tasa_iva == Decimal("0.00"):
@@ -434,6 +434,7 @@ def crear_venta(db: Session, data: CafeteriaVentaCreate, usuario_id: int) -> Caf
             "total": str(total),
             "monto_pagado": str(pago_inicial),
             "estado": venta.estado.value,
+            "iva_factura_tasa": str(tasa_factura),
             "dias_credito": dias_credito,
             "fecha_credito": fecha_credito.isoformat(),
         },

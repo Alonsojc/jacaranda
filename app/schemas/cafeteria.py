@@ -42,6 +42,20 @@ class CafeteriaVentaCreate(BaseModel):
     metodo_pago: MetodoPago = MetodoPago.TRANSFERENCIA
     terminal: TerminalPago = TerminalPago.EFECTIVO
     referencia_pago: str | None = Field(default=None, max_length=120)
+    iva_factura_tasa: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("0.08"))
+
+    @field_validator("iva_factura_tasa", mode="before")
+    @classmethod
+    def validar_iva_factura_tasa(cls, v) -> Decimal:
+        if v in (None, ""):
+            return Decimal("0")
+        try:
+            tasa = Decimal(str(v))
+        except Exception as exc:
+            raise ValueError("La tasa de IVA para factura debe ser 0% u 8%") from exc
+        if tasa not in {Decimal("0.00"), Decimal("0.08")}:
+            raise ValueError("La tasa de IVA para factura debe ser 0% u 8%")
+        return tasa.quantize(Decimal("0.01"))
 
 
 class PagoCafeteriaCreate(BaseModel):

@@ -193,10 +193,10 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .action-btn.danger:hover{background:#fef2f2;border-color:#ef4444}
 .action-icon{font-size:.95rem;line-height:1}
 .action-label{white-space:nowrap}
-.product-actions-table{min-width:1260px}
+.product-actions-table{min-width:1180px}
 .product-actions-table .col-price,.product-actions-table .col-caf-price,.product-actions-table .col-cost{width:105px}
 .product-actions-table .col-stock{width:120px}
-.product-actions-table .col-min,.product-actions-table .col-iva{width:72px}
+.product-actions-table .col-min{width:72px}
 .product-actions-table .col-status{width:118px}
 .product-actions-table .col-actions{width:390px}
 .product-actions-table th.actions-th,.product-actions-table td.actions-cell{width:390px;white-space:nowrap}
@@ -738,9 +738,11 @@ h2{font-size:1.1rem}
 <div class="tkt caf-account">
 <h3>Cuenta cafeter&iacute;a</h3>
 <div id="caf-items"></div>
+<button type="button" id="caf-iva-factura-btn" class="pos-tax-toggle" onclick="toggleCafFacturaIva()" aria-pressed="false">Agregar 8% IVA para factura</button>
+<div id="caf-iva-factura-note" class="pos-tax-note">Sin IVA por default</div>
 <div id="caf-sum" style="display:none">
 <div class="ti"><span>Subtotal</span><span id="caf-sub"></span></div>
-<div class="ti"><span>IVA 16%</span><span id="caf-iva"></span></div>
+<div class="ti"><span id="caf-iva-label">IVA</span><span id="caf-iva"></span></div>
 <div class="ttot"><span>TOTAL</span><span id="caf-total"></span></div>
 </div>
 <input type="hidden" id="caf-cliente-id">
@@ -2221,9 +2223,6 @@ h2{font-size:1.1rem}
 <div class="fg"><label>Stock m&iacute;nimo</label><input type="number" id="mnp-minimo" step="1" value="0"></div>
 </div>
 <div class="frow">
-<div class="fg"><label>IVA</label><select id="mnp-iva"><option value="0.16">16%</option><option value="0.00">0%</option><option value="exento">Exento</option></select></div>
-</div>
-<div class="frow">
 <div class="fg"><label>Caja/empaque</label><select id="mnp-caja"><option value="">Sin caja asignada</option></select></div>
 <div class="fg"><label>Cajas por pieza</label><input type="number" id="mnp-caja-cant" step="0.01" min="0" value="1"></div>
 </div>
@@ -2316,9 +2315,6 @@ h2{font-size:1.1rem}
 <div class="frow">
 <div class="fg"><label>Costo producci&oacute;n</label><input type="number" id="mep-costo" step="0.01"></div>
 <div class="fg"><label>Stock m&iacute;nimo (alerta)</label><input type="number" id="mep-minimo" step="1"></div>
-</div>
-<div class="frow">
-<div class="fg"><label>IVA</label><select id="mep-iva"><option value="0.00">0%</option><option value="0.16">16%</option><option value="exento">Exento</option></select></div>
 </div>
 <div class="frow">
 <div class="fg"><label>Caja/empaque</label><select id="mep-caja"><option value="">Sin caja asignada</option></select></div>
@@ -2587,7 +2583,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v83';
+var APP_BUILD = 'jacaranda-v85';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
@@ -2604,7 +2600,7 @@ var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var POS_FACTURA_IVA_TASA = 0.08, _posFacturaIvaActiva = false;
 var _clienteRecompensaActual = null, _canjearRecompensaLealtad = false;
-var cafCart = [], cafPm = 'trans', _cafGroups = {}, _cafGroupOrder = [], _cafProductById = {}, _cafVentas = [], _cafClientes = [], _cafEnProceso = false, _cafIdempotencyKey = null;
+var cafCart = [], cafPm = 'trans', _cafFacturaIvaActiva = false, _cafGroups = {}, _cafGroupOrder = [], _cafProductById = {}, _cafVentas = [], _cafClientes = [], _cafEnProceso = false, _cafIdempotencyKey = null;
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
 var _pedidoEnProceso = false, _pedidoIdempotencyKey = null;
 var _clienteEditId = null;
@@ -3793,12 +3789,12 @@ function irKpiDashboard(tipo) {
 }
 
 // ─── POS ──────────────────────────────────────────────────────────
-function add(id, n, pr, iv) {
+function add(id, n, pr) {
   var f = false;
   for (var i = 0; i < cart.length; i++) {
     if (cart[i].id === id) { cart[i].q++; f = true; break; }
   }
-  if (!f) cart.push({id:id, n:n, p:pr, iv:iv, q:1, desc:0});
+  if (!f) cart.push({id:id, n:n, p:pr, q:1, desc:0});
   ren();
   // En móvil scroll al ticket para que se vea
   if (window.innerWidth <= 900) {
@@ -3806,8 +3802,21 @@ function add(id, n, pr, iv) {
   }
 }
 
-function posIvaTasaLinea(item) {
-  return (_posFacturaIvaActiva && item && (item.iv || 0) > 0) ? POS_FACTURA_IVA_TASA : 0;
+function redondearCentavosMitadPar(valor) {
+  var numero = Number(valor) || 0;
+  var escalado = Math.abs(numero) * 100;
+  var entero = Math.floor(escalado);
+  var fraccion = escalado - entero;
+  var tolerancia = Number.EPSILON * Math.max(1, escalado) * 8;
+  if (fraccion > 0.5 + tolerancia || (Math.abs(fraccion - 0.5) <= tolerancia && entero % 2 === 1)) {
+    entero++;
+  }
+  return (numero < 0 ? -entero : entero) / 100;
+}
+
+function ivaFacturaPorLinea(base, activa) {
+  if (!activa || base <= 0) return 0;
+  return redondearCentavosMitadPar(base * POS_FACTURA_IVA_TASA);
 }
 
 function actualizarIvaFacturaUI(subtotal, iva) {
@@ -3817,7 +3826,7 @@ function actualizarIvaFacturaUI(subtotal, iva) {
       var c = cart[i];
       var linea = Math.max(0, (c.p * c.q) - (c.desc || 0));
       base += linea;
-      impuesto += linea * posIvaTasaLinea(c);
+      impuesto += ivaFacturaPorLinea(linea, _posFacturaIvaActiva);
     }
     var rew = descuentoRecompensaCarrito();
     subtotal = Math.max(0, base - rew.base);
@@ -3867,11 +3876,13 @@ function descuentoRecompensaCarrito() {
     var baseDisponible = Math.max(0, (c.p * c.q) - (c.desc || 0));
     if (baseDisponible <= 0) continue;
     var base = Math.min(c.p, baseDisponible);
-    var tasaIva = posIvaTasaLinea(c);
+    var ivaAntes = ivaFacturaPorLinea(baseDisponible, _posFacturaIvaActiva);
+    var ivaDespues = ivaFacturaPorLinea(baseDisponible - base, _posFacturaIvaActiva);
+    var ivaDescontado = redondearCentavosMitadPar(ivaAntes - ivaDespues);
     var candidato = {
       base: base,
-      iva: base * tasaIva,
-      total: base * (1 + tasaIva),
+      iva: ivaDescontado,
+      total: base + ivaDescontado,
       nombre: c.n
     };
     if (!mejor || candidato.total < mejor.total) mejor = candidato;
@@ -3921,7 +3932,7 @@ function ren() {
   for (var i = 0; i < cart.length; i++) {
     var c = cart[i], l = c.p * c.q, d = c.desc || 0;
     s += l - d;
-    iv += (l - d) * posIvaTasaLinea(c);
+    iv += ivaFacturaPorLinea(l - d, _posFacturaIvaActiva);
     dsc += d;
     h += '<div class="ti" style="align-items:center">';
     h += '<span style="display:flex;align-items:center;gap:.4rem">';
@@ -4006,7 +4017,7 @@ function _cartTotal() {
   var s = 0, iv = 0;
   for (var i = 0; i < cart.length; i++) {
     var l = cart[i].p * cart[i].q - (cart[i].desc || 0);
-    s += l; iv += l * posIvaTasaLinea(cart[i]);
+    s += l; iv += ivaFacturaPorLinea(l, _posFacturaIvaActiva);
   }
   var rew = descuentoRecompensaCarrito();
   return Math.max(0, s - rew.base) + Math.max(0, iv - rew.iva);
@@ -4018,7 +4029,7 @@ function _cartResumenCotizacion() {
     var bruto = c.p * c.q;
     var desc = c.desc || 0;
     var base = Math.max(0, bruto - desc);
-    var imp = base * posIvaTasaLinea(c);
+    var imp = ivaFacturaPorLinea(base, _posFacturaIvaActiva);
     subtotal += base;
     iva += imp;
     descuento += desc;
@@ -4961,8 +4972,8 @@ function renderPOSFromData(prods) {
       var single = items.length === 1;
       var clickAttr;
       if (single) {
-        var p = items[0], iv = p.tasa_iva === '0.16' ? 0.16 : 0;
-        var clickCode = 'add(' + p.id + ',' + jsArg(p.nombre) + ',' + (parseFloat(p.precio_unitario)||0) + ',' + iv + ')';
+        var p = items[0];
+        var clickCode = 'add(' + p.id + ',' + jsArg(p.nombre) + ',' + (parseFloat(p.precio_unitario)||0) + ')';
         clickAttr = 'onclick="' + escHtml(clickCode) + '"';
       } else {
         clickAttr = 'onclick="' + escHtml('abrirVariantes(' + jsArg(orden[gi]) + ')') + '"';
@@ -5024,11 +5035,10 @@ function abrirVariantes(key) {
     var precio = parseFloat(p.precio_unitario) || 0;
     var stock = parseFloat(p.stock_actual) || 0;
     var min = parseFloat(p.stock_minimo) || 0;
-    var iv = p.tasa_iva === '0.16' ? 0.16 : 0;
     var agotado = stock <= 0;
     var stkCls = agotado ? 'pi-stk-out' : (stock <= min ? 'pi-stk-low' : 'pi-stk-ok');
     var stkTxt = agotado ? 'Agotado' : Math.round(stock) + ' pzas';
-    var variantClick = 'add(' + p.id + ',' + jsArg(p.nombre) + ',' + precio + ',' + iv + ');cerrarModal(\'modal-variante\')';
+    var variantClick = 'add(' + p.id + ',' + jsArg(p.nombre) + ',' + precio + ');cerrarModal(\'modal-variante\')';
     h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem .8rem;border:1px solid var(--brd);border-radius:10px;cursor:pointer;transition:all .15s'
       + (agotado ? ';opacity:.72' : '') + '" '
       + 'onmouseover="this.style.borderColor=\'var(--v)\';this.style.background=\'#faf3f0\'" '
@@ -5253,14 +5263,13 @@ function cafAddProducto(id) {
     toast('Producto no disponible, actualiza cafeter\u00eda', true);
     return;
   }
-  var iv = p.tasa_iva === '0.16' ? 0.16 : 0;
-  cafAdd(p.id, p.nombre, precioCafeteriaProducto(p), iv);
+  cafAdd(p.id, p.nombre, precioCafeteriaProducto(p));
 }
 
-function cafAdd(id, n, p, iv) {
+function cafAdd(id, n, p) {
   var it = cafCart.find(function(x) { return x.id === id; });
   if (it) it.q = Math.max(1, parseInt(it.q, 10) || 1) + 1;
-  else cafCart.push({id:id, n:n, p:p, iv:iv, q:1});
+  else cafCart.push({id:id, n:n, p:p, q:1});
   cafRen();
 }
 
@@ -5279,11 +5288,31 @@ function cafRm(i) {
 function cafTotals() {
   var sub = 0, iva = 0;
   for (var i = 0; i < cafCart.length; i++) {
-    var line = cafCart[i].p * cafCart[i].q;
+    var line = redondearCentavosMitadPar(cafCart[i].p * cafCart[i].q);
     sub += line;
-    if (cafCart[i].iv === 0.16) iva += line * 0.16;
+    iva += ivaFacturaPorLinea(line, _cafFacturaIvaActiva);
   }
-  return {sub: sub, iva: iva, total: sub + iva};
+  sub = redondearCentavosMitadPar(sub);
+  iva = redondearCentavosMitadPar(iva);
+  return {sub: sub, iva: iva, total: redondearCentavosMitadPar(sub + iva)};
+}
+
+function actualizarIvaFacturaCafeteriaUI(totales) {
+  var btn = document.getElementById('caf-iva-factura-btn');
+  var note = document.getElementById('caf-iva-factura-note');
+  var label = document.getElementById('caf-iva-label');
+  if (btn) {
+    btn.textContent = _cafFacturaIvaActiva ? 'Quitar IVA factura 8%' : 'Agregar 8% IVA para factura';
+    btn.setAttribute('aria-pressed', _cafFacturaIvaActiva ? 'true' : 'false');
+    btn.classList.toggle('active', _cafFacturaIvaActiva);
+  }
+  if (note) note.textContent = _cafFacturaIvaActiva ? 'IVA factura 8%: $' + fmt((totales && totales.iva) || 0) : 'Sin IVA por default';
+  if (label) label.textContent = _cafFacturaIvaActiva ? 'IVA factura 8%' : 'IVA';
+}
+
+function toggleCafFacturaIva() {
+  _cafFacturaIvaActiva = !_cafFacturaIvaActiva;
+  cafRen();
 }
 
 function cafRen() {
@@ -5293,6 +5322,7 @@ function cafRen() {
   if (!cafCart.length) {
     list.innerHTML = '<div class="caf-ticket-empty">Agrega productos para crear una cuenta.</div>';
     sum.style.display = 'none';
+    actualizarIvaFacturaCafeteriaUI({iva:0});
     return;
   }
   var h = '<div class="caf-ticket-list">';
@@ -5310,11 +5340,13 @@ function cafRen() {
   document.getElementById('caf-sub').textContent = '$' + fmt(t.sub);
   document.getElementById('caf-iva').textContent = '$' + fmt(t.iva);
   document.getElementById('caf-total').textContent = '$' + fmt(t.total);
+  actualizarIvaFacturaCafeteriaUI(t);
   sum.style.display = 'block';
 }
 
 function cafClear() {
   cafCart = [];
+  _cafFacturaIvaActiva = false;
   _cafIdempotencyKey = null;
   ['caf-nombre','caf-contacto','caf-tel','caf-notas'].forEach(function(id) {
     var el = document.getElementById(id); if (el) el.value = '';
@@ -5378,6 +5410,7 @@ function registrarCafeteria() {
     pago_inicial: pagoInicial,
     metodo_pago: pago.metodo_pago,
     terminal: pago.terminal,
+    iva_factura_tasa: _cafFacturaIvaActiva ? POS_FACTURA_IVA_TASA : 0,
     detalles: cafCart.map(function(c) { return {producto_id: c.id, cantidad: Math.max(1, parseInt(c.q, 10) || 1)}; })
   };
   api('POST', '/cafeteria/ventas', body).then(function(v) {
@@ -8135,7 +8168,6 @@ function editarProducto(id) {
     document.getElementById('mep-precio-caf').value = p.precio_cafeteria ? parseFloat(p.precio_cafeteria) : '';
     document.getElementById('mep-costo').value = parseFloat(p.costo_produccion);
     document.getElementById('mep-minimo').value = parseFloat(p.stock_minimo);
-    document.getElementById('mep-iva').value = p.tasa_iva;
     document.getElementById('mep-caja-cant').value = parseFloat(p.caja_cantidad || 1) || 1;
     cargarIngredientesParaCajas(p.caja_ingrediente_id || '');
     document.getElementById('mep-title').textContent = 'Editar: ' + p.nombre;
@@ -8185,7 +8217,6 @@ function guardarProducto() {
     precio_cafeteria: precioCafeRaw ? parseFloat(precioCafeRaw) : null,
     costo_produccion: parseFloat(document.getElementById('mep-costo').value),
     stock_minimo: parseFloat(document.getElementById('mep-minimo').value),
-    tasa_iva: document.getElementById('mep-iva').value,
     caja_ingrediente_id: cajaPayload.caja_ingrediente_id,
     caja_cantidad: cajaPayload.caja_cantidad,
   };
@@ -8465,7 +8496,7 @@ function cargarListaProductos() {
       _cajasProductoFetchIntentado = true;
       cargarIngredientesParaCajas().then(cargarListaProductos).catch(function() {});
     }
-    var h = '<table class="tbl product-actions-table"><colgroup><col><col class="col-price"><col class="col-caf-price"><col class="col-cost"><col class="col-stock"><col class="col-min"><col class="col-iva"><col class="col-actions"></colgroup><tr><th>Producto</th><th>Precio</th><th>Cafeter&iacute;a</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th>IVA</th><th class="actions-th">Acciones</th></tr>';
+    var h = '<table class="tbl product-actions-table"><colgroup><col><col class="col-price"><col class="col-caf-price"><col class="col-cost"><col class="col-stock"><col class="col-min"><col class="col-actions"></colgroup><tr><th>Producto</th><th>Precio</th><th>Cafeter&iacute;a</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th class="actions-th">Acciones</th></tr>';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
       var stock = parseFloat(p.stock_actual) || 0;
@@ -8473,7 +8504,6 @@ function cargarListaProductos() {
       var precio = parseFloat(p.precio_unitario) || 0;
       var precioCafe = parseFloat(p.precio_cafeteria) || 0;
       var costo = parseFloat(p.costo_produccion) || 0;
-      var iva = p.tasa_iva === '0.16' ? '16%' : p.tasa_iva === '0.00' ? '0%' : 'Ext';
       var esc = p.nombre.replace(/'/g,"\\'");
       var nombreArg = jsArg(p.nombre);
       h += '<tr>';
@@ -8484,7 +8514,6 @@ function cargarListaProductos() {
       h += '<td style="color:var(--mut)">$' + fmt(costo) + '</td>';
       h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline">' + Math.round(stock) + '</a></td>';
       h += '<td>' + Math.round(min) + '</td>';
-      h += '<td>' + iva + '</td>';
       h += '<td class="actions-cell"><div class="action-buttons">';
       h += actionBtn('Editar', '&#9998;', 'editarProducto(' + p.id + ')');
       h += actionBtn('Merma', '&#128465;', 'abrirMerma(' + p.id + ',' + nombreArg + ',' + Math.round(stock) + ')');
@@ -8536,11 +8565,10 @@ function cargarListaIngredientes() {
 
 function exportarListaProductosCSV() {
   api('GET', '/inventario/productos').then(function(prods) {
-    var csv = 'Codigo,Producto,Precio,Precio Cafeteria,Costo,Stock,Minimo,IVA,Unidad\n';
+    var csv = 'Codigo,Producto,Precio,Precio Cafeteria,Costo,Stock,Minimo,Unidad\n';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
-      var iva = p.tasa_iva === '0.16' ? '16%' : p.tasa_iva === '0.00' ? '0%' : 'Exento';
-      csv += '"' + (p.codigo||'') + '","' + (p.nombre||'').replace(/"/g,'""') + '",' + (p.precio_unitario||0) + ',' + (p.precio_cafeteria||'') + ',' + (p.costo_produccion||0) + ',' + (p.stock_actual||0) + ',' + (p.stock_minimo||0) + ',' + iva + ',' + (p.unidad_medida||'') + '\n';
+      csv += '"' + (p.codigo||'') + '","' + (p.nombre||'').replace(/"/g,'""') + '",' + (p.precio_unitario||0) + ',' + (p.precio_cafeteria||'') + ',' + (p.costo_produccion||0) + ',' + (p.stock_actual||0) + ',' + (p.stock_minimo||0) + ',' + (p.unidad_medida||'') + '\n';
     }
     _descargarCSV('productos_' + new Date().toISOString().split('T')[0] + '.csv', csv);
   }).catch(function() { toast('Error al exportar', true); });
@@ -8619,7 +8647,6 @@ function nuevoProducto() {
   document.getElementById('mnp-precio-caf').value = '';
   document.getElementById('mnp-costo').value = '';
   document.getElementById('mnp-minimo').value = '0';
-  document.getElementById('mnp-iva').value = '0.16';
   document.getElementById('mnp-caja-cant').value = '1';
   cargarIngredientesParaCajas('', '');
   document.getElementById('modal-new-prod').classList.add('on');
@@ -8641,7 +8668,6 @@ function crearProducto() {
     precio_unitario: precio,
     costo_produccion: parseFloat(document.getElementById('mnp-costo').value) || 0,
     stock_minimo: parseFloat(document.getElementById('mnp-minimo').value) || 0,
-    tasa_iva: document.getElementById('mnp-iva').value,
     caja_ingrediente_id: cajaPayload.caja_ingrediente_id,
     caja_cantidad: cajaPayload.caja_cantidad,
   };
@@ -10427,8 +10453,8 @@ function cargarReporteFiscal() {
   var anio = document.getElementById('rep-fanio').value;
   api('GET', '/reportes/impuestos/iva-mensual?mes=' + mes + '&anio=' + anio).then(function(r) {
     var h = '';
-    h += '<div class="srow"><span>Base gravada 16%</span><span>$' + fmt(r.iva_trasladado.tasa_16.base) + '</span></div>';
-    h += '<div class="srow"><span>IVA trasladado 16%</span><span style="font-weight:700">$' + fmt(r.iva_trasladado.tasa_16.iva) + '</span></div>';
+    h += '<div class="srow"><span>Base gravada</span><span>$' + fmt(r.iva_trasladado.tasa_16.base) + '</span></div>';
+    h += '<div class="srow"><span>IVA trasladado</span><span style="font-weight:700">$' + fmt(r.iva_trasladado.tasa_16.iva) + '</span></div>';
     h += '<div class="srow"><span>Base tasa 0%</span><span>$' + fmt(r.iva_trasladado.tasa_0.base) + '</span></div>';
     h += '<div class="srow"><span>IVA acreditable</span><span style="color:#b91c1c">$' + fmt(r.iva_acreditable) + '</span></div>';
     h += '<div class="srow" style="border-top:2px solid var(--brd);padding-top:.4rem;margin-top:.3rem;font-weight:700"><span>IVA por pagar</span><span>$' + fmt(r.iva_por_pagar) + '</span></div>';
@@ -11189,8 +11215,8 @@ function exportarFiscalCSV() {
     var csv = 'Reporte Fiscal ' + meses[mes] + ' ' + anio + '\n\n';
     csv += 'IVA Mensual\n';
     csv += 'Concepto,Monto\n';
-    csv += 'Base gravada 16%,' + iva.iva_trasladado.tasa_16.base.toFixed(2) + '\n';
-    csv += 'IVA trasladado 16%,' + iva.iva_trasladado.tasa_16.iva.toFixed(2) + '\n';
+    csv += 'Base gravada,' + iva.iva_trasladado.tasa_16.base.toFixed(2) + '\n';
+    csv += 'IVA trasladado,' + iva.iva_trasladado.tasa_16.iva.toFixed(2) + '\n';
     csv += 'Base tasa 0%,' + iva.iva_trasladado.tasa_0.base.toFixed(2) + '\n';
     csv += 'IVA acreditable,' + iva.iva_acreditable.toFixed(2) + '\n';
     csv += 'IVA por pagar,' + iva.iva_por_pagar.toFixed(2) + '\n';
@@ -11855,8 +11881,6 @@ function cargarEdoResultados() {
     h += '<div class="conta-row total"><span class="cr-label">Utilidad bruta</span><span class="cr-val">$' + fmt(r.utilidad_bruta) + '</span></div>';
     h += '<div class="conta-row"><span class="cr-label">(-) Gastos operaci\u00f3n</span><span class="cr-val neg">$' + fmt(r.total_gastos_operacion) + '</span></div>';
     if (r.mermas > 0) h += '<div class="conta-row"><span class="cr-label">(-) Mermas</span><span class="cr-val neg">$' + fmt(r.mermas) + '</span></div>';
-    h += '<div class="conta-row total"><span class="cr-label">Utilidad operaci\u00f3n</span><span class="cr-val">$' + fmt(r.utilidad_operacion) + '</span></div>';
-    h += '<div class="conta-row"><span class="cr-label">(-) ISR estimado (30%)</span><span class="cr-val neg">$' + fmt(r.isr_estimado) + '</span></div>';
     h += '<div class="conta-row total"><span class="cr-label">UTILIDAD NETA</span><span class="cr-val ' + (r.utilidad_neta >= 0 ? 'pos' : 'neg') + '">$' + fmt(r.utilidad_neta) + '</span></div>';
     h += '</div>';
     // Right: gastos desglose

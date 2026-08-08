@@ -1,10 +1,13 @@
 """Tests de integración para el módulo de ventas."""
 
 import json
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
+
+from app.services.venta_service import _zona_operacion
 
 
 class TestVentas:
@@ -101,8 +104,6 @@ class TestVentas:
         assert "AUTH-1234" in ticket.json()["metodo_pago"]
 
     def test_pago_dividido_separa_canales_y_corte_conciliacion(self, client, auth_headers):
-        from datetime import date
-
         pid = self._crear_producto(client, auth_headers, "PAN-SPLIT-PAY", "100.00")
         self._agregar_stock(client, auth_headers, pid)
 
@@ -134,7 +135,7 @@ class TestVentas:
         assert corte["total_ventas_transferencia"] == "40.00"
         assert Decimal(str(corte["total_ventas_tarjeta"])) == Decimal("0.00")
 
-        hoy = date.today()
+        hoy = datetime.now(_zona_operacion()).date()
         reporte = client.get(
             f"/api/v1/reportes/ventas?fecha_inicio={hoy.isoformat()}&fecha_fin={hoy.isoformat()}",
             headers=auth_headers,
@@ -643,10 +644,6 @@ class TestVentas:
 
     def test_pos_no_cobra_iva_por_default_y_agrega_8_para_factura(self, client, auth_headers):
         pid = self._crear_producto(client, auth_headers, "PASTEL-001", "100.00")
-        # Update to 16% IVA
-        client.put(f"/api/v1/inventario/productos/{pid}", json={
-            "tasa_iva": "0.16",
-        }, headers=auth_headers)
         self._agregar_stock(client, auth_headers, pid, 10)
         resp = client.post("/api/v1/punto-de-venta/ventas", json={
             "metodo_pago": "01",
@@ -673,13 +670,36 @@ class TestVentas:
         assert data["iva_16"] == "8.00"
         assert Decimal(data["detalles"][0]["tasa_iva"]) == Decimal("0.0800")
 
-    def test_pos_rechaza_tasa_iva_factura_distinta_a_8(self, client, auth_headers):
-        pid = self._crear_producto(client, auth_headers, "PASTEL-IVA-INVALIDO", "100.00", tasa_iva="0.16")
+    def test_pos_redondea_iva_por_partida(self, client, auth_headers):
+        primero = self._crear_producto(client, auth_headers, "IVA-LINEA-1", "10.07")
+        segundo = self._crear_producto(client, auth_headers, "IVA-LINEA-2", "10.07")
+        self._agregar_stock(client, auth_headers, primero, 1)
+        self._agregar_stock(client, auth_headers, segundo, 1)
+
+        resp = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "21.76",
+            "iva_factura_tasa": "0.08",
+            "detalles": [
+                {"producto_id": primero, "cantidad": "1"},
+                {"producto_id": segundo, "cantidad": "1"},
+            ],
+        }, headers=auth_headers)
+
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["total_impuestos"] == "1.62"
+        assert resp.json()["total"] == "21.76"
+
+    @pytest.mark.parametrize("tasa", ["0.16", "0.079", "0.004"])
+    def test_pos_rechaza_tasa_iva_factura_distinta_a_8(
+        self, client, auth_headers, tasa
+    ):
+        pid = self._crear_producto(client, auth_headers, "PASTEL-IVA-INVALIDO", "100.00")
         self._agregar_stock(client, auth_headers, pid, 10)
         resp = client.post("/api/v1/punto-de-venta/ventas", json={
             "metodo_pago": "01",
             "monto_recibido": "200.00",
-            "iva_factura_tasa": "0.16",
+            "iva_factura_tasa": tasa,
             "detalles": [{"producto_id": pid, "cantidad": "1"}],
         }, headers=auth_headers)
         assert resp.status_code == 422

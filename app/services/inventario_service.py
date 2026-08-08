@@ -322,6 +322,11 @@ def registrar_movimiento(
     # Actualizar stock
     es_entrada = data.tipo.value.startswith("entrada")
     cantidad = data.cantidad if es_entrada else -data.cantidad
+    movimiento_data = data.model_dump()
+    es_merma = data.tipo in (
+        TipoMovimiento.SALIDA_MERMA,
+        TipoMovimiento.SALIDA_CADUCIDAD,
+    )
 
     if data.ingrediente_id is not None:
         ingrediente = db.query(Ingrediente).filter(
@@ -335,6 +340,8 @@ def registrar_movimiento(
         ingrediente.stock_actual = nuevo_stock
         if es_entrada and data.costo_unitario:
             ingrediente.costo_unitario = data.costo_unitario
+        if es_merma and not data.costo_unitario:
+            movimiento_data["costo_unitario"] = ingrediente.costo_unitario or Decimal("0")
 
     if data.producto_id is not None:
         producto = db.query(Producto).filter(
@@ -346,9 +353,11 @@ def registrar_movimiento(
         if nuevo_stock < 0 and not permitir_stock_negativo:
             raise ValueError("Stock insuficiente de producto")
         producto.stock_actual = nuevo_stock
+        if es_merma and not data.costo_unitario:
+            movimiento_data["costo_unitario"] = producto.costo_produccion or Decimal("0")
 
     movimiento = MovimientoInventario(
-        **data.model_dump(), usuario_id=usuario_id,
+        **movimiento_data, usuario_id=usuario_id,
     )
     db.add(movimiento)
     db.flush()
@@ -367,7 +376,7 @@ def registrar_movimiento(
                 "ingrediente_id": data.ingrediente_id,
                 "producto_id": data.producto_id,
                 "cantidad": data.cantidad,
-                "costo_unitario": data.costo_unitario,
+                "costo_unitario": movimiento_data["costo_unitario"],
                 "referencia": data.referencia,
                 "notas": data.notas,
             },
