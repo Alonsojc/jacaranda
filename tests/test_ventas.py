@@ -1,10 +1,13 @@
 """Tests de integración para el módulo de ventas."""
 
 import json
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
+
+from app.services.venta_service import _zona_operacion
 
 
 class TestVentas:
@@ -101,8 +104,6 @@ class TestVentas:
         assert "AUTH-1234" in ticket.json()["metodo_pago"]
 
     def test_pago_dividido_separa_canales_y_corte_conciliacion(self, client, auth_headers):
-        from datetime import date
-
         pid = self._crear_producto(client, auth_headers, "PAN-SPLIT-PAY", "100.00")
         self._agregar_stock(client, auth_headers, pid)
 
@@ -134,7 +135,7 @@ class TestVentas:
         assert corte["total_ventas_transferencia"] == "40.00"
         assert Decimal(str(corte["total_ventas_tarjeta"])) == Decimal("0.00")
 
-        hoy = date.today()
+        hoy = datetime.now(_zona_operacion()).date()
         reporte = client.get(
             f"/api/v1/reportes/ventas?fecha_inicio={hoy.isoformat()}&fecha_fin={hoy.isoformat()}",
             headers=auth_headers,
