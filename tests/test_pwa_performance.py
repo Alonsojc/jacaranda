@@ -97,7 +97,8 @@ def test_frontend_keeps_session_during_temporary_server_errors():
     assert "marcarApiTemporalmenteNoDisponible(timeoutErr)" in api_segment
     assert "var versionSesionRefresh = _versionSesion" in refresh_segment
     assert "var refreshTokenSolicitado = REFRESH_TOKEN" in refresh_segment
-    assert "_versionSesion !== versionSesionRefresh" in refresh_segment
+    assert "function sesionRefreshSigueActiva()" in refresh_segment
+    assert refresh_segment.index("if (!sesionRefreshSigueActiva())") < refresh_segment.index("cerrarSesion()")
 
 
 def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
@@ -156,10 +157,12 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "if (completa) indexedDB.deleteDatabase('jacaranda-offline')" in recovery_segment
     assert "if (!ventasGuardadas || !legacyGuardadas) tx.abort()" in recovery_segment
     assert "tx.onabort = function() { finalizarMigracion(false); }" in recovery_segment
-    assert "nuevaClaveIdempotencia('venta-legacy')" in review_segment
+    assert "claveIdempotenciaVentaLegacy(item)" in review_segment
     assert "confirmarAccion({" in review_segment
     assert "var versionSesionRevision = _versionSesion" in review_segment
     assert review_segment.count("if (!revisionLegacySigueActiva()) return") == 3
+    assert review_segment.count("recargarColasVentasCompartidas()") == 3
+    assert "moverVentasLocalesLegacyARevision();" in sync_segment
     assert "var total = _ventasPendientes.length + _ventasLegacyRevision.length" in html
     assert "total === 1 ? 'venta pendiente' : 'ventas pendientes'" in html
     assert 'onclick="accionVentasPendientes()"' in html

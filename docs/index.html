@@ -3591,6 +3591,9 @@ function refreshAccessToken() {
   if (_refreshPromise) return _refreshPromise;
   var versionSesionRefresh = _versionSesion;
   var refreshTokenSolicitado = REFRESH_TOKEN;
+  function sesionRefreshSigueActiva() {
+    return _versionSesion === versionSesionRefresh && REFRESH_TOKEN === refreshTokenSolicitado;
+  }
   var controller = window.AbortController ? new AbortController() : null;
   var timeoutId = null;
   var opts = {
@@ -3608,6 +3611,9 @@ function refreshAccessToken() {
   _refreshPromise = fetch(API_URL + '/api/v1/auth/refresh', opts).then(function(r) {
     if (timeoutId) clearTimeout(timeoutId);
     if (!r.ok) {
+      if (!sesionRefreshSigueActiva()) {
+        throw new Error('La sesión cambió durante la renovación');
+      }
       var refreshErr = new Error(r.status === 429 ? 'Demasiadas peticiones, reintentando sesión' : 'Refresh falló');
       refreshErr.status = r.status;
       if (r.status === 401 || r.status === 403) cerrarSesion();
@@ -3615,7 +3621,7 @@ function refreshAccessToken() {
     }
     return leerRespuestaJson(r);
   }).then(function(d) {
-    if (_versionSesion !== versionSesionRefresh || REFRESH_TOKEN !== refreshTokenSolicitado) {
+    if (!sesionRefreshSigueActiva()) {
       throw new Error('La sesión cambió durante la renovación');
     }
     TOKEN = d.access_token;
@@ -5072,6 +5078,18 @@ function moverVentasLocalesLegacyARevision() {
 
 moverVentasLocalesLegacyARevision();
 
+function recargarColasVentasCompartidas() {
+  _ventasPendientes = leerVentasPendientesLocal();
+  _ventasLegacyRevision = leerVentasLegacyRevision();
+  moverVentasLocalesLegacyARevision();
+  actualizarBannerOffline();
+}
+
+function claveIdempotenciaVentaLegacy(item) {
+  var base = String((item && item.key) || '').replace(/[^A-Za-z0-9-]/g, '-').slice(0, 60);
+  return base ? 'venta-legacy-' + base : '';
+}
+
 function resumenVentaLegacy(item) {
   var fecha = item && item.timestamp ? new Date(item.timestamp) : null;
   var fechaTexto = fecha && !isNaN(fecha.getTime())
@@ -5094,8 +5112,13 @@ async function revisarSiguienteVentaLegacy() {
   }
   var versionSesionRevision = _versionSesion;
   var item = _ventasLegacyRevision[0];
+  var itemKeyRevision = String((item && item.key) || '');
   function revisionLegacySigueActiva() {
-    return _versionSesion === versionSesionRevision && !!TOKEN && _ventasLegacyRevision[0] === item;
+    if (_versionSesion !== versionSesionRevision || !TOKEN || !itemKeyRevision) return false;
+    var itemActual = _ventasLegacyRevision[0];
+    if (String((itemActual && itemActual.key) || '') !== itemKeyRevision) return false;
+    item = itemActual;
+    return true;
   }
   if (!item.venta) {
     var revisado = await confirmarAccion({
@@ -5106,6 +5129,7 @@ async function revisarSiguienteVentaLegacy() {
       acceptText: 'Marcar revisado',
       cancelText: 'Conservar'
     });
+    recargarColasVentasCompartidas();
     if (!revisionLegacySigueActiva()) return;
     if (revisado) {
       var itemDanado = _ventasLegacyRevision.shift();
@@ -5127,10 +5151,13 @@ async function revisarSiguienteVentaLegacy() {
     acceptText: 'Recuperar',
     cancelText: 'Ya aparece'
   });
+  recargarColasVentasCompartidas();
   if (!revisionLegacySigueActiva()) return;
   if (recuperar) {
     var claveAnterior = item.venta.idempotency_key;
-    item.venta.idempotency_key = nuevaClaveIdempotencia('venta-legacy');
+    var claveRecuperacion = claveIdempotenciaVentaLegacy(item);
+    if (!claveRecuperacion) return;
+    item.venta.idempotency_key = claveRecuperacion;
     _ventasPendientes.push(item.venta);
     _ventasLegacyRevision.shift();
     var pendientesGuardadas = guardarVentasPendientesLocal();
@@ -5160,6 +5187,7 @@ async function revisarSiguienteVentaLegacy() {
     acceptText: 'S\u00ed, ya est\u00e1',
     cancelText: 'Volver'
   });
+  recargarColasVentasCompartidas();
   if (!revisionLegacySigueActiva()) return;
   if (registrada) {
     var itemRegistrado = _ventasLegacyRevision.shift();
@@ -5179,6 +5207,7 @@ function accionVentasPendientes() {
 }
 
 function sincronizarVentas() {
+  moverVentasLocalesLegacyARevision();
   if (!_ventasPendientes.length || _sincronizandoVentas || !TOKEN) return Promise.resolve();
   _sincronizandoVentas = true;
   var sesionSync = _versionSesion;
