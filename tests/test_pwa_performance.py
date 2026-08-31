@@ -47,7 +47,7 @@ def test_cors_allows_legacy_no_store_request_headers(client):
 def test_service_worker_never_caches_authenticated_api_data():
     sw = read_text("docs/sw.js")
 
-    assert "const CACHE_NAME = 'jacaranda-v89'" in sw
+    assert "const CACHE_NAME = 'jacaranda-v90'" in sw
     assert "request.headers.has('Authorization')" in sw
     assert "offlineApiResponse" in sw
     assert "'Cache-Control': 'no-store'" in sw
@@ -60,7 +60,7 @@ def test_service_worker_never_caches_authenticated_api_data():
 def test_frontend_api_cache_is_short_lived_and_not_persistent():
     html = read_text("docs/index.html")
 
-    assert "var APP_BUILD = 'jacaranda-v89'" in html
+    assert "var APP_BUILD = 'jacaranda-v90'" in html
     assert "function apiGetCacheTtl(path)" in html
     assert "if (clean === '/inventario/productos') return 45000" in html
     assert "if (clean === '/pedidos/reservas') return 15000" in html
@@ -290,7 +290,16 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "clearSensitiveCachesPreservingSales" in logout_segment
     assert "PENDING_SALES_OWNER_MISMATCH" in html
     assert "conBloqueoColasVentas(function()" in logout_segment
-    assert "}, 30000).catch(function()" in logout_segment
+    assert "var exigirColasVacias" in logout_segment
+    assert "var bloqueoColasAdquirido" in logout_segment
+    assert "return conBloqueoColasVentas(function()" in logout_segment
+    assert "_ventasPendientes = leerVentasPendientesLocal()" in logout_segment
+    assert "_ventasLegacyRevision = leerVentasLegacyRevision()" in logout_segment
+    assert "return {cerrada: false, ventasPendientes: ventasDetectadas}" in logout_segment
+    assert "cerrarSesion({bloqueoColasAdquirido: true})" in logout_segment
+    assert logout_segment.index("if (!preservarVentasPendientes && exigirColasVacias") < logout_segment.index(
+        "invalidarTareasSesion()"
+    )
     assert "localStorage.removeItem('jacaranda_ventas_pendientes')" in logout_segment
     assert logout_segment.index("localStorage.removeItem('jacaranda_ventas_pendientes')") < logout_segment.index(
         "localStorage.removeItem('jacaranda_token')"
@@ -301,7 +310,8 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "!_ultimaRecuperacionVentasCompleta" in logout_confirmation_segment
     assert "var ventasSinCerrar = _ventasPendientes.length + _ventasLegacyRevision.length" in logout_confirmation_segment
     assert "Hay ventas pendientes" in logout_confirmation_segment
-    assert "if (ok) await cerrarSesion()" in logout_confirmation_segment
+    assert "cerrarSesion({exigirColasVacias: true})" in logout_confirmation_segment
+    assert "if (resultadoCierre && !resultadoCierre.cerrada)" in logout_confirmation_segment
 
 
 def test_offline_sale_retry_never_crosses_into_a_new_session():

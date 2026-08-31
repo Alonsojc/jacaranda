@@ -2729,7 +2729,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v89';
+var APP_BUILD = 'jacaranda-v90';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
@@ -13841,6 +13841,22 @@ function expirarSesion() {
 function cerrarSesion(opciones) {
   opciones = opciones || {};
   var preservarVentasPendientes = !!opciones.preservarVentasPendientes;
+  var exigirColasVacias = !!opciones.exigirColasVacias;
+  var bloqueoColasAdquirido = !!opciones.bloqueoColasAdquirido;
+  if (!preservarVentasPendientes && exigirColasVacias && !bloqueoColasAdquirido) {
+    return conBloqueoColasVentas(function() {
+      _ventasPendientes = leerVentasPendientesLocal();
+      _ventasLegacyRevision = leerVentasLegacyRevision();
+      var ventasDetectadas = _ventasPendientes.length + _ventasLegacyRevision.length;
+      if (ventasDetectadas) {
+        actualizarBannerOffline();
+        return {cerrada: false, ventasPendientes: ventasDetectadas};
+      }
+      return cerrarSesion({bloqueoColasAdquirido: true}).then(function() {
+        return {cerrada: true, ventasPendientes: 0};
+      });
+    }, 30000);
+  }
   var propietarioVentasSesion = identidadActualColasVentas();
   invalidarTareasSesion();
   resolverConfirmacion(false);
@@ -13872,17 +13888,21 @@ function cerrarSesion(opciones) {
     localStorage.removeItem('jacaranda_refresh_token');
     localStorage.removeItem('jacaranda_user');
   }
-  var limpiezaSesionCompartida = conBloqueoColasVentas(function() {
+  function limpiarSesionConBloqueo() {
     if (preservarVentasPendientes) {
       _ventasPendientes = leerVentasPendientesLocal();
       _ventasLegacyRevision = leerVentasLegacyRevision();
       asegurarPropietarioColasVentas(true, propietarioVentasSesion);
     }
     limpiarClavesSesionCompartida();
-  }, 30000).catch(function() {
-    if (preservarVentasPendientes) asegurarPropietarioColasVentas(true, propietarioVentasSesion);
-    limpiarClavesSesionCompartida();
-  });
+  }
+  var limpiezaSesionCompartida = bloqueoColasAdquirido
+    ? Promise.resolve().then(limpiarSesionConBloqueo)
+    : conBloqueoColasVentas(limpiarSesionConBloqueo, 30000).catch(function(e) {
+      if (!preservarVentasPendientes) throw e;
+      asegurarPropietarioColasVentas(true, propietarioVentasSesion);
+      limpiarClavesSesionCompartida();
+    });
   _currentUser = null;
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('btn-logout').style.display = 'none';
@@ -13938,7 +13958,15 @@ async function confirmarCerrarSesion() {
     acceptText: 'Cerrar sesión',
     tone: 'danger'
   });
-  if (ok) await cerrarSesion();
+  if (!ok) return;
+  try {
+    var resultadoCierre = await cerrarSesion({exigirColasVacias: true});
+    if (resultadoCierre && !resultadoCierre.cerrada) {
+      toast('Se guardó una venta en otra ventana. Revísala antes de cerrar sesión.', true);
+    }
+  } catch (e) {
+    toast('No se pudo comprobar que las ventas estén guardadas. Intenta de nuevo.', true);
+  }
 }
 
 // ─── Gestión de usuarios (admin) ─────────────────────────────────
