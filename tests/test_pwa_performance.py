@@ -136,7 +136,9 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "_ventasLegacyRevision.push" in recovery_segment
     assert "var ventaLimpia = payloadVentaPendiente(venta)" in recovery_segment
     assert "store.delete(item.id)" in recovery_segment
-    assert "indexedDB.deleteDatabase('jacaranda-offline')" in recovery_segment
+    assert "if (completa) indexedDB.deleteDatabase('jacaranda-offline')" in recovery_segment
+    assert "if (!ventasGuardadas || !legacyGuardadas) tx.abort()" in recovery_segment
+    assert "tx.onabort = function() { finalizarMigracion(false); }" in recovery_segment
     assert "nuevaClaveIdempotencia('venta-legacy')" in review_segment
     assert "confirmarAccion({" in review_segment
     assert "var total = _ventasPendientes.length + _ventasLegacyRevision.length" in html
@@ -144,6 +146,7 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert 'onclick="accionVentasPendientes()"' in html
     assert "function leerVentasPendientesLocal" in html
     assert "_apiGetCache = {}" in logout_segment
+    assert "_ventasLegacyRevision = []" in logout_segment
     assert "{type: 'CLEAR_AUTH_DATA'}" in logout_segment
 
 
