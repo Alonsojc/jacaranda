@@ -2729,7 +2729,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v95';
+var APP_BUILD = 'jacaranda-v96';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
@@ -2867,6 +2867,9 @@ var _pedidoDatosCargados = false;
 
 function invalidarTareasSesion() {
   _versionSesion++;
+  _ventaEnProceso = false;
+  _apiGetCache = {};
+  _apiGetInFlight = {};
   var tx = _migracionVentasTx;
   _migracionVentasTx = null;
   if (tx) {
@@ -3145,8 +3148,9 @@ function errorSesionSolicitudCambiada() {
 
 function api(method, path, body, _retry, extraHeaders, versionSesionEsperada) {
   if (!API_URL) return Promise.reject('offline');
+  var versionSesionSolicitud = versionSesionEsperada == null ? _versionSesion : versionSesionEsperada;
   function sesionSolicitudSigueActiva() {
-    return versionSesionEsperada == null || _versionSesion === versionSesionEsperada;
+    return _versionSesion === versionSesionSolicitud;
   }
   if (!sesionSolicitudSigueActiva()) return Promise.reject(errorSesionSolicitudCambiada());
   var dedupeKey = null;
@@ -3156,7 +3160,7 @@ function api(method, path, body, _retry, extraHeaders, versionSesionEsperada) {
     if (cachedData !== null) return Promise.resolve(cachedData);
   }
   if (!_retry && method === 'GET' && !body && !extraHeaders) {
-    dedupeKey = path;
+    dedupeKey = versionSesionSolicitud + ':' + path;
     if (_apiGetInFlight[dedupeKey]) return _apiGetInFlight[dedupeKey];
   }
   var opts = {
@@ -3183,11 +3187,12 @@ function api(method, path, body, _retry, extraHeaders, versionSesionEsperada) {
   if (body) opts.body = JSON.stringify(body);
   var request = fetch(API_URL + '/api/v1' + path, opts).then(function(r) {
     if (timeoutId) clearTimeout(timeoutId);
+    if (!sesionSolicitudSigueActiva()) return Promise.reject(errorSesionSolicitudCambiada());
     if (r.status === 401 && !_retry && REFRESH_TOKEN) {
       if (!sesionSolicitudSigueActiva()) return Promise.reject(errorSesionSolicitudCambiada());
       return refreshAccessToken().then(function() {
         if (!sesionSolicitudSigueActiva()) throw errorSesionSolicitudCambiada();
-        return api(method, path, body, true, extraHeaders, versionSesionEsperada);
+        return api(method, path, body, true, extraHeaders, versionSesionSolicitud);
       });
     }
     if (r.status === 401) {
@@ -3198,6 +3203,7 @@ function api(method, path, body, _retry, extraHeaders, versionSesionEsperada) {
       return Promise.reject(authErr);
     }
     if (!r.ok) return leerRespuestaJson(r).then(function(body){
+      if (!sesionSolicitudSigueActiva()) throw errorSesionSolicitudCambiada();
       var msg = r.status;
       if (typeof body.detail === 'string') msg = body.detail;
       else if (body.detail && body.detail.mensaje) msg = body.detail.mensaje;
@@ -3209,6 +3215,7 @@ function api(method, path, body, _retry, extraHeaders, versionSesionEsperada) {
       throw e;
     });
     return leerRespuestaJson(r).then(function(data) {
+      if (!sesionSolicitudSigueActiva()) throw errorSesionSolicitudCambiada();
       if (method === 'GET') apiGetCacheWrite(path, data);
       else apiCacheInvalidate();
       marcarApiDisponible();
@@ -3748,17 +3755,25 @@ function filenameFromDisposition(disposition, fallback) {
   return decodeURIComponent((match && (match[1] || match[2])) || fallback);
 }
 
-function descargarArchivoAutenticado(path, filename, successMsg, errorMsg, _retry) {
+function descargarArchivoAutenticado(path, filename, successMsg, errorMsg, _retry, versionSesionEsperada) {
   if (!API_URL) { toast('Servidor no disponible', true); return Promise.resolve(false); }
+  var versionSesionDescarga = versionSesionEsperada == null ? _versionSesion : versionSesionEsperada;
+  function sesionDescargaSigueActiva() {
+    return _versionSesion === versionSesionDescarga;
+  }
+  if (!sesionDescargaSigueActiva()) return Promise.reject(errorSesionSolicitudCambiada());
+  var tokenDescarga = TOKEN;
   return fetch(API_URL + path, {
     cache: 'no-store',
     headers: {
-      'Authorization': 'Bearer ' + TOKEN
+      'Authorization': 'Bearer ' + tokenDescarga
     }
   }).then(function(r) {
+    if (!sesionDescargaSigueActiva()) throw errorSesionSolicitudCambiada();
     if (r.status === 401 && !_retry && REFRESH_TOKEN) {
       return refreshAccessToken().then(function() {
-        return descargarArchivoAutenticado(path, filename, successMsg, errorMsg, true);
+        if (!sesionDescargaSigueActiva()) throw errorSesionSolicitudCambiada();
+        return descargarArchivoAutenticado(path, filename, successMsg, errorMsg, true, versionSesionDescarga);
       });
     }
     if (r.status === 401) {
@@ -3772,6 +3787,7 @@ function descargarArchivoAutenticado(path, filename, successMsg, errorMsg, _retr
     }
     var resolvedName = filenameFromDisposition(r.headers.get('content-disposition'), filename);
     return r.blob().then(function(blob) {
+      if (!sesionDescargaSigueActiva()) throw errorSesionSolicitudCambiada();
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = resolvedName;
@@ -3780,6 +3796,7 @@ function descargarArchivoAutenticado(path, filename, successMsg, errorMsg, _retr
       if (successMsg) toast(successMsg);
     });
   }).catch(function(e) {
+    if (!sesionDescargaSigueActiva()) return false;
     toast(e.message || errorMsg || 'Error al descargar', true);
     return false;
   });
@@ -4884,6 +4901,9 @@ function procesarVenta() {
   if (!_ventaIdempotencyKey) _ventaIdempotencyKey = nuevaClaveIdempotencia('venta');
   var versionSesionVenta = _versionSesion;
   var tokenSesionVenta = TOKEN;
+  function sesionVentaSigueActiva() {
+    return sesionColasVigente(versionSesionVenta, tokenSesionVenta);
+  }
   savePosDraft();
 
   var total = _cartTotal();
@@ -4958,17 +4978,20 @@ function procesarVenta() {
     }
   }
 
-  api('POST', '/punto-de-venta/ventas', body).then(function(venta) {
+  api('POST', '/punto-de-venta/ventas', body, false, null, versionSesionVenta).then(function(venta) {
+    if (!sesionVentaSigueActiva()) return;
     if (body.pago_integrado && venta.estado === 'pendiente') {
-      return api('POST', '/pagos/clip/pinpad', {venta_id: venta.id}).then(function() {
+      return api('POST', '/pagos/clip/pinpad', {venta_id: venta.id}, false, null, versionSesionVenta).then(function() {
+        if (!sesionVentaSigueActiva()) return;
         cerrarModal('modal-cobrar');
         limpiar();
         cargarPOSProductos();
         _ventaEnProceso = false;
         _ventaIdempotencyKey = null;
         toast('Cobro enviado a CLIP. Esperando confirmación...');
-        esperarPagoClip(venta.id);
+        esperarPagoClip(venta.id, null, versionSesionVenta, tokenSesionVenta);
       }).catch(function(e) {
+        if (!sesionVentaSigueActiva()) return;
         cerrarModal('modal-cobrar');
         limpiar();
         cargarPOSProductos();
@@ -4985,6 +5008,7 @@ function procesarVenta() {
     _ventaEnProceso = false;
     _ventaIdempotencyKey = null;
   }).catch(function(e) {
+    if (!sesionVentaSigueActiva()) return;
     // Offline: queue sale for later sync
     if (!navigator.onLine || _offline) {
       if (body.pago_integrado) {
@@ -5001,6 +5025,7 @@ function procesarVenta() {
       body._total = total;
       body._timestamp = new Date().toISOString();
       agregarVentaPendienteCompartida(body, versionSesionVenta, tokenSesionVenta).then(function(totalPendientes) {
+        if (!sesionVentaSigueActiva()) return;
         cerrarModal('modal-cobrar');
         limpiar();
         actualizarBannerOffline();
@@ -5008,6 +5033,7 @@ function procesarVenta() {
         _ventaEnProceso = false;
         _ventaIdempotencyKey = null;
       }).catch(function(e) {
+        if (!sesionVentaSigueActiva()) return;
         _ventaEnProceso = false;
         var mensajeGuardado = e && /sesi\u00f3n cambi\u00f3/i.test(e.message || '')
           ? 'La sesi\u00f3n cambi\u00f3. Vuelve a entrar; tu ticket sigue en pantalla.'
@@ -5021,20 +5047,29 @@ function procesarVenta() {
   });
 }
 
-function esperarPagoClip(ventaId, intentos) {
+function esperarPagoClip(ventaId, intentos, versionSesionPago, tokenSesionPago) {
   intentos = intentos == null ? 30 : intentos;
-  api('GET', '/pagos/clip/pinpad/' + ventaId).then(function(info) {
+  versionSesionPago = versionSesionPago == null ? _versionSesion : versionSesionPago;
+  tokenSesionPago = tokenSesionPago || TOKEN;
+  function sesionPagoSigueActiva() {
+    return sesionColasVigente(versionSesionPago, tokenSesionPago);
+  }
+  if (!sesionPagoSigueActiva()) return;
+  api('GET', '/pagos/clip/pinpad/' + ventaId, null, false, null, versionSesionPago).then(function(info) {
+    if (!sesionPagoSigueActiva()) return;
     var estadoVenta = String(info.estado_venta || '').toLowerCase();
     var estadoPago = String(info.estado_pago || '').toLowerCase();
     if (estadoVenta === 'completada') {
       toast('Pago CLIP confirmado');
-      api('GET', '/punto-de-venta/ventas/' + ventaId).then(function(venta) {
+      api('GET', '/punto-de-venta/ventas/' + ventaId, null, false, null, versionSesionPago).then(function(venta) {
+        if (!sesionPagoSigueActiva()) return;
         mostrarTicket(venta);
         cargarCorte();
         cargarPOSProductos();
         cargarClientesPOS(true);
         cargarDashboard();
       }).catch(function() {
+        if (!sesionPagoSigueActiva()) return;
         cargarCorte();
         cargarPOSProductos();
         cargarClientesPOS(true);
@@ -5047,14 +5082,19 @@ function esperarPagoClip(ventaId, intentos) {
       return;
     }
     if (intentos > 0) {
-      setTimeout(function() { esperarPagoClip(ventaId, intentos - 1); }, 3000);
+      setTimeout(function() {
+        esperarPagoClip(ventaId, intentos - 1, versionSesionPago, tokenSesionPago);
+      }, 3000);
     } else {
       toast('La venta sigue pendiente de confirmación CLIP');
       cargarCorte();
     }
   }).catch(function() {
+    if (!sesionPagoSigueActiva()) return;
     if (intentos > 0) {
-      setTimeout(function() { esperarPagoClip(ventaId, intentos - 1); }, 3000);
+      setTimeout(function() {
+        esperarPagoClip(ventaId, intentos - 1, versionSesionPago, tokenSesionPago);
+      }, 3000);
     } else {
       toast('No se pudo confirmar CLIP. Revisa ventas pendientes.', true);
     }
@@ -13916,6 +13956,8 @@ function cerrarSesion(opciones) {
   revocarFCMPushActual();
   clearPosDraft();
   cart = [];
+  _ventaEnProceso = false;
+  _ventaIdempotencyKey = null;
   _posDraftRestoredFor = '';
   _posDraftNeedsReconcile = false;
   closeMobileTicket();

@@ -47,7 +47,7 @@ def test_cors_allows_legacy_no_store_request_headers(client):
 def test_service_worker_never_caches_authenticated_api_data():
     sw = read_text("docs/sw.js")
 
-    assert "const CACHE_NAME = 'jacaranda-v95'" in sw
+    assert "const CACHE_NAME = 'jacaranda-v96'" in sw
     assert "request.headers.has('Authorization')" in sw
     assert "offlineApiResponse" in sw
     assert "'Cache-Control': 'no-store'" in sw
@@ -60,7 +60,7 @@ def test_service_worker_never_caches_authenticated_api_data():
 def test_frontend_api_cache_is_short_lived_and_not_persistent():
     html = read_text("docs/index.html")
 
-    assert "var APP_BUILD = 'jacaranda-v95'" in html
+    assert "var APP_BUILD = 'jacaranda-v96'" in html
     assert "function apiGetCacheTtl(path)" in html
     assert "if (clean === '/inventario/productos') return 45000" in html
     assert "if (clean === '/pedidos/reservas') return 15000" in html
@@ -182,6 +182,13 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "guardarVentasPendientesLocal()" in sync_segment
     assert "var versionSesionVenta = _versionSesion" in sale_segment
     assert "var tokenSesionVenta = TOKEN" in sale_segment
+    assert "function sesionVentaSigueActiva()" in sale_segment
+    assert "api('POST', '/punto-de-venta/ventas', body, false, null, versionSesionVenta)" in sale_segment
+    assert (
+        "api('POST', '/pagos/clip/pinpad', {venta_id: venta.id}, false, null, versionSesionVenta)"
+        in sale_segment
+    )
+    assert "esperarPagoClip(venta.id, null, versionSesionVenta, tokenSesionVenta)" in sale_segment
     assert "agregarVentaPendienteCompartida(body, versionSesionVenta, tokenSesionVenta).then" in sale_segment
     assert "navigator.locks.request" in queue_lock_segment
     assert "function conBloqueoLocalColasVentas" in queue_lock_segment
@@ -346,15 +353,52 @@ def test_offline_sale_retry_never_crosses_into_a_new_session():
         "function sincronizarVentas",
         "function recuperarVentasIndexedDB",
     )
+    sale_segment = segment_between(html, "function procesarVenta()", "function esperarPagoClip")
+    clip_segment = segment_between(html, "function esperarPagoClip", "function actualizarBannerOffline")
 
     assert "versionSesionEsperada" in api_segment
+    assert "var versionSesionSolicitud = versionSesionEsperada == null ? _versionSesion : versionSesionEsperada" in api_segment
     assert "function sesionSolicitudSigueActiva()" in api_segment
     assert "errorSesionSolicitudCambiada()" in api_segment
-    assert "api(method, path, body, true, extraHeaders, versionSesionEsperada)" in api_segment
+    assert "api(method, path, body, true, extraHeaders, versionSesionSolicitud)" in api_segment
+    assert "dedupeKey = versionSesionSolicitud + ':' + path" in api_segment
     assert api_segment.index("if (!sesionSolicitudSigueActiva())") < api_segment.index(
         "refreshAccessToken()"
     )
+    assert api_segment.count("if (!sesionSolicitudSigueActiva())") >= 4
     assert ", false, null, sesionSync)" in sync_segment
+    assert "function sesionVentaSigueActiva()" in sale_segment
+    assert "body, false, null, versionSesionVenta)" in sale_segment
+    assert "{venta_id: venta.id}, false, null, versionSesionVenta)" in sale_segment
+    assert "if (!sesionVentaSigueActiva()) return" in sale_segment
+    assert "function esperarPagoClip(ventaId, intentos, versionSesionPago, tokenSesionPago)" in clip_segment
+    assert "function sesionPagoSigueActiva()" in clip_segment
+    assert clip_segment.count("false, null, versionSesionPago)") == 2
+    assert clip_segment.count(
+        "esperarPagoClip(ventaId, intentos - 1, versionSesionPago, tokenSesionPago)"
+    ) == 2
+
+
+def test_authenticated_downloads_and_api_cache_are_invalidated_with_the_session():
+    html = read_text("docs/index.html")
+    download_segment = segment_between(
+        html,
+        "function descargarArchivoAutenticado",
+        "function login(email, pass)",
+    )
+    session_tasks_segment = segment_between(
+        html,
+        "function invalidarTareasSesion()",
+        "function moduloDesactivado",
+    )
+
+    assert "versionSesionDescarga" in download_segment
+    assert "function sesionDescargaSigueActiva()" in download_segment
+    assert "'Authorization': 'Bearer ' + tokenDescarga" in download_segment
+    assert "true, versionSesionDescarga)" in download_segment
+    assert "if (!sesionDescargaSigueActiva()) return false" in download_segment
+    assert "_apiGetCache = {}" in session_tasks_segment
+    assert "_apiGetInFlight = {}" in session_tasks_segment
 
 
 def test_expired_session_preserves_account_bound_sales():

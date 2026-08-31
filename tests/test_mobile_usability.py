@@ -81,7 +81,7 @@ def test_pos_draft_is_scoped_to_user_and_cleared_on_logout():
     assert "idempotencyKey: _ventaIdempotencyKey || null" in html
     assert "_ventaIdempotencyKey = /^venta-[A-Za-z0-9-]{8,190}$/.test(savedSaleKey)" in restore
     sale = segment_between(html, "function procesarVenta()", "function esperarPagoClip")
-    assert sale.index("savePosDraft();") < sale.index("api('POST', '/punto-de-venta/ventas', body)")
+    assert sale.index("savePosDraft();") < sale.index("api('POST', '/punto-de-venta/ventas', body,")
     assert "function reconcilePosDraftWithProducts" in html
     assert "reconcilePosDraftWithProducts(prods);" in html
     assert "reconcilePosDraftWithProducts(cached);" in html
