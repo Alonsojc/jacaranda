@@ -158,6 +158,8 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "tx.onabort = function() { finalizarMigracion(false); }" in recovery_segment
     assert "nuevaClaveIdempotencia('venta-legacy')" in review_segment
     assert "confirmarAccion({" in review_segment
+    assert "var versionSesionRevision = _versionSesion" in review_segment
+    assert review_segment.count("if (!revisionLegacySigueActiva()) return") == 3
     assert "var total = _ventasPendientes.length + _ventasLegacyRevision.length" in html
     assert "total === 1 ? 'venta pendiente' : 'ventas pendientes'" in html
     assert 'onclick="accionVentasPendientes()"' in html
@@ -167,6 +169,9 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "if (valida && venta.idempotency_key)" in html
     assert "_apiGetCache = {}" in logout_segment
     assert "invalidarTareasSesion()" in logout_segment
+    assert "resolverConfirmacion(false)" in logout_segment
+    assert "resolverEntrada(false)" in logout_segment
+    assert "cancelarAdminAuth()" in logout_segment
     assert "invalidarTareasSesion()" in login_segment
     assert "_versionSesion++" in session_tasks_segment
     assert "tx.abort()" in session_tasks_segment

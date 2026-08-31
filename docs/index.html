@@ -5092,7 +5092,11 @@ async function revisarSiguienteVentaLegacy() {
     actualizarBannerOffline();
     return;
   }
+  var versionSesionRevision = _versionSesion;
   var item = _ventasLegacyRevision[0];
+  function revisionLegacySigueActiva() {
+    return _versionSesion === versionSesionRevision && !!TOKEN && _ventasLegacyRevision[0] === item;
+  }
   if (!item.venta) {
     var revisado = await confirmarAccion({
       title: 'Registro antiguo da\u00f1ado',
@@ -5102,6 +5106,7 @@ async function revisarSiguienteVentaLegacy() {
       acceptText: 'Marcar revisado',
       cancelText: 'Conservar'
     });
+    if (!revisionLegacySigueActiva()) return;
     if (revisado) {
       var itemDanado = _ventasLegacyRevision.shift();
       if (!guardarVentasLegacyRevision()) {
@@ -5122,6 +5127,7 @@ async function revisarSiguienteVentaLegacy() {
     acceptText: 'Recuperar',
     cancelText: 'Ya aparece'
   });
+  if (!revisionLegacySigueActiva()) return;
   if (recuperar) {
     var claveAnterior = item.venta.idempotency_key;
     item.venta.idempotency_key = nuevaClaveIdempotencia('venta-legacy');
@@ -5154,6 +5160,7 @@ async function revisarSiguienteVentaLegacy() {
     acceptText: 'S\u00ed, ya est\u00e1',
     cancelText: 'Volver'
   });
+  if (!revisionLegacySigueActiva()) return;
   if (registrada) {
     var itemRegistrado = _ventasLegacyRevision.shift();
     if (!guardarVentasLegacyRevision()) {
@@ -13271,6 +13278,9 @@ function aplicarPermisosModulos(permisos) {
 
 function cerrarSesion() {
   invalidarTareasSesion();
+  resolverConfirmacion(false);
+  resolverEntrada(false);
+  if (_adminAuthPending) cancelarAdminAuth();
   revocarFCMPushActual();
   clearPosDraft();
   cart = [];
