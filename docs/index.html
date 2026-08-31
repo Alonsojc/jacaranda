@@ -3976,6 +3976,7 @@ function savePosDraft() {
       savedAt: Date.now(),
       paymentMethod: pm,
       invoiceTax: !!_posFacturaIvaActiva,
+      idempotencyKey: _ventaIdempotencyKey || null,
       items: cart.map(function(item) {
         return {id:item.id, n:item.n, p:item.p, q:item.q, desc:item.desc || 0};
       })
@@ -4013,6 +4014,8 @@ function restorePosDraft(u) {
     _posDraftNeedsReconcile = true;
     _posFacturaIvaActiva = !!draft.invoiceTax;
     pm = ['ef','clip','trans','bbva'].indexOf(draft.paymentMethod) >= 0 ? draft.paymentMethod : 'ef';
+    var savedSaleKey = String(draft.idempotencyKey || '').trim();
+    _ventaIdempotencyKey = /^venta-[A-Za-z0-9-]{8,190}$/.test(savedSaleKey) ? savedSaleKey : null;
     setPm(pm);
     ren();
     toast('Ticket en curso recuperado');
@@ -4727,6 +4730,7 @@ function procesarVenta() {
   }
   _ventaEnProceso = true;
   if (!_ventaIdempotencyKey) _ventaIdempotencyKey = nuevaClaveIdempotencia('venta');
+  savePosDraft();
 
   var total = _cartTotal();
   var detalles = cart.map(function(c) {
