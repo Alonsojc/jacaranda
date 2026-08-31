@@ -26,6 +26,7 @@
       'jacaranda_ventas_pendientes',
       'jacaranda_pedidos_pendientes',
       'jacaranda_pedido_contactos',
+      'jacaranda_pos_draft',
       'jacaranda_tab'
     ];
     try {
