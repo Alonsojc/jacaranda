@@ -47,7 +47,7 @@ def test_cors_allows_legacy_no_store_request_headers(client):
 def test_service_worker_never_caches_authenticated_api_data():
     sw = read_text("docs/sw.js")
 
-    assert "const CACHE_NAME = 'jacaranda-v90'" in sw
+    assert "const CACHE_NAME = 'jacaranda-v91'" in sw
     assert "request.headers.has('Authorization')" in sw
     assert "offlineApiResponse" in sw
     assert "'Cache-Control': 'no-store'" in sw
@@ -60,7 +60,7 @@ def test_service_worker_never_caches_authenticated_api_data():
 def test_frontend_api_cache_is_short_lived_and_not_persistent():
     html = read_text("docs/index.html")
 
-    assert "var APP_BUILD = 'jacaranda-v90'" in html
+    assert "var APP_BUILD = 'jacaranda-v91'" in html
     assert "function apiGetCacheTtl(path)" in html
     assert "if (clean === '/inventario/productos') return 45000" in html
     assert "if (clean === '/pedidos/reservas') return 15000" in html
@@ -220,6 +220,10 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "_recuperacionVentasPromise = conBloqueoColasVentas(function()" in recovery_segment
     assert "exigirSesionColasVigente(versionSesionMigracion, tokenSesionMigracion)" in recovery_segment
     assert "emparejarVentasLegacyIndexedDB(registros)" in recovery_segment
+    assert "var indexedSinPropietario = !leerPropietarioColasVentas()" in recovery_segment
+    assert "moverVentasLocalesLegacyARevision(true)" in recovery_segment
+    assert "propietario_desconocido: true" in recovery_segment
+    assert "if (indexedSinPropietario)" in recovery_segment
     assert "_ventasPendientes = fusionarVentasPendientesCompartidas([], [])" in recovery_segment
     assert "_ventasLegacyRevision = fusionarVentasLegacyCompartidas()" in recovery_segment
     assert recovery_segment.index("fusionarVentasPendientesCompartidas([], [])") < recovery_segment.index(
@@ -233,14 +237,17 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "tx.abort()" in recovery_segment
     assert "tx.onabort = function() { finalizarMigracion(false); }" in recovery_segment
     assert "claveIdempotenciaVentaLegacy(itemActual)" in review_mutation_segment
+    assert "if (itemActual.propietario_desconocido)" in review_mutation_segment
     assert "confirmarAccion({" in review_segment
     assert "item.tipo === 'rechazada'" in review_segment
     assert "Venta no aceptada" in review_segment
     assert "S\\u00ed, ya aparece" in review_segment
     assert "await recuperarVentaLegacyCompartida(itemKeyRevision, versionSesionRevision, tokenSesionRevision)" in review_segment
+    assert "if (item.propietario_desconocido)" in review_segment
+    assert "Por seguridad no se enviará automáticamente" in review_segment
     assert review_segment.count(
         "await quitarRevisionVentaCompartida(itemKeyRevision, versionSesionRevision, tokenSesionRevision)"
-    ) == 3
+    ) == 4
     assert review_mutation_segment.count("return conBloqueoColasVentas(function()") == 2
     assert "_ventasPendientes = leerVentasPendientesLocal()" in review_mutation_segment
     assert "_ventasLegacyRevision = leerVentasLegacyRevision()" in review_mutation_segment
@@ -251,25 +258,24 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     )
     assert "var versionSesionRevision = _versionSesion" in review_segment
     assert "var tokenSesionRevision = TOKEN" in review_segment
-    assert review_segment.count("if (!revisionLegacySigueActiva()) return") == 4
-    assert review_segment.count("if (!await recargarColasVentasCompartidas()) return") == 4
+    assert review_segment.count("if (!revisionLegacySigueActiva()) return") == 5
+    assert review_segment.count("if (!await recargarColasVentasCompartidas()) return") == 5
     assert "return conBloqueoColasVentas(function()" in quarantine_segment
     assert "exigirSesionColasVigente(versionSesionCuarentena, tokenSesionCuarentena)" in quarantine_segment
     assert quarantine_segment.index("_ventasPendientes = leerVentasPendientesLocal()") < quarantine_segment.index(
-        "var movidas = moverVentasLocalesLegacyARevision()"
+        "var movidas = moverVentasLocalesLegacyARevision(propietarioDesconocido)"
     )
-    assert quarantine_segment.index("var movidas = moverVentasLocalesLegacyARevision()") < quarantine_segment.index(
+    assert quarantine_segment.index("var movidas = moverVentasLocalesLegacyARevision(propietarioDesconocido)") < quarantine_segment.index(
         "guardarVentasLegacyRevision()"
     )
     assert "cuarentenarVentasLocalesLegacyCompartida().then" in sync_segment
-    assert "moverVentasLocalesLegacyARevision();" in sync_segment
     assert "var total = _ventasPendientes.length + _ventasLegacyRevision.length" in html
     assert "total === 1 ? 'venta pendiente' : 'ventas pendientes'" in html
     assert 'onclick="accionVentasPendientes()"' in html
     assert "function leerVentasPendientesLocal" in html
-    assert "function moverVentasLocalesLegacyARevision()" in html
-    assert "moverVentasLocalesLegacyARevision();" in html
-    assert "if (valida && venta.idempotency_key)" in html
+    assert "function moverVentasLocalesLegacyARevision(propietarioDesconocido)" in html
+    assert "moverVentasLocalesLegacyARevision(propietarioDesconocido);" in html
+    assert "if (!propietarioDesconocido && valida && venta.idempotency_key)" in html
     assert "rechazadasPorIdempotencia[venta.idempotency_key]" in html
     assert "_ventasLegacyRevision = leerVentasLegacyRevision()" in sync_segment
     assert "fallidasAGuardar.push(rechazo.ventaOriginal)" in sync_segment
@@ -352,6 +358,37 @@ def test_expired_session_preserves_account_bound_sales():
     assert "clearSensitiveCachesPreservingSales" in expiry_segment
     assert "return clearSensitiveCaches({preserveSales: true})" in core
     assert "if (!preserveSales && window.indexedDB" in core
+
+
+def test_unowned_legacy_sales_stay_in_manual_quarantine():
+    html = read_text("docs/index.html")
+    owner_segment = segment_between(
+        html,
+        "function hayColasVentasConPropietario",
+        "function verificarPropietarioColasVentas",
+    )
+    recovery_segment = segment_between(
+        html,
+        "function recuperarVentasIndexedDB",
+        "recuperarVentasIndexedDB();",
+    )
+    review_segment = segment_between(
+        html,
+        "function recuperarVentaLegacyCompartida",
+        "function sincronizarVentas",
+    )
+
+    assert "return !(item && item.propietario_desconocido)" in owner_segment
+    assert "if (!hayColasVentasConPropietario()) return true" in owner_segment
+    assert "var indexedSinPropietario = !leerPropietarioColasVentas()" in recovery_segment
+    assert "moverVentasLocalesLegacyARevision(true)" in recovery_segment
+    assert recovery_segment.index("if (indexedSinPropietario)") < recovery_segment.index("if (!ventaLimpia)")
+    assert "propietario_desconocido: true" in recovery_segment
+    assert "if (itemActual.propietario_desconocido)" in review_segment
+    assert review_segment.index("if (item.propietario_desconocido)") < review_segment.index(
+        "if (item.tipo === 'rechazada')"
+    )
+    assert "no se enviará automáticamente" in review_segment
 
 
 def test_legacy_sale_matching_uses_complete_payload_and_nearest_timestamp():
