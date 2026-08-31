@@ -5004,6 +5004,74 @@ function payloadVentaPendiente(venta) {
   return body;
 }
 
+function huellaVentaLegacy(venta) {
+  try {
+    venta = venta || {};
+    return JSON.stringify({
+      detalles: venta.detalles,
+      forma_pago: venta.forma_pago,
+      metodo_pago: venta.metodo_pago,
+      monto_recibido: venta.monto_recibido
+    });
+  } catch (e) {
+    return '';
+  }
+}
+
+function fechasVentaLegacyCoinciden(fechaA, fechaB) {
+  var tiempoA = new Date(fechaA || '').getTime();
+  var tiempoB = new Date(fechaB || '').getTime();
+  return isFinite(tiempoA) && isFinite(tiempoB) && Math.abs(tiempoA - tiempoB) <= 300000;
+}
+
+function encontrarVentaLegacyCoincidente(venta, timestamp, usadas) {
+  var huella = huellaVentaLegacy(venta);
+  if (!huella) return null;
+  for (var i = 0; i < _ventasLegacyRevision.length; i++) {
+    var item = _ventasLegacyRevision[i];
+    if (!item || !item.venta || usadas[item.key]) continue;
+    if (!fechasVentaLegacyCoinciden(item.timestamp, timestamp)) continue;
+    if (huellaVentaLegacy(item.venta) === huella) return item;
+  }
+  return null;
+}
+
+function moverVentasLocalesLegacyARevision() {
+  if (!_ventasPendientes.length) return 0;
+  var automaticas = [];
+  var existentes = {};
+  var movidas = 0;
+  _ventasLegacyRevision.forEach(function(item) {
+    if (item && item.key) existentes[item.key] = true;
+  });
+  _ventasPendientes.forEach(function(venta, index) {
+    var valida = venta && Array.isArray(venta.detalles) && venta.detalles.length;
+    if (valida && venta.idempotency_key) {
+      automaticas.push(venta);
+      return;
+    }
+    var timestamp = (venta && venta._timestamp) || '';
+    var key = 'localstorage-' + (timestamp || 'sin-fecha') + '-' + index;
+    if (!existentes[key]) {
+      var ventaRevision = null;
+      if (valida) {
+        ventaRevision = payloadVentaPendiente(venta);
+        ventaRevision._timestamp = timestamp;
+      }
+      _ventasLegacyRevision.push({key: key, timestamp: timestamp, venta: ventaRevision});
+      existentes[key] = true;
+      movidas++;
+    }
+  });
+  if (!movidas && automaticas.length === _ventasPendientes.length) return 0;
+  _ventasPendientes = automaticas;
+  var legacyGuardadas = guardarVentasLegacyRevision();
+  if (legacyGuardadas) guardarVentasPendientesLocal();
+  return movidas;
+}
+
+moverVentasLocalesLegacyARevision();
+
 function resumenVentaLegacy(item) {
   var fecha = item && item.timestamp ? new Date(item.timestamp) : null;
   var fechaTexto = fecha && !isNaN(fecha.getTime())
@@ -5164,6 +5232,7 @@ function recuperarVentasIndexedDB() {
   var versionSesionMigracion = _versionSesion;
   var ventasAgregadas = [];
   var legacyAgregadas = [];
+  var legacyEmparejadas = {};
   function sesionCambioDuranteMigracion() {
     return _versionSesion !== versionSesionMigracion || !TOKEN;
   }
@@ -5226,12 +5295,17 @@ function recuperarVentasIndexedDB() {
                 existentes[ventaLimpia.idempotency_key] = true;
                 recuperadas++;
               }
-            } else if (!legacyExistentes[legacyKey]) {
-              var legacyVenta = {key: legacyKey, timestamp: timestamp, venta: ventaLimpia};
-              _ventasLegacyRevision.push(legacyVenta);
-              legacyAgregadas.push(legacyVenta);
-              legacyExistentes[legacyKey] = true;
-              legacyEncontradas++;
+            } else {
+              var localCoincidente = encontrarVentaLegacyCoincidente(ventaLimpia, timestamp, legacyEmparejadas);
+              if (localCoincidente) {
+                legacyEmparejadas[localCoincidente.key] = true;
+              } else if (!legacyExistentes[legacyKey]) {
+                var legacyVenta = {key: legacyKey, timestamp: timestamp, venta: ventaLimpia};
+                _ventasLegacyRevision.push(legacyVenta);
+                legacyAgregadas.push(legacyVenta);
+                legacyExistentes[legacyKey] = true;
+                legacyEncontradas++;
+              }
             }
           }
         });

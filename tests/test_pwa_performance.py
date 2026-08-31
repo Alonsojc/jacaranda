@@ -151,6 +151,7 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "db.transaction('pending-sales', 'readonly')" in recovery_segment
     assert "var versionSesionMigracion = _versionSesion" in recovery_segment
     assert "function sesionCambioDuranteMigracion()" in recovery_segment
+    assert "encontrarVentaLegacyCoincidente" in recovery_segment
     assert "if (!completa) revertirVentasMigradas()" in recovery_segment
     assert "if (completa) indexedDB.deleteDatabase('jacaranda-offline')" in recovery_segment
     assert "if (!ventasGuardadas || !legacyGuardadas) tx.abort()" in recovery_segment
@@ -161,6 +162,9 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "total === 1 ? 'venta pendiente' : 'ventas pendientes'" in html
     assert 'onclick="accionVentasPendientes()"' in html
     assert "function leerVentasPendientesLocal" in html
+    assert "function moverVentasLocalesLegacyARevision()" in html
+    assert "moverVentasLocalesLegacyARevision();" in html
+    assert "if (valida && venta.idempotency_key)" in html
     assert "_apiGetCache = {}" in logout_segment
     assert "invalidarTareasSesion()" in logout_segment
     assert "invalidarTareasSesion()" in login_segment
