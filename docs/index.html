@@ -2729,7 +2729,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v91';
+var APP_BUILD = 'jacaranda-v92';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
@@ -2774,6 +2774,7 @@ function leerPropietarioColasVentas() {
   try { return normalizarIdentidadVentas(localStorage.getItem(VENTAS_QUEUE_OWNER_KEY)); }
   catch (e) { return ''; }
 }
+var _indexedDBSinPropietarioAlCargar = !leerPropietarioColasVentas();
 
 function identidadActualColasVentas(preferida) {
   var identidad = normalizarIdentidadVentas(preferida);
@@ -2815,6 +2816,7 @@ function actualizarPropietarioColasVentas() {
   }
   try {
     localStorage.removeItem(VENTAS_QUEUE_OWNER_KEY);
+    _indexedDBSinPropietarioAlCargar = true;
     return true;
   } catch (e) {
     return false;
@@ -3784,6 +3786,7 @@ function descargarArchivoAutenticado(path, filename, successMsg, errorMsg, _retr
 }
 
 function login(email, pass) {
+  if (!leerPropietarioColasVentas()) _indexedDBSinPropietarioAlCargar = true;
   return fetch(API_URL + '/api/v1/auth/login', {
     method: 'POST',
     cache: 'no-store',
@@ -5817,7 +5820,7 @@ function recuperarVentasIndexedDB() {
     exigirSesionColasVigente(versionSesionMigracion, tokenSesionMigracion);
     _ventasPendientes = leerVentasPendientesLocal();
     _ventasLegacyRevision = leerVentasLegacyRevision();
-    var indexedSinPropietario = !leerPropietarioColasVentas();
+    var indexedSinPropietario = _indexedDBSinPropietarioAlCargar || !leerPropietarioColasVentas();
     var localesProtegidas = 0;
     if (indexedSinPropietario) {
       localesProtegidas += marcarRevisionesSinPropietario();
@@ -13963,6 +13966,7 @@ function cerrarSesion(opciones) {
       localStorage.removeItem('jacaranda_ventas_pendientes');
       localStorage.removeItem('jacaranda_ventas_legacy_revision');
       localStorage.removeItem(VENTAS_QUEUE_OWNER_KEY);
+      _indexedDBSinPropietarioAlCargar = true;
     }
     localStorage.removeItem('jacaranda_token');
     localStorage.removeItem('jacaranda_refresh_token');
