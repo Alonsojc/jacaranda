@@ -113,6 +113,16 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
         "function claveVentaPendienteCompartida",
         "function sincronizarVentas",
     )
+    queue_lock_segment = segment_between(
+        html,
+        "var VENTAS_QUEUE_LOCK_NAME",
+        "function payloadVentaPendiente",
+    )
+    sale_segment = segment_between(
+        html,
+        "function procesarVenta()",
+        "function esperarPagoClip",
+    )
     payload_segment = segment_between(
         html,
         "function payloadVentaPendiente",
@@ -138,7 +148,11 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     )
 
     assert "fallidas.push(venta)" in sync_segment
-    assert "fusionarVentasPendientesCompartidas(pending, fallidas)" in sync_segment
+    assert "fusionarVentasPendientesCompartidas(pending, fallidasAGuardar)" in sync_segment
+    assert "revision: crearRevisionVentaRechazada(venta, e)" in sync_segment
+    assert "ventaOriginal: venta" in sync_segment
+    assert "esErrorVentaNoReintentable(e)" in sync_segment
+    assert "requieren revisi\\u00f3n" in sync_segment
     assert "leerVentasPendientesLocal()" in queue_merge_segment
     assert "procesadasPorClave" in queue_merge_segment
     assert "fallidasPorClave" in queue_merge_segment
@@ -147,6 +161,17 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "if (sesionCancelada || sesionCambioDuranteSync()) return" in sync_segment
     assert ", false, null, sesionSync)" in sync_segment
     assert "guardarVentasPendientesLocal()" in sync_segment
+    assert "agregarVentaPendienteCompartida(body).then" in sale_segment
+    assert "navigator.locks.request" in queue_lock_segment
+    assert "function conBloqueoLocalColasVentas" in queue_lock_segment
+    assert "function agregarVentaPendienteCompartida" in queue_lock_segment
+    assert queue_lock_segment.index("fusionarVentasPendientesCompartidas([], [])") < queue_lock_segment.index(
+        "_ventasPendientes.push(venta)"
+    )
+    assert queue_lock_segment.index("_ventasPendientes.push(venta)") < queue_lock_segment.index(
+        "guardarVentasPendientesLocal()"
+    )
+    assert "window.addEventListener('storage'" in queue_lock_segment
     assert "body.referencia_pago = venta.referencia_pago" in payload_segment
     assert "localStorage.removeItem('jacaranda_ventas_pendientes')" not in sync_segment
     assert "function guardarVentaIndexedDB" not in html
@@ -174,9 +199,12 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "tx.onabort = function() { finalizarMigracion(false); }" in recovery_segment
     assert "claveIdempotenciaVentaLegacy(item)" in review_segment
     assert "confirmarAccion({" in review_segment
+    assert "item.tipo === 'rechazada'" in review_segment
+    assert "Venta no aceptada" in review_segment
+    assert "S\\u00ed, ya aparece" in review_segment
     assert "var versionSesionRevision = _versionSesion" in review_segment
-    assert review_segment.count("if (!revisionLegacySigueActiva()) return") == 3
-    assert review_segment.count("recargarColasVentasCompartidas()") == 3
+    assert review_segment.count("if (!revisionLegacySigueActiva()) return") == 4
+    assert review_segment.count("recargarColasVentasCompartidas()") == 4
     assert "moverVentasLocalesLegacyARevision();" in sync_segment
     assert "var total = _ventasPendientes.length + _ventasLegacyRevision.length" in html
     assert "total === 1 ? 'venta pendiente' : 'ventas pendientes'" in html
@@ -185,6 +213,9 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "function moverVentasLocalesLegacyARevision()" in html
     assert "moverVentasLocalesLegacyARevision();" in html
     assert "if (valida && venta.idempotency_key)" in html
+    assert "rechazadasPorIdempotencia[venta.idempotency_key]" in html
+    assert "rechazadasAgregadas.indexOf(item) === -1" in sync_segment
+    assert "fallidasAGuardar.push(rechazo.ventaOriginal)" in sync_segment
     assert "_apiGetCache = {}" in logout_segment
     assert "invalidarTareasSesion()" in logout_segment
     assert "resolverConfirmacion(false)" in logout_segment

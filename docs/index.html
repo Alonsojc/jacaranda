@@ -4905,19 +4905,17 @@ function procesarVenta() {
       body._cartItems = cart.map(function(c){ return {n:c.n,q:c.q,p:c.p,desc:c.desc||0}; });
       body._total = total;
       body._timestamp = new Date().toISOString();
-      _ventasPendientes.push(body);
-      if (!guardarVentasPendientesLocal()) {
-        _ventasPendientes.pop();
+      agregarVentaPendienteCompartida(body).then(function(totalPendientes) {
+        cerrarModal('modal-cobrar');
+        limpiar();
+        actualizarBannerOffline();
+        toast('Venta guardada offline (' + totalPendientes + ' pendientes)');
+        _ventaEnProceso = false;
+        _ventaIdempotencyKey = null;
+      }).catch(function() {
         _ventaEnProceso = false;
         toast('No se pudo guardar la venta en este dispositivo. No cierres la app y libera espacio.', true);
-        return;
-      }
-      cerrarModal('modal-cobrar');
-      limpiar();
-      actualizarBannerOffline();
-      toast('Venta guardada offline (' + _ventasPendientes.length + ' pendientes)');
-      _ventaEnProceso = false;
-      _ventaIdempotencyKey = null;
+      });
     } else {
       _ventaEnProceso = false;
       toast(e.message || 'Error al registrar venta', true);
@@ -5010,6 +5008,101 @@ function guardarVentasLegacyRevision() {
   }
 }
 
+var VENTAS_QUEUE_LOCK_NAME = 'jacaranda-colas-ventas';
+var VENTAS_QUEUE_LOCK_PREFIX = 'jacaranda_lock_ventas_';
+
+function esperarBloqueoVentas(ms) {
+  return new Promise(function(resolve) { setTimeout(resolve, ms); });
+}
+
+function contendientesBloqueoVentas() {
+  var ahora = Date.now();
+  var contendientes = [];
+  try {
+    for (var i = localStorage.length - 1; i >= 0; i--) {
+      var key = localStorage.key(i);
+      if (!key || key.indexOf(VENTAS_QUEUE_LOCK_PREFIX) !== 0) continue;
+      var dato = null;
+      try { dato = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { dato = null; }
+      if (!dato || !dato.token || dato.expiresAt <= ahora) {
+        localStorage.removeItem(key);
+        continue;
+      }
+      contendientes.push(dato);
+    }
+  } catch (e) {
+    return [];
+  }
+  contendientes.sort(function(a, b) {
+    if (a.ticket !== b.ticket) return a.ticket - b.ticket;
+    return String(a.token).localeCompare(String(b.token));
+  });
+  return contendientes;
+}
+
+function conBloqueoLocalColasVentas(tarea) {
+  var token = nuevaClaveIdempotencia('lock');
+  var key = VENTAS_QUEUE_LOCK_PREFIX + token;
+  var dato = {token: token, ticket: Date.now(), expiresAt: Date.now() + 15000};
+  var limite = Date.now() + 5000;
+  try {
+    localStorage.setItem(key, JSON.stringify(dato));
+  } catch (e) {
+    return Promise.reject(e);
+  }
+
+  function liberar() {
+    try { localStorage.removeItem(key); } catch (e) {}
+  }
+  function soyPrimero() {
+    var contendientes = contendientesBloqueoVentas();
+    return contendientes.length && contendientes[0].token === token;
+  }
+  function esperarTurno() {
+    if (Date.now() >= limite) {
+      liberar();
+      return Promise.reject(new Error('No se pudo coordinar el guardado entre ventanas'));
+    }
+    return esperarBloqueoVentas(40).then(function() {
+      if (!soyPrimero()) return esperarTurno();
+      return esperarBloqueoVentas(40).then(function() {
+        if (!soyPrimero()) return esperarTurno();
+        dato.expiresAt = Date.now() + 15000;
+        localStorage.setItem(key, JSON.stringify(dato));
+        return Promise.resolve().then(tarea).finally(liberar);
+      });
+    });
+  }
+  return esperarTurno();
+}
+
+function conBloqueoColasVentas(tarea) {
+  if (navigator.locks && navigator.locks.request) {
+    return navigator.locks.request(VENTAS_QUEUE_LOCK_NAME, {mode: 'exclusive'}, tarea);
+  }
+  return conBloqueoLocalColasVentas(tarea);
+}
+
+function agregarVentaPendienteCompartida(venta) {
+  return conBloqueoColasVentas(function() {
+    _ventasPendientes = fusionarVentasPendientesCompartidas([], []);
+    var clave = claveVentaPendienteCompartida(venta);
+    var yaExiste = _ventasPendientes.some(function(actual) {
+      return clave && claveVentaPendienteCompartida(actual) === clave;
+    });
+    if (!yaExiste) _ventasPendientes.push(venta);
+    if (!guardarVentasPendientesLocal()) throw new Error('No se pudo guardar la venta');
+    return _ventasPendientes.length;
+  });
+}
+
+window.addEventListener('storage', function(e) {
+  if (e.key !== 'jacaranda_ventas_pendientes' && e.key !== 'jacaranda_ventas_legacy_revision') return;
+  _ventasPendientes = leerVentasPendientesLocal();
+  _ventasLegacyRevision = leerVentasLegacyRevision();
+  actualizarBannerOffline();
+});
+
 function payloadVentaPendiente(venta) {
   var body = {detalles: venta.detalles, forma_pago: venta.forma_pago, metodo_pago: venta.metodo_pago, terminal: venta.terminal, monto_recibido: venta.monto_recibido, iva_factura_tasa: venta.iva_factura_tasa || 0};
   if (venta.idempotency_key) body.idempotency_key = venta.idempotency_key;
@@ -5021,6 +5114,27 @@ function payloadVentaPendiente(venta) {
     body.recompensa_lealtad_motivo = venta.recompensa_lealtad_motivo;
   }
   return body;
+}
+
+function esErrorVentaNoReintentable(e) {
+  var status = parseInt(e && e.status, 10) || 0;
+  if (status < 400 || status >= 500) return false;
+  return [408, 425, 429].indexOf(status) === -1;
+}
+
+function crearRevisionVentaRechazada(venta, e) {
+  var timestamp = venta._timestamp || new Date().toISOString();
+  var base = String(venta.idempotency_key || timestamp).replace(/[^A-Za-z0-9-]/g, '-').slice(0, 70);
+  var ventaLimpia = payloadVentaPendiente(venta);
+  ventaLimpia._timestamp = timestamp;
+  return {
+    key: 'rechazada-' + base,
+    timestamp: timestamp,
+    venta: ventaLimpia,
+    tipo: 'rechazada',
+    error_status: parseInt(e && e.status, 10) || 0,
+    error_mensaje: String((e && e.message) || 'La venta no fue aceptada').slice(0, 240)
+  };
 }
 
 function huellaVentaLegacy(venta) {
@@ -5087,13 +5201,21 @@ function moverVentasLocalesLegacyARevision() {
   if (!_ventasPendientes.length) return 0;
   var automaticas = [];
   var existentes = {};
+  var rechazadasPorIdempotencia = {};
   var movidas = 0;
   _ventasLegacyRevision.forEach(function(item) {
     if (item && item.key) existentes[item.key] = true;
+    if (item && item.tipo === 'rechazada' && item.venta && item.venta.idempotency_key) {
+      rechazadasPorIdempotencia[item.venta.idempotency_key] = true;
+    }
   });
   _ventasPendientes.forEach(function(venta, index) {
     var valida = venta && Array.isArray(venta.detalles) && venta.detalles.length;
     if (valida && venta.idempotency_key) {
+      if (rechazadasPorIdempotencia[venta.idempotency_key]) {
+        movidas++;
+        return;
+      }
       automaticas.push(venta);
       return;
     }
@@ -5160,6 +5282,30 @@ async function revisarSiguienteVentaLegacy() {
     if (String((itemActual && itemActual.key) || '') !== itemKeyRevision) return false;
     item = itemActual;
     return true;
+  }
+  if (item.tipo === 'rechazada') {
+    var motivoRechazo = item.error_mensaje || 'La venta no fue aceptada';
+    var rechazoRevisado = await confirmarAccion({
+      title: 'Venta no aceptada',
+      message: 'Busca la venta en Corte. Si no aparece, vuelve a capturarla con los productos actuales.',
+      detail: resumenVentaLegacy(item) + '. Motivo: ' + motivoRechazo,
+      icon: '!',
+      acceptText: 'S\u00ed, ya aparece',
+      cancelText: 'Conservar'
+    });
+    recargarColasVentasCompartidas();
+    if (!revisionLegacySigueActiva()) return;
+    if (rechazoRevisado) {
+      var rechazoResuelto = _ventasLegacyRevision.shift();
+      if (!guardarVentasLegacyRevision()) {
+        _ventasLegacyRevision.unshift(rechazoResuelto);
+        toast('No se pudo guardar el cambio. La venta sigue pendiente.', true);
+        return;
+      }
+      actualizarBannerOffline();
+      toast('Venta marcada como revisada');
+    }
+    return;
   }
   if (!item.venta) {
     var revisado = await confirmarAccion({
@@ -5296,6 +5442,7 @@ function sincronizarVentas() {
   var sesionCancelada = false;
   var pending = _ventasPendientes.slice();
   var fallidas = [];
+  var rechazadas = [];
   var ok = 0, fail = 0;
   var chain = Promise.resolve();
   function sesionCambioDuranteSync() {
@@ -5314,12 +5461,19 @@ function sincronizarVentas() {
             return;
           }
           ok++;
-        }).catch(function() {
+        }).catch(function(e) {
           if (sesionCambioDuranteSync()) {
             sesionCancelada = true;
             return;
           }
           fail++;
+          if (esErrorVentaNoReintentable(e)) {
+            rechazadas.push({
+              revision: crearRevisionVentaRechazada(venta, e),
+              ventaOriginal: venta
+            });
+            return;
+          }
           fallidas.push(venta);
         });
       });
@@ -5327,16 +5481,50 @@ function sincronizarVentas() {
   }
   return chain.then(function() {
     if (sesionCancelada || sesionCambioDuranteSync()) return;
-    _ventasPendientes = fusionarVentasPendientesCompartidas(pending, fallidas);
-    moverVentasLocalesLegacyARevision();
-    var colaGuardada = guardarVentasPendientesLocal();
-    var mensaje = ok + ' ventas sincronizadas' + (fail ? ', ' + fail + ' siguen pendientes' : '');
-    if (!colaGuardada) mensaje += '. No cierres la app';
-    toast(mensaje, fail > 0 || !colaGuardada);
-    if (!fail) _offline = false;
+    return conBloqueoColasVentas(function() {
+      _ventasLegacyRevision = fusionarVentasLegacyCompartidas();
+      var legacyExistentes = {};
+      var rechazadasAgregadas = [];
+      _ventasLegacyRevision.forEach(function(item) {
+        if (item && item.key) legacyExistentes[item.key] = true;
+      });
+      rechazadas.forEach(function(rechazo) {
+        var item = rechazo.revision;
+        if (!legacyExistentes[item.key]) {
+          _ventasLegacyRevision.push(item);
+          rechazadasAgregadas.push(item);
+          legacyExistentes[item.key] = true;
+        }
+      });
+      var revisionesGuardadas = guardarVentasLegacyRevision();
+      var fallidasAGuardar = fallidas.slice();
+      if (!revisionesGuardadas) {
+        _ventasLegacyRevision = _ventasLegacyRevision.filter(function(item) {
+          return rechazadasAgregadas.indexOf(item) === -1;
+        });
+        rechazadas.forEach(function(rechazo) { fallidasAGuardar.push(rechazo.ventaOriginal); });
+      }
+      _ventasPendientes = fusionarVentasPendientesCompartidas(pending, fallidasAGuardar);
+      moverVentasLocalesLegacyARevision();
+      return {
+        colaGuardada: guardarVentasPendientesLocal(),
+        revisionesGuardadas: revisionesGuardadas
+      };
+    }).then(function(guardado) {
+      var mensaje = ok + ' ventas sincronizadas';
+      if (fallidas.length) mensaje += ', ' + fallidas.length + ' siguen pendientes';
+      if (rechazadas.length) mensaje += ', ' + rechazadas.length + ' requieren revisi\u00f3n';
+      if (!guardado.colaGuardada || !guardado.revisionesGuardadas) mensaje += '. No cierres la app';
+      toast(mensaje, fail > 0 || !guardado.colaGuardada || !guardado.revisionesGuardadas);
+      if (!fallidas.length) _offline = false;
+      actualizarBannerOffline();
+      cargarPOSProductos();
+      cargarCorte();
+    });
+  }).catch(function(e) {
+    if (sesionCancelada || sesionCambioDuranteSync()) return;
+    toast((e && e.message) || 'No se pudo actualizar la cola de ventas', true);
     actualizarBannerOffline();
-    cargarPOSProductos();
-    cargarCorte();
   }).finally(function() {
     _sincronizandoVentas = false;
   });
