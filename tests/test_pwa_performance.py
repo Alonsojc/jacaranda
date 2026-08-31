@@ -138,6 +138,11 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
         "async function revisarSiguienteVentaLegacy",
         "function sincronizarVentas",
     )
+    review_mutation_segment = segment_between(
+        html,
+        "function quitarRevisionVentaCompartida",
+        "async function revisarSiguienteVentaLegacy",
+    )
     sw = read_text("docs/sw.js")
     logout_segment = segment_between(html, "function cerrarSesion()", "async function confirmarCerrarSesion")
     login_segment = segment_between(html, "function login(email, pass)", "function togglePassword")
@@ -197,11 +202,21 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "if (!ventasGuardadas || !legacyGuardadas)" in recovery_segment
     assert "tx.abort()" in recovery_segment
     assert "tx.onabort = function() { finalizarMigracion(false); }" in recovery_segment
-    assert "claveIdempotenciaVentaLegacy(item)" in review_segment
+    assert "claveIdempotenciaVentaLegacy(itemActual)" in review_mutation_segment
     assert "confirmarAccion({" in review_segment
     assert "item.tipo === 'rechazada'" in review_segment
     assert "Venta no aceptada" in review_segment
     assert "S\\u00ed, ya aparece" in review_segment
+    assert "await recuperarVentaLegacyCompartida(itemKeyRevision)" in review_segment
+    assert review_segment.count("await quitarRevisionVentaCompartida(itemKeyRevision)") == 3
+    assert review_mutation_segment.count("return conBloqueoColasVentas(function()") == 2
+    assert "_ventasPendientes = fusionarVentasPendientesCompartidas([], [])" in review_mutation_segment
+    assert "_ventasLegacyRevision = leerVentasLegacyRevision()" in review_mutation_segment
+    assert "guardarVentasPendientesLocal()" in review_mutation_segment
+    assert "guardarVentasLegacyRevision()" in review_mutation_segment
+    assert review_mutation_segment.index("guardarVentasPendientesLocal()") < review_mutation_segment.rindex(
+        "guardarVentasLegacyRevision()"
+    )
     assert "var versionSesionRevision = _versionSesion" in review_segment
     assert review_segment.count("if (!revisionLegacySigueActiva()) return") == 4
     assert review_segment.count("recargarColasVentasCompartidas()") == 4

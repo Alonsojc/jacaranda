@@ -5268,6 +5268,53 @@ function resumenVentaLegacy(item) {
   return partes.join(' \u00b7 ');
 }
 
+function quitarRevisionVentaCompartida(itemKey) {
+  return conBloqueoColasVentas(function() {
+    _ventasLegacyRevision = leerVentasLegacyRevision();
+    var indice = _ventasLegacyRevision.findIndex(function(item) {
+      return String((item && item.key) || '') === itemKey;
+    });
+    if (indice < 0) return false;
+    var itemQuitado = _ventasLegacyRevision.splice(indice, 1)[0];
+    if (!guardarVentasLegacyRevision()) {
+      _ventasLegacyRevision.splice(indice, 0, itemQuitado);
+      throw new Error('No se pudo guardar el cambio. La venta sigue pendiente.');
+    }
+    return true;
+  });
+}
+
+function recuperarVentaLegacyCompartida(itemKey) {
+  return conBloqueoColasVentas(function() {
+    _ventasPendientes = fusionarVentasPendientesCompartidas([], []);
+    _ventasLegacyRevision = leerVentasLegacyRevision();
+    var indice = _ventasLegacyRevision.findIndex(function(item) {
+      return String((item && item.key) || '') === itemKey;
+    });
+    if (indice < 0) return {recuperada: false, revisionPendiente: false};
+    var itemActual = _ventasLegacyRevision[indice];
+    if (!itemActual.venta) throw new Error('Esta venta ya no se puede recuperar.');
+    var claveRecuperacion = claveIdempotenciaVentaLegacy(itemActual);
+    if (!claveRecuperacion) throw new Error('No se pudo identificar la venta.');
+    var ventaRecuperada = Object.assign({}, itemActual.venta, {idempotency_key: claveRecuperacion});
+    var claveVenta = claveVentaPendienteCompartida(ventaRecuperada);
+    var yaPendiente = _ventasPendientes.some(function(venta) {
+      return claveVenta && claveVentaPendienteCompartida(venta) === claveVenta;
+    });
+    if (!yaPendiente) _ventasPendientes.push(ventaRecuperada);
+    if (!guardarVentasPendientesLocal()) {
+      _ventasPendientes = leerVentasPendientesLocal();
+      throw new Error('No se pudo guardar la venta recuperada. No cierres la app.');
+    }
+    _ventasLegacyRevision.splice(indice, 1);
+    if (!guardarVentasLegacyRevision()) {
+      _ventasLegacyRevision.splice(indice, 0, itemActual);
+      return {recuperada: true, revisionPendiente: true};
+    }
+    return {recuperada: true, revisionPendiente: false};
+  });
+}
+
 async function revisarSiguienteVentaLegacy() {
   if (!_ventasLegacyRevision.length) {
     actualizarBannerOffline();
@@ -5296,14 +5343,13 @@ async function revisarSiguienteVentaLegacy() {
     recargarColasVentasCompartidas();
     if (!revisionLegacySigueActiva()) return;
     if (rechazoRevisado) {
-      var rechazoResuelto = _ventasLegacyRevision.shift();
-      if (!guardarVentasLegacyRevision()) {
-        _ventasLegacyRevision.unshift(rechazoResuelto);
-        toast('No se pudo guardar el cambio. La venta sigue pendiente.', true);
-        return;
+      try {
+        var rechazoQuitado = await quitarRevisionVentaCompartida(itemKeyRevision);
+        actualizarBannerOffline();
+        toast(rechazoQuitado ? 'Venta marcada como revisada' : 'La venta ya estaba revisada');
+      } catch (e) {
+        toast(e.message || 'No se pudo guardar el cambio. La venta sigue pendiente.', true);
       }
-      actualizarBannerOffline();
-      toast('Venta marcada como revisada');
     }
     return;
   }
@@ -5319,13 +5365,12 @@ async function revisarSiguienteVentaLegacy() {
     recargarColasVentasCompartidas();
     if (!revisionLegacySigueActiva()) return;
     if (revisado) {
-      var itemDanado = _ventasLegacyRevision.shift();
-      if (!guardarVentasLegacyRevision()) {
-        _ventasLegacyRevision.unshift(itemDanado);
-        toast('No se pudo guardar el cambio. La venta sigue pendiente.', true);
-        return;
+      try {
+        await quitarRevisionVentaCompartida(itemKeyRevision);
+        actualizarBannerOffline();
+      } catch (e) {
+        toast(e.message || 'No se pudo guardar el cambio. La venta sigue pendiente.', true);
       }
-      actualizarBannerOffline();
     }
     return;
   }
@@ -5341,28 +5386,22 @@ async function revisarSiguienteVentaLegacy() {
   recargarColasVentasCompartidas();
   if (!revisionLegacySigueActiva()) return;
   if (recuperar) {
-    var claveAnterior = item.venta.idempotency_key;
-    var claveRecuperacion = claveIdempotenciaVentaLegacy(item);
-    if (!claveRecuperacion) return;
-    item.venta.idempotency_key = claveRecuperacion;
-    _ventasPendientes.push(item.venta);
-    _ventasLegacyRevision.shift();
-    var pendientesGuardadas = guardarVentasPendientesLocal();
-    var legacyGuardadas = guardarVentasLegacyRevision();
-    if (!pendientesGuardadas || !legacyGuardadas) {
-      _ventasPendientes.pop();
-      _ventasLegacyRevision.unshift(item);
-      if (claveAnterior) item.venta.idempotency_key = claveAnterior;
-      else delete item.venta.idempotency_key;
-      guardarVentasPendientesLocal();
-      guardarVentasLegacyRevision();
+    try {
+      var resultadoRecuperacion = await recuperarVentaLegacyCompartida(itemKeyRevision);
       actualizarBannerOffline();
-      toast('No se pudo guardar el cambio. La venta sigue pendiente.', true);
-      return;
+      if (!resultadoRecuperacion.recuperada) {
+        toast('La venta ya fue revisada en otra ventana');
+        return;
+      }
+      if (resultadoRecuperacion.revisionPendiente) {
+        toast('Venta protegida. La revisi\u00f3n sigue pendiente en este dispositivo.', true);
+      } else {
+        toast('Venta lista para sincronizar');
+      }
+      if (navigator.onLine && !_offline) sincronizarVentas();
+    } catch (e) {
+      toast(e.message || 'No se pudo guardar el cambio. La venta sigue pendiente.', true);
     }
-    actualizarBannerOffline();
-    toast('Venta lista para sincronizar');
-    if (navigator.onLine && !_offline) sincronizarVentas();
     return;
   }
 
@@ -5377,14 +5416,13 @@ async function revisarSiguienteVentaLegacy() {
   recargarColasVentasCompartidas();
   if (!revisionLegacySigueActiva()) return;
   if (registrada) {
-    var itemRegistrado = _ventasLegacyRevision.shift();
-    if (!guardarVentasLegacyRevision()) {
-      _ventasLegacyRevision.unshift(itemRegistrado);
-      toast('No se pudo guardar el cambio. La venta sigue pendiente.', true);
-      return;
+    try {
+      var registroQuitado = await quitarRevisionVentaCompartida(itemKeyRevision);
+      actualizarBannerOffline();
+      toast(registroQuitado ? 'Venta antigua marcada como revisada' : 'La venta ya estaba revisada');
+    } catch (e) {
+      toast(e.message || 'No se pudo guardar el cambio. La venta sigue pendiente.', true);
     }
-    actualizarBannerOffline();
-    toast('Venta antigua marcada como revisada');
   }
 }
 
