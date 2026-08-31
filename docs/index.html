@@ -5116,6 +5116,13 @@ function exigirSesionColasVigente(versionSesion, tokenSesion) {
   }
 }
 
+var _recargaSesionCompartidaProgramada = false;
+function programarRecargaSesionCompartida() {
+  if (_recargaSesionCompartidaProgramada) return;
+  _recargaSesionCompartidaProgramada = true;
+  setTimeout(function() { window.location.reload(); }, 0);
+}
+
 function agregarVentaPendienteCompartida(venta, versionSesion, tokenSesion) {
   return conBloqueoColasVentas(function() {
     exigirSesionColasVigente(versionSesion, tokenSesion);
@@ -5134,19 +5141,27 @@ function agregarVentaPendienteCompartida(venta, versionSesion, tokenSesion) {
 }
 
 window.addEventListener('storage', function(e) {
+  if (e.key === 'jacaranda_user') {
+    if (TOKEN && e.newValue) {
+      invalidarTareasSesion();
+      programarRecargaSesionCompartida();
+    }
+    return;
+  }
   if (e.key === 'jacaranda_token' || e.key === 'jacaranda_refresh_token') {
     var tokenCompartido = localStorage.getItem('jacaranda_token') || '';
     var refreshCompartido = localStorage.getItem('jacaranda_refresh_token') || '';
+    var cambioIdentidadCompartida = !!refreshCompartido && refreshCompartido !== REFRESH_TOKEN;
     if (TOKEN !== tokenCompartido || REFRESH_TOKEN !== refreshCompartido) {
       invalidarTareasSesion();
       TOKEN = tokenCompartido;
       REFRESH_TOKEN = refreshCompartido;
       _apiGetCache = {};
       _apiGetInFlight = {};
-      if (!TOKEN && !REFRESH_TOKEN) {
+      if ((!TOKEN && !REFRESH_TOKEN) || cambioIdentidadCompartida) {
         _ventasPendientes = [];
         _ventasLegacyRevision = [];
-        setTimeout(function() { window.location.reload(); }, 0);
+        programarRecargaSesionCompartida();
       }
     }
     return;

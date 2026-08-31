@@ -197,7 +197,10 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
         "guardarVentasPendientesLocal()"
     )
     assert "window.addEventListener('storage'" in queue_lock_segment
+    assert "e.key === 'jacaranda_user'" in queue_lock_segment
     assert "e.key === 'jacaranda_token'" in queue_lock_segment
+    assert "var cambioIdentidadCompartida" in queue_lock_segment
+    assert "programarRecargaSesionCompartida()" in queue_lock_segment
     assert "invalidarTareasSesion()" in queue_lock_segment
     assert "window.location.reload()" in queue_lock_segment
     assert "body.referencia_pago = venta.referencia_pago" in payload_segment
