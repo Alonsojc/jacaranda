@@ -5277,6 +5277,17 @@ function fusionarVentasPendientesCompartidas(procesadas, fallidas) {
   });
 }
 
+function fusionarVentasLegacyCompartidas() {
+  var candidatas = _ventasLegacyRevision.concat(leerVentasLegacyRevision());
+  var vistas = {};
+  return candidatas.filter(function(item) {
+    var clave = String((item && item.key) || '');
+    if (clave && vistas[clave]) return false;
+    if (clave) vistas[clave] = true;
+    return true;
+  });
+}
+
 function sincronizarVentas() {
   moverVentasLocalesLegacyARevision();
   if (!_ventasPendientes.length || _sincronizandoVentas || !TOKEN) return Promise.resolve();
@@ -5424,6 +5435,8 @@ function recuperarVentasIndexedDB() {
           tx.abort();
           return;
         }
+        _ventasPendientes = fusionarVentasPendientesCompartidas([], []);
+        _ventasLegacyRevision = fusionarVentasLegacyCompartidas();
         var ventasGuardadas = guardarVentasPendientesLocal();
         var legacyGuardadas = guardarVentasLegacyRevision();
         if (!ventasGuardadas || !legacyGuardadas) tx.abort();

@@ -161,6 +161,11 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "var versionSesionMigracion = _versionSesion" in recovery_segment
     assert "function sesionCambioDuranteMigracion()" in recovery_segment
     assert "emparejarVentasLegacyIndexedDB(registros)" in recovery_segment
+    assert "_ventasPendientes = fusionarVentasPendientesCompartidas([], [])" in recovery_segment
+    assert "_ventasLegacyRevision = fusionarVentasLegacyCompartidas()" in recovery_segment
+    assert recovery_segment.index("fusionarVentasPendientesCompartidas([], [])") < recovery_segment.index(
+        "var ventasGuardadas = guardarVentasPendientesLocal()"
+    )
     assert "if (!completa) revertirVentasMigradas()" in recovery_segment
     assert "if (completa) indexedDB.deleteDatabase('jacaranda-offline')" in recovery_segment
     assert "if (!ventasGuardadas || !legacyGuardadas) tx.abort()" in recovery_segment
