@@ -47,7 +47,7 @@ def test_cors_allows_legacy_no_store_request_headers(client):
 def test_service_worker_never_caches_authenticated_api_data():
     sw = read_text("docs/sw.js")
 
-    assert "const CACHE_NAME = 'jacaranda-v88'" in sw
+    assert "const CACHE_NAME = 'jacaranda-v89'" in sw
     assert "request.headers.has('Authorization')" in sw
     assert "offlineApiResponse" in sw
     assert "'Cache-Control': 'no-store'" in sw
@@ -60,7 +60,7 @@ def test_service_worker_never_caches_authenticated_api_data():
 def test_frontend_api_cache_is_short_lived_and_not_persistent():
     html = read_text("docs/index.html")
 
-    assert "var APP_BUILD = 'jacaranda-v88'" in html
+    assert "var APP_BUILD = 'jacaranda-v89'" in html
     assert "function apiGetCacheTtl(path)" in html
     assert "if (clean === '/inventario/productos') return 45000" in html
     assert "if (clean === '/pedidos/reservas') return 15000" in html
@@ -91,7 +91,7 @@ def test_frontend_keeps_session_during_temporary_server_errors():
     assert "function esErrorTemporal" in html
     assert "function marcarApiTemporalmenteNoDisponible" in html
     assert "Mantengo tu sesi" in html
-    assert "cerrarSesion();" in api_segment
+    assert "expirarSesion();" in api_segment
     assert "if (r.status === 401)" in api_segment
     assert "marcarApiTemporalmenteNoDisponible(netErr)" in api_segment
     assert "marcarApiTemporalmenteNoDisponible(timeoutErr)" in api_segment
@@ -100,7 +100,7 @@ def test_frontend_keeps_session_during_temporary_server_errors():
     assert "function sesionRefreshSigueActiva()" in refresh_segment
     assert "return conBloqueoColasVentas(function()" in refresh_segment
     assert "}, 30000)" in refresh_segment
-    assert refresh_segment.index("if (!sesionRefreshSigueActiva())") < refresh_segment.index("cerrarSesion()")
+    assert refresh_segment.index("if (!sesionRefreshSigueActiva())") < refresh_segment.index("expirarSesion()")
 
 
 def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
@@ -151,7 +151,7 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
         "function claveIdempotenciaVentaLegacy",
     )
     sw = read_text("docs/sw.js")
-    logout_segment = segment_between(html, "function cerrarSesion()", "async function confirmarCerrarSesion")
+    logout_segment = segment_between(html, "function expirarSesion()", "async function confirmarCerrarSesion")
     logout_confirmation_segment = segment_between(
         html,
         "async function confirmarCerrarSesion",
@@ -279,11 +279,16 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "resolverEntrada(false)" in logout_segment
     assert "cancelarAdminAuth()" in logout_segment
     assert "invalidarTareasSesion()" in login_segment
+    assert "verificarPropietarioColasVentas(d.access_token)" in login_segment
     assert "return conBloqueoColasVentas(function()" in login_segment
     assert "}, 30000)" in login_segment
     assert "_versionSesion++" in session_tasks_segment
     assert "tx.abort()" in session_tasks_segment
     assert "_ventasLegacyRevision = []" in logout_segment
+    assert "var preservarVentasPendientes" in logout_segment
+    assert "asegurarPropietarioColasVentas(true, propietarioVentasSesion)" in logout_segment
+    assert "clearSensitiveCachesPreservingSales" in logout_segment
+    assert "PENDING_SALES_OWNER_MISMATCH" in html
     assert "conBloqueoColasVentas(function()" in logout_segment
     assert "}, 30000).catch(function()" in logout_segment
     assert "localStorage.removeItem('jacaranda_ventas_pendientes')" in logout_segment
@@ -292,6 +297,8 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     )
     assert "{type: 'CLEAR_AUTH_DATA'}" in logout_segment
     assert "await recargarColasVentasCompartidas()" in logout_confirmation_segment
+    assert "await recuperarVentasIndexedDB()" in logout_confirmation_segment
+    assert "!_ultimaRecuperacionVentasCompleta" in logout_confirmation_segment
     assert "var ventasSinCerrar = _ventasPendientes.length + _ventasLegacyRevision.length" in logout_confirmation_segment
     assert "Hay ventas pendientes" in logout_confirmation_segment
     assert "if (ok) await cerrarSesion()" in logout_confirmation_segment
@@ -314,6 +321,27 @@ def test_offline_sale_retry_never_crosses_into_a_new_session():
         "refreshAccessToken()"
     )
     assert ", false, null, sesionSync)" in sync_segment
+
+
+def test_expired_session_preserves_account_bound_sales():
+    html = read_text("docs/index.html")
+    core = read_text("docs/js/jacaranda-core.js")
+    expiry_segment = segment_between(
+        html,
+        "function expirarSesion()",
+        "async function confirmarCerrarSesion",
+    )
+    login_segment = segment_between(html, "function login(email, pass)", "function togglePassword")
+
+    assert html.count("expirarSesion();") == 3
+    assert "preservarVentasPendientes: true" in expiry_segment
+    assert "if (!preservarVentasPendientes)" in expiry_segment
+    assert "asegurarPropietarioColasVentas(true, propietarioVentasSesion)" in expiry_segment
+    assert "verificarPropietarioColasVentas(d.access_token)" in login_segment
+    assert "PENDING_SALES_OWNER_MISMATCH" in html
+    assert "clearSensitiveCachesPreservingSales" in expiry_segment
+    assert "return clearSensitiveCaches({preserveSales: true})" in core
+    assert "if (!preserveSales && window.indexedDB" in core
 
 
 def test_legacy_sale_matching_uses_complete_payload_and_nearest_timestamp():
@@ -439,8 +467,12 @@ def test_core_sensitive_cleanup_preserves_static_cache_and_clears_offline_db():
     core = read_text("docs/js/jacaranda-core.js")
 
     assert "function clearSensitiveCaches" in core
+    assert "function clearSensitiveCachesPreservingSales" in core
+    assert "preserveSales" in core
     assert "jacaranda_prods_cache" in core
     assert "jacaranda_ventas_legacy_revision" in core
+    assert "jacaranda_ventas_propietario" in core
+    assert "if (!preserveSales && window.indexedDB" in core
     assert "indexedDB.deleteDatabase('jacaranda-offline')" in core
     assert "jacaranda-(auth|api|data|offline)" in core
     assert "caches.delete(name)" in core
