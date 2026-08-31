@@ -5298,8 +5298,8 @@ function moverVentasLocalesLegacyARevision() {
       }
       _ventasLegacyRevision.push({key: key, timestamp: timestamp, venta: ventaRevision});
       existentes[key] = true;
-      movidas++;
     }
+    movidas++;
   });
   if (!movidas && automaticas.length === _ventasPendientes.length) return 0;
   _ventasPendientes = automaticas;

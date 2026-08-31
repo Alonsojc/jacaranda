@@ -335,6 +335,17 @@ def test_legacy_sale_matching_uses_complete_payload_and_nearest_timestamp():
     assert "localesUsadas[candidato.localKey]" in matching_segment
 
 
+def test_legacy_quarantine_persists_pending_copy_already_in_review():
+    html = read_text("docs/index.html")
+    quarantine_segment = segment_between(
+        html,
+        "function moverVentasLocalesLegacyARevision",
+        "function claveIdempotenciaVentaLegacy",
+    )
+
+    assert "existentes[key] = true;\n    }\n    movidas++;" in quarantine_segment
+
+
 def test_mobile_navigation_has_loading_feedback_and_guarded_pull_refresh():
     html = read_text("docs/index.html")
 
