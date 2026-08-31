@@ -2729,7 +2729,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v92';
+var APP_BUILD = 'jacaranda-v93';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
@@ -2774,7 +2774,6 @@ function leerPropietarioColasVentas() {
   try { return normalizarIdentidadVentas(localStorage.getItem(VENTAS_QUEUE_OWNER_KEY)); }
   catch (e) { return ''; }
 }
-var _indexedDBSinPropietarioAlCargar = !leerPropietarioColasVentas();
 
 function identidadActualColasVentas(preferida) {
   var identidad = normalizarIdentidadVentas(preferida);
@@ -2789,6 +2788,7 @@ function identidadActualColasVentas(preferida) {
     return '';
   }
 }
+var _indexedDBSinPropietarioAlCargar = !leerPropietarioColasVentas() && !identidadActualColasVentas();
 
 function hayColasVentasConPropietario() {
   if (_ventasPendientes.length) return true;
@@ -2798,7 +2798,7 @@ function hayColasVentasConPropietario() {
 }
 
 function asegurarPropietarioColasVentas(forzar, identidadPreferida) {
-  if (!hayColasVentasConPropietario()) return true;
+  if (!forzar && !hayColasVentasConPropietario()) return true;
   try {
     if (leerPropietarioColasVentas()) return true;
     var identidad = identidadActualColasVentas(identidadPreferida);
@@ -5820,6 +5820,9 @@ function recuperarVentasIndexedDB() {
     exigirSesionColasVigente(versionSesionMigracion, tokenSesionMigracion);
     _ventasPendientes = leerVentasPendientesLocal();
     _ventasLegacyRevision = leerVentasLegacyRevision();
+    if (!_indexedDBSinPropietarioAlCargar && !leerPropietarioColasVentas()) {
+      asegurarPropietarioColasVentas(true, identidadActualColasVentas());
+    }
     var indexedSinPropietario = _indexedDBSinPropietarioAlCargar || !leerPropietarioColasVentas();
     var localesProtegidas = 0;
     if (indexedSinPropietario) {
@@ -13976,7 +13979,9 @@ function cerrarSesion(opciones) {
     if (preservarVentasPendientes) {
       _ventasPendientes = leerVentasPendientesLocal();
       _ventasLegacyRevision = leerVentasLegacyRevision();
-      asegurarPropietarioColasVentas(true, propietarioVentasSesion);
+      if (!_indexedDBSinPropietarioAlCargar || leerPropietarioColasVentas()) {
+        asegurarPropietarioColasVentas(true, propietarioVentasSesion);
+      }
     }
     limpiarClavesSesionCompartida();
   }
@@ -13984,7 +13989,9 @@ function cerrarSesion(opciones) {
     ? Promise.resolve().then(limpiarSesionConBloqueo)
     : conBloqueoColasVentas(limpiarSesionConBloqueo, 30000).catch(function(e) {
       if (!preservarVentasPendientes) throw e;
-      asegurarPropietarioColasVentas(true, propietarioVentasSesion);
+      if (!_indexedDBSinPropietarioAlCargar || leerPropietarioColasVentas()) {
+        asegurarPropietarioColasVentas(true, propietarioVentasSesion);
+      }
       limpiarClavesSesionCompartida();
     });
   _currentUser = null;
