@@ -2773,6 +2773,7 @@ function leerVentasLegacyRevision() {
 var _ventasPendientes = leerVentasPendientesLocal();
 var _ventasLegacyRevision = leerVentasLegacyRevision();
 var _sincronizandoVentas = false;
+var _versionSesion = 0;
 var _pedidosPendientes = JSON.parse(localStorage.getItem('jacaranda_pedidos_pendientes') || '[]');
 var _pedidoContactos = JSON.parse(localStorage.getItem('jacaranda_pedido_contactos') || '[]');
 var _pedidoCatalogo = [];
@@ -3577,6 +3578,8 @@ function apiCritica(method, path, body, accion, motivo) {
 
 function refreshAccessToken() {
   if (_refreshPromise) return _refreshPromise;
+  var versionSesionRefresh = _versionSesion;
+  var refreshTokenSolicitado = REFRESH_TOKEN;
   var controller = window.AbortController ? new AbortController() : null;
   var timeoutId = null;
   var opts = {
@@ -3585,7 +3588,7 @@ function refreshAccessToken() {
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({refresh_token: REFRESH_TOKEN})
+    body: JSON.stringify({refresh_token: refreshTokenSolicitado})
   };
   if (controller) {
     opts.signal = controller.signal;
@@ -3601,6 +3604,9 @@ function refreshAccessToken() {
     }
     return leerRespuestaJson(r);
   }).then(function(d) {
+    if (_versionSesion !== versionSesionRefresh || REFRESH_TOKEN !== refreshTokenSolicitado) {
+      throw new Error('La sesión cambió durante la renovación');
+    }
     TOKEN = d.access_token;
     localStorage.setItem('jacaranda_token', TOKEN);
     return TOKEN;
@@ -3673,6 +3679,7 @@ function login(email, pass) {
     if (!r.ok) throw new Error('Login failed');
     return leerRespuestaJson(r);
   }).then(function(d) {
+    _versionSesion++;
     TOKEN = d.access_token;
     localStorage.setItem('jacaranda_token', TOKEN);
     if (d.refresh_token) {
@@ -5086,18 +5093,35 @@ function accionVentasPendientes() {
 }
 
 function sincronizarVentas() {
-  if (!_ventasPendientes.length || _sincronizandoVentas) return Promise.resolve();
+  if (!_ventasPendientes.length || _sincronizandoVentas || !TOKEN) return Promise.resolve();
   _sincronizandoVentas = true;
+  var sesionSync = _versionSesion;
+  var sesionCancelada = false;
   var pending = _ventasPendientes.slice();
   var fallidas = [];
   var ok = 0, fail = 0;
   var chain = Promise.resolve();
+  function sesionCambioDuranteSync() {
+    return _versionSesion !== sesionSync || !TOKEN;
+  }
   for (var i = 0; i < pending.length; i++) {
     (function(venta) {
       chain = chain.then(function() {
+        if (sesionCambioDuranteSync()) {
+          sesionCancelada = true;
+          return;
+        }
         return api('POST', '/punto-de-venta/ventas', payloadVentaPendiente(venta)).then(function() {
+          if (sesionCambioDuranteSync()) {
+            sesionCancelada = true;
+            return;
+          }
           ok++;
         }).catch(function() {
+          if (sesionCambioDuranteSync()) {
+            sesionCancelada = true;
+            return;
+          }
           fail++;
           fallidas.push(venta);
         });
@@ -5105,6 +5129,7 @@ function sincronizarVentas() {
     })(pending[i]);
   }
   return chain.then(function() {
+    if (sesionCancelada || sesionCambioDuranteSync()) return;
     var nuevas = _ventasPendientes.filter(function(venta) {
       return pending.indexOf(venta) === -1;
     });
@@ -13111,6 +13136,7 @@ function aplicarPermisosModulos(permisos) {
 }
 
 function cerrarSesion() {
+  _versionSesion++;
   revocarFCMPushActual();
   clearPosDraft();
   cart = [];

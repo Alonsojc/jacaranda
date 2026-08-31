@@ -86,6 +86,7 @@ def test_frontend_no_store_does_not_add_disallowed_cors_headers():
 def test_frontend_keeps_session_during_temporary_server_errors():
     html = read_text("docs/index.html")
     api_segment = segment_between(html, "function api(method, path", "function apiPublic")
+    refresh_segment = segment_between(html, "function refreshAccessToken()", "function filenameFromDisposition")
 
     assert "function esErrorTemporal" in html
     assert "function marcarApiTemporalmenteNoDisponible" in html
@@ -94,6 +95,9 @@ def test_frontend_keeps_session_during_temporary_server_errors():
     assert "if (r.status === 401)" in api_segment
     assert "marcarApiTemporalmenteNoDisponible(netErr)" in api_segment
     assert "marcarApiTemporalmenteNoDisponible(timeoutErr)" in api_segment
+    assert "var versionSesionRefresh = _versionSesion" in refresh_segment
+    assert "var refreshTokenSolicitado = REFRESH_TOKEN" in refresh_segment
+    assert "_versionSesion !== versionSesionRefresh" in refresh_segment
 
 
 def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
@@ -120,10 +124,14 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     )
     sw = read_text("docs/sw.js")
     logout_segment = segment_between(html, "function cerrarSesion()", "async function confirmarCerrarSesion")
+    login_segment = segment_between(html, "function login(email, pass)", "function togglePassword")
 
     assert "fallidas.push(venta)" in sync_segment
     assert "_ventasPendientes = fallidas.concat(nuevas)" in sync_segment
     assert "pending.indexOf(venta) === -1" in sync_segment
+    assert "var sesionSync = _versionSesion" in sync_segment
+    assert "function sesionCambioDuranteSync()" in sync_segment
+    assert "if (sesionCancelada || sesionCambioDuranteSync()) return" in sync_segment
     assert "guardarVentasPendientesLocal()" in sync_segment
     assert "body.referencia_pago = venta.referencia_pago" in payload_segment
     assert "localStorage.removeItem('jacaranda_ventas_pendientes')" not in sync_segment
@@ -146,6 +154,8 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert 'onclick="accionVentasPendientes()"' in html
     assert "function leerVentasPendientesLocal" in html
     assert "_apiGetCache = {}" in logout_segment
+    assert "_versionSesion++" in logout_segment
+    assert "_versionSesion++" in login_segment
     assert "_ventasLegacyRevision = []" in logout_segment
     assert "{type: 'CLEAR_AUTH_DATA'}" in logout_segment
 
