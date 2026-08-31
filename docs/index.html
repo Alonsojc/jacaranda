@@ -2729,7 +2729,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v93';
+var APP_BUILD = 'jacaranda-v94';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
@@ -5811,7 +5811,6 @@ function recuperarVentasIndexedDB() {
   _ultimaRecuperacionVentasCompleta = false;
   var versionSesionMigracion = _versionSesion;
   var tokenSesionMigracion = TOKEN;
-  var ventasAgregadas = [];
   var legacyAgregadas = [];
   function sesionCambioDuranteMigracion() {
     return !sesionColasVigente(versionSesionMigracion, tokenSesionMigracion);
@@ -5823,14 +5822,13 @@ function recuperarVentasIndexedDB() {
     if (!_indexedDBSinPropietarioAlCargar && !leerPropietarioColasVentas()) {
       asegurarPropietarioColasVentas(true, identidadActualColasVentas());
     }
-    var indexedSinPropietario = _indexedDBSinPropietarioAlCargar || !leerPropietarioColasVentas();
+    var localesSinPropietario = !leerPropietarioColasVentas();
     var localesProtegidas = 0;
-    if (indexedSinPropietario) {
+    if (localesSinPropietario) {
       localesProtegidas += marcarRevisionesSinPropietario();
       localesProtegidas += moverVentasLocalesLegacyARevision(true);
     }
     return new Promise(function(resolve) {
-      var recuperadas = 0;
       var legacyEncontradas = 0;
       var db = null;
       var req = indexedDB.open('jacaranda-offline', 1);
@@ -5891,51 +5889,24 @@ function recuperarVentasIndexedDB() {
           var ventaLimpia = registro.venta;
           var timestamp = registro.timestamp;
           var legacyKey = registro.legacyKey;
-          if (indexedSinPropietario) {
-            var idempotenciaDesconocida = ventaLimpia && ventaLimpia.idempotency_key;
-            if (indexedLegacyEmparejadas[legacyKey] || (idempotenciaDesconocida && legacyIdempotencias[idempotenciaDesconocida])) {
-              return;
-            }
-            if (!legacyExistentes[legacyKey]) {
-              var legacySinPropietario = {
-                key: legacyKey,
-                timestamp: timestamp,
-                venta: ventaLimpia,
-                propietario_desconocido: true
-              };
-              _ventasLegacyRevision.push(legacySinPropietario);
-              legacyAgregadas.push(legacySinPropietario);
-              legacyExistentes[legacyKey] = true;
-              if (idempotenciaDesconocida) legacyIdempotencias[idempotenciaDesconocida] = true;
-              legacyEncontradas++;
-            }
+          var idempotenciaIndexed = ventaLimpia && ventaLimpia.idempotency_key;
+          // IndexedDB antiguo no guardaba propietario por fila. Solo una copia local coincidente evita duplicarla.
+          if (indexedLegacyEmparejadas[legacyKey] ||
+              (idempotenciaIndexed && (existentes[idempotenciaIndexed] || legacyIdempotencias[idempotenciaIndexed]))) {
             return;
           }
-          if (!ventaLimpia) {
-            if (!legacyExistentes[legacyKey]) {
-              var legacyDanada = {key: legacyKey, timestamp: timestamp, venta: null};
-              _ventasLegacyRevision.push(legacyDanada);
-              legacyAgregadas.push(legacyDanada);
-              legacyExistentes[legacyKey] = true;
-              legacyEncontradas++;
-            }
-          } else {
-            if (ventaLimpia.idempotency_key) {
-              if (!existentes[ventaLimpia.idempotency_key]) {
-                _ventasPendientes.push(ventaLimpia);
-                ventasAgregadas.push(ventaLimpia);
-                existentes[ventaLimpia.idempotency_key] = true;
-                recuperadas++;
-              }
-            } else {
-              if (!indexedLegacyEmparejadas[legacyKey] && !legacyExistentes[legacyKey]) {
-                var legacyVenta = {key: legacyKey, timestamp: timestamp, venta: ventaLimpia};
-                _ventasLegacyRevision.push(legacyVenta);
-                legacyAgregadas.push(legacyVenta);
-                legacyExistentes[legacyKey] = true;
-                legacyEncontradas++;
-              }
-            }
+          if (!legacyExistentes[legacyKey]) {
+            var legacySinPropietario = {
+              key: legacyKey,
+              timestamp: timestamp,
+              venta: ventaLimpia,
+              propietario_desconocido: true
+            };
+            _ventasLegacyRevision.push(legacySinPropietario);
+            legacyAgregadas.push(legacySinPropietario);
+            legacyExistentes[legacyKey] = true;
+            if (idempotenciaIndexed) legacyIdempotencias[idempotenciaIndexed] = true;
+            legacyEncontradas++;
           }
         });
         if (sesionCambioDuranteMigracion()) {
@@ -5960,11 +5931,6 @@ function recuperarVentasIndexedDB() {
           _ventasLegacyRevision = leerVentasLegacyRevision();
           return;
         }
-        if (ventasAgregadas.length) {
-          _ventasPendientes = _ventasPendientes.filter(function(venta) {
-            return ventasAgregadas.indexOf(venta) === -1;
-          });
-        }
         if (legacyAgregadas.length) {
           _ventasLegacyRevision = _ventasLegacyRevision.filter(function(item) {
             return legacyAgregadas.indexOf(item) === -1;
@@ -5982,10 +5948,7 @@ function recuperarVentasIndexedDB() {
         if (!completa) revertirVentasMigradas();
         if (db) db.close();
         actualizarBannerOffline();
-        if (completa && recuperadas && _currentUser && !_offline) {
-          setTimeout(sincronizarVentas, 1000);
-        }
-        resolve(completa ? recuperadas + legacyEncontradas : 0);
+        resolve(completa ? legacyEncontradas : 0);
       }
       tx.oncomplete = function() { finalizarMigracion(true); };
       tx.onerror = function() { finalizarMigracion(false); };

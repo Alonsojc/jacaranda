@@ -47,7 +47,7 @@ def test_cors_allows_legacy_no_store_request_headers(client):
 def test_service_worker_never_caches_authenticated_api_data():
     sw = read_text("docs/sw.js")
 
-    assert "const CACHE_NAME = 'jacaranda-v93'" in sw
+    assert "const CACHE_NAME = 'jacaranda-v94'" in sw
     assert "request.headers.has('Authorization')" in sw
     assert "offlineApiResponse" in sw
     assert "'Cache-Control': 'no-store'" in sw
@@ -60,7 +60,7 @@ def test_service_worker_never_caches_authenticated_api_data():
 def test_frontend_api_cache_is_short_lived_and_not_persistent():
     html = read_text("docs/index.html")
 
-    assert "var APP_BUILD = 'jacaranda-v93'" in html
+    assert "var APP_BUILD = 'jacaranda-v94'" in html
     assert "function apiGetCacheTtl(path)" in html
     assert "if (clean === '/inventario/productos') return 45000" in html
     assert "if (clean === '/pedidos/reservas') return 15000" in html
@@ -220,11 +220,13 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "_recuperacionVentasPromise = conBloqueoColasVentas(function()" in recovery_segment
     assert "exigirSesionColasVigente(versionSesionMigracion, tokenSesionMigracion)" in recovery_segment
     assert "emparejarVentasLegacyIndexedDB(registros)" in recovery_segment
-    assert "var indexedSinPropietario = _indexedDBSinPropietarioAlCargar || !leerPropietarioColasVentas()" in recovery_segment
+    assert "var localesSinPropietario = !leerPropietarioColasVentas()" in recovery_segment
     assert "asegurarPropietarioColasVentas(true, identidadActualColasVentas())" in recovery_segment
     assert "moverVentasLocalesLegacyARevision(true)" in recovery_segment
     assert "propietario_desconocido: true" in recovery_segment
-    assert "if (indexedSinPropietario)" in recovery_segment
+    assert "var idempotenciaIndexed = ventaLimpia && ventaLimpia.idempotency_key" in recovery_segment
+    assert "existentes[idempotenciaIndexed] || legacyIdempotencias[idempotenciaIndexed]" in recovery_segment
+    assert "_ventasPendientes.push(ventaLimpia)" not in recovery_segment
     assert "_ventasPendientes = fusionarVentasPendientesCompartidas([], [])" in recovery_segment
     assert "_ventasLegacyRevision = fusionarVentasLegacyCompartidas()" in recovery_segment
     assert recovery_segment.index("fusionarVentasPendientesCompartidas([], [])") < recovery_segment.index(
@@ -362,7 +364,7 @@ def test_expired_session_preserves_account_bound_sales():
     assert "if (!preserveSales && window.indexedDB" in core
 
 
-def test_unowned_legacy_sales_stay_in_manual_quarantine():
+def test_unmatched_legacy_indexeddb_sales_stay_in_manual_quarantine():
     html = read_text("docs/index.html")
     owner_segment = segment_between(
         html,
@@ -383,9 +385,10 @@ def test_unowned_legacy_sales_stay_in_manual_quarantine():
     assert "return !(item && item.propietario_desconocido)" in owner_segment
     assert "if (!forzar && !hayColasVentasConPropietario()) return true" in owner_segment
     assert "var _indexedDBSinPropietarioAlCargar = !leerPropietarioColasVentas() && !identidadActualColasVentas()" in html
-    assert "var indexedSinPropietario = _indexedDBSinPropietarioAlCargar || !leerPropietarioColasVentas()" in recovery_segment
+    assert "var localesSinPropietario = !leerPropietarioColasVentas()" in recovery_segment
     assert "moverVentasLocalesLegacyARevision(true)" in recovery_segment
-    assert recovery_segment.index("if (indexedSinPropietario)") < recovery_segment.index("if (!ventaLimpia)")
+    assert "var idempotenciaIndexed = ventaLimpia && ventaLimpia.idempotency_key" in recovery_segment
+    assert "_ventasPendientes.push(ventaLimpia)" not in recovery_segment
     assert "propietario_desconocido: true" in recovery_segment
     assert "if (itemActual.propietario_desconocido)" in review_segment
     assert review_segment.index("if (item.propietario_desconocido)") < review_segment.index(
