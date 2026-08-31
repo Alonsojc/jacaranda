@@ -1,6 +1,6 @@
 """Schemas de inventario: ingredientes, productos, movimientos."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from decimal import Decimal
 from datetime import datetime, date
 
@@ -188,6 +188,43 @@ class MovimientoResponse(BaseModel):
     fecha: datetime
 
     model_config = {"from_attributes": True}
+
+
+class CompraProductoItem(BaseModel):
+    producto_id: int = Field(..., gt=0)
+    cantidad: int = Field(..., gt=0)
+
+    @field_validator("cantidad", mode="before")
+    @classmethod
+    def validar_cantidad_entera(cls, value) -> int:
+        try:
+            cantidad = Decimal(str(value))
+        except Exception as exc:
+            raise ValueError("La cantidad debe ser un entero") from exc
+        if cantidad != cantidad.to_integral_value():
+            raise ValueError("La cantidad debe ser un entero")
+        return int(cantidad)
+
+
+class CompraProductosCreate(BaseModel):
+    items: list[CompraProductoItem] = Field(..., min_length=1, max_length=500)
+    referencia: str | None = Field(default=None, max_length=200)
+    notas: str | None = Field(default=None, max_length=500)
+
+
+class CompraProductoDetalleResponse(BaseModel):
+    producto_id: int
+    producto_nombre: str
+    cantidad: int
+    stock_anterior: Decimal
+    stock_nuevo: Decimal
+
+
+class CompraProductosResponse(BaseModel):
+    mensaje: str
+    total_productos: int
+    total_piezas: int
+    detalles: list[CompraProductoDetalleResponse]
 
 
 # --- Lotes ---

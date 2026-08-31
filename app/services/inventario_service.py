@@ -15,6 +15,7 @@ from app.models.inventario import (
 from app.schemas.inventario import (
     IngredienteCreate, IngredienteUpdate, ProductoCreate, ProductoUpdate,
     MovimientoCreate, LoteCreate, CategoriaCreate, ProveedorCreate,
+    CompraProductosCreate,
 )
 
 
@@ -387,6 +388,98 @@ def registrar_movimiento(
         db.commit()
         db.refresh(movimiento)
     return movimiento
+
+
+def registrar_compra_productos(
+    db: Session,
+    data: CompraProductosCreate,
+    usuario_id: int | None = None,
+) -> dict:
+    """Registra una compra masiva de producto terminado en una transacción."""
+    producto_ids = [item.producto_id for item in data.items]
+    if len(producto_ids) != len(set(producto_ids)):
+        raise ValueError("Cada producto debe aparecer una sola vez en la compra")
+
+    productos = (
+        db.query(Producto)
+        .filter(
+            Producto.id.in_(producto_ids),
+            Producto.activo.is_(True),
+        )
+        .order_by(Producto.id)
+        .with_for_update()
+        .all()
+    )
+    productos_por_id = {producto.id: producto for producto in productos}
+    faltantes = sorted(set(producto_ids) - set(productos_por_id))
+    if faltantes:
+        raise ValueError(
+            "Productos no encontrados o inactivos: "
+            + ", ".join(str(producto_id) for producto_id in faltantes)
+        )
+
+    referencia = (data.referencia or "").strip() or "Compra de productos terminados"
+    notas = (data.notas or "").strip() or None
+    detalles = []
+    stocks_anteriores = {}
+    total_piezas = 0
+
+    for item in data.items:
+        producto = productos_por_id[item.producto_id]
+        stock_anterior = Decimal(str(producto.stock_actual or 0))
+        stocks_anteriores[str(producto.id)] = str(stock_anterior)
+        registrar_movimiento(
+            db,
+            MovimientoCreate(
+                tipo=TipoMovimiento.ENTRADA_COMPRA,
+                producto_id=producto.id,
+                cantidad=Decimal(item.cantidad),
+                costo_unitario=Decimal(str(producto.costo_produccion or 0)),
+                referencia=referencia,
+                notas=notas,
+            ),
+            usuario_id,
+            commit=False,
+        )
+        total_piezas += item.cantidad
+        detalles.append({
+            "producto_id": producto.id,
+            "producto_nombre": producto.nombre,
+            "cantidad": item.cantidad,
+            "stock_anterior": stock_anterior,
+            "stock_nuevo": Decimal(str(producto.stock_actual or 0)),
+        })
+
+    from app.services.auditoria_service import registrar_evento
+
+    registrar_evento(
+        db,
+        usuario_id=usuario_id,
+        usuario_nombre=None,
+        accion="registrar_compra_productos",
+        modulo="inventario",
+        entidad="compra_productos",
+        datos_anteriores={"stocks": stocks_anteriores},
+        datos_nuevos={
+            "referencia": referencia,
+            "notas": notas,
+            "total_productos": len(detalles),
+            "total_piezas": total_piezas,
+            "stocks": {
+                str(detalle["producto_id"]): str(detalle["stock_nuevo"])
+                for detalle in detalles
+            },
+        },
+        commit=False,
+    )
+    db.commit()
+
+    return {
+        "mensaje": "Compra de productos registrada",
+        "total_productos": len(detalles),
+        "total_piezas": total_piezas,
+        "detalles": detalles,
+    }
 
 
 def registrar_empaque_producto(

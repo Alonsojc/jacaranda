@@ -384,6 +384,15 @@ def test_frontend_cafeteria_b2b_surface():
     html = open("docs/index.html", encoding="utf-8").read()
     assert "caf-k-llevado" in html
     assert "cargarCafeteriaClientes" in html
+    assert '<select id="caf-cliente-id"' in html
+    assert 'id="caf-nombre"' not in html
+    assert 'id="cafeterias-list"' not in html
+    assert 'id="modal-cafeteria-cliente"' in html
+    assert "function abrirNuevaCafeteriaCatalogo" in html
+    assert "function abrirEditarCafeteriaCatalogo" in html
+    assert "function guardarCafeteriaCatalogo" in html
+    assert "cafeteria_id: cliente.id" in html
+    assert "cafeteria_nombre: cliente.nombre" in html
     assert "mep-precio-caf" in html
     assert "precio_cafeteria: precioCafeRaw ? parseFloat(precioCafeRaw) : null" in html
     assert "<th>Cafeter&iacute;a</th>" in html
