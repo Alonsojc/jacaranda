@@ -323,6 +323,22 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "tx.abort()" in session_tasks_segment
     assert "_ventasLegacyRevision = []" in logout_segment
     assert "var preservarVentasPendientes" in logout_segment
+    assert "var tokenSesionCierre = TOKEN" in logout_segment
+    assert "var refreshSesionCierre = REFRESH_TOKEN" in logout_segment
+    assert "function credencialesCompartidasSiguenSiendoSesion()" in logout_segment
+    assert "if (!credencialesCompartidasSiguenSiendoSesion()) return false" in logout_segment
+    cleanup_segment = segment_between(
+        logout_segment,
+        "function limpiarSesionConBloqueo()",
+        "var limpiezaSesionCompartida",
+    )
+    assert cleanup_segment.index("if (!credencialesCompartidasSiguenSiendoSesion()) return false") < cleanup_segment.index(
+        "return limpiarClavesSesionCompartida()"
+    )
+    assert "clearPosDraft()" in logout_segment
+    assert "limpiezaSesionCompartida.then(function(limpiada)" in logout_segment
+    assert "if (!limpiada)" in logout_segment
+    assert "programarRecargaSesionCompartida()" in logout_segment
     assert "asegurarPropietarioColasVentas(true, propietarioVentasSesion)" in logout_segment
     assert "clearSensitiveCachesPreservingSales" in logout_segment
     assert "PENDING_SALES_OWNER_MISMATCH" in html
@@ -405,6 +421,39 @@ def test_authenticated_downloads_and_api_cache_are_invalidated_with_the_session(
     assert "if (!sesionDescargaSigueActiva()) return false" in download_segment
     assert "_apiGetCache = {}" in session_tasks_segment
     assert "_apiGetInFlight = {}" in session_tasks_segment
+
+
+def test_logout_revokes_push_without_reusing_a_new_session():
+    html = read_text("docs/index.html")
+    revoke_segment = segment_between(
+        html,
+        "function revocarFCMPushActual()",
+        "// Periodic check for urgent alerts",
+    )
+    logout_segment = segment_between(
+        html,
+        "function cerrarSesion(opciones)",
+        "async function confirmarCerrarSesion",
+    )
+
+    assert "var tokenSesionPush = TOKEN" in revoke_segment
+    assert "'Authorization': 'Bearer ' + tokenSesionPush" in revoke_segment
+    assert "refreshAccessToken" not in revoke_segment
+    assert "localStorage.removeItem(FCM_TOKEN_KEY)" not in revoke_segment
+    shared_cleanup_segment = segment_between(
+        logout_segment,
+        "function limpiarClavesSesionCompartida()",
+        "function limpiarSesionConBloqueo()",
+    )
+    locked_cleanup_segment = segment_between(
+        logout_segment,
+        "function limpiarSesionConBloqueo()",
+        "var limpiezaSesionCompartida",
+    )
+    assert "localStorage.removeItem(FCM_TOKEN_KEY)" in shared_cleanup_segment
+    assert locked_cleanup_segment.index("if (!credencialesCompartidasSiguenSiendoSesion()) return false") < locked_cleanup_segment.index(
+        "return limpiarClavesSesionCompartida()"
+    )
 
 
 def test_expired_session_preserves_account_bound_sales():

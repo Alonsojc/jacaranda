@@ -8221,12 +8221,19 @@ function probarPushManual() {
 function revocarFCMPushActual() {
   var token = localStorage.getItem(FCM_TOKEN_KEY);
   if (!token || !TOKEN) return Promise.resolve(false);
-  return api('POST', '/notificaciones/fcm-token/revocar', {token: token}).catch(function() {
+  var tokenSesionPush = TOKEN;
+  return fetch(API_URL + '/api/v1/notificaciones/fcm-token/revocar', {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + tokenSesionPush
+    },
+    body: JSON.stringify({token: token})
+  }).then(function(r) {
+    return r.ok;
+  }).catch(function() {
     return false;
-  }).then(function() {
-    localStorage.removeItem(FCM_TOKEN_KEY);
-    _fcmRegistroIntentado = false;
-    return true;
   });
 }
 
@@ -13960,12 +13967,13 @@ function cerrarSesion(opciones) {
     }, 30000);
   }
   var propietarioVentasSesion = identidadActualColasVentas();
+  var tokenSesionCierre = TOKEN;
+  var refreshSesionCierre = REFRESH_TOKEN;
   invalidarTareasSesion();
   resolverConfirmacion(false);
   resolverEntrada(false);
   if (_adminAuthPending) cancelarAdminAuth();
   revocarFCMPushActual();
-  clearPosDraft();
   cart = [];
   _ventaEnProceso = false;
   _ventaIdempotencyKey = null;
@@ -13982,7 +13990,18 @@ function cerrarSesion(opciones) {
   }
   _pedidosPendientes = [];
   _pedidoContactos = [];
+  function credencialesCompartidasSiguenSiendoSesion() {
+    try {
+      return (localStorage.getItem('jacaranda_token') || '') === tokenSesionCierre &&
+        (localStorage.getItem('jacaranda_refresh_token') || '') === refreshSesionCierre;
+    } catch (e) {
+      return false;
+    }
+  }
   function limpiarClavesSesionCompartida() {
+    clearPosDraft();
+    localStorage.removeItem(FCM_TOKEN_KEY);
+    _fcmRegistroIntentado = false;
     if (!preservarVentasPendientes) {
       localStorage.removeItem('jacaranda_ventas_pendientes');
       localStorage.removeItem('jacaranda_ventas_legacy_revision');
@@ -13992,8 +14011,10 @@ function cerrarSesion(opciones) {
     localStorage.removeItem('jacaranda_token');
     localStorage.removeItem('jacaranda_refresh_token');
     localStorage.removeItem('jacaranda_user');
+    return true;
   }
   function limpiarSesionConBloqueo() {
+    if (!credencialesCompartidasSiguenSiendoSesion()) return false;
     if (preservarVentasPendientes) {
       _ventasPendientes = leerVentasPendientesLocal();
       _ventasLegacyRevision = leerVentasLegacyRevision();
@@ -14001,16 +14022,13 @@ function cerrarSesion(opciones) {
         asegurarPropietarioColasVentas(true, propietarioVentasSesion);
       }
     }
-    limpiarClavesSesionCompartida();
+    return limpiarClavesSesionCompartida();
   }
   var limpiezaSesionCompartida = bloqueoColasAdquirido
     ? Promise.resolve().then(limpiarSesionConBloqueo)
     : conBloqueoColasVentas(limpiarSesionConBloqueo, 30000).catch(function(e) {
       if (!preservarVentasPendientes) throw e;
-      if (!_indexedDBSinPropietarioAlCargar || leerPropietarioColasVentas()) {
-        asegurarPropietarioColasVentas(true, propietarioVentasSesion);
-      }
-      limpiarClavesSesionCompartida();
+      return false;
     });
   _currentUser = null;
   document.getElementById('login-screen').style.display = 'flex';
@@ -14024,7 +14042,11 @@ function cerrarSesion(opciones) {
   document.getElementById('login-pass').value = '';
   document.getElementById('login-error').style.display = 'none';
   setConnected(false);
-  limpiezaSesionCompartida.then(function() {
+  limpiezaSesionCompartida.then(function(limpiada) {
+    if (!limpiada) {
+      programarRecargaSesionCompartida();
+      return;
+    }
     if (!window.JacarandaCore) return;
     if (preservarVentasPendientes) {
       if (JacarandaCore.clearSensitiveCachesPreservingSales) {
