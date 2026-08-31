@@ -2729,7 +2729,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v94';
+var APP_BUILD = 'jacaranda-v95';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
@@ -3800,6 +3800,7 @@ function login(email, pass) {
   }).then(function(d) {
     verificarPropietarioColasVentas(d.access_token);
     return conBloqueoColasVentas(function() {
+      verificarPropietarioColasVentas(d.access_token);
       invalidarTareasSesion();
       TOKEN = d.access_token;
       localStorage.setItem('jacaranda_token', TOKEN);
@@ -5466,6 +5467,7 @@ function resumenVentaLegacy(item) {
 function quitarRevisionVentaCompartida(itemKey, versionSesion, tokenSesion) {
   return conBloqueoColasVentas(function() {
     exigirSesionColasVigente(versionSesion, tokenSesion);
+    _ventasPendientes = leerVentasPendientesLocal();
     _ventasLegacyRevision = leerVentasLegacyRevision();
     var indice = _ventasLegacyRevision.findIndex(function(item) {
       return String((item && item.key) || '') === itemKey;

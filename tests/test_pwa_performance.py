@@ -47,7 +47,7 @@ def test_cors_allows_legacy_no_store_request_headers(client):
 def test_service_worker_never_caches_authenticated_api_data():
     sw = read_text("docs/sw.js")
 
-    assert "const CACHE_NAME = 'jacaranda-v94'" in sw
+    assert "const CACHE_NAME = 'jacaranda-v95'" in sw
     assert "request.headers.has('Authorization')" in sw
     assert "offlineApiResponse" in sw
     assert "'Cache-Control': 'no-store'" in sw
@@ -60,7 +60,7 @@ def test_service_worker_never_caches_authenticated_api_data():
 def test_frontend_api_cache_is_short_lived_and_not_persistent():
     html = read_text("docs/index.html")
 
-    assert "var APP_BUILD = 'jacaranda-v94'" in html
+    assert "var APP_BUILD = 'jacaranda-v95'" in html
     assert "function apiGetCacheTtl(path)" in html
     assert "if (clean === '/inventario/productos') return 45000" in html
     assert "if (clean === '/pedidos/reservas') return 15000" in html
@@ -252,6 +252,14 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
         "await quitarRevisionVentaCompartida(itemKeyRevision, versionSesionRevision, tokenSesionRevision)"
     ) == 4
     assert review_mutation_segment.count("return conBloqueoColasVentas(function()") == 2
+    quitar_segment = segment_between(
+        review_mutation_segment,
+        "function quitarRevisionVentaCompartida",
+        "function recuperarVentaLegacyCompartida",
+    )
+    assert quitar_segment.index("_ventasPendientes = leerVentasPendientesLocal()") < quitar_segment.index(
+        "_ventasLegacyRevision = leerVentasLegacyRevision()"
+    )
     assert "_ventasPendientes = leerVentasPendientesLocal()" in review_mutation_segment
     assert "_ventasLegacyRevision = leerVentasLegacyRevision()" in review_mutation_segment
     assert "guardarVentasPendientesLocal()" in review_mutation_segment
@@ -288,9 +296,15 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "resolverEntrada(false)" in logout_segment
     assert "cancelarAdminAuth()" in logout_segment
     assert "invalidarTareasSesion()" in login_segment
-    assert "verificarPropietarioColasVentas(d.access_token)" in login_segment
+    assert login_segment.count("verificarPropietarioColasVentas(d.access_token)") == 2
     assert "if (!leerPropietarioColasVentas()) _indexedDBSinPropietarioAlCargar = true" in login_segment
     assert "return conBloqueoColasVentas(function()" in login_segment
+    assert login_segment.rindex("verificarPropietarioColasVentas(d.access_token)") > login_segment.index(
+        "return conBloqueoColasVentas(function()"
+    )
+    assert login_segment.rindex("verificarPropietarioColasVentas(d.access_token)") < login_segment.index(
+        "invalidarTareasSesion()"
+    )
     assert "}, 30000)" in login_segment
     assert "_versionSesion++" in session_tasks_segment
     assert "tx.abort()" in session_tasks_segment
