@@ -113,6 +113,11 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
         "function recuperarVentasIndexedDB",
         "recuperarVentasIndexedDB();",
     )
+    review_segment = segment_between(
+        html,
+        "async function revisarSiguienteVentaLegacy",
+        "function sincronizarVentas",
+    )
     sw = read_text("docs/sw.js")
     logout_segment = segment_between(html, "function cerrarSesion()", "async function confirmarCerrarSesion")
 
@@ -127,8 +132,16 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "sync-ventas" not in sw
     assert "syncOfflineVentas" not in sw
     assert "Authorization" not in recovery_segment
-    assert "if (!venta || !venta.idempotency_key)" in recovery_segment
+    assert "item.headers" not in recovery_segment
+    assert "_ventasLegacyRevision.push" in recovery_segment
+    assert "var ventaLimpia = payloadVentaPendiente(venta)" in recovery_segment
     assert "store.delete(item.id)" in recovery_segment
+    assert "indexedDB.deleteDatabase('jacaranda-offline')" in recovery_segment
+    assert "nuevaClaveIdempotencia('venta-legacy')" in review_segment
+    assert "confirmarAccion({" in review_segment
+    assert "var total = _ventasPendientes.length + _ventasLegacyRevision.length" in html
+    assert "total === 1 ? 'venta pendiente' : 'ventas pendientes'" in html
+    assert 'onclick="accionVentasPendientes()"' in html
     assert "function leerVentasPendientesLocal" in html
     assert "_apiGetCache = {}" in logout_segment
     assert "{type: 'CLEAR_AUTH_DATA'}" in logout_segment
@@ -227,6 +240,7 @@ def test_core_sensitive_cleanup_preserves_static_cache_and_clears_offline_db():
 
     assert "function clearSensitiveCaches" in core
     assert "jacaranda_prods_cache" in core
+    assert "jacaranda_ventas_legacy_revision" in core
     assert "indexedDB.deleteDatabase('jacaranda-offline')" in core
     assert "jacaranda-(auth|api|data|offline)" in core
     assert "caches.delete(name)" in core

@@ -24,6 +24,7 @@
     var localKeys = [
       'jacaranda_prods_cache',
       'jacaranda_ventas_pendientes',
+      'jacaranda_ventas_legacy_revision',
       'jacaranda_pedidos_pendientes',
       'jacaranda_pedido_contactos',
       'jacaranda_pos_draft',

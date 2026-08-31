@@ -748,9 +748,11 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <h3>Ticket</h3>
 <button type="button" class="mobile-ticket-close" onclick="cerrarTicketMovil()" aria-label="Cerrar ticket" title="Cerrar ticket">&times;</button>
 </div>
-<div id="pos-offline-banner" style="display:none;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:.5rem .7rem;margin-bottom:.5rem;font-size:.78rem;color:#92400e">
-&#9888; Modo offline &mdash; <span id="pos-pending-count">0</span> ventas pendientes
-<button onclick="sincronizarVentas()" style="margin-left:.3rem;padding:.2rem .5rem;border:1px solid #92400e;border-radius:5px;background:#fff;font-size:.72rem;cursor:pointer;font-weight:600;color:#92400e">Sincronizar</button>
+<div id="pos-offline-banner" role="status" aria-live="polite" style="display:none;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:.45rem .6rem;margin-bottom:.5rem;font-size:.78rem;color:#92400e">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+<span>&#9888; <span id="pos-pending-label">Modo offline</span> &mdash; <span id="pos-pending-count">0</span> <span id="pos-pending-noun">ventas pendientes</span></span>
+<button type="button" id="pos-pending-action" onclick="accionVentasPendientes()" style="min-height:38px;flex-shrink:0;padding:.35rem .65rem;border:1px solid #92400e;border-radius:5px;background:#fff;font-size:.75rem;cursor:pointer;font-weight:600;color:#92400e">Sincronizar</button>
+</div>
 </div>
 <div style="font-size:.78rem;color:var(--mut);margin:.5rem 0 .3rem;font-weight:600">Cliente (puntos):</div>
 <div style="display:flex;gap:.3rem;align-items:center;margin-bottom:.4rem">
@@ -2759,7 +2761,17 @@ function leerVentasPendientesLocal() {
     return [];
   }
 }
+function leerVentasLegacyRevision() {
+  try {
+    var guardadas = JSON.parse(localStorage.getItem('jacaranda_ventas_legacy_revision') || '[]');
+    return Array.isArray(guardadas) ? guardadas : [];
+  } catch (e) {
+    localStorage.removeItem('jacaranda_ventas_legacy_revision');
+    return [];
+  }
+}
 var _ventasPendientes = leerVentasPendientesLocal();
+var _ventasLegacyRevision = leerVentasLegacyRevision();
 var _sincronizandoVentas = false;
 var _pedidosPendientes = JSON.parse(localStorage.getItem('jacaranda_pedidos_pendientes') || '[]');
 var _pedidoContactos = JSON.parse(localStorage.getItem('jacaranda_pedido_contactos') || '[]');
@@ -4914,10 +4926,17 @@ function esperarPagoClip(ventaId, intentos) {
 function actualizarBannerOffline() {
   var banner = document.getElementById('pos-offline-banner');
   var count = document.getElementById('pos-pending-count');
+  var noun = document.getElementById('pos-pending-noun');
+  var label = document.getElementById('pos-pending-label');
+  var action = document.getElementById('pos-pending-action');
   if (!banner || !count) return;
-  if (_offline || _ventasPendientes.length > 0) {
+  var total = _ventasPendientes.length + _ventasLegacyRevision.length;
+  if (_offline || total > 0) {
     banner.style.display = 'block';
-    count.textContent = _ventasPendientes.length;
+    count.textContent = total;
+    if (noun) noun.textContent = total === 1 ? 'venta pendiente' : 'ventas pendientes';
+    if (label) label.textContent = _ventasLegacyRevision.length ? 'Revisi\u00f3n necesaria' : (_offline ? 'Modo offline' : 'Sincronizaci\u00f3n pendiente');
+    if (action) action.textContent = _ventasLegacyRevision.length ? 'Revisar' : 'Sincronizar';
   } else {
     banner.style.display = 'none';
   }
@@ -4928,6 +4947,14 @@ function guardarVentasPendientesLocal() {
     localStorage.setItem('jacaranda_ventas_pendientes', JSON.stringify(_ventasPendientes));
   } else {
     localStorage.removeItem('jacaranda_ventas_pendientes');
+  }
+}
+
+function guardarVentasLegacyRevision() {
+  if (_ventasLegacyRevision.length) {
+    localStorage.setItem('jacaranda_ventas_legacy_revision', JSON.stringify(_ventasLegacyRevision));
+  } else {
+    localStorage.removeItem('jacaranda_ventas_legacy_revision');
   }
 }
 
@@ -4942,6 +4969,85 @@ function payloadVentaPendiente(venta) {
     body.recompensa_lealtad_motivo = venta.recompensa_lealtad_motivo;
   }
   return body;
+}
+
+function resumenVentaLegacy(item) {
+  var fecha = item && item.timestamp ? new Date(item.timestamp) : null;
+  var fechaTexto = fecha && !isNaN(fecha.getTime())
+    ? fecha.toLocaleString('es-MX', {dateStyle:'medium', timeStyle:'short'})
+    : 'fecha no disponible';
+  if (!item || !item.venta) return fechaTexto;
+  var piezas = (item.venta.detalles || []).reduce(function(total, detalle) {
+    return total + (parseInt(detalle.cantidad, 10) || 0);
+  }, 0);
+  var monto = parseFloat(item.venta.monto_recibido);
+  var partes = [fechaTexto, piezas + (piezas === 1 ? ' pieza' : ' piezas')];
+  if (isFinite(monto) && monto > 0) partes.push('monto capturado $' + fmt(monto));
+  return partes.join(' \u00b7 ');
+}
+
+async function revisarSiguienteVentaLegacy() {
+  if (!_ventasLegacyRevision.length) {
+    actualizarBannerOffline();
+    return;
+  }
+  var item = _ventasLegacyRevision[0];
+  if (!item.venta) {
+    var revisado = await confirmarAccion({
+      title: 'Registro antiguo da\u00f1ado',
+      message: 'No contiene una venta que se pueda recuperar.',
+      detail: 'Revisa el Corte de caja de ' + resumenVentaLegacy(item) + ' antes de marcarlo como revisado.',
+      icon: '!',
+      acceptText: 'Marcar revisado',
+      cancelText: 'Conservar'
+    });
+    if (revisado) {
+      _ventasLegacyRevision.shift();
+      guardarVentasLegacyRevision();
+      actualizarBannerOffline();
+    }
+    return;
+  }
+
+  var recuperar = await confirmarAccion({
+    title: 'Venta antigua por revisar',
+    message: 'Busca esta venta en Corte de caja. Si no aparece, recup\u00e9rala.',
+    detail: resumenVentaLegacy(item),
+    icon: '!',
+    acceptText: 'Recuperar',
+    cancelText: 'Ya aparece'
+  });
+  if (recuperar) {
+    item.venta.idempotency_key = nuevaClaveIdempotencia('venta-legacy');
+    _ventasPendientes.push(item.venta);
+    _ventasLegacyRevision.shift();
+    guardarVentasPendientesLocal();
+    guardarVentasLegacyRevision();
+    actualizarBannerOffline();
+    toast('Venta lista para sincronizar');
+    if (navigator.onLine && !_offline) sincronizarVentas();
+    return;
+  }
+
+  var registrada = await confirmarAccion({
+    title: '\u00bfYa est\u00e1 registrada?',
+    message: 'Confirma solo si encontraste la venta en Corte de caja.',
+    detail: resumenVentaLegacy(item),
+    icon: '?',
+    acceptText: 'S\u00ed, ya est\u00e1',
+    cancelText: 'Volver'
+  });
+  if (registrada) {
+    _ventasLegacyRevision.shift();
+    guardarVentasLegacyRevision();
+    actualizarBannerOffline();
+    toast('Venta antigua marcada como revisada');
+  }
+}
+
+function accionVentasPendientes() {
+  if (_ventasLegacyRevision.length) return revisarSiguienteVentaLegacy();
+  return sincronizarVentas();
 }
 
 function sincronizarVentas() {
@@ -4983,7 +5089,7 @@ function recuperarVentasIndexedDB() {
   if (!window.indexedDB) return Promise.resolve(0);
   return new Promise(function(resolve) {
     var recuperadas = 0;
-    var omitidas = 0;
+    var legacyEncontradas = 0;
     var db = null;
     var req = indexedDB.open('jacaranda-offline', 1);
     req.onupgradeneeded = function(e) {
@@ -4992,7 +5098,10 @@ function recuperarVentasIndexedDB() {
         upgradeDb.createObjectStore('pending-sales', { keyPath: 'id', autoIncrement: true });
       }
     };
-    req.onerror = function() { resolve(0); };
+    req.onerror = function() {
+      indexedDB.deleteDatabase('jacaranda-offline');
+      resolve(0);
+    };
     req.onsuccess = function(e) {
       db = e.target.result;
       var tx = db.transaction('pending-sales', 'readwrite');
@@ -5000,40 +5109,60 @@ function recuperarVentasIndexedDB() {
       var getReq = store.getAll();
       getReq.onsuccess = function() {
         var existentes = {};
+        var legacyExistentes = {};
         _ventasPendientes.forEach(function(venta) {
           if (venta && venta.idempotency_key) existentes[venta.idempotency_key] = true;
+        });
+        _ventasLegacyRevision.forEach(function(item) {
+          if (item && item.key) legacyExistentes[item.key] = true;
         });
         (getReq.result || []).forEach(function(item) {
           var venta = null;
           try { venta = JSON.parse(item.body || '{}'); } catch (err) { venta = null; }
-          if (!venta || !venta.idempotency_key) {
-            omitidas++;
-            return;
-          }
-          if (!existentes[venta.idempotency_key]) {
-            venta._timestamp = venta._timestamp || item.timestamp || new Date().toISOString();
-            _ventasPendientes.push(venta);
-            existentes[venta.idempotency_key] = true;
-            recuperadas++;
+          var timestamp = item.timestamp || new Date().toISOString();
+          var legacyKey = 'indexeddb-' + timestamp + '-' + item.id;
+          if (!venta || !Array.isArray(venta.detalles) || !venta.detalles.length) {
+            if (!legacyExistentes[legacyKey]) {
+              _ventasLegacyRevision.push({key: legacyKey, timestamp: timestamp, venta: null});
+              legacyExistentes[legacyKey] = true;
+              legacyEncontradas++;
+            }
+          } else {
+            var ventaLimpia = payloadVentaPendiente(venta);
+            ventaLimpia._timestamp = timestamp;
+            if (ventaLimpia.idempotency_key) {
+              if (!existentes[ventaLimpia.idempotency_key]) {
+                _ventasPendientes.push(ventaLimpia);
+                existentes[ventaLimpia.idempotency_key] = true;
+                recuperadas++;
+              }
+            } else if (!legacyExistentes[legacyKey]) {
+              _ventasLegacyRevision.push({key: legacyKey, timestamp: timestamp, venta: ventaLimpia});
+              legacyExistentes[legacyKey] = true;
+              legacyEncontradas++;
+            }
           }
           store.delete(item.id);
         });
       };
-      getReq.onerror = function() { omitidas++; };
-      tx.oncomplete = function() {
-        db.close();
+      getReq.onerror = function() { tx.abort(); };
+      var finalizada = false;
+      function finalizarMigracion() {
+        if (finalizada) return;
+        finalizada = true;
+        if (db) db.close();
         guardarVentasPendientesLocal();
+        guardarVentasLegacyRevision();
         actualizarBannerOffline();
-        if (!omitidas) indexedDB.deleteDatabase('jacaranda-offline');
+        indexedDB.deleteDatabase('jacaranda-offline');
         if (recuperadas && _currentUser && !_offline) {
           setTimeout(sincronizarVentas, 1000);
         }
-        resolve(recuperadas);
-      };
-      tx.onerror = function() {
-        if (db) db.close();
-        resolve(0);
-      };
+        resolve(recuperadas + legacyEncontradas);
+      }
+      tx.oncomplete = finalizarMigracion;
+      tx.onerror = finalizarMigracion;
+      tx.onabort = finalizarMigracion;
     };
   });
 }
