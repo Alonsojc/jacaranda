@@ -125,6 +125,11 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     sw = read_text("docs/sw.js")
     logout_segment = segment_between(html, "function cerrarSesion()", "async function confirmarCerrarSesion")
     login_segment = segment_between(html, "function login(email, pass)", "function togglePassword")
+    session_tasks_segment = segment_between(
+        html,
+        "function invalidarTareasSesion()",
+        "function moduloDesactivado",
+    )
 
     assert "fallidas.push(venta)" in sync_segment
     assert "_ventasPendientes = fallidas.concat(nuevas)" in sync_segment
@@ -143,7 +148,10 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "item.headers" not in recovery_segment
     assert "_ventasLegacyRevision.push" in recovery_segment
     assert "var ventaLimpia = payloadVentaPendiente(venta)" in recovery_segment
-    assert "store.delete(item.id)" in recovery_segment
+    assert "db.transaction('pending-sales', 'readonly')" in recovery_segment
+    assert "var versionSesionMigracion = _versionSesion" in recovery_segment
+    assert "function sesionCambioDuranteMigracion()" in recovery_segment
+    assert "if (!completa) revertirVentasMigradas()" in recovery_segment
     assert "if (completa) indexedDB.deleteDatabase('jacaranda-offline')" in recovery_segment
     assert "if (!ventasGuardadas || !legacyGuardadas) tx.abort()" in recovery_segment
     assert "tx.onabort = function() { finalizarMigracion(false); }" in recovery_segment
@@ -154,8 +162,10 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert 'onclick="accionVentasPendientes()"' in html
     assert "function leerVentasPendientesLocal" in html
     assert "_apiGetCache = {}" in logout_segment
-    assert "_versionSesion++" in logout_segment
-    assert "_versionSesion++" in login_segment
+    assert "invalidarTareasSesion()" in logout_segment
+    assert "invalidarTareasSesion()" in login_segment
+    assert "_versionSesion++" in session_tasks_segment
+    assert "tx.abort()" in session_tasks_segment
     assert "_ventasLegacyRevision = []" in logout_segment
     assert "{type: 'CLEAR_AUTH_DATA'}" in logout_segment
 
