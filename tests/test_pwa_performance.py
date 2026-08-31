@@ -157,7 +157,7 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "item.headers" not in recovery_segment
     assert "_ventasLegacyRevision.push" in recovery_segment
     assert "ventaLimpia = payloadVentaPendiente(venta)" in recovery_segment
-    assert "db.transaction('pending-sales', 'readonly')" in recovery_segment
+    assert "db.transaction('pending-sales', 'readwrite')" in recovery_segment
     assert "var versionSesionMigracion = _versionSesion" in recovery_segment
     assert "function sesionCambioDuranteMigracion()" in recovery_segment
     assert "emparejarVentasLegacyIndexedDB(registros)" in recovery_segment
@@ -167,8 +167,10 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
         "var ventasGuardadas = guardarVentasPendientesLocal()"
     )
     assert "if (!completa) revertirVentasMigradas()" in recovery_segment
-    assert "if (completa) indexedDB.deleteDatabase('jacaranda-offline')" in recovery_segment
-    assert "if (!ventasGuardadas || !legacyGuardadas) tx.abort()" in recovery_segment
+    assert "store.clear()" in recovery_segment
+    assert "indexedDB.deleteDatabase('jacaranda-offline')" not in recovery_segment
+    assert "if (!ventasGuardadas || !legacyGuardadas)" in recovery_segment
+    assert "tx.abort()" in recovery_segment
     assert "tx.onabort = function() { finalizarMigracion(false); }" in recovery_segment
     assert "claveIdempotenciaVentaLegacy(item)" in review_segment
     assert "confirmarAccion({" in review_segment

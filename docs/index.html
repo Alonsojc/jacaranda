@@ -5370,7 +5370,8 @@ function recuperarVentasIndexedDB() {
         resolve(0);
         return;
       }
-      var tx = db.transaction('pending-sales', 'readonly');
+      // Una venta escrita despues por una version anterior debe quedar para la siguiente recuperacion.
+      var tx = db.transaction('pending-sales', 'readwrite');
       _migracionVentasTx = tx;
       var store = tx.objectStore('pending-sales');
       var getReq = store.getAll();
@@ -5439,7 +5440,11 @@ function recuperarVentasIndexedDB() {
         _ventasLegacyRevision = fusionarVentasLegacyCompartidas();
         var ventasGuardadas = guardarVentasPendientesLocal();
         var legacyGuardadas = guardarVentasLegacyRevision();
-        if (!ventasGuardadas || !legacyGuardadas) tx.abort();
+        if (!ventasGuardadas || !legacyGuardadas) {
+          tx.abort();
+          return;
+        }
+        store.clear();
       };
       getReq.onerror = function() { tx.abort(); };
       var finalizada = false;
@@ -5465,7 +5470,6 @@ function recuperarVentasIndexedDB() {
         if (!completa) revertirVentasMigradas();
         if (db) db.close();
         actualizarBannerOffline();
-        if (completa) indexedDB.deleteDatabase('jacaranda-offline');
         if (completa && recuperadas && _currentUser && !_offline) {
           setTimeout(sincronizarVentas, 1000);
         }
