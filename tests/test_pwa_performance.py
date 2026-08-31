@@ -138,6 +138,7 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "var sesionSync = _versionSesion" in sync_segment
     assert "function sesionCambioDuranteSync()" in sync_segment
     assert "if (sesionCancelada || sesionCambioDuranteSync()) return" in sync_segment
+    assert ", false, null, sesionSync)" in sync_segment
     assert "guardarVentasPendientesLocal()" in sync_segment
     assert "body.referencia_pago = venta.referencia_pago" in payload_segment
     assert "localStorage.removeItem('jacaranda_ventas_pendientes')" not in sync_segment
@@ -148,11 +149,11 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "Authorization" not in recovery_segment
     assert "item.headers" not in recovery_segment
     assert "_ventasLegacyRevision.push" in recovery_segment
-    assert "var ventaLimpia = payloadVentaPendiente(venta)" in recovery_segment
+    assert "ventaLimpia = payloadVentaPendiente(venta)" in recovery_segment
     assert "db.transaction('pending-sales', 'readonly')" in recovery_segment
     assert "var versionSesionMigracion = _versionSesion" in recovery_segment
     assert "function sesionCambioDuranteMigracion()" in recovery_segment
-    assert "encontrarVentaLegacyCoincidente" in recovery_segment
+    assert "emparejarVentasLegacyIndexedDB(registros)" in recovery_segment
     assert "if (!completa) revertirVentasMigradas()" in recovery_segment
     assert "if (completa) indexedDB.deleteDatabase('jacaranda-offline')" in recovery_segment
     assert "if (!ventasGuardadas || !legacyGuardadas) tx.abort()" in recovery_segment
@@ -180,6 +181,44 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "tx.abort()" in session_tasks_segment
     assert "_ventasLegacyRevision = []" in logout_segment
     assert "{type: 'CLEAR_AUTH_DATA'}" in logout_segment
+
+
+def test_offline_sale_retry_never_crosses_into_a_new_session():
+    html = read_text("docs/index.html")
+    api_segment = segment_between(html, "function api(method, path", "function apiPublic")
+    sync_segment = segment_between(
+        html,
+        "function sincronizarVentas",
+        "function recuperarVentasIndexedDB",
+    )
+
+    assert "versionSesionEsperada" in api_segment
+    assert "function sesionSolicitudSigueActiva()" in api_segment
+    assert "errorSesionSolicitudCambiada()" in api_segment
+    assert "api(method, path, body, true, extraHeaders, versionSesionEsperada)" in api_segment
+    assert api_segment.index("if (!sesionSolicitudSigueActiva())") < api_segment.index(
+        "refreshAccessToken()"
+    )
+    assert ", false, null, sesionSync)" in sync_segment
+
+
+def test_legacy_sale_matching_uses_complete_payload_and_nearest_timestamp():
+    html = read_text("docs/index.html")
+    matching_segment = segment_between(
+        html,
+        "function huellaVentaLegacy",
+        "function moverVentasLocalesLegacyARevision",
+    )
+
+    assert "var payload = payloadVentaPendiente(venta || {})" in matching_segment
+    assert "delete payload.idempotency_key" in matching_segment
+    assert "function ordenarValorHuella" in matching_segment
+    assert "Object.keys(valor).sort()" in matching_segment
+    assert "diferencia <= 30000" in matching_segment
+    assert "candidatos.sort" in matching_segment
+    assert "a.diferencia - b.diferencia" in matching_segment
+    assert "indexedEmparejadas[candidato.indexedKey]" in matching_segment
+    assert "localesUsadas[candidato.localKey]" in matching_segment
 
 
 def test_mobile_navigation_has_loading_feedback_and_guarded_pull_refresh():

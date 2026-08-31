@@ -3054,8 +3054,18 @@ function ensureHtml5QrCode() {
   return loadScriptOnce(HTML5_QRCODE_SRC, function() { return !!window.Html5Qrcode; });
 }
 
-function api(method, path, body, _retry, extraHeaders) {
+function errorSesionSolicitudCambiada() {
+  var error = new Error('La sesi\u00f3n cambi\u00f3 durante la solicitud');
+  error.code = 'SESSION_CHANGED';
+  return error;
+}
+
+function api(method, path, body, _retry, extraHeaders, versionSesionEsperada) {
   if (!API_URL) return Promise.reject('offline');
+  function sesionSolicitudSigueActiva() {
+    return versionSesionEsperada == null || _versionSesion === versionSesionEsperada;
+  }
+  if (!sesionSolicitudSigueActiva()) return Promise.reject(errorSesionSolicitudCambiada());
   var dedupeKey = null;
   var cacheTtl = (!_retry && method === 'GET' && !body && !extraHeaders) ? apiGetCacheTtl(path) : 0;
   if (cacheTtl) {
@@ -3091,11 +3101,14 @@ function api(method, path, body, _retry, extraHeaders) {
   var request = fetch(API_URL + '/api/v1' + path, opts).then(function(r) {
     if (timeoutId) clearTimeout(timeoutId);
     if (r.status === 401 && !_retry && REFRESH_TOKEN) {
+      if (!sesionSolicitudSigueActiva()) return Promise.reject(errorSesionSolicitudCambiada());
       return refreshAccessToken().then(function() {
-        return api(method, path, body, true, extraHeaders);
+        if (!sesionSolicitudSigueActiva()) throw errorSesionSolicitudCambiada();
+        return api(method, path, body, true, extraHeaders, versionSesionEsperada);
       });
     }
     if (r.status === 401) {
+      if (!sesionSolicitudSigueActiva()) return Promise.reject(errorSesionSolicitudCambiada());
       cerrarSesion();
       var authErr = new Error('Sesión expirada');
       authErr.status = 401;
@@ -5012,34 +5025,62 @@ function payloadVentaPendiente(venta) {
 
 function huellaVentaLegacy(venta) {
   try {
-    venta = venta || {};
-    return JSON.stringify({
-      detalles: venta.detalles,
-      forma_pago: venta.forma_pago,
-      metodo_pago: venta.metodo_pago,
-      monto_recibido: venta.monto_recibido
-    });
+    var payload = payloadVentaPendiente(venta || {});
+    delete payload.idempotency_key;
+    return JSON.stringify(ordenarValorHuella(payload));
   } catch (e) {
     return '';
   }
 }
 
-function fechasVentaLegacyCoinciden(fechaA, fechaB) {
-  var tiempoA = new Date(fechaA || '').getTime();
-  var tiempoB = new Date(fechaB || '').getTime();
-  return isFinite(tiempoA) && isFinite(tiempoB) && Math.abs(tiempoA - tiempoB) <= 300000;
+function ordenarValorHuella(valor) {
+  if (Array.isArray(valor)) return valor.map(ordenarValorHuella);
+  if (!valor || typeof valor !== 'object') return valor;
+  var ordenado = {};
+  Object.keys(valor).sort().forEach(function(key) {
+    if (valor[key] !== undefined) ordenado[key] = ordenarValorHuella(valor[key]);
+  });
+  return ordenado;
 }
 
-function encontrarVentaLegacyCoincidente(venta, timestamp, usadas) {
-  var huella = huellaVentaLegacy(venta);
-  if (!huella) return null;
-  for (var i = 0; i < _ventasLegacyRevision.length; i++) {
-    var item = _ventasLegacyRevision[i];
-    if (!item || !item.venta || usadas[item.key]) continue;
-    if (!fechasVentaLegacyCoinciden(item.timestamp, timestamp)) continue;
-    if (huellaVentaLegacy(item.venta) === huella) return item;
-  }
-  return null;
+function diferenciaFechasVentaLegacy(fechaA, fechaB) {
+  var tiempoA = new Date(fechaA || '').getTime();
+  var tiempoB = new Date(fechaB || '').getTime();
+  if (!isFinite(tiempoA) || !isFinite(tiempoB)) return Infinity;
+  return Math.abs(tiempoA - tiempoB);
+}
+
+function emparejarVentasLegacyIndexedDB(registros) {
+  var candidatos = [];
+  registros.forEach(function(registro) {
+    if (!registro || !registro.venta || registro.venta.idempotency_key) return;
+    var huella = huellaVentaLegacy(registro.venta);
+    if (!huella) return;
+    _ventasLegacyRevision.forEach(function(item) {
+      if (!item || !item.key || !item.venta) return;
+      if (huellaVentaLegacy(item.venta) !== huella) return;
+      var diferencia = diferenciaFechasVentaLegacy(item.timestamp, registro.timestamp);
+      if (diferencia <= 30000) {
+        candidatos.push({
+          diferencia: diferencia,
+          indexedKey: registro.legacyKey,
+          localKey: item.key
+        });
+      }
+    });
+  });
+  candidatos.sort(function(a, b) {
+    if (a.diferencia !== b.diferencia) return a.diferencia - b.diferencia;
+    return (a.indexedKey + a.localKey).localeCompare(b.indexedKey + b.localKey);
+  });
+  var indexedEmparejadas = {};
+  var localesUsadas = {};
+  candidatos.forEach(function(candidato) {
+    if (indexedEmparejadas[candidato.indexedKey] || localesUsadas[candidato.localKey]) return;
+    indexedEmparejadas[candidato.indexedKey] = true;
+    localesUsadas[candidato.localKey] = true;
+  });
+  return indexedEmparejadas;
 }
 
 function moverVentasLocalesLegacyARevision() {
@@ -5226,7 +5267,7 @@ function sincronizarVentas() {
           sesionCancelada = true;
           return;
         }
-        return api('POST', '/punto-de-venta/ventas', payloadVentaPendiente(venta)).then(function() {
+        return api('POST', '/punto-de-venta/ventas', payloadVentaPendiente(venta), false, null, sesionSync).then(function() {
           if (sesionCambioDuranteSync()) {
             sesionCancelada = true;
             return;
@@ -5268,7 +5309,6 @@ function recuperarVentasIndexedDB() {
   var versionSesionMigracion = _versionSesion;
   var ventasAgregadas = [];
   var legacyAgregadas = [];
-  var legacyEmparejadas = {};
   function sesionCambioDuranteMigracion() {
     return _versionSesion !== versionSesionMigracion || !TOKEN;
   }
@@ -5308,12 +5348,24 @@ function recuperarVentasIndexedDB() {
         _ventasLegacyRevision.forEach(function(item) {
           if (item && item.key) legacyExistentes[item.key] = true;
         });
-        (getReq.result || []).forEach(function(item) {
+        var registros = (getReq.result || []).map(function(item) {
           var venta = null;
           try { venta = JSON.parse(item.body || '{}'); } catch (err) { venta = null; }
           var timestamp = item.timestamp || new Date().toISOString();
           var legacyKey = 'indexeddb-' + timestamp + '-' + item.id;
-          if (!venta || !Array.isArray(venta.detalles) || !venta.detalles.length) {
+          var ventaLimpia = null;
+          if (venta && Array.isArray(venta.detalles) && venta.detalles.length) {
+            ventaLimpia = payloadVentaPendiente(venta);
+            ventaLimpia._timestamp = timestamp;
+          }
+          return {legacyKey: legacyKey, timestamp: timestamp, venta: ventaLimpia};
+        });
+        var indexedLegacyEmparejadas = emparejarVentasLegacyIndexedDB(registros);
+        registros.forEach(function(registro) {
+          var ventaLimpia = registro.venta;
+          var timestamp = registro.timestamp;
+          var legacyKey = registro.legacyKey;
+          if (!ventaLimpia) {
             if (!legacyExistentes[legacyKey]) {
               var legacyDanada = {key: legacyKey, timestamp: timestamp, venta: null};
               _ventasLegacyRevision.push(legacyDanada);
@@ -5322,8 +5374,6 @@ function recuperarVentasIndexedDB() {
               legacyEncontradas++;
             }
           } else {
-            var ventaLimpia = payloadVentaPendiente(venta);
-            ventaLimpia._timestamp = timestamp;
             if (ventaLimpia.idempotency_key) {
               if (!existentes[ventaLimpia.idempotency_key]) {
                 _ventasPendientes.push(ventaLimpia);
@@ -5332,10 +5382,7 @@ function recuperarVentasIndexedDB() {
                 recuperadas++;
               }
             } else {
-              var localCoincidente = encontrarVentaLegacyCoincidente(ventaLimpia, timestamp, legacyEmparejadas);
-              if (localCoincidente) {
-                legacyEmparejadas[localCoincidente.key] = true;
-              } else if (!legacyExistentes[legacyKey]) {
+              if (!indexedLegacyEmparejadas[legacyKey] && !legacyExistentes[legacyKey]) {
                 var legacyVenta = {key: legacyKey, timestamp: timestamp, venta: ventaLimpia};
                 _ventasLegacyRevision.push(legacyVenta);
                 legacyAgregadas.push(legacyVenta);
