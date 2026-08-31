@@ -47,7 +47,7 @@ def test_cors_allows_legacy_no_store_request_headers(client):
 def test_service_worker_never_caches_authenticated_api_data():
     sw = read_text("docs/sw.js")
 
-    assert "const CACHE_NAME = 'jacaranda-v85'" in sw
+    assert "const CACHE_NAME = 'jacaranda-v86'" in sw
     assert "request.headers.has('Authorization')" in sw
     assert "offlineApiResponse" in sw
     assert "'Cache-Control': 'no-store'" in sw
@@ -60,7 +60,7 @@ def test_service_worker_never_caches_authenticated_api_data():
 def test_frontend_api_cache_is_short_lived_and_not_persistent():
     html = read_text("docs/index.html")
 
-    assert "var APP_BUILD = 'jacaranda-v85'" in html
+    assert "var APP_BUILD = 'jacaranda-v86'" in html
     assert "function apiGetCacheTtl(path)" in html
     assert "if (clean === '/inventario/productos') return 45000" in html
     assert "if (clean === '/pedidos/reservas') return 15000" in html
@@ -187,7 +187,7 @@ def test_frontend_has_manual_installed_app_refresh():
     assert "alert(" not in refresh_segment
 
 
-def test_inventory_loads_heavy_recipe_data_after_essential_data():
+def test_inventory_does_not_eager_load_hidden_ingredients_or_recipes():
     html = read_text("docs/index.html")
     inventory_segment = segment_between(
         html,
@@ -195,11 +195,9 @@ def test_inventory_loads_heavy_recipe_data_after_essential_data():
         "// ─── Edit modals",
     )
 
-    assert "Promise.all" in inventory_segment
-    assert "cargarProductos()" in inventory_segment
-    assert "cargarIngredientes()" in inventory_segment
-    assert "setTimeout(function()" in inventory_segment
-    assert "cargarRecetas()" in inventory_segment
+    assert "return cargarProductos();" in inventory_segment
+    assert "cargarIngredientes()" not in inventory_segment
+    assert "cargarRecetas()" not in inventory_segment
 
 
 def test_core_sensitive_cleanup_preserves_static_cache_and_clears_offline_db():

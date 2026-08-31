@@ -213,6 +213,30 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .batch-bake-input:focus{outline:none;border-color:var(--v);box-shadow:0 0 0 3px rgba(196,152,138,.15)}
 .batch-bake-total{display:flex;justify-content:space-between;align-items:center;gap:.8rem;margin-top:.8rem;padding:.7rem .8rem;border-radius:10px;background:#faf3f0;font-size:.86rem}
 .batch-bake-total strong{color:var(--v);font-size:1rem}
+[data-feature-disabled]{display:none!important}
+.caf-catalog-picker{display:grid;grid-template-columns:minmax(0,1fr) 44px 44px;gap:.4rem;align-items:center}
+.caf-catalog-picker select{min-height:44px}
+.catalog-icon-btn{width:44px;height:44px;border:1px solid var(--brd);border-radius:8px;background:#fff;color:var(--v);font-size:1.1rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s,transform .1s}
+.catalog-icon-btn:hover{background:#faf3f0;border-color:var(--v)}
+.catalog-icon-btn:active{transform:scale(.97)}
+.catalog-icon-btn:disabled{opacity:.38;cursor:not-allowed;transform:none}
+.product-purchase-table .col-product{width:auto}
+.product-purchase-table .col-stock{width:135px}
+.product-purchase-table .col-qty{width:150px}
+.product-purchase-input{width:92px;min-height:44px;padding:.45rem .55rem;border:1px solid var(--brd);border-radius:8px;font-size:.9rem;font-weight:700;text-align:center}
+.product-purchase-input:focus{outline:none;border-color:var(--v);box-shadow:0 0 0 3px rgba(196,152,138,.15)}
+.product-purchase-summary{display:flex;justify-content:space-between;align-items:center;gap:.8rem;margin-top:.8rem;padding:.7rem .8rem;border-radius:8px;background:#faf3f0;font-size:.86rem}
+.product-purchase-summary strong{color:var(--v);font-size:1rem}
+#compra-productos-list{overflow-x:auto}
+@media(max-width:560px){
+.caf-catalog-picker{grid-template-columns:minmax(0,1fr) 44px 44px}
+.product-purchase-table .col-stock{width:82px}
+.product-purchase-table .col-qty{width:96px}
+.product-purchase-table th{white-space:normal;line-height:1.15;letter-spacing:0;overflow-wrap:anywhere;padding:.4rem .2rem}
+.product-purchase-table td{padding:.45rem .2rem}
+.product-purchase-table td:first-child{text-align:left}
+.product-purchase-input{width:72px}
+}
 .pack-alerts{display:none;margin-bottom:1rem;border-left:4px solid #f59e0b}
 .pack-alerts.on{display:block}
 .pack-alert-row{display:flex;justify-content:space-between;align-items:center;gap:.75rem;padding:.55rem 0;border-bottom:1px solid #f0e8e5;font-size:.84rem}
@@ -745,9 +769,14 @@ h2{font-size:1.1rem}
 <div class="ti"><span id="caf-iva-label">IVA</span><span id="caf-iva"></span></div>
 <div class="ttot"><span>TOTAL</span><span id="caf-total"></span></div>
 </div>
-<input type="hidden" id="caf-cliente-id">
-<div class="fg" style="margin-top:.7rem"><label>Cafeter&iacute;a</label><input id="caf-nombre" list="cafeterias-list" placeholder="Nombre de cafeter&iacute;a" oninput="seleccionarCafeteriaCatalogo()"></div>
-<datalist id="cafeterias-list"></datalist>
+<div class="fg" style="margin-top:.7rem">
+<label for="caf-cliente-id">Cafeter&iacute;a</label>
+<div class="caf-catalog-picker">
+<select id="caf-cliente-id" onchange="seleccionarCafeteriaCatalogo()" required><option value="">Selecciona una cafeter&iacute;a</option></select>
+<button type="button" class="catalog-icon-btn" onclick="abrirNuevaCafeteriaCatalogo()" title="Dar de alta cafeter&iacute;a" aria-label="Dar de alta cafeter&iacute;a">+</button>
+<button type="button" class="catalog-icon-btn" id="caf-editar-cliente-btn" onclick="abrirEditarCafeteriaCatalogo()" title="Editar cafeter&iacute;a" aria-label="Editar cafeter&iacute;a" disabled>&#9998;</button>
+</div>
+</div>
 <div class="frow">
 <div class="fg"><label>Contacto</label><input id="caf-contacto" placeholder="Persona"></div>
 <div class="fg"><label>Tel&eacute;fono</label><input id="caf-tel" inputmode="tel" placeholder="442..."></div>
@@ -817,9 +846,10 @@ h2{font-size:1.1rem}
 <h2>Inventario</h2>
 <div class="section-tabs" style="margin-bottom:1rem">
 <span class="tab active" onclick="invTab('productos')">Productos terminados</span>
-<span class="tab" onclick="invTab('ingredientes')">Ingredientes</span>
-<span class="tab" onclick="invTab('compras')">Registrar compra</span>
-<span class="tab" onclick="invTab('hornear')">Hornear</span>
+<span class="tab" onclick="invTab('comprar')">Comprar</span>
+<span class="tab" data-feature-disabled="ingredientes" hidden onclick="invTab('ingredientes')">Ingredientes</span>
+<span class="tab" data-feature-disabled="compra-ingredientes" hidden onclick="invTab('compras')">Compra de ingredientes</span>
+<span class="tab" data-feature-disabled="recetas" hidden onclick="invTab('recetas')">Recetas</span>
 <span class="tab" onclick="invTab('conteo')">Conteo nocturno</span>
 </div>
 <div id="inv-empaque-alertas" class="card pack-alerts"></div>
@@ -835,7 +865,25 @@ h2{font-size:1.1rem}
 <div id="inv-prod-pag" style="display:none;text-align:center;margin-top:.6rem;font-size:.82rem"></div>
 </div>
 
-<div id="inv-ingredientes" style="display:none">
+<div id="inv-comprar" style="display:none">
+<p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Registra los productos terminados que recibiste y suma sus piezas al inventario.</p>
+<div class="card">
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem;margin-bottom:.65rem;flex-wrap:wrap">
+<div><h3 style="margin-bottom:.25rem">Compra del d&iacute;a</h3></div>
+<button class="limpiar" style="width:auto;margin:0;padding:.45rem .7rem" onclick="limpiarCompraProductos()">Limpiar cantidades</button>
+</div>
+<input type="text" id="compra-productos-buscar" placeholder="Buscar producto..." oninput="renderCompraProductos()" style="width:100%;padding:.5rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.83rem;margin-bottom:.65rem;font-family:inherit">
+<div id="compra-productos-list"><p style="color:var(--mut);font-size:.83rem">Cargando productos...</p></div>
+<div class="frow" style="margin-top:.8rem">
+<div class="fg"><label>Referencia</label><input id="compra-productos-ref" maxlength="200" placeholder="Proveedor, ticket o folio"></div>
+<div class="fg"><label>Notas</label><input id="compra-productos-notas" maxlength="500" placeholder="Opcional"></div>
+</div>
+<div class="product-purchase-summary"><span>Resumen por registrar</span><strong id="compra-productos-total">0 productos &bull; 0 piezas</strong></div>
+<button class="cobrar" id="compra-productos-btn" onclick="registrarCompraProductos()">Registrar compra</button>
+</div>
+</div>
+
+<div id="inv-ingredientes" data-feature-disabled="ingredientes" hidden style="display:none">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;gap:.4rem">
 <p style="font-size:.83rem;color:var(--mut);margin:0">Stock actual de ingredientes. Se descuenta autom&aacute;ticamente al hornear.</p>
 <input type="text" id="inv-ing-buscar" placeholder="Buscar ingrediente..." oninput="filtrarInvIngredientes()" style="padding:.4rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.83rem;width:220px;font-family:inherit">
@@ -845,7 +893,7 @@ h2{font-size:1.1rem}
 </div>
 </div>
 
-<div id="inv-compras" style="display:none">
+<div id="inv-compras" data-feature-disabled="compra-ingredientes" hidden style="display:none">
 <p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Registra la compra de ingredientes cuando llega el proveedor.</p>
 <div class="card" style="margin-bottom:1rem">
 <h3>Escanear ticket de compra</h3>
@@ -878,7 +926,7 @@ h2{font-size:1.1rem}
 </div>
 </div>
 
-<div id="inv-hornear" style="display:none">
+<div id="inv-recetas" data-feature-disabled="recetas" hidden style="display:none">
 <p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Selecciona qu&eacute; vas a hornear. Se descuentan los ingredientes y se suman los productos.</p>
 <div class="card">
 <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem;margin-bottom:.65rem;flex-wrap:wrap">
@@ -1096,8 +1144,8 @@ h2{font-size:1.1rem}
 <h2>Listas</h2>
 <div class="section-tabs" style="margin-bottom:1rem">
 <span class="tab active" onclick="listTab('l-prods')">Productos</span>
-<span class="tab" onclick="listTab('l-ings')">Ingredientes</span>
-<span class="tab" onclick="listTab('l-recs')">Recetas</span>
+<span class="tab" data-feature-disabled="ingredientes" hidden onclick="listTab('l-ings')">Ingredientes</span>
+<span class="tab" data-feature-disabled="recetas" hidden onclick="listTab('l-recs')">Recetas</span>
 <span class="tab" onclick="listTab('l-clientes')">Clientes</span>
 <span class="tab" onclick="listTab('l-nomina')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">N&oacute;mina</span>
 <span class="tab" onclick="listTab('l-lealtad')">Lealtad</span>
@@ -1118,7 +1166,7 @@ h2{font-size:1.1rem}
 </div>
 </div>
 
-<div id="l-ings" style="display:none">
+<div id="l-ings" data-feature-disabled="ingredientes" hidden style="display:none">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
 <p style="font-size:.83rem;color:var(--mut);margin:0">Ingredientes y materias primas. Edita costos y m&iacute;nimos.</p>
 <div style="display:flex;gap:.4rem">
@@ -1132,7 +1180,7 @@ h2{font-size:1.1rem}
 </div>
 </div>
 
-<div id="l-recs" style="display:none">
+<div id="l-recs" data-feature-disabled="recetas" hidden style="display:none">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
 <p style="font-size:.83rem;color:var(--mut);margin:0">Recetas con ingredientes. Edita rendimiento y cantidades.</p>
 </div>
@@ -2132,6 +2180,26 @@ h2{font-size:1.1rem}
 </div>
 </div>
 
+<!-- MODAL: Catálogo de Cafeterías -->
+<div class="modal-bg" id="modal-cafeteria-cliente">
+<div class="modal" style="max-width:430px" role="dialog" aria-modal="true" aria-labelledby="mcc-title">
+<form onsubmit="guardarCafeteriaCatalogo();return false">
+<h3 id="mcc-title">Nueva cafeter&iacute;a</h3>
+<input type="hidden" id="mcc-id">
+<div class="fg"><label for="mcc-nombre">Nombre *</label><input id="mcc-nombre" maxlength="200" autocomplete="organization" required></div>
+<div class="fg"><label for="mcc-contacto">Contacto</label><input id="mcc-contacto" maxlength="150" autocomplete="name"></div>
+<div class="frow">
+<div class="fg"><label for="mcc-telefono">Tel&eacute;fono</label><input id="mcc-telefono" maxlength="30" inputmode="tel" autocomplete="tel"></div>
+<div class="fg"><label for="mcc-dias">D&iacute;as de cr&eacute;dito</label><input id="mcc-dias" type="number" min="0" max="60" step="1" value="7" required></div>
+</div>
+<div style="display:flex;gap:.5rem;margin-top:1rem">
+<button class="cobrar" id="mcc-guardar" style="flex:1" type="submit">Guardar cafeter&iacute;a</button>
+<button class="limpiar" style="flex:1" type="button" onclick="cerrarModal('modal-cafeteria-cliente')">Cancelar</button>
+</div>
+</form>
+</div>
+</div>
+
 <!-- MODAL: Nuevo Cliente -->
 <div class="modal-bg" id="modal-cliente">
 <div class="modal" style="max-width:420px">
@@ -2583,7 +2651,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v85';
+var APP_BUILD = 'jacaranda-v86';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
@@ -2600,7 +2668,7 @@ var TOKEN = localStorage.getItem('jacaranda_token') || '';
 var cart = [], pm = 'ef';
 var POS_FACTURA_IVA_TASA = 0.08, _posFacturaIvaActiva = false;
 var _clienteRecompensaActual = null, _canjearRecompensaLealtad = false;
-var cafCart = [], cafPm = 'trans', _cafFacturaIvaActiva = false, _cafGroups = {}, _cafGroupOrder = [], _cafProductById = {}, _cafVentas = [], _cafClientes = [], _cafEnProceso = false, _cafIdempotencyKey = null;
+var cafCart = [], cafPm = 'trans', _cafFacturaIvaActiva = false, _cafGroups = {}, _cafGroupOrder = [], _cafProductById = {}, _cafVentas = [], _cafClientes = [], _cafEnProceso = false, _cafIdempotencyKey = null, _cafClienteGuardando = false;
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
 var _pedidoEnProceso = false, _pedidoIdempotencyKey = null;
 var _clienteEditId = null;
@@ -5153,49 +5221,123 @@ function cargarCafeteriaProductos() {
   });
 }
 
-function cargarCafeteriaClientes() {
-  return api('GET', '/cafeteria/clientes?limit=500').then(function(items) {
-    _cafClientes = items || [];
-    renderCafeteriasDatalist(_cafClientes);
-    seleccionarCafeteriaCatalogo();
-  }).catch(function() {
-    _cafClientes = [];
-    renderCafeteriasDatalist([]);
-  });
-}
-
-function renderCafeteriasDatalist(items) {
-  var dl = document.getElementById('cafeterias-list');
-  if (!dl) return;
-  dl.innerHTML = (items || []).map(function(c) {
-    return '<option value="' + escHtml(c.nombre) + '"></option>';
-  }).join('');
-}
-
-function buscarCafeteriaPorNombre(nombre) {
-  var n = (nombre || '').trim().toLowerCase();
-  if (!n) return null;
+function cafeteriaCatalogoPorId(id) {
+  var clienteId = parseInt(id, 10);
+  if (!clienteId) return null;
   for (var i = 0; i < _cafClientes.length; i++) {
-    if (String(_cafClientes[i].nombre || '').trim().toLowerCase() === n) return _cafClientes[i];
+    if (Number(_cafClientes[i].id) === clienteId) return _cafClientes[i];
   }
   return null;
 }
 
-function seleccionarCafeteriaCatalogo() {
-  var nombreEl = document.getElementById('caf-nombre');
-  var idEl = document.getElementById('caf-cliente-id');
-  if (!nombreEl || !idEl) return;
-  var cliente = buscarCafeteriaPorNombre(nombreEl.value);
-  idEl.value = cliente ? cliente.id : '';
-  if (cliente) {
-    var contacto = document.getElementById('caf-contacto');
-    var tel = document.getElementById('caf-tel');
-    var dias = document.getElementById('caf-dias');
-    if (contacto && !contacto.value) contacto.value = cliente.contacto_nombre || '';
-    if (tel && !tel.value) tel.value = cliente.telefono || '';
-    if (dias) dias.value = cliente.dias_credito == null ? 7 : cliente.dias_credito;
+function cargarCafeteriaClientes(selectedId) {
+  var select = document.getElementById('caf-cliente-id');
+  var conservarId = selectedId || (select && select.value) || '';
+  return api('GET', '/cafeteria/clientes?limit=500').then(function(items) {
+    _cafClientes = items || [];
+    renderCafeteriasSelect(_cafClientes, conservarId);
+    seleccionarCafeteriaCatalogo();
+    return _cafClientes;
+  }).catch(function() {
+    if (_cafClientes.length) {
+      renderCafeteriasSelect(_cafClientes, conservarId);
+      seleccionarCafeteriaCatalogo();
+      return _cafClientes;
+    }
+    renderCafeteriasSelect([], '');
+    seleccionarCafeteriaCatalogo();
+  });
+}
+
+function renderCafeteriasSelect(items, selectedId) {
+  var select = document.getElementById('caf-cliente-id');
+  if (!select) return;
+  var h = '<option value="">' + ((items || []).length ? 'Selecciona una cafetería' : 'Sin cafeterías registradas') + '</option>';
+  for (var i = 0; i < (items || []).length; i++) {
+    var cliente = items[i];
+    var selected = String(cliente.id) === String(selectedId || '') ? ' selected' : '';
+    h += '<option value="' + cliente.id + '"' + selected + '>' + escHtml(cliente.nombre) + '</option>';
   }
+  select.innerHTML = h;
+}
+
+function seleccionarCafeteriaCatalogo() {
+  var select = document.getElementById('caf-cliente-id');
+  if (!select) return;
+  var cliente = cafeteriaCatalogoPorId(select.value);
+  var contacto = document.getElementById('caf-contacto');
+  var tel = document.getElementById('caf-tel');
+  var dias = document.getElementById('caf-dias');
+  var editar = document.getElementById('caf-editar-cliente-btn');
+  if (contacto) contacto.value = cliente ? (cliente.contacto_nombre || '') : '';
+  if (tel) tel.value = cliente ? (cliente.telefono || '') : '';
+  if (dias) dias.value = cliente && cliente.dias_credito != null ? cliente.dias_credito : 7;
+  if (editar) editar.disabled = !cliente;
   actualizarCreditoCafeteria();
+}
+
+function abrirNuevaCafeteriaCatalogo() {
+  document.getElementById('mcc-title').textContent = 'Nueva cafetería';
+  document.getElementById('mcc-id').value = '';
+  document.getElementById('mcc-nombre').value = '';
+  document.getElementById('mcc-contacto').value = '';
+  document.getElementById('mcc-telefono').value = '';
+  document.getElementById('mcc-dias').value = '7';
+  document.getElementById('modal-cafeteria-cliente').classList.add('on');
+  setTimeout(function() { document.getElementById('mcc-nombre').focus(); }, 50);
+}
+
+function abrirEditarCafeteriaCatalogo() {
+  var select = document.getElementById('caf-cliente-id');
+  var cliente = cafeteriaCatalogoPorId(select && select.value);
+  if (!cliente) { toast('Selecciona una cafetería', true); return; }
+  document.getElementById('mcc-title').textContent = 'Editar cafetería';
+  document.getElementById('mcc-id').value = cliente.id;
+  document.getElementById('mcc-nombre').value = cliente.nombre || '';
+  document.getElementById('mcc-contacto').value = cliente.contacto_nombre || '';
+  document.getElementById('mcc-telefono').value = cliente.telefono || '';
+  document.getElementById('mcc-dias').value = cliente.dias_credito == null ? 7 : cliente.dias_credito;
+  document.getElementById('modal-cafeteria-cliente').classList.add('on');
+  setTimeout(function() { document.getElementById('mcc-nombre').focus(); }, 50);
+}
+
+function guardarCafeteriaCatalogo() {
+  if (_cafClienteGuardando) return;
+  var id = parseInt(document.getElementById('mcc-id').value, 10) || null;
+  var nombre = (document.getElementById('mcc-nombre').value || '').trim();
+  var dias = parseInt(document.getElementById('mcc-dias').value, 10);
+  if (!nombre) { toast('Escribe el nombre de la cafetería', true); return; }
+  if (!Number.isInteger(dias) || dias < 0 || dias > 60) { toast('Días de crédito inválidos', true); return; }
+  var duplicada = _cafClientes.find(function(cliente) {
+    return String(cliente.nombre || '').trim().toLowerCase() === nombre.toLowerCase() && Number(cliente.id) !== Number(id || 0);
+  });
+  if (duplicada) {
+    cerrarModal('modal-cafeteria-cliente');
+    var select = document.getElementById('caf-cliente-id');
+    if (select) select.value = duplicada.id;
+    seleccionarCafeteriaCatalogo();
+    toast('Esa cafetería ya estaba registrada; quedó seleccionada');
+    return;
+  }
+  var body = {
+    nombre: nombre,
+    contacto_nombre: (document.getElementById('mcc-contacto').value || '').trim() || null,
+    telefono: (document.getElementById('mcc-telefono').value || '').trim() || null,
+    dias_credito: dias
+  };
+  var btn = document.getElementById('mcc-guardar');
+  _cafClienteGuardando = true;
+  if (btn) btn.disabled = true;
+  api(id ? 'PUT' : 'POST', id ? '/cafeteria/clientes/' + id : '/cafeteria/clientes', body).then(function(cliente) {
+    cerrarModal('modal-cafeteria-cliente');
+    toast(id ? 'Cafetería actualizada' : 'Cafetería registrada');
+    return cargarCafeteriaClientes(cliente.id);
+  }).catch(function(e) {
+    toast(e.message || 'No se pudo guardar la cafetería', true);
+  }).finally(function() {
+    _cafClienteGuardando = false;
+    if (btn) btn.disabled = false;
+  });
 }
 
 function actualizarCreditoCafeteria() {
@@ -5348,11 +5490,11 @@ function cafClear() {
   cafCart = [];
   _cafFacturaIvaActiva = false;
   _cafIdempotencyKey = null;
-  ['caf-nombre','caf-contacto','caf-tel','caf-notas'].forEach(function(id) {
+  ['caf-contacto','caf-tel','caf-notas'].forEach(function(id) {
     var el = document.getElementById(id); if (el) el.value = '';
   });
   var cid = document.getElementById('caf-cliente-id'); if (cid) cid.value = '';
-  var dias = document.getElementById('caf-dias'); if (dias) dias.value = '7';
+  seleccionarCafeteriaCatalogo();
   var pago = document.getElementById('caf-pago-inicial'); if (pago) pago.value = '0';
   setCafPm('trans');
   actualizarCreditoCafeteria();
@@ -5388,8 +5530,9 @@ function mapPagoCafeteria() {
 function registrarCafeteria() {
   if (_cafEnProceso) { toast('Entrega en proceso, espera un momento'); return; }
   if (!cafCart.length) { toast('Agrega productos', true); return; }
-  var nombre = (document.getElementById('caf-nombre').value || '').trim();
-  if (!nombre) { toast('Escribe la cafeter\u00eda', true); return; }
+  var cafeId = parseInt(document.getElementById('caf-cliente-id').value, 10);
+  var cliente = cafeteriaCatalogoPorId(cafeId);
+  if (!cliente) { toast('Selecciona una cafeter\u00eda registrada', true); return; }
   var diasCredito = parseInt(document.getElementById('caf-dias').value, 10);
   if (isNaN(diasCredito) || diasCredito < 0 || diasCredito > 60) { toast('D\u00edas de cr\u00e9dito inv\u00e1lidos', true); return; }
   var totalCuenta = cafTotals().total;
@@ -5398,11 +5541,10 @@ function registrarCafeteria() {
   _cafEnProceso = true;
   if (!_cafIdempotencyKey) _cafIdempotencyKey = nuevaClaveIdempotencia('cafeteria');
   var pago = mapPagoCafeteria();
-  var cafeId = parseInt(document.getElementById('caf-cliente-id').value, 10);
   var body = {
     idempotency_key: _cafIdempotencyKey,
-    cafeteria_id: cafeId > 0 ? cafeId : null,
-    cafeteria_nombre: nombre,
+    cafeteria_id: cliente.id,
+    cafeteria_nombre: cliente.nombre,
     contacto_nombre: (document.getElementById('caf-contacto').value || '').trim() || null,
     telefono: (document.getElementById('caf-tel').value || '').trim() || null,
     dias_credito: diasCredito,
@@ -5431,12 +5573,6 @@ function cargarCafeteriaVentas() {
   return api('GET', '/cafeteria/ventas?limit=120').then(function(items) {
     _cafVentas = items || [];
     renderCafeteriaVentas(_cafVentas);
-    var cafes = {};
-    for (var c = 0; c < _cafClientes.length; c++) cafes[_cafClientes[c].nombre] = true;
-    for (var i = 0; i < _cafVentas.length; i++) cafes[_cafVentas[i].cafeteria_nombre] = true;
-    document.getElementById('cafeterias-list').innerHTML = Object.keys(cafes).sort().map(function(n) {
-      return '<option value="' + escHtml(n) + '"></option>';
-    }).join('');
   }).catch(function(e) {
     document.getElementById('caf-ventas').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">' + escHtml(e.message || 'Error al cargar cuentas') + '</p>';
   });
@@ -7018,7 +7154,9 @@ function renderChartVentas(dias) {
 
 // ─── Inventario tabs ──────────────────────────────────────────────
 function invTab(tab) {
-  ['productos','ingredientes','compras','hornear','conteo'].forEach(function(t) {
+  var permitidos = ['productos','comprar','conteo'];
+  if (permitidos.indexOf(tab) < 0) tab = 'productos';
+  ['productos','comprar','ingredientes','compras','recetas','conteo'].forEach(function(t) {
     var el = document.getElementById('inv-' + t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
@@ -7027,8 +7165,121 @@ function invTab(tab) {
   if (!active && typeof event !== 'undefined') active = event.target;
   if (active && active.classList) active.classList.add('active');
   if (tab === 'productos') cargarProductos();
-  if (tab === 'ingredientes') cargarIngredientes();
+  if (tab === 'comprar') {
+    if (_invProds.length) renderCompraProductos();
+    else cargarProductos();
+  }
   if (tab === 'conteo') cargarConteo();
+}
+
+function actualizarCantidadCompraProducto(productoId, value) {
+  var raw = String(value == null ? '' : value).trim();
+  if (!raw || Number(raw) === 0) delete _compraProductosCantidades[productoId];
+  else _compraProductosCantidades[productoId] = raw;
+  calcCompraProductos();
+}
+
+function obtenerCompraProductos() {
+  var items = [];
+  var invalida = false;
+  Object.keys(_compraProductosCantidades).forEach(function(productoId) {
+    var raw = _compraProductosCantidades[productoId];
+    var cantidad = Number(raw);
+    if (!Number.isInteger(cantidad) || cantidad <= 0) {
+      invalida = true;
+      return;
+    }
+    items.push({producto_id: parseInt(productoId, 10), cantidad: cantidad});
+  });
+  return {items: items, invalida: invalida};
+}
+
+function calcCompraProductos() {
+  var compra = obtenerCompraProductos();
+  var total = 0;
+  for (var i = 0; i < compra.items.length; i++) total += compra.items[i].cantidad;
+  var el = document.getElementById('compra-productos-total');
+  if (!el) return;
+  if (compra.invalida) {
+    el.textContent = 'Revisa cantidades enteras';
+    el.style.color = '#b91c1c';
+    return;
+  }
+  el.style.color = '';
+  el.textContent = compra.items.length + ' productos \u2022 ' + total + ' piezas';
+}
+
+function renderCompraProductos() {
+  var box = document.getElementById('compra-productos-list');
+  if (!box) return;
+  var search = document.getElementById('compra-productos-buscar');
+  var q = String((search && search.value) || '').trim().toLowerCase();
+  var productos = (_invProds || []).filter(function(producto) {
+    if (!producto.activo) return false;
+    return !q
+      || String(producto.nombre || '').toLowerCase().indexOf(q) >= 0
+      || String(producto.codigo || '').toLowerCase().indexOf(q) >= 0;
+  });
+  if (!productos.length) {
+    box.innerHTML = '<p style="color:var(--mut);font-size:.83rem;padding:.5rem 0">'
+      + (q ? 'No hay productos que coincidan.' : 'No hay productos activos.') + '</p>';
+    calcCompraProductos();
+    return;
+  }
+  var h = '<table class="tbl product-purchase-table"><colgroup><col class="col-product"><col class="col-stock"><col class="col-qty"></colgroup>';
+  h += '<tr><th>Producto</th><th>Stock actual</th><th>Cantidad recibida</th></tr>';
+  for (var i = 0; i < productos.length; i++) {
+    var producto = productos[i];
+    var value = _compraProductosCantidades[producto.id] || '';
+    h += '<tr><td><strong>' + escHtml(producto.nombre) + '</strong></td>';
+    h += '<td>' + fmtQty(producto.stock_actual) + ' pzas</td>';
+    h += '<td><input class="product-purchase-input" type="number" min="0" step="1" inputmode="numeric" value="' + escHtml(value) + '" aria-label="Cantidad recibida de ' + escHtml(producto.nombre) + '" oninput="actualizarCantidadCompraProducto(' + producto.id + ',this.value)"></td></tr>';
+  }
+  h += '</table>';
+  box.innerHTML = h;
+  calcCompraProductos();
+}
+
+function limpiarCompraProductos() {
+  _compraProductosCantidades = {};
+  renderCompraProductos();
+}
+
+async function registrarCompraProductos() {
+  if (_compraProductosEnProceso) return;
+  var compra = obtenerCompraProductos();
+  if (compra.invalida) { toast('Las cantidades deben ser enteras mayores a cero', true); return; }
+  if (!compra.items.length) { toast('Captura al menos un producto', true); return; }
+  var totalPiezas = compra.items.reduce(function(total, item) { return total + item.cantidad; }, 0);
+  var ok = await confirmarAccion({
+    title: 'Registrar compra',
+    message: '\u00bfRegistrar ' + totalPiezas + ' piezas?',
+    detail: 'Se sumar\u00e1n al inventario de ' + compra.items.length + ' productos.',
+    acceptText: 'Registrar'
+  });
+  if (!ok) return;
+
+  var btn = document.getElementById('compra-productos-btn');
+  _compraProductosEnProceso = true;
+  if (btn) btn.disabled = true;
+  api('POST', '/inventario/productos/compra-masiva', {
+    items: compra.items,
+    referencia: (document.getElementById('compra-productos-ref').value || '').trim() || null,
+    notas: (document.getElementById('compra-productos-notas').value || '').trim() || null
+  }).then(function(resultado) {
+    toast(resultado.total_piezas + ' piezas agregadas al inventario');
+    _compraProductosCantidades = {};
+    document.getElementById('compra-productos-ref').value = '';
+    document.getElementById('compra-productos-notas').value = '';
+    cargarProductos();
+    cargarPOSProductos();
+    cargarCafeteriaProductos();
+  }).catch(function(e) {
+    toast(e.message || 'No se pudo registrar la compra', true);
+  }).finally(function() {
+    _compraProductosEnProceso = false;
+    if (btn) btn.disabled = false;
+  });
 }
 
 function registrarCompra() {
@@ -7651,6 +7902,8 @@ var _invProds = [];
 var _invProdPage = 0;
 var _invProdPerPage = 25;
 var _cajasProductoFetchIntentado = false;
+var _compraProductosCantidades = {};
+var _compraProductosEnProceso = false;
 
 function nombreCajaProducto(p) {
   if (!p || !p.caja_ingrediente_id) return '';
@@ -7773,6 +8026,7 @@ function cargarProductos() {
     _invProds = prods;
     _invProdPage = 0;
     renderInvProductos();
+    renderCompraProductos();
     cargarAlertasEmpaques();
     if (!_allIngs.length && !_cajasProductoFetchIntentado && prods.some(function(p) { return p.caja_ingrediente_id; })) {
       _cajasProductoFetchIntentado = true;
@@ -7783,6 +8037,8 @@ function cargarProductos() {
     }
   }).catch(function() {
     document.getElementById('tbl-productos').innerHTML = '<p style="color:var(--mut);padding:.5rem">Error al cargar productos</p>';
+    var compras = document.getElementById('compra-productos-list');
+    if (compras) compras.innerHTML = '<p style="color:#b91c1c;font-size:.83rem">Error al cargar productos</p>';
     document.getElementById('inv-prod-pag').style.display = 'none';
   });
 }
@@ -7985,18 +8241,8 @@ function cargarRecetas() {
   });
 }
 
-var _invCargaDiferidaTimer = null;
-function cargarInventarioCompleto(opts) {
-  opts = opts || {};
-  if (_invCargaDiferidaTimer) clearTimeout(_invCargaDiferidaTimer);
-  var esenciales = Promise.all([
-    cargarProductos(),
-    cargarIngredientes()
-  ]);
-  _invCargaDiferidaTimer = setTimeout(function() {
-    cargarRecetas().catch(function(e){ console.warn('Error cargando recetas:', e); });
-  }, opts.force ? 0 : 220);
-  return esenciales;
+function cargarInventarioCompleto() {
+  return cargarProductos();
 }
 
 // ─── Edit modals ─────────────────────────────────────────────────
@@ -8461,6 +8707,8 @@ async function eliminarReceta(id, nombre) {
 
 // ─── Listas page ─────────────────────────────────────────────────
 function listTab(tab, evt) {
+  var permitidos = ['l-prods','l-clientes','l-nomina','l-lealtad'];
+  if (permitidos.indexOf(tab) < 0) tab = 'l-prods';
   ['l-prods','l-ings','l-recs','l-clientes','l-nomina','l-lealtad'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
@@ -8485,8 +8733,6 @@ function filtrarTabla(id, q) {
 
 function cargarListas() {
   cargarListaProductos();
-  cargarListaIngredientes();
-  cargarListaRecetas();
   cargarListaClientes();
 }
 

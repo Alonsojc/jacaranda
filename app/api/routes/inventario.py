@@ -13,6 +13,7 @@ from app.schemas.inventario import (
     IngredienteCreate, IngredienteUpdate, IngredienteResponse,
     ProductoCreate, ProductoUpdate, ProductoResponse,
     MovimientoCreate, MovimientoResponse,
+    CompraProductosCreate, CompraProductosResponse,
     LoteCreate, LoteResponse,
 )
 from app.services import inventario_service as svc
@@ -191,6 +192,23 @@ def listar_productos(
     _user: Usuario = Depends(require_permission("inv", "ver")),
 ):
     return svc.listar_productos(db, q=q, skip=skip, limit=limit)
+
+
+@router.post(
+    "/productos/compra-masiva",
+    response_model=CompraProductosResponse,
+    status_code=201,
+)
+def registrar_compra_productos(
+    data: CompraProductosCreate,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_permission("inv", "editar")),
+):
+    try:
+        return svc.registrar_compra_productos(db, data, user.id)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.get("/productos/inactivos", response_model=list[ProductoResponse])

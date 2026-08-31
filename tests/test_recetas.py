@@ -225,3 +225,24 @@ def test_inventario_sprint5_frontend_contract():
     assert 'id="d-ai-card" data-module="prod"' not in html
     assert 'id="d-ai-card" style="display:none"' in html
     assert "deferDashboard(cargarPronosticoHero" not in html
+    assert "onclick=\"invTab('comprar')\">Comprar</span>" in html
+    assert 'id="inv-comprar"' in html
+    assert "/inventario/productos/compra-masiva" in html
+    assert "function registrarCompraProductos" in html
+    assert (
+        'data-feature-disabled="ingredientes" hidden '
+        'onclick="invTab(\'ingredientes\')">Ingredientes</span>'
+    ) in html
+    assert (
+        'data-feature-disabled="recetas" hidden '
+        'onclick="invTab(\'recetas\')">Recetas</span>'
+    ) in html
+    assert 'id="inv-hornear"' not in html
+    assert (
+        'data-feature-disabled="ingredientes" hidden '
+        'onclick="listTab(\'l-ings\')">Ingredientes</span>'
+    ) in html
+    assert (
+        'data-feature-disabled="recetas" hidden '
+        'onclick="listTab(\'l-recs\')">Recetas</span>'
+    ) in html
