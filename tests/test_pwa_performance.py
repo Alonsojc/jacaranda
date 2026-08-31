@@ -47,7 +47,7 @@ def test_cors_allows_legacy_no_store_request_headers(client):
 def test_service_worker_never_caches_authenticated_api_data():
     sw = read_text("docs/sw.js")
 
-    assert "const CACHE_NAME = 'jacaranda-v87'" in sw
+    assert "const CACHE_NAME = 'jacaranda-v88'" in sw
     assert "request.headers.has('Authorization')" in sw
     assert "offlineApiResponse" in sw
     assert "'Cache-Control': 'no-store'" in sw
@@ -60,7 +60,7 @@ def test_service_worker_never_caches_authenticated_api_data():
 def test_frontend_api_cache_is_short_lived_and_not_persistent():
     html = read_text("docs/index.html")
 
-    assert "var APP_BUILD = 'jacaranda-v87'" in html
+    assert "var APP_BUILD = 'jacaranda-v88'" in html
     assert "function apiGetCacheTtl(path)" in html
     assert "if (clean === '/inventario/productos') return 45000" in html
     assert "if (clean === '/pedidos/reservas') return 15000" in html
@@ -96,18 +96,40 @@ def test_frontend_keeps_session_during_temporary_server_errors():
     assert "marcarApiTemporalmenteNoDisponible(timeoutErr)" in api_segment
 
 
-def test_offline_queue_does_not_persist_bearer_tokens():
+def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     html = read_text("docs/index.html")
-    queue_segment = segment_between(
+    sync_segment = segment_between(
         html,
-        "function guardarVentaIndexedDB",
-        "function sanearVentasIndexedDB",
+        "function sincronizarVentas",
+        "function recuperarVentasIndexedDB",
     )
+    payload_segment = segment_between(
+        html,
+        "function payloadVentaPendiente",
+        "function sincronizarVentas",
+    )
+    recovery_segment = segment_between(
+        html,
+        "function recuperarVentasIndexedDB",
+        "recuperarVentasIndexedDB();",
+    )
+    sw = read_text("docs/sw.js")
     logout_segment = segment_between(html, "function cerrarSesion()", "async function confirmarCerrarSesion")
 
-    assert "Authorization" not in queue_segment
-    assert "function sanearVentasIndexedDB" in html
-    assert "delete item.headers.Authorization" in html
+    assert "fallidas.push(venta)" in sync_segment
+    assert "_ventasPendientes = fallidas.concat(nuevas)" in sync_segment
+    assert "pending.indexOf(venta) === -1" in sync_segment
+    assert "guardarVentasPendientesLocal()" in sync_segment
+    assert "body.referencia_pago = venta.referencia_pago" in payload_segment
+    assert "localStorage.removeItem('jacaranda_ventas_pendientes')" not in sync_segment
+    assert "function guardarVentaIndexedDB" not in html
+    assert "sync-ventas" not in html
+    assert "sync-ventas" not in sw
+    assert "syncOfflineVentas" not in sw
+    assert "Authorization" not in recovery_segment
+    assert "if (!venta || !venta.idempotency_key)" in recovery_segment
+    assert "store.delete(item.id)" in recovery_segment
+    assert "function leerVentasPendientesLocal" in html
     assert "_apiGetCache = {}" in logout_segment
     assert "{type: 'CLEAR_AUTH_DATA'}" in logout_segment
 

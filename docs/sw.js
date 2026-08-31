@@ -1,5 +1,5 @@
-// Jacaranda Service Worker — Offline support + sync queue
-const CACHE_NAME = 'jacaranda-v87';
+// Jacaranda Service Worker — Offline support
+const CACHE_NAME = 'jacaranda-v88';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -141,13 +141,6 @@ self.addEventListener('fetch', function(event) {
   );
 });
 
-// Listen for sync events (Background Sync API)
-self.addEventListener('sync', function(event) {
-  if (event.tag === 'sync-ventas') {
-    event.waitUntil(syncOfflineVentas());
-  }
-});
-
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
   var targetUrl = (event.notification.data && event.notification.data.url) || './index.html#ped';
@@ -191,56 +184,3 @@ self.addEventListener('push', function(event) {
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
-
-// Sync offline sales queue from IndexedDB
-function syncOfflineVentas() {
-  return openDB().then(function(db) {
-    return getAllPending(db);
-  }).then(function(items) {
-    return Promise.all(items.map(function(item) {
-      var headers = item.headers || {};
-      if (!headers.Authorization && !headers.authorization) {
-        return Promise.resolve();
-      }
-      return fetch(item.url, {
-        method: 'POST',
-        cache: 'no-store',
-        headers: headers,
-        body: item.body,
-      }).then(function(resp) {
-        if (resp.ok) return removePending(item.id);
-      }).catch(function() { /* will retry on next sync */ });
-    }));
-  });
-}
-
-function openDB() {
-  return new Promise(function(resolve, reject) {
-    var req = indexedDB.open('jacaranda-offline', 1);
-    req.onupgradeneeded = function(e) {
-      var db = e.target.result;
-      if (!db.objectStoreNames.contains('pending-sales')) {
-        db.createObjectStore('pending-sales', { keyPath: 'id', autoIncrement: true });
-      }
-    };
-    req.onsuccess = function(e) { resolve(e.target.result); };
-    req.onerror = function() { reject(req.error); };
-  });
-}
-
-function getAllPending(db) {
-  return new Promise(function(resolve) {
-    var tx = db.transaction('pending-sales', 'readonly');
-    var store = tx.objectStore('pending-sales');
-    var req = store.getAll();
-    req.onsuccess = function() { resolve(req.result || []); };
-    req.onerror = function() { resolve([]); };
-  });
-}
-
-function removePending(id) {
-  return openDB().then(function(db) {
-    var tx = db.transaction('pending-sales', 'readwrite');
-    tx.objectStore('pending-sales').delete(id);
-  });
-}
