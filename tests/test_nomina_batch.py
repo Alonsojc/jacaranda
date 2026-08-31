@@ -2,12 +2,15 @@
 
 from datetime import date, timedelta
 from decimal import Decimal
+from itertools import count
 
 import pytest
 
 
 class TestNominaBatch:
     """Tests del cálculo de nómina batch y recibo PDF."""
+
+    _empleado_sequence = count(10)
 
     EMPLEADO_DATA = {
         "nombre": "Juan",
@@ -28,11 +31,10 @@ class TestNominaBatch:
     }
 
     def _crear_empleado(self, client, auth_headers, **overrides):
-        import random
         data = {**self.EMPLEADO_DATA}
-        data["numero_empleado"] = f"EMP-{random.randint(1000, 9999)}"
-        # Generate unique CURP/RFC/NSS
-        suffix = str(random.randint(10, 99))
+        sequence = next(self._empleado_sequence)
+        data["numero_empleado"] = f"EMP-{sequence:04d}"
+        suffix = f"{sequence:02d}"
         data["curp"] = f"PELJ9001{suffix}HQTRPN09"
         data["rfc"] = f"PELJ9001{suffix}3A5"
         data["nss"] = f"123456789{suffix}"
