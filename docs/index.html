@@ -5240,7 +5240,7 @@ function emparejarVentasLegacyIndexedDB(registros) {
     var huella = huellaVentaLegacy(registro.venta);
     if (!huella) return;
     _ventasLegacyRevision.forEach(function(item) {
-      if (!item || !item.key || !item.venta) return;
+      if (!item || !item.key || item.key.indexOf('localstorage-') !== 0 || !item.venta) return;
       if (huellaVentaLegacy(item.venta) !== huella) return;
       var diferencia = diferenciaFechasVentaLegacy(item.timestamp, registro.timestamp);
       if (diferencia <= 30000) {

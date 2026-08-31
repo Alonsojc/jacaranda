@@ -328,6 +328,7 @@ def test_legacy_sale_matching_uses_complete_payload_and_nearest_timestamp():
     assert "delete payload.idempotency_key" in matching_segment
     assert "function ordenarValorHuella" in matching_segment
     assert "Object.keys(valor).sort()" in matching_segment
+    assert "item.key.indexOf('localstorage-') !== 0" in matching_segment
     assert "diferencia <= 30000" in matching_segment
     assert "candidatos.sort" in matching_segment
     assert "a.diferencia - b.diferencia" in matching_segment
