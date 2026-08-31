@@ -3695,7 +3695,12 @@ function refreshAccessToken() {
   var versionSesionRefresh = _versionSesion;
   var refreshTokenSolicitado = REFRESH_TOKEN;
   function sesionRefreshSigueActiva() {
-    return _versionSesion === versionSesionRefresh && REFRESH_TOKEN === refreshTokenSolicitado;
+    var refreshCompartido = '';
+    try { refreshCompartido = localStorage.getItem('jacaranda_refresh_token') || ''; }
+    catch (e) { return false; }
+    return _versionSesion === versionSesionRefresh &&
+      REFRESH_TOKEN === refreshTokenSolicitado &&
+      refreshCompartido === refreshTokenSolicitado;
   }
   var controller = window.AbortController ? new AbortController() : null;
   var timeoutId = null;
@@ -5278,13 +5283,19 @@ window.addEventListener('storage', function(e) {
     var tokenCompartido = localStorage.getItem('jacaranda_token') || '';
     var refreshCompartido = localStorage.getItem('jacaranda_refresh_token') || '';
     var cambioIdentidadCompartida = !!refreshCompartido && refreshCompartido !== REFRESH_TOKEN;
+    var usuarioTokenActual = usuarioIdDesdeTokenVentas(TOKEN);
+    var usuarioTokenCompartido = usuarioIdDesdeTokenVentas(tokenCompartido);
+    var cambioIdentidadToken = TOKEN !== tokenCompartido && (
+      !TOKEN || !tokenCompartido || !usuarioTokenActual || !usuarioTokenCompartido ||
+      usuarioTokenActual !== usuarioTokenCompartido
+    );
     if (TOKEN !== tokenCompartido || REFRESH_TOKEN !== refreshCompartido) {
       invalidarTareasSesion();
       TOKEN = tokenCompartido;
       REFRESH_TOKEN = refreshCompartido;
       _apiGetCache = {};
       _apiGetInFlight = {};
-      if ((!TOKEN && !REFRESH_TOKEN) || cambioIdentidadCompartida) {
+      if ((!TOKEN && !REFRESH_TOKEN) || cambioIdentidadCompartida || cambioIdentidadToken) {
         _ventasPendientes = [];
         _ventasLegacyRevision = [];
         programarRecargaSesionCompartida();

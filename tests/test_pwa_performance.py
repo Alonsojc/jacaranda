@@ -98,6 +98,8 @@ def test_frontend_keeps_session_during_temporary_server_errors():
     assert "var versionSesionRefresh = _versionSesion" in refresh_segment
     assert "var refreshTokenSolicitado = REFRESH_TOKEN" in refresh_segment
     assert "function sesionRefreshSigueActiva()" in refresh_segment
+    assert "localStorage.getItem('jacaranda_refresh_token')" in refresh_segment
+    assert "refreshCompartido === refreshTokenSolicitado" in refresh_segment
     assert "return conBloqueoColasVentas(function()" in refresh_segment
     assert "}, 30000)" in refresh_segment
     assert refresh_segment.index("if (!sesionRefreshSigueActiva())") < refresh_segment.index("expirarSesion()")
@@ -207,6 +209,10 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "e.key === 'jacaranda_user'" in queue_lock_segment
     assert "e.key === 'jacaranda_token'" in queue_lock_segment
     assert "var cambioIdentidadCompartida" in queue_lock_segment
+    assert "var cambioIdentidadToken" in queue_lock_segment
+    assert "usuarioIdDesdeTokenVentas(TOKEN)" in queue_lock_segment
+    assert "usuarioIdDesdeTokenVentas(tokenCompartido)" in queue_lock_segment
+    assert "cambioIdentidadCompartida || cambioIdentidadToken" in queue_lock_segment
     assert "programarRecargaSesionCompartida()" in queue_lock_segment
     assert "invalidarTareasSesion()" in queue_lock_segment
     assert "window.location.reload()" in queue_lock_segment
