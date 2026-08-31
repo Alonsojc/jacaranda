@@ -108,6 +108,11 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
         "function sincronizarVentas",
         "function recuperarVentasIndexedDB",
     )
+    queue_merge_segment = segment_between(
+        html,
+        "function claveVentaPendienteCompartida",
+        "function sincronizarVentas",
+    )
     payload_segment = segment_between(
         html,
         "function payloadVentaPendiente",
@@ -133,8 +138,10 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     )
 
     assert "fallidas.push(venta)" in sync_segment
-    assert "_ventasPendientes = fallidas.concat(nuevas)" in sync_segment
-    assert "pending.indexOf(venta) === -1" in sync_segment
+    assert "fusionarVentasPendientesCompartidas(pending, fallidas)" in sync_segment
+    assert "leerVentasPendientesLocal()" in queue_merge_segment
+    assert "procesadasPorClave" in queue_merge_segment
+    assert "fallidasPorClave" in queue_merge_segment
     assert "var sesionSync = _versionSesion" in sync_segment
     assert "function sesionCambioDuranteSync()" in sync_segment
     assert "if (sesionCancelada || sesionCambioDuranteSync()) return" in sync_segment

@@ -5247,6 +5247,36 @@ function accionVentasPendientes() {
   return sincronizarVentas();
 }
 
+function claveVentaPendienteCompartida(venta) {
+  if (!venta) return '';
+  if (venta.idempotency_key) return 'id:' + venta.idempotency_key;
+  var huella = huellaVentaLegacy(venta);
+  return huella ? 'legacy:' + String(venta._timestamp || '') + ':' + huella : '';
+}
+
+function fusionarVentasPendientesCompartidas(procesadas, fallidas) {
+  var procesadasPorClave = {};
+  var fallidasPorClave = {};
+  procesadas.forEach(function(venta) {
+    var clave = claveVentaPendienteCompartida(venta);
+    if (clave) procesadasPorClave[clave] = true;
+  });
+  fallidas.forEach(function(venta) {
+    var clave = claveVentaPendienteCompartida(venta);
+    if (clave) fallidasPorClave[clave] = true;
+  });
+
+  var candidatas = fallidas.concat(_ventasPendientes, leerVentasPendientesLocal());
+  var vistas = {};
+  return candidatas.filter(function(venta) {
+    var clave = claveVentaPendienteCompartida(venta);
+    if (clave && procesadasPorClave[clave] && !fallidasPorClave[clave]) return false;
+    if (clave && vistas[clave]) return false;
+    if (clave) vistas[clave] = true;
+    return true;
+  });
+}
+
 function sincronizarVentas() {
   moverVentasLocalesLegacyARevision();
   if (!_ventasPendientes.length || _sincronizandoVentas || !TOKEN) return Promise.resolve();
@@ -5286,10 +5316,8 @@ function sincronizarVentas() {
   }
   return chain.then(function() {
     if (sesionCancelada || sesionCambioDuranteSync()) return;
-    var nuevas = _ventasPendientes.filter(function(venta) {
-      return pending.indexOf(venta) === -1;
-    });
-    _ventasPendientes = fallidas.concat(nuevas);
+    _ventasPendientes = fusionarVentasPendientesCompartidas(pending, fallidas);
+    moverVentasLocalesLegacyARevision();
     var colaGuardada = guardarVentasPendientesLocal();
     var mensaje = ok + ' ventas sincronizadas' + (fail ? ', ' + fail + ' siguen pendientes' : '');
     if (!colaGuardada) mensaje += '. No cierres la app';
