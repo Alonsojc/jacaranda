@@ -10,6 +10,7 @@ Permite:
 
 import json
 import hmac
+import re
 import urllib.request
 import urllib.error
 from urllib.parse import quote, urlencode
@@ -92,12 +93,11 @@ def _validate_live_pinpad_configuration(serial: str | None = None) -> None:
     missing = []
     if not _pinpad_credentials_configured(serial):
         missing.append("credenciales y serial de CLIP")
-    if not (getattr(settings, "BACKEND_PUBLIC_URL", "") or "").strip():
+    backend_url = (getattr(settings, "BACKEND_PUBLIC_URL", "") or "").strip()
+    if not backend_url:
         missing.append("BACKEND_PUBLIC_URL")
-    if not (getattr(settings, "CLIP_WEBHOOK_SECRET", "") or "").strip():
-        missing.append("CLIP_WEBHOOK_SECRET")
-    if bool(getattr(settings, "CLIP_ALLOW_UNSIGNED_WEBHOOKS", False)):
-        missing.append("CLIP_ALLOW_UNSIGNED_WEBHOOKS=false")
+    elif not backend_url.startswith("https://"):
+        missing.append("BACKEND_PUBLIC_URL con HTTPS")
     if missing:
         raise ClipAPIError(
             "CLIP PinPad real no está listo: " + ", ".join(missing)
@@ -234,17 +234,27 @@ def cancelar_pago_pinpad(pinpad_request_id: str) -> dict:
     return _pinpad_request("DELETE", f"/f2f/pinpad/v1/payment/{encoded_id}")
 
 
-def verificar_webhook_secret_clip(provided_secret: str | None) -> None:
-    """Valida el secreto compartido sin permitirlo en la URL."""
-    _require_live_pinpad_enabled()
-    if bool(getattr(settings, "CLIP_ALLOW_UNSIGNED_WEBHOOKS", False)):
-        raise ClipAPIError("CLIP_ALLOW_UNSIGNED_WEBHOOKS debe permanecer en false")
-    configured_secret = (getattr(settings, "CLIP_WEBHOOK_SECRET", "") or "").strip()
-    if not configured_secret:
-        raise ClipAPIError("Webhook de CLIP sin secreto configurado")
-    candidate = (provided_secret or "").strip()
-    if not candidate or not hmac.compare_digest(candidate, configured_secret):
-        raise ClipAPIError("Webhook no autorizado")
+def validar_notificacion_webhook_pinpad(payload: dict) -> dict:
+    """Valida la notificación mínima; el estado se confirma después con Clip."""
+    if not isinstance(payload, dict):
+        raise ClipAPIError("Webhook de CLIP inválido")
+    origin = str(payload.get("origin") or "").strip().lower()
+    if origin not in {"pinpad-api", "pinpad-payments-api"}:
+        raise ClipAPIError("Origen de webhook CLIP inválido")
+    event_type = str(payload.get("event_type") or "").strip().upper()
+    if event_type not in {"PINPAD_INTENT_STATUS_CHANGED", "UPDATE"}:
+        raise ClipAPIError("Tipo de webhook CLIP inválido")
+    payment_id = str(payload.get("id") or "").strip()
+    if (
+        payment_id.startswith("mock-pinpad-")
+        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{5,119}", payment_id)
+    ):
+        raise ClipAPIError("Identificador de webhook CLIP inválido")
+    return {
+        "payment_id": payment_id,
+        "origin": origin,
+        "event_type": event_type,
+    }
 
 
 def _pick_first(data: dict, keys: tuple[str, ...]):
@@ -362,14 +372,7 @@ def validar_confirmacion_pinpad(
     payment_id_esperado: str | None = None,
 ) -> None:
     """Valida identidad y monto antes de convertir un intento en pago."""
-    payment_id = str(info.get("payment_id") or "").strip()
-    if not payment_id:
-        raise ClipAPIError("CLIP no devolvió un identificador de pago")
-    if payment_id_esperado and not hmac.compare_digest(
-        payment_id,
-        str(payment_id_esperado),
-    ):
-        raise ClipAPIError("El identificador de CLIP no coincide con la venta")
+    validar_identificador_pinpad(info, payment_id_esperado)
 
     amount = info.get("amount")
     if amount in (None, ""):
@@ -383,6 +386,21 @@ def validar_confirmacion_pinpad(
     expected = Decimal(str(monto_esperado)).quantize(Decimal("0.01"))
     if amount_decimal <= 0 or amount_decimal != expected:
         raise ClipAPIError("El monto de CLIP no coincide con la venta")
+
+
+def validar_identificador_pinpad(
+    info: dict,
+    payment_id_esperado: str | None = None,
+) -> None:
+    """Exige que una consulta autenticada corresponda al intento esperado."""
+    payment_id = str(info.get("payment_id") or "").strip()
+    if not payment_id:
+        raise ClipAPIError("CLIP no devolvió un identificador de pago")
+    if payment_id_esperado and not hmac.compare_digest(
+        payment_id,
+        str(payment_id_esperado),
+    ):
+        raise ClipAPIError("El identificador de CLIP no coincide con la venta")
 
 
 def enviar_cobro(monto: Decimal, referencia: str, descripcion: str = "") -> dict:

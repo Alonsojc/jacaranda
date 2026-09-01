@@ -4,6 +4,7 @@ import json
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -191,6 +192,7 @@ def estado_cobro_clip_pinpad(
         try:
             respuesta = clip_service.consultar_pago_pinpad(venta.pago_externo_id)
             info = clip_service.extraer_pago_webhook_clip(respuesta)
+            clip_service.validar_identificador_pinpad(info, venta.pago_externo_id)
             if clip_service.es_pago_clip_aprobado(info.get("status")):
                 clip_service.validar_confirmacion_pinpad(
                     info,
@@ -236,14 +238,12 @@ async def webhook_clip(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    """Webhook público de Clip PinPad con replay protection."""
+    """Recibe el aviso de Clip y confirma su estado contra la API autenticada."""
     try:
-        clip_service.verificar_webhook_secret_clip(
-            request.headers.get("x-clip-webhook-secret")
-        )
+        clip_service._require_live_pinpad_enabled()
     except clip_service.ClipAPIError as exc:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),
         )
 
@@ -253,8 +253,36 @@ async def webhook_clip(
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="JSON inválido")
 
-    info = clip_service.extraer_pago_webhook_clip(payload)
-    event_id = info["event_id"]
+    try:
+        notification = clip_service.validar_notificacion_webhook_pinpad(payload)
+    except clip_service.ClipAPIError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    payment_id = notification["payment_id"]
+    venta = db.query(Venta).filter(
+        Venta.pago_externo_id == payment_id,
+        Venta.pago_proveedor == "clip",
+        Venta.pago_integrado.is_(True),
+    ).first()
+    if not venta:
+        return {
+            "ok": True,
+            "processed": False,
+            "reason": "venta_no_encontrada",
+        }
+
+    try:
+        respuesta = clip_service.consultar_pago_pinpad(notification["payment_id"])
+        info = clip_service.extraer_pago_webhook_clip(respuesta)
+        clip_service.validar_identificador_pinpad(
+            info,
+            notification["payment_id"],
+        )
+    except clip_service.ClipAPIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    payment_status = str(info.get("status") or "unknown").lower()[:32]
+    event_id = f"{payment_id}:{payment_status}"[:160]
     existente = db.query(ClipWebhookEvent).filter(
         ClipWebhookEvent.event_id == event_id
     ).first()
@@ -263,21 +291,24 @@ async def webhook_clip(
 
     event = ClipWebhookEvent(
         event_id=event_id,
-        event_type=info.get("event_type"),
-        payment_id=info.get("payment_id"),
-        payload_json=json.dumps(payload, default=str),
+        event_type=f"{notification['event_type']}:{payment_status}",
+        payment_id=payment_id,
+        payload_json=json.dumps(
+            {"notification": payload, "verified_payment": respuesta},
+            default=str,
+        ),
     )
     db.add(event)
-    db.flush()
-
-    venta = None
-    if info.get("reference"):
-        venta = db.query(Venta).filter(Venta.folio == info["reference"]).first()
-    if not venta and info.get("payment_id"):
-        venta = db.query(Venta).filter(Venta.pago_externo_id == info["payment_id"]).first()
-    if not venta:
-        db.commit()
-        return {"ok": True, "processed": False, "reason": "venta_no_encontrada", "event_id": event_id}
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        existente = db.query(ClipWebhookEvent).filter(
+            ClipWebhookEvent.event_id == event_id
+        ).first()
+        if existente:
+            return {"ok": True, "duplicate": True, "event_id": event_id}
+        raise
 
     event.venta_id = venta.id
     if clip_service.es_pago_clip_aprobado(info.get("status")):
@@ -296,28 +327,30 @@ async def webhook_clip(
                 db,
                 venta.id,
                 "clip",
-                info.get("payment_id"),
-                payload,
+                payment_id,
+                respuesta,
                 usuario_id=None,
                 commit=False,
             )
             event.processed = True
+        elif venta.estado == EstadoVenta.COMPLETADA:
+            event.processed = False
         elif clip_service.es_pago_clip_fallido(info.get("status")):
             venta_service.marcar_pago_integrado_fallido(
                 db,
                 venta.id,
                 "clip",
-                info.get("payment_id"),
+                payment_id,
                 clip_service.estado_operativo_clip(info.get("status")),
-                payload,
+                respuesta,
                 commit=False,
             )
             event.processed = True
         else:
             venta.pago_proveedor = "clip"
-            venta.pago_externo_id = info.get("payment_id") or venta.pago_externo_id
+            venta.pago_externo_id = payment_id
             venta.pago_externo_estado = clip_service.estado_operativo_clip(info.get("status"))
-            venta.pago_externo_payload = json.dumps(payload, default=str)
+            venta.pago_externo_payload = json.dumps(respuesta, default=str)
             event.processed = True
         db.commit()
     except ValueError as e:

@@ -30,8 +30,6 @@ def configure_live_pinpad(monkeypatch):
     monkeypatch.setattr(settings, "CLIP_PINPAD_AUTHORIZATION", "Bearer pinpad-test")
     monkeypatch.setattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "SN-TEST")
     monkeypatch.setattr(settings, "BACKEND_PUBLIC_URL", "https://backend.test")
-    monkeypatch.setattr(settings, "CLIP_WEBHOOK_SECRET", "webhook-test")
-    monkeypatch.setattr(settings, "CLIP_ALLOW_UNSIGNED_WEBHOOKS", False)
 
 
 def test_basic_auth_requires_both_credentials(monkeypatch):
@@ -103,7 +101,7 @@ def test_pinpad_is_mock_until_explicitly_enabled(monkeypatch):
     with pytest.raises(clip.ClipAPIError, match="deshabilitado"):
         clip.cancelar_pago_pinpad("real-payment-id")
     with pytest.raises(clip.ClipAPIError, match="deshabilitado"):
-        clip.verificar_webhook_secret_clip("secret")
+        clip._require_live_pinpad_enabled()
 
 
 def test_live_pinpad_fails_closed_when_incomplete(monkeypatch):
@@ -114,16 +112,18 @@ def test_live_pinpad_fails_closed_when_incomplete(monkeypatch):
     monkeypatch.setattr(settings, "CLIP_API_SECRET", "")
     monkeypatch.setattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "")
     monkeypatch.setattr(settings, "BACKEND_PUBLIC_URL", "")
-    monkeypatch.setattr(settings, "CLIP_WEBHOOK_SECRET", "")
-    monkeypatch.setattr(settings, "CLIP_ALLOW_UNSIGNED_WEBHOOKS", True)
 
     with pytest.raises(clip.ClipAPIError) as exc:
         clip.enviar_cobro_pinpad(Decimal("20"), "T-1")
     message = str(exc.value)
     assert "credenciales y serial" in message
     assert "BACKEND_PUBLIC_URL" in message
-    assert "CLIP_WEBHOOK_SECRET" in message
-    assert "CLIP_ALLOW_UNSIGNED_WEBHOOKS=false" in message
+
+    monkeypatch.setattr(settings, "CLIP_PINPAD_AUTHORIZATION", "Bearer test")
+    monkeypatch.setattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "SN-TEST")
+    monkeypatch.setattr(settings, "BACKEND_PUBLIC_URL", "http://backend.test")
+    with pytest.raises(clip.ClipAPIError, match="HTTPS"):
+        clip.enviar_cobro_pinpad(Decimal("20"), "T-1")
 
 
 def test_live_pinpad_builds_payment_with_required_webhook(monkeypatch):
@@ -191,7 +191,7 @@ def test_pinpad_request_and_transport_errors(monkeypatch):
         clip._pinpad_request("GET", "/status")
 
 
-def test_webhook_url_and_secret_are_fail_closed(monkeypatch):
+def test_webhook_url_and_notification_validation(monkeypatch):
     monkeypatch.setattr(settings, "BACKEND_PUBLIC_URL", "")
     assert clip.clip_webhook_url(required=False) is None
     with pytest.raises(clip.ClipAPIError, match="BACKEND_PUBLIC_URL"):
@@ -200,20 +200,25 @@ def test_webhook_url_and_secret_are_fail_closed(monkeypatch):
     monkeypatch.setattr(settings, "BACKEND_PUBLIC_URL", "https://backend.test/")
     assert clip.clip_webhook_url() == "https://backend.test/api/v1/pagos/clip/webhook"
 
-    configure_live_pinpad(monkeypatch)
-    monkeypatch.setattr(settings, "CLIP_WEBHOOK_SECRET", "")
-    monkeypatch.setattr(settings, "CLIP_ALLOW_UNSIGNED_WEBHOOKS", False)
-    with pytest.raises(clip.ClipAPIError, match="sin secreto"):
-        clip.verificar_webhook_secret_clip(None)
-    monkeypatch.setattr(settings, "CLIP_ALLOW_UNSIGNED_WEBHOOKS", True)
-    with pytest.raises(clip.ClipAPIError, match="debe permanecer en false"):
-        clip.verificar_webhook_secret_clip(None)
-
-    monkeypatch.setattr(settings, "CLIP_WEBHOOK_SECRET", "expected")
-    monkeypatch.setattr(settings, "CLIP_ALLOW_UNSIGNED_WEBHOOKS", False)
-    with pytest.raises(clip.ClipAPIError, match="no autorizado"):
-        clip.verificar_webhook_secret_clip("wrong")
-    clip.verificar_webhook_secret_clip("expected")
+    payload = {
+        "id": "pinpad-6a405173-c661-414a-9a8f-ecc77a9afe3f",
+        "origin": "pinpad-payments-api",
+        "event_type": "PINPAD_INTENT_STATUS_CHANGED",
+    }
+    assert clip.validar_notificacion_webhook_pinpad(payload) == {
+        "payment_id": payload["id"],
+        "origin": "pinpad-payments-api",
+        "event_type": "PINPAD_INTENT_STATUS_CHANGED",
+    }
+    for changed, message in [
+        (None, "inválido"),
+        ({**payload, "origin": "otro"}, "Origen"),
+        ({**payload, "event_type": "OTRO"}, "Tipo"),
+        ({**payload, "id": "bad"}, "Identificador"),
+        ({**payload, "id": "mock-pinpad-T-1"}, "Identificador"),
+    ]:
+        with pytest.raises(clip.ClipAPIError, match=message):
+            clip.validar_notificacion_webhook_pinpad(changed)
 
 
 def test_consult_and_cancel_pinpad(monkeypatch):
@@ -262,7 +267,7 @@ def test_request_serial_override_does_not_block_follow_up(monkeypatch):
 
     clip.consultar_pago_pinpad("pay-override")
     clip.cancelar_pago_pinpad("pay-override")
-    clip.verificar_webhook_secret_clip("webhook-test")
+    clip._require_live_pinpad_enabled()
     assert [call[0] for call in calls] == ["POST", "GET", "DELETE"]
 
 

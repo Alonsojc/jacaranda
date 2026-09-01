@@ -117,6 +117,8 @@ class Settings(BaseSettings):
     CLIP_PINPAD_AUTHORIZATION: str = ""
     CLIP_PINPAD_SERIAL_NUMBER: str = ""
     CLIP_PINPAD_MOCK_MODE: bool = True
+    # Conservadas para no romper entornos antiguos; PinPad no documenta headers
+    # secretos en callbacks y el webhook se verifica consultando la API de Clip.
     CLIP_WEBHOOK_SECRET: str = ""
     CLIP_ALLOW_UNSIGNED_WEBHOOKS: bool = False
     BACKEND_PUBLIC_URL: str = ""
