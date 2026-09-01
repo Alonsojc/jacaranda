@@ -2753,6 +2753,7 @@ var _clienteEditId = null;
 var _recepcionesCompraEnProceso = {};
 var _offline = false;
 var VENTAS_QUEUE_OWNER_KEY = 'jacaranda_ventas_propietario';
+var VENTAS_QUEUE_ROW_VERSION = 1;
 
 function normalizarIdentidadVentas(valor) {
   return valor == null ? '' : String(valor).trim();
@@ -5255,14 +5256,27 @@ function programarRecargaSesionCompartida() {
 }
 
 function agregarVentaPendienteCompartida(venta, versionSesion, tokenSesion) {
+  var propietarioVenta = usuarioIdDesdeTokenVentas(tokenSesion);
+  if (!propietarioVenta) return Promise.reject(new Error('No se pudo identificar al usuario de la venta'));
   return conBloqueoColasVentas(function() {
     exigirSesionColasVigente(versionSesion, tokenSesion);
+    var propietarioCola = leerPropietarioColasVentas();
+    if (propietarioCola && propietarioCola !== propietarioVenta) {
+      throw new Error('Las ventas pendientes pertenecen a otra sesi\u00f3n');
+    }
+    if (!propietarioCola && !asegurarPropietarioColasVentas(true, propietarioVenta)) {
+      throw new Error('No se pudo proteger al usuario de la venta');
+    }
     _ventasPendientes = leerVentasPendientesLocal();
-    var clave = claveVentaPendienteCompartida(venta);
+    var ventaProtegida = Object.assign({}, venta, {
+      _queue_version: VENTAS_QUEUE_ROW_VERSION,
+      _queue_owner: propietarioVenta
+    });
+    var clave = claveVentaPendienteCompartida(ventaProtegida);
     var yaExiste = _ventasPendientes.some(function(actual) {
       return clave && claveVentaPendienteCompartida(actual) === clave;
     });
-    if (!yaExiste) _ventasPendientes.push(venta);
+    if (!yaExiste) _ventasPendientes.push(ventaProtegida);
     if (!guardarVentasPendientesLocal()) {
       _ventasPendientes = leerVentasPendientesLocal();
       throw new Error('No se pudo guardar la venta');
@@ -5320,6 +5334,13 @@ function payloadVentaPendiente(venta) {
     body.recompensa_lealtad_motivo = venta.recompensa_lealtad_motivo;
   }
   return body;
+}
+
+function ventaPendienteProtegidaPara(venta, propietario) {
+  return !!venta &&
+    Number(venta._queue_version) === VENTAS_QUEUE_ROW_VERSION &&
+    !!normalizarIdentidadVentas(propietario) &&
+    normalizarIdentidadVentas(venta._queue_owner) === normalizarIdentidadVentas(propietario);
 }
 
 function esErrorVentaNoReintentable(e) {
@@ -5418,6 +5439,7 @@ function moverVentasLocalesLegacyARevision(propietarioDesconocido) {
   var automaticas = [];
   var existentes = {};
   var rechazadasPorIdempotencia = {};
+  var propietarioActual = leerPropietarioColasVentas() || identidadActualColasVentas();
   var movidas = 0;
   _ventasLegacyRevision.forEach(function(item) {
     if (item && item.key) existentes[item.key] = true;
@@ -5427,7 +5449,8 @@ function moverVentasLocalesLegacyARevision(propietarioDesconocido) {
   });
   _ventasPendientes.forEach(function(venta, index) {
     var valida = venta && Array.isArray(venta.detalles) && venta.detalles.length;
-    if (!propietarioDesconocido && valida && venta.idempotency_key) {
+    var protegidaParaSesion = ventaPendienteProtegidaPara(venta, propietarioActual);
+    if (!propietarioDesconocido && protegidaParaSesion && valida && venta.idempotency_key) {
       if (rechazadasPorIdempotencia[venta.idempotency_key]) {
         movidas++;
         return;
@@ -5444,7 +5467,7 @@ function moverVentasLocalesLegacyARevision(propietarioDesconocido) {
         ventaRevision._timestamp = timestamp;
       }
       var revision = {key: key, timestamp: timestamp, venta: ventaRevision};
-      if (propietarioDesconocido) revision.propietario_desconocido = true;
+      if (propietarioDesconocido || !protegidaParaSesion) revision.propietario_desconocido = true;
       _ventasLegacyRevision.push(revision);
       existentes[key] = true;
     }
@@ -5549,7 +5572,13 @@ function recuperarVentaLegacyCompartida(itemKey, versionSesion, tokenSesion) {
     if (!itemActual.venta) throw new Error('Esta venta ya no se puede recuperar.');
     var claveRecuperacion = claveIdempotenciaVentaLegacy(itemActual);
     if (!claveRecuperacion) throw new Error('No se pudo identificar la venta.');
-    var ventaRecuperada = Object.assign({}, itemActual.venta, {idempotency_key: claveRecuperacion});
+    var propietarioRecuperacion = usuarioIdDesdeTokenVentas(tokenSesion);
+    if (!propietarioRecuperacion) throw new Error('No se pudo identificar al usuario de la venta.');
+    var ventaRecuperada = Object.assign({}, itemActual.venta, {
+      idempotency_key: claveRecuperacion,
+      _queue_version: VENTAS_QUEUE_ROW_VERSION,
+      _queue_owner: propietarioRecuperacion
+    });
     var claveVenta = claveVentaPendienteCompartida(ventaRecuperada);
     var yaPendiente = _ventasPendientes.some(function(venta) {
       return claveVenta && claveVentaPendienteCompartida(venta) === claveVenta;
@@ -5762,8 +5791,11 @@ function sincronizarVentasPreparadas() {
   _sincronizandoVentas = true;
   var sesionSync = _versionSesion;
   var tokenSesionSync = TOKEN;
+  var propietarioSesionSync = usuarioIdDesdeTokenVentas(tokenSesionSync);
   var sesionCancelada = false;
-  var pending = _ventasPendientes.slice();
+  var pending = _ventasPendientes.filter(function(venta) {
+    return ventaPendienteProtegidaPara(venta, propietarioSesionSync);
+  });
   var fallidas = [];
   var rechazadas = [];
   var ok = 0, fail = 0;

@@ -177,6 +177,8 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "fallidasPorClave" in queue_merge_segment
     assert "var sesionSync = _versionSesion" in sync_segment
     assert "var tokenSesionSync = TOKEN" in sync_segment
+    assert "var propietarioSesionSync = usuarioIdDesdeTokenVentas(tokenSesionSync)" in sync_segment
+    assert "ventaPendienteProtegidaPara(venta, propietarioSesionSync)" in sync_segment
     assert "function sesionCambioDuranteSync()" in sync_segment
     assert "sesionColasVigente(sesionSync, tokenSesionSync)" in sync_segment
     assert "if (sesionCancelada || sesionCambioDuranteSync()) return" in sync_segment
@@ -199,10 +201,14 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "function agregarVentaPendienteCompartida" in queue_lock_segment
     assert "function sesionColasVigente" in queue_lock_segment
     assert "exigirSesionColasVigente(versionSesion, tokenSesion)" in queue_lock_segment
+    assert "var propietarioVenta = usuarioIdDesdeTokenVentas(tokenSesion)" in queue_lock_segment
+    assert "propietarioCola && propietarioCola !== propietarioVenta" in queue_lock_segment
+    assert "_queue_version: VENTAS_QUEUE_ROW_VERSION" in queue_lock_segment
+    assert "_queue_owner: propietarioVenta" in queue_lock_segment
     assert queue_lock_segment.index("_ventasPendientes = leerVentasPendientesLocal()") < queue_lock_segment.index(
-        "_ventasPendientes.push(venta)"
+        "_ventasPendientes.push(ventaProtegida)"
     )
-    assert queue_lock_segment.index("_ventasPendientes.push(venta)") < queue_lock_segment.index(
+    assert queue_lock_segment.index("_ventasPendientes.push(ventaProtegida)") < queue_lock_segment.index(
         "guardarVentasPendientesLocal()"
     )
     assert "window.addEventListener('storage'" in queue_lock_segment
@@ -254,6 +260,7 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "tx.onabort = function() { finalizarMigracion(false); }" in recovery_segment
     assert "claveIdempotenciaVentaLegacy(itemActual)" in review_mutation_segment
     assert "if (itemActual.propietario_desconocido)" in review_mutation_segment
+    assert "_queue_owner: propietarioRecuperacion" in review_mutation_segment
     assert "confirmarAccion({" in review_segment
     assert "item.tipo === 'rechazada'" in review_segment
     assert "Venta no aceptada" in review_segment
@@ -299,7 +306,14 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "function leerVentasPendientesLocal" in html
     assert "function moverVentasLocalesLegacyARevision(propietarioDesconocido)" in html
     assert "moverVentasLocalesLegacyARevision(propietarioDesconocido);" in html
-    assert "if (!propietarioDesconocido && valida && venta.idempotency_key)" in html
+    assert "function ventaPendienteProtegidaPara(venta, propietario)" in html
+    assert "Number(venta._queue_version) === VENTAS_QUEUE_ROW_VERSION" in html
+    assert (
+        "normalizarIdentidadVentas(venta._queue_owner) === normalizarIdentidadVentas(propietario)"
+        in html
+    )
+    assert "if (!propietarioDesconocido && protegidaParaSesion && valida && venta.idempotency_key)" in html
+    assert "if (propietarioDesconocido || !protegidaParaSesion) revision.propietario_desconocido = true" in html
     assert "rechazadasPorIdempotencia[venta.idempotency_key]" in html
     assert "_ventasLegacyRevision = leerVentasLegacyRevision()" in sync_segment
     assert "fallidasAGuardar.push(rechazo.ventaOriginal)" in sync_segment
@@ -508,6 +522,39 @@ def test_unmatched_legacy_indexeddb_sales_stay_in_manual_quarantine():
         "if (item.tipo === 'rechazada')"
     )
     assert "no se enviará automáticamente" in review_segment
+
+
+def test_preupgrade_localstorage_sales_are_not_submitted_by_a_new_cashier():
+    html = read_text("docs/index.html")
+    queue_segment = segment_between(
+        html,
+        "function agregarVentaPendienteCompartida",
+        "window.addEventListener('storage'",
+    )
+    quarantine_segment = segment_between(
+        html,
+        "function moverVentasLocalesLegacyARevision",
+        "function claveIdempotenciaVentaLegacy",
+    )
+    sync_segment = segment_between(
+        html,
+        "function sincronizarVentasPreparadas",
+        "function recuperarVentasIndexedDB",
+    )
+    payload_segment = segment_between(
+        html,
+        "function payloadVentaPendiente",
+        "function ventaPendienteProtegidaPara",
+    )
+
+    assert "var VENTAS_QUEUE_ROW_VERSION = 1" in html
+    assert "_queue_version: VENTAS_QUEUE_ROW_VERSION" in queue_segment
+    assert "_queue_owner: propietarioVenta" in queue_segment
+    assert "ventaPendienteProtegidaPara(venta, propietarioSesionSync)" in sync_segment
+    assert "!protegidaParaSesion" in quarantine_segment
+    assert "revision.propietario_desconocido = true" in quarantine_segment
+    assert "_queue_owner" not in payload_segment
+    assert "_queue_version" not in payload_segment
 
 
 def test_legacy_sale_matching_uses_complete_payload_and_nearest_timestamp():
