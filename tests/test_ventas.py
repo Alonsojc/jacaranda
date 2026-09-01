@@ -1069,16 +1069,29 @@ class TestVentas:
             json={"venta_id": venta_data["id"]},
             headers=auth_headers,
         )
+        cancelacion = client.post(
+            f"/api/v1/punto-de-venta/ventas/{venta_data['id']}/cancelar",
+            json={"motivo": "Respuesta de CLIP perdida"},
+            headers=auth_headers,
+        )
         estado = client.get(
             f"/api/v1/pagos/clip/pinpad/{venta_data['id']}",
+            headers=auth_headers,
+        )
+        producto = client.get(
+            f"/api/v1/inventario/productos/{pid}",
             headers=auth_headers,
         )
 
         assert primero.status_code == 502
         assert segundo.status_code == 409
         assert "No vuelvas a cobrar" in segundo.json()["detail"]
+        assert cancelacion.status_code == 400
+        assert "conciliación" in cancelacion.json()["detail"]
         assert estado.status_code == 200
+        assert estado.json()["estado_venta"] == "pendiente"
         assert estado.json()["estado_pago"] == "revision_requerida"
+        assert float(producto.json()["stock_actual"]) == 4.0
         assert llamadas == [venta_data["folio"]]
         auditoria = db.query(LogAuditoria).filter(
             LogAuditoria.modulo == "pagos",
