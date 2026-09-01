@@ -71,7 +71,7 @@ def test_pos_draft_is_scoped_to_user_and_cleared_on_logout():
     html = read_text("docs/index.html")
     core = read_text("docs/js/jacaranda-core.js")
     restore = segment_between(html, "function restorePosDraft", "function updateMobileTicketBar")
-    logout = segment_between(html, "function cerrarSesion()", "async function confirmarCerrarSesion")
+    logout = segment_between(html, "function cerrarSesion(opciones)", "async function confirmarCerrarSesion")
 
     assert "var POS_DRAFT_KEY = 'jacaranda_pos_draft'" in html
     assert "POS_DRAFT_MAX_AGE_MS = 12 * 60 * 60 * 1000" in html
@@ -81,7 +81,7 @@ def test_pos_draft_is_scoped_to_user_and_cleared_on_logout():
     assert "idempotencyKey: _ventaIdempotencyKey || null" in html
     assert "_ventaIdempotencyKey = /^venta-[A-Za-z0-9-]{8,190}$/.test(savedSaleKey)" in restore
     sale = segment_between(html, "function procesarVenta()", "function esperarPagoClip")
-    assert sale.index("savePosDraft();") < sale.index("api('POST', '/punto-de-venta/ventas', body)")
+    assert sale.index("savePosDraft();") < sale.index("api('POST', '/punto-de-venta/ventas', body,")
     assert "function reconcilePosDraftWithProducts" in html
     assert "reconcilePosDraftWithProducts(prods);" in html
     assert "reconcilePosDraftWithProducts(cached);" in html

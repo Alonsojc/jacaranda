@@ -160,6 +160,37 @@ class TestVentas:
         assert conciliacion.status_code == 200
         assert conciliacion.json()["saldo_sistema"] == 90.0
 
+    def test_conciliacion_usa_el_mes_local_en_el_cambio_de_mes(self, client, auth_headers, db):
+        from app.models.venta import Venta
+
+        pid = self._crear_producto(client, auth_headers, "PAN-MONTH-EDGE", "100.00")
+        self._agregar_stock(client, auth_headers, pid)
+        resp = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "03",
+            "terminal": "efectivo",
+            "monto_recibido": "100.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert resp.status_code == 201, resp.text
+
+        venta = db.get(Venta, resp.json()["id"])
+        venta.fecha = datetime(2026, 9, 1, 0, 30)
+        db.commit()
+
+        agosto = client.get(
+            "/api/v1/contabilidad/banco/conciliacion?mes=8&anio=2026",
+            headers=auth_headers,
+        )
+        septiembre = client.get(
+            "/api/v1/contabilidad/banco/conciliacion?mes=9&anio=2026",
+            headers=auth_headers,
+        )
+
+        assert agosto.status_code == 200
+        assert agosto.json()["saldo_sistema"] == 100.0
+        assert septiembre.status_code == 200
+        assert septiembre.json()["saldo_sistema"] == 0.0
+
     def test_rechaza_terminal_tarjeta_con_forma_sat_incorrecta(self, client, auth_headers):
         pid = self._crear_producto(client, auth_headers, "PAN-PAY-INVALID", "20.00")
         self._agregar_stock(client, auth_headers, pid)

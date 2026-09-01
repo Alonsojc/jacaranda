@@ -594,8 +594,13 @@ def conciliacion_bancaria(db: Session, mes: int, anio: int) -> dict:
     else:
         ultimo_dia = date(anio, mes + 1, 1)
 
-    inicio_dt = datetime.combine(primer_dia, datetime.min.time(), tzinfo=timezone.utc)
-    fin_dt = datetime.combine(ultimo_dia, datetime.min.time(), tzinfo=timezone.utc)
+    zona = _zona_operacion()
+    inicio_dt = _normalizar_fecha_db(
+        datetime.combine(primer_dia, datetime.min.time(), tzinfo=zona)
+    )
+    fin_dt = _normalizar_fecha_db(
+        datetime.combine(ultimo_dia, datetime.min.time(), tzinfo=zona)
+    )
 
     # Movimientos bancarios del mes
     movs_banco = db.query(MovimientoBancario).filter(

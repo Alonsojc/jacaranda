@@ -26,7 +26,6 @@ def test_pos_checkout_modal_exposes_invoice_iva_toggle():
 def test_pos_sale_payload_preserves_invoice_iva_rate_online_and_offline():
     assert "iva_factura_tasa: _posFacturaIvaActiva ? POS_FACTURA_IVA_TASA : 0" in HTML
     assert "iva_factura_tasa: venta.iva_factura_tasa || 0" in HTML
-    assert "iva_factura_tasa: body.iva_factura_tasa || 0" in HTML
     assert "ivaFacturaPorLinea" in HTML
 
 
