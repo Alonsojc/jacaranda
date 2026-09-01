@@ -9,6 +9,8 @@ Permite:
 """
 
 import json
+import hmac
+import re
 import urllib.request
 import urllib.error
 from urllib.parse import quote, urlencode
@@ -21,6 +23,10 @@ from app.core.config import settings
 
 class ClipAPIError(Exception):
     pass
+
+
+class ClipPaymentAttemptUncertain(ClipAPIError):
+    """Clip pudo recibir el cobro, pero Jacaranda no obtuvo confirmación."""
 
 
 def _get_auth_header() -> str:
@@ -69,14 +75,48 @@ def _get_pinpad_auth_header() -> str:
 
 
 def _pinpad_credentials_configured(serial: str | None = None) -> bool:
+    terminal = bool(serial or getattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "").strip())
+    return terminal and _pinpad_auth_configured()
+
+
+def _pinpad_auth_configured() -> bool:
     raw = getattr(settings, "CLIP_PINPAD_AUTHORIZATION", "").strip()
     basic = bool(getattr(settings, "CLIP_API_KEY", "") and getattr(settings, "CLIP_API_SECRET", ""))
-    terminal = bool(serial or getattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "").strip())
-    return terminal and (bool(raw) or basic)
+    return bool(raw) or basic
 
 
 def _pinpad_mock_enabled(serial: str | None = None) -> bool:
-    return bool(getattr(settings, "CLIP_PINPAD_MOCK_MODE", False)) or not _pinpad_credentials_configured(serial)
+    return (
+        not bool(getattr(settings, "CLIP_PINPAD_ENABLED", False))
+        or bool(getattr(settings, "CLIP_PINPAD_MOCK_MODE", True))
+    )
+
+
+def _validate_live_pinpad_configuration(serial: str | None = None) -> None:
+    """Fail closed when real PinPad mode is requested incompletely."""
+    missing = []
+    if not _pinpad_credentials_configured(serial):
+        missing.append("credenciales y serial de CLIP")
+    backend_url = (getattr(settings, "BACKEND_PUBLIC_URL", "") or "").strip()
+    if not backend_url:
+        missing.append("BACKEND_PUBLIC_URL")
+    elif not backend_url.startswith("https://"):
+        missing.append("BACKEND_PUBLIC_URL con HTTPS")
+    if missing:
+        raise ClipAPIError(
+            "CLIP PinPad real no está listo: " + ", ".join(missing)
+        )
+
+
+def _require_live_pinpad_enabled() -> None:
+    if _pinpad_mock_enabled():
+        raise ClipAPIError("CLIP PinPad real está deshabilitado o en modo mock")
+
+
+def _require_live_pinpad_mode() -> None:
+    _require_live_pinpad_enabled()
+    if not _pinpad_auth_configured():
+        raise ClipAPIError("CLIP PinPad real no tiene credenciales configuradas")
 
 
 def _pinpad_request(
@@ -151,20 +191,24 @@ def enviar_cobro_pinpad(
     serial = (serial_number_pos or getattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "")).strip()
     if _pinpad_mock_enabled(serial):
         return _mock_pinpad_response(monto, referencia, serial)
-    if not serial:
-        raise ClipAPIError("Configura CLIP_PINPAD_SERIAL_NUMBER con el serial de tu terminal")
+    _validate_live_pinpad_configuration(serial)
 
     payload = {
         "amount": float(Decimal(str(monto)).quantize(Decimal("0.01"))),
         "reference": referencia,
         "serial_number_pos": serial,
     }
-    callback_url = webhook_url or clip_webhook_url(required=False)
-    if callback_url:
-        payload["webhook_url"] = callback_url
+    callback_url = webhook_url or clip_webhook_url(required=True)
+    payload["webhook_url"] = callback_url
     if descripcion:
         payload["description"] = descripcion
-    return _pinpad_request("POST", "/f2f/pinpad/v1/payment", payload)
+    try:
+        return _pinpad_request("POST", "/f2f/pinpad/v1/payment", payload)
+    except ClipAPIError as exc:
+        raise ClipPaymentAttemptUncertain(
+            "No se pudo confirmar si CLIP recibió el cobro; "
+            "requiere conciliación antes de reintentar"
+        ) from exc
 
 
 def consultar_pago_pinpad(pinpad_request_id: str, include_detail: bool = True) -> dict:
@@ -178,6 +222,7 @@ def consultar_pago_pinpad(pinpad_request_id: str, include_detail: bool = True) -
             "status": "pending",
             "estado": "pendiente",
         }
+    _require_live_pinpad_mode()
     endpoint = "/f2f/pinpad/v1/payment?" + urlencode({"pinpadRequestId": pinpad_request_id})
     headers = {"Pinpad-Include-Detail": "true"} if include_detail else None
     return _pinpad_request("GET", endpoint, extra_headers=headers)
@@ -187,7 +232,39 @@ def cancelar_pago_pinpad(pinpad_request_id: str) -> dict:
     """Cancela un cobro activo en una terminal PinPad."""
     if not pinpad_request_id:
         raise ClipAPIError("Falta pinpad_request_id para cancelar CLIP")
-    return _pinpad_request("DELETE", f"/f2f/pinpad/v1/payment/{quote(pinpad_request_id)}")
+    if str(pinpad_request_id).startswith("mock-pinpad-"):
+        return {
+            "mock": True,
+            "pinpad_request_id": pinpad_request_id,
+            "status": "cancelled",
+            "estado": "cancelado",
+        }
+    _require_live_pinpad_mode()
+    encoded_id = quote(str(pinpad_request_id), safe="")
+    return _pinpad_request("DELETE", f"/f2f/pinpad/v1/payment/{encoded_id}")
+
+
+def validar_notificacion_webhook_pinpad(payload: dict) -> dict:
+    """Valida la notificación mínima; el estado se confirma después con Clip."""
+    if not isinstance(payload, dict):
+        raise ClipAPIError("Webhook de CLIP inválido")
+    origin = str(payload.get("origin") or "").strip().lower()
+    if origin not in {"pinpad-api", "pinpad-payments-api"}:
+        raise ClipAPIError("Origen de webhook CLIP inválido")
+    event_type = str(payload.get("event_type") or "").strip().upper()
+    if event_type not in {"PINPAD_INTENT_STATUS_CHANGED", "UPDATE"}:
+        raise ClipAPIError("Tipo de webhook CLIP inválido")
+    payment_id = str(payload.get("id") or "").strip()
+    if (
+        payment_id.startswith("mock-pinpad-")
+        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{5,119}", payment_id)
+    ):
+        raise ClipAPIError("Identificador de webhook CLIP inválido")
+    return {
+        "payment_id": payment_id,
+        "origin": origin,
+        "event_type": event_type,
+    }
 
 
 def _pick_first(data: dict, keys: tuple[str, ...]):
@@ -297,6 +374,43 @@ def estado_operativo_clip(status: str | None) -> str:
     if es_pago_clip_fallido(status):
         return "fallido"
     return "pendiente"
+
+
+def validar_confirmacion_pinpad(
+    info: dict,
+    monto_esperado: Decimal,
+    payment_id_esperado: str | None = None,
+) -> None:
+    """Valida identidad y monto antes de convertir un intento en pago."""
+    validar_identificador_pinpad(info, payment_id_esperado)
+
+    amount = info.get("amount")
+    if amount in (None, ""):
+        raise ClipAPIError("CLIP no devolvió el monto confirmado")
+    try:
+        amount_decimal = Decimal(str(amount)).quantize(Decimal("0.01"))
+    except Exception as exc:
+        raise ClipAPIError("CLIP devolvió un monto inválido") from exc
+    if not amount_decimal.is_finite():
+        raise ClipAPIError("CLIP devolvió un monto inválido")
+    expected = Decimal(str(monto_esperado)).quantize(Decimal("0.01"))
+    if amount_decimal <= 0 or amount_decimal != expected:
+        raise ClipAPIError("El monto de CLIP no coincide con la venta")
+
+
+def validar_identificador_pinpad(
+    info: dict,
+    payment_id_esperado: str | None = None,
+) -> None:
+    """Exige que una consulta autenticada corresponda al intento esperado."""
+    payment_id = str(info.get("payment_id") or "").strip()
+    if not payment_id:
+        raise ClipAPIError("CLIP no devolvió un identificador de pago")
+    if payment_id_esperado and not hmac.compare_digest(
+        payment_id,
+        str(payment_id_esperado),
+    ):
+        raise ClipAPIError("El identificador de CLIP no coincide con la venta")
 
 
 def enviar_cobro(monto: Decimal, referencia: str, descripcion: str = "") -> dict:

@@ -113,9 +113,12 @@ class Settings(BaseSettings):
     CLIP_API_SECRET: str = ""
     CLIP_API_URL: str = "https://api.clip.mx"
     CLIP_PINPAD_API_URL: str = "https://api.payclip.io"
+    CLIP_PINPAD_ENABLED: bool = False
     CLIP_PINPAD_AUTHORIZATION: str = ""
     CLIP_PINPAD_SERIAL_NUMBER: str = ""
-    CLIP_PINPAD_MOCK_MODE: bool = False
+    CLIP_PINPAD_MOCK_MODE: bool = True
+    # Conservadas para no romper entornos antiguos; PinPad no documenta headers
+    # secretos en callbacks y el webhook se verifica consultando la API de Clip.
     CLIP_WEBHOOK_SECRET: str = ""
     CLIP_ALLOW_UNSIGNED_WEBHOOKS: bool = False
     BACKEND_PUBLIC_URL: str = ""
@@ -128,10 +131,12 @@ class Settings(BaseSettings):
     BBVA_ACCOUNT_ID: str = ""
 
     # PAXSTORE Cloud API (terminal PAX A910S)
+    PAXSTORE_ENABLED: bool = False
+    PAXSTORE_ALLOW_REMOTE_COMMANDS: bool = False
     PAXSTORE_API_KEY: str = ""
     PAXSTORE_API_SECRET: str = ""
     PAXSTORE_API_URL: str = "https://api.whatspos.com/p-market-api"
-    PAX_TERMINAL_SN: str = "2841093742"  # S/N de la terminal Jacaranda
+    PAX_TERMINAL_SN: str = ""
 
     # --- COFEPRIS ---
     TEMPERATURA_MAXIMA_REFRIGERACION: Decimal = Decimal("4.0")  # °C

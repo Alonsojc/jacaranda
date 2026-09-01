@@ -605,6 +605,10 @@ def finalizar_pago_integrado(
         raise ValueError("La venta no usa pago integrado")
     if venta.pago_proveedor and venta.pago_proveedor != proveedor:
         raise ValueError("El proveedor del pago no coincide con la venta")
+    if not payment_id:
+        raise ValueError("Falta el identificador externo del pago")
+    if venta.pago_externo_id and venta.pago_externo_id != payment_id:
+        raise ValueError("El identificador externo no coincide con la venta")
     if venta.estado == EstadoVenta.CANCELADA:
         raise ValueError("La venta ya está cancelada")
 
@@ -691,6 +695,10 @@ def marcar_pago_integrado_fallido(
         raise ValueError("Venta no encontrada")
     if not venta.pago_integrado:
         raise ValueError("La venta no usa pago integrado")
+    if venta.pago_proveedor and venta.pago_proveedor != proveedor:
+        raise ValueError("El proveedor del pago no coincide con la venta")
+    if venta.pago_externo_id and payment_id and venta.pago_externo_id != payment_id:
+        raise ValueError("El identificador externo no coincide con la venta")
     estado_anterior = venta.pago_externo_estado
     venta.pago_proveedor = proveedor
     venta.pago_externo_id = payment_id or venta.pago_externo_id
@@ -732,11 +740,24 @@ def cancelar_venta(
     motivo_limpio = (motivo or "").strip()
     if len(motivo_limpio) < 5:
         raise ValueError("El motivo de cancelación es obligatorio")
-    venta = db.query(Venta).filter(Venta.id == venta_id).first()
+    venta = (
+        db.query(Venta)
+        .filter(Venta.id == venta_id)
+        .with_for_update()
+        .first()
+    )
     if not venta:
         raise ValueError("Venta no encontrada")
     if venta.estado == EstadoVenta.CANCELADA:
         raise ValueError("La venta ya está cancelada")
+    if (
+        venta.pago_integrado
+        and venta.pago_proveedor == "clip"
+        and venta.pago_externo_estado == "revision_requerida"
+    ):
+        raise ValueError(
+            "La operación de CLIP requiere conciliación antes de cancelar la venta"
+        )
 
     estado_anterior = venta.estado.value
     puntos_revertidos = 0

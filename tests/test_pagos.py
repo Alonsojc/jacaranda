@@ -3,14 +3,44 @@
 import base64
 import json
 from datetime import date
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 from app.core.config import settings
+from app.models.venta import EstadoVenta, TerminalPago
 
 
 class TestPagos:
+
+    def test_clip_pinpad_bloquea_venta_antes_de_revisar_idempotencia(self):
+        from app.api.routes.pagos import ClipPinpadRequest, crear_cobro_clip_pinpad
+
+        db = MagicMock()
+        filtered_query = db.query.return_value.filter.return_value
+        locked_query = filtered_query.with_for_update.return_value
+        locked_query.first.return_value = SimpleNamespace(
+            id=17,
+            folio="T-000017",
+            estado=EstadoVenta.PENDIENTE,
+            terminal=TerminalPago.CLIP,
+            pago_integrado=True,
+            pago_externo_id="clip-existing-17",
+            pago_externo_estado="pendiente",
+            pago_externo_payload="{}",
+        )
+
+        result = crear_cobro_clip_pinpad(
+            ClipPinpadRequest(venta_id=17),
+            db=db,
+            user=SimpleNamespace(id=1, nombre="Admin"),
+        )
+
+        filtered_query.with_for_update.assert_called_once_with()
+        assert result["idempotent"] is True
+        assert result["payment_id"] == "clip-existing-17"
 
     def _post_signed_webhook(self, client, monkeypatch, payload):
         private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
