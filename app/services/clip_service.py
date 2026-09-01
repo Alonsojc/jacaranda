@@ -70,10 +70,14 @@ def _get_pinpad_auth_header() -> str:
 
 
 def _pinpad_credentials_configured(serial: str | None = None) -> bool:
+    terminal = bool(serial or getattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "").strip())
+    return terminal and _pinpad_auth_configured()
+
+
+def _pinpad_auth_configured() -> bool:
     raw = getattr(settings, "CLIP_PINPAD_AUTHORIZATION", "").strip()
     basic = bool(getattr(settings, "CLIP_API_KEY", "") and getattr(settings, "CLIP_API_SECRET", ""))
-    terminal = bool(serial or getattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "").strip())
-    return terminal and (bool(raw) or basic)
+    return bool(raw) or basic
 
 
 def _pinpad_mock_enabled(serial: str | None = None) -> bool:
@@ -100,10 +104,15 @@ def _validate_live_pinpad_configuration(serial: str | None = None) -> None:
         )
 
 
-def _require_live_pinpad_mode(serial: str | None = None) -> None:
-    if _pinpad_mock_enabled(serial):
+def _require_live_pinpad_enabled() -> None:
+    if _pinpad_mock_enabled():
         raise ClipAPIError("CLIP PinPad real está deshabilitado o en modo mock")
-    _validate_live_pinpad_configuration(serial)
+
+
+def _require_live_pinpad_mode() -> None:
+    _require_live_pinpad_enabled()
+    if not _pinpad_auth_configured():
+        raise ClipAPIError("CLIP PinPad real no tiene credenciales configuradas")
 
 
 def _pinpad_request(
@@ -227,7 +236,9 @@ def cancelar_pago_pinpad(pinpad_request_id: str) -> dict:
 
 def verificar_webhook_secret_clip(provided_secret: str | None) -> None:
     """Valida el secreto compartido sin permitirlo en la URL."""
-    _require_live_pinpad_mode()
+    _require_live_pinpad_enabled()
+    if bool(getattr(settings, "CLIP_ALLOW_UNSIGNED_WEBHOOKS", False)):
+        raise ClipAPIError("CLIP_ALLOW_UNSIGNED_WEBHOOKS debe permanecer en false")
     configured_secret = (getattr(settings, "CLIP_WEBHOOK_SECRET", "") or "").strip()
     if not configured_secret:
         raise ClipAPIError("Webhook de CLIP sin secreto configurado")

@@ -203,10 +203,10 @@ def test_webhook_url_and_secret_are_fail_closed(monkeypatch):
     configure_live_pinpad(monkeypatch)
     monkeypatch.setattr(settings, "CLIP_WEBHOOK_SECRET", "")
     monkeypatch.setattr(settings, "CLIP_ALLOW_UNSIGNED_WEBHOOKS", False)
-    with pytest.raises(clip.ClipAPIError, match="CLIP_WEBHOOK_SECRET"):
+    with pytest.raises(clip.ClipAPIError, match="sin secreto"):
         clip.verificar_webhook_secret_clip(None)
     monkeypatch.setattr(settings, "CLIP_ALLOW_UNSIGNED_WEBHOOKS", True)
-    with pytest.raises(clip.ClipAPIError, match="CLIP_WEBHOOK_SECRET"):
+    with pytest.raises(clip.ClipAPIError, match="debe permanecer en false"):
         clip.verificar_webhook_secret_clip(None)
 
     monkeypatch.setattr(settings, "CLIP_WEBHOOK_SECRET", "expected")
@@ -238,6 +238,32 @@ def test_consult_and_cancel_pinpad(monkeypatch):
     assert "pinpadRequestId=pay+%2F+1" in calls[0][1]
     assert calls[0][3] == {"Pinpad-Include-Detail": "true"}
     assert calls[1][1].endswith("pay%20%2F%201")
+
+
+def test_request_serial_override_does_not_block_follow_up(monkeypatch):
+    configure_live_pinpad(monkeypatch)
+    monkeypatch.setattr(settings, "CLIP_PINPAD_SERIAL_NUMBER", "")
+    calls = []
+    monkeypatch.setattr(
+        clip,
+        "_pinpad_request",
+        lambda method, endpoint, data=None, extra_headers=None: calls.append(
+            (method, endpoint, data, extra_headers)
+        ) or {"pinpad_request_id": "pay-override", "status": "pending"},
+    )
+
+    created = clip.enviar_cobro_pinpad(
+        Decimal("20.00"),
+        "T-OVERRIDE",
+        serial_number_pos="SN-OVERRIDE",
+    )
+    assert created["pinpad_request_id"] == "pay-override"
+    assert calls[0][2]["serial_number_pos"] == "SN-OVERRIDE"
+
+    clip.consultar_pago_pinpad("pay-override")
+    clip.cancelar_pago_pinpad("pay-override")
+    clip.verificar_webhook_secret_clip("webhook-test")
+    assert [call[0] for call in calls] == ["POST", "GET", "DELETE"]
 
 
 def test_extract_status_and_confirmation_validation():
