@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import require_permission, require_role
 from app.models.pago_online import ClipWebhookEvent
@@ -193,6 +192,11 @@ def estado_cobro_clip_pinpad(
             respuesta = clip_service.consultar_pago_pinpad(venta.pago_externo_id)
             info = clip_service.extraer_pago_webhook_clip(respuesta)
             if clip_service.es_pago_clip_aprobado(info.get("status")):
+                clip_service.validar_confirmacion_pinpad(
+                    info,
+                    venta.total,
+                    venta.pago_externo_id,
+                )
                 venta_service.finalizar_pago_integrado(
                     db,
                     venta.id,
@@ -230,19 +234,17 @@ def estado_cobro_clip_pinpad(
 @router.post("/clip/webhook")
 async def webhook_clip(
     request: Request,
-    secret: str | None = None,
     db: Session = Depends(get_db),
 ):
     """Webhook público de Clip PinPad con replay protection."""
-    configured_secret = (settings.CLIP_WEBHOOK_SECRET or "").strip()
-    header_secret = request.headers.get("x-clip-webhook-secret")
-    if configured_secret:
-        if secret != configured_secret and header_secret != configured_secret:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Webhook no autorizado")
-    elif not settings.CLIP_ALLOW_UNSIGNED_WEBHOOKS:
+    try:
+        clip_service.verificar_webhook_secret_clip(
+            request.headers.get("x-clip-webhook-secret")
+        )
+    except clip_service.ClipAPIError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Webhook de CLIP sin secreto configurado",
+            detail=str(exc),
         )
 
     raw_body = await request.body()
@@ -278,17 +280,15 @@ async def webhook_clip(
         return {"ok": True, "processed": False, "reason": "venta_no_encontrada", "event_id": event_id}
 
     event.venta_id = venta.id
-    amount = info.get("amount")
-    if amount not in (None, ""):
+    if clip_service.es_pago_clip_aprobado(info.get("status")):
         try:
-            amount_decimal = Decimal(str(amount)).quantize(Decimal("0.01"))
-            if amount_decimal != Decimal(str(venta.total)).quantize(Decimal("0.01")):
-                db.commit()
-                raise HTTPException(status_code=400, detail="Monto de CLIP no coincide con la venta")
-        except HTTPException:
-            raise
-        except Exception:
-            pass
+            clip_service.validar_confirmacion_pinpad(
+                info,
+                venta.total,
+                venta.pago_externo_id,
+            )
+        except clip_service.ClipAPIError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     try:
         if clip_service.es_pago_clip_aprobado(info.get("status")):
