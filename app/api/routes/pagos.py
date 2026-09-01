@@ -105,7 +105,14 @@ def crear_cobro_clip_pinpad(
     user: Usuario = Depends(require_permission("pos", "editar")),
 ):
     """Envía una venta pendiente a la terminal Clip PinPad."""
-    venta = db.query(Venta).filter(Venta.id == data.venta_id).first()
+    # Conserva el bloqueo hasta guardar el ID externo para serializar cobros
+    # simultaneos de la misma venta.
+    venta = (
+        db.query(Venta)
+        .filter(Venta.id == data.venta_id)
+        .with_for_update()
+        .first()
+    )
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
     if venta.estado == EstadoVenta.CANCELADA:
