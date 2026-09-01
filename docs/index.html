@@ -3733,7 +3733,8 @@ function refreshAccessToken() {
     if (!sesionRefreshSigueActiva()) {
       throw new Error('La sesión cambió durante la renovación');
     }
-    return conBloqueoColasVentas(function() {
+    return conBloqueoColasVentas(function(exigirBloqueoVigente) {
+      exigirBloqueoVigente();
       if (!sesionRefreshSigueActiva()) {
         throw new Error('La sesión cambió durante la renovación');
       }
@@ -3822,7 +3823,8 @@ function login(email, pass) {
     return leerRespuestaJson(r);
   }).then(function(d) {
     verificarPropietarioColasVentas(d.access_token);
-    return conBloqueoColasVentas(function() {
+    return conBloqueoColasVentas(function(exigirBloqueoVigente) {
+      exigirBloqueoVigente();
       verificarPropietarioColasVentas(d.access_token);
       invalidarTareasSesion();
       TOKEN = d.access_token;
@@ -5190,19 +5192,51 @@ function conBloqueoLocalColasVentas(tarea, timeoutMs) {
   var dato = {token: token, ticket: Date.now(), expiresAt: Date.now() + 15000};
   var limite = Date.now() + (timeoutMs || 5000);
   var renovacion = null;
+  var bloqueoPerdido = false;
   try {
     localStorage.setItem(key, JSON.stringify(dato));
   } catch (e) {
     return Promise.reject(e);
   }
 
-  function liberar() {
+  function perderBloqueo() {
+    bloqueoPerdido = true;
     if (renovacion) clearInterval(renovacion);
+    renovacion = null;
+  }
+  function liberar() {
+    perderBloqueo();
     try { localStorage.removeItem(key); } catch (e) {}
   }
   function soyPrimero() {
     var contendientes = contendientesBloqueoVentas();
     return contendientes.length && contendientes[0].token === token;
+  }
+  function bloqueoSigueVigente() {
+    if (bloqueoPerdido) return false;
+    var actual = null;
+    try { actual = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { actual = null; }
+    if (!actual || actual.token !== token || actual.expiresAt <= Date.now() || !soyPrimero()) {
+      perderBloqueo();
+      return false;
+    }
+    return true;
+  }
+  function exigirBloqueoVigente() {
+    if (!bloqueoSigueVigente()) {
+      throw new Error('El turno para guardar ventas expir\u00f3; vuelve a intentar');
+    }
+  }
+  function renovarBloqueo() {
+    if (!bloqueoSigueVigente()) return false;
+    dato.expiresAt = Date.now() + 15000;
+    try {
+      localStorage.setItem(key, JSON.stringify(dato));
+      return true;
+    } catch (e) {
+      perderBloqueo();
+      return false;
+    }
   }
   function esperarTurno() {
     if (Date.now() >= limite) {
@@ -5213,15 +5247,17 @@ function conBloqueoLocalColasVentas(tarea, timeoutMs) {
       if (!soyPrimero()) return esperarTurno();
       return esperarBloqueoVentas(40).then(function() {
         if (!soyPrimero()) return esperarTurno();
-        dato.expiresAt = Date.now() + 15000;
-        localStorage.setItem(key, JSON.stringify(dato));
+        if (!renovarBloqueo()) {
+          liberar();
+          return Promise.reject(new Error('El turno para guardar ventas expir\u00f3; vuelve a intentar'));
+        }
         renovacion = setInterval(function() {
-          try {
-            dato.expiresAt = Date.now() + 15000;
-            localStorage.setItem(key, JSON.stringify(dato));
-          } catch (e) {}
+          renovarBloqueo();
         }, 4000);
-        return Promise.resolve().then(tarea).finally(liberar);
+        return Promise.resolve().then(function() {
+          exigirBloqueoVigente();
+          return tarea(exigirBloqueoVigente);
+        }).finally(liberar);
       });
     });
   }
@@ -5230,7 +5266,9 @@ function conBloqueoLocalColasVentas(tarea, timeoutMs) {
 
 function conBloqueoColasVentas(tarea, timeoutMs) {
   if (navigator.locks && navigator.locks.request) {
-    return navigator.locks.request(VENTAS_QUEUE_LOCK_NAME, {mode: 'exclusive'}, tarea);
+    return navigator.locks.request(VENTAS_QUEUE_LOCK_NAME, {mode: 'exclusive'}, function() {
+      return tarea(function() { return true; });
+    });
   }
   return conBloqueoLocalColasVentas(tarea, timeoutMs);
 }
@@ -5258,7 +5296,8 @@ function programarRecargaSesionCompartida() {
 function agregarVentaPendienteCompartida(venta, versionSesion, tokenSesion) {
   var propietarioVenta = usuarioIdDesdeTokenVentas(tokenSesion);
   if (!propietarioVenta) return Promise.reject(new Error('No se pudo identificar al usuario de la venta'));
-  return conBloqueoColasVentas(function() {
+  return conBloqueoColasVentas(function(exigirBloqueoVigente) {
+    exigirBloqueoVigente();
     exigirSesionColasVigente(versionSesion, tokenSesion);
     var propietarioCola = leerPropietarioColasVentas();
     if (propietarioCola && propietarioCola !== propietarioVenta) {
@@ -5498,7 +5537,8 @@ function cuarentenarVentasLocalesLegacyCompartida() {
   var versionSesionCuarentena = _versionSesion;
   var tokenSesionCuarentena = TOKEN;
   if (!tokenSesionCuarentena) return Promise.resolve(0);
-  return conBloqueoColasVentas(function() {
+  return conBloqueoColasVentas(function(exigirBloqueoVigente) {
+    exigirBloqueoVigente();
     exigirSesionColasVigente(versionSesionCuarentena, tokenSesionCuarentena);
     _ventasPendientes = leerVentasPendientesLocal();
     _ventasLegacyRevision = leerVentasLegacyRevision();
@@ -5556,7 +5596,8 @@ function resumenVentaLegacy(item) {
 }
 
 function quitarRevisionVentaCompartida(itemKey, versionSesion, tokenSesion) {
-  return conBloqueoColasVentas(function() {
+  return conBloqueoColasVentas(function(exigirBloqueoVigente) {
+    exigirBloqueoVigente();
     exigirSesionColasVigente(versionSesion, tokenSesion);
     _ventasPendientes = leerVentasPendientesLocal();
     _ventasLegacyRevision = leerVentasLegacyRevision();
@@ -5574,7 +5615,8 @@ function quitarRevisionVentaCompartida(itemKey, versionSesion, tokenSesion) {
 }
 
 function recuperarVentaLegacyCompartida(itemKey, versionSesion, tokenSesion) {
-  return conBloqueoColasVentas(function() {
+  return conBloqueoColasVentas(function(exigirBloqueoVigente) {
+    exigirBloqueoVigente();
     exigirSesionColasVigente(versionSesion, tokenSesion);
     _ventasPendientes = leerVentasPendientesLocal();
     _ventasLegacyRevision = leerVentasLegacyRevision();
@@ -5867,7 +5909,8 @@ function sincronizarVentasPreparadas() {
   }
   return chain.then(function() {
     if (sesionCancelada || sesionCambioDuranteSync()) return;
-    return conBloqueoColasVentas(function() {
+    return conBloqueoColasVentas(function(exigirBloqueoVigente) {
+      exigirBloqueoVigente();
       exigirSesionColasVigente(sesionSync, tokenSesionSync);
       _ventasLegacyRevision = leerVentasLegacyRevision();
       marcarRevisionesNoProtegidas(propietarioSesionSync);
@@ -5932,7 +5975,8 @@ function recuperarVentasIndexedDB() {
   function sesionCambioDuranteMigracion() {
     return !sesionColasVigente(versionSesionMigracion, tokenSesionMigracion);
   }
-  _recuperacionVentasPromise = conBloqueoColasVentas(function() {
+  _recuperacionVentasPromise = conBloqueoColasVentas(function(exigirBloqueoVigente) {
+    exigirBloqueoVigente();
     exigirSesionColasVigente(versionSesionMigracion, tokenSesionMigracion);
     _ventasPendientes = leerVentasPendientesLocal();
     _ventasLegacyRevision = leerVentasLegacyRevision();
@@ -5947,16 +5991,38 @@ function recuperarVentasIndexedDB() {
       var legacyEncontradas = 0;
       var db = null;
       var req = indexedDB.open('jacaranda-offline', 1);
-    req.onupgradeneeded = function(e) {
-      var upgradeDb = e.target.result;
-      if (!upgradeDb.objectStoreNames.contains('pending-sales')) {
-        upgradeDb.createObjectStore('pending-sales', { keyPath: 'id', autoIncrement: true });
+      function bloqueoMigracionSigueVigente() {
+        try {
+          exigirBloqueoVigente();
+          return true;
+        } catch (e) {
+          return false;
+        }
       }
-    };
-      req.onerror = function() { resolve(0); };
+      function abortarSiPerdioBloqueo(tx) {
+        if (bloqueoMigracionSigueVigente()) return false;
+        if (tx) {
+          try { tx.abort(); } catch (e) {}
+        }
+        return true;
+      }
+      req.onupgradeneeded = function(e) {
+        if (abortarSiPerdioBloqueo(e.target.transaction)) return;
+        var upgradeDb = e.target.result;
+        if (!upgradeDb.objectStoreNames.contains('pending-sales')) {
+          upgradeDb.createObjectStore('pending-sales', { keyPath: 'id', autoIncrement: true });
+        }
+      };
+      req.onerror = function() {
+        _ventasPendientes = leerVentasPendientesLocal();
+        _ventasLegacyRevision = leerVentasLegacyRevision();
+        resolve(0);
+      };
       req.onsuccess = function(e) {
       db = e.target.result;
-      if (sesionCambioDuranteMigracion()) {
+      if (!bloqueoMigracionSigueVigente() || sesionCambioDuranteMigracion()) {
+        _ventasPendientes = leerVentasPendientesLocal();
+        _ventasLegacyRevision = leerVentasLegacyRevision();
         db.close();
         resolve(0);
         return;
@@ -5967,6 +6033,7 @@ function recuperarVentasIndexedDB() {
       var store = tx.objectStore('pending-sales');
       var getReq = store.getAll();
       getReq.onsuccess = function() {
+        if (abortarSiPerdioBloqueo(tx)) return;
         if (sesionCambioDuranteMigracion()) {
           tx.abort();
           return;
@@ -5983,9 +6050,12 @@ function recuperarVentasIndexedDB() {
             legacyIdempotencias[item.venta.idempotency_key] = true;
           }
         });
-        if (localesProtegidas && (!guardarVentasLegacyRevision() || !guardarVentasPendientesLocal())) {
-          tx.abort();
-          return;
+        if (localesProtegidas) {
+          if (abortarSiPerdioBloqueo(tx)) return;
+          if (!guardarVentasLegacyRevision() || !guardarVentasPendientesLocal()) {
+            tx.abort();
+            return;
+          }
         }
         var registros = (getReq.result || []).map(function(item) {
           var venta = null;
@@ -6024,6 +6094,7 @@ function recuperarVentasIndexedDB() {
             legacyEncontradas++;
           }
         });
+        if (abortarSiPerdioBloqueo(tx)) return;
         if (sesionCambioDuranteMigracion()) {
           tx.abort();
           return;
@@ -6031,18 +6102,21 @@ function recuperarVentasIndexedDB() {
         _ventasPendientes = fusionarVentasPendientesCompartidas([], []);
         _ventasLegacyRevision = fusionarVentasLegacyCompartidas(legacyAgregadas);
         marcarRevisionesNoProtegidas(propietarioMigracion);
+        if (abortarSiPerdioBloqueo(tx)) return;
         var ventasGuardadas = guardarVentasPendientesLocal();
+        if (abortarSiPerdioBloqueo(tx)) return;
         var legacyGuardadas = guardarVentasLegacyRevision();
         if (!ventasGuardadas || !legacyGuardadas) {
           tx.abort();
           return;
         }
+        if (abortarSiPerdioBloqueo(tx)) return;
         store.clear();
       };
       getReq.onerror = function() { tx.abort(); };
       var finalizada = false;
       function revertirVentasMigradas() {
-        if (sesionCambioDuranteMigracion()) {
+        if (!bloqueoMigracionSigueVigente() || sesionCambioDuranteMigracion()) {
           _ventasPendientes = leerVentasPendientesLocal();
           _ventasLegacyRevision = leerVentasLegacyRevision();
           return;
@@ -6058,7 +6132,7 @@ function recuperarVentasIndexedDB() {
       function finalizarMigracion(completa) {
         if (finalizada) return;
         finalizada = true;
-        completa = completa && !sesionCambioDuranteMigracion();
+        completa = completa && bloqueoMigracionSigueVigente() && !sesionCambioDuranteMigracion();
         if (completa) _ultimaRecuperacionVentasCompleta = true;
         if (_migracionVentasTx === tx) _migracionVentasTx = null;
         if (!completa) revertirVentasMigradas();
@@ -14015,8 +14089,12 @@ function cerrarSesion(opciones) {
   var preservarVentasPendientes = !!opciones.preservarVentasPendientes;
   var exigirColasVacias = !!opciones.exigirColasVacias;
   var bloqueoColasAdquirido = !!opciones.bloqueoColasAdquirido;
+  var exigirBloqueoCierre = typeof opciones.exigirBloqueoVigente === 'function'
+    ? opciones.exigirBloqueoVigente
+    : function() { return true; };
   if (!preservarVentasPendientes && exigirColasVacias && !bloqueoColasAdquirido) {
-    return conBloqueoColasVentas(function() {
+    return conBloqueoColasVentas(function(exigirBloqueoVigente) {
+      exigirBloqueoVigente();
       _ventasPendientes = leerVentasPendientesLocal();
       _ventasLegacyRevision = leerVentasLegacyRevision();
       var ventasDetectadas = _ventasPendientes.length + _ventasLegacyRevision.length;
@@ -14024,7 +14102,10 @@ function cerrarSesion(opciones) {
         actualizarBannerOffline();
         return {cerrada: false, ventasPendientes: ventasDetectadas};
       }
-      return cerrarSesion({bloqueoColasAdquirido: true}).then(function() {
+      return cerrarSesion({
+        bloqueoColasAdquirido: true,
+        exigirBloqueoVigente: exigirBloqueoVigente
+      }).then(function() {
         return {cerrada: true, ventasPendientes: 0};
       });
     }, 30000);
@@ -14076,7 +14157,8 @@ function cerrarSesion(opciones) {
     localStorage.removeItem('jacaranda_user');
     return true;
   }
-  function limpiarSesionConBloqueo() {
+  function limpiarSesionConBloqueo(exigirBloqueoVigente) {
+    (exigirBloqueoVigente || exigirBloqueoCierre)();
     if (!credencialesCompartidasSiguenSiendoSesion()) return false;
     if (preservarVentasPendientes) {
       _ventasPendientes = leerVentasPendientesLocal();
@@ -14088,7 +14170,7 @@ function cerrarSesion(opciones) {
     return limpiarClavesSesionCompartida();
   }
   var limpiezaSesionCompartida = bloqueoColasAdquirido
-    ? Promise.resolve().then(limpiarSesionConBloqueo)
+    ? Promise.resolve().then(function() { return limpiarSesionConBloqueo(exigirBloqueoCierre); })
     : conBloqueoColasVentas(limpiarSesionConBloqueo, 30000).catch(function(e) {
       if (!preservarVentasPendientes) throw e;
       return false;

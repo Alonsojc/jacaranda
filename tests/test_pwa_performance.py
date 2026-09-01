@@ -1,5 +1,7 @@
 """Tests para Sprint 8: PWA, cache seguro y estabilidad movil."""
 
+import json
+import subprocess
 from pathlib import Path
 
 
@@ -100,7 +102,7 @@ def test_frontend_keeps_session_during_temporary_server_errors():
     assert "function sesionRefreshSigueActiva()" in refresh_segment
     assert "localStorage.getItem('jacaranda_refresh_token')" in refresh_segment
     assert "refreshCompartido === refreshTokenSolicitado" in refresh_segment
-    assert "return conBloqueoColasVentas(function()" in refresh_segment
+    assert "return conBloqueoColasVentas(function(exigirBloqueoVigente)" in refresh_segment
     assert "}, 30000)" in refresh_segment
     assert refresh_segment.index("if (!sesionRefreshSigueActiva())") < refresh_segment.index("expirarSesion()")
 
@@ -198,6 +200,9 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "function conBloqueoLocalColasVentas" in queue_lock_segment
     assert "renovacion = setInterval(function()" in queue_lock_segment
     assert "if (renovacion) clearInterval(renovacion)" in queue_lock_segment
+    assert "actual.expiresAt <= Date.now()" in queue_lock_segment
+    assert "if (!bloqueoSigueVigente()) return false" in queue_lock_segment
+    assert "return tarea(exigirBloqueoVigente)" in queue_lock_segment
     assert "function agregarVentaPendienteCompartida" in queue_lock_segment
     assert "function sesionColasVigente" in queue_lock_segment
     assert "exigirSesionColasVigente(versionSesion, tokenSesion)" in queue_lock_segment
@@ -236,7 +241,10 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "var versionSesionMigracion = _versionSesion" in recovery_segment
     assert "var tokenSesionMigracion = TOKEN" in recovery_segment
     assert "function sesionCambioDuranteMigracion()" in recovery_segment
-    assert "_recuperacionVentasPromise = conBloqueoColasVentas(function()" in recovery_segment
+    assert "_recuperacionVentasPromise = conBloqueoColasVentas(function(exigirBloqueoVigente)" in recovery_segment
+    assert "function bloqueoMigracionSigueVigente()" in recovery_segment
+    assert "function abortarSiPerdioBloqueo(tx)" in recovery_segment
+    assert recovery_segment.count("abortarSiPerdioBloqueo(tx)") >= 5
     assert "exigirSesionColasVigente(versionSesionMigracion, tokenSesionMigracion)" in recovery_segment
     assert "emparejarVentasLegacyIndexedDB(registros)" in recovery_segment
     assert "var localesSinPropietario = !propietarioMigracion" in recovery_segment
@@ -276,7 +284,9 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert review_segment.count(
         "await quitarRevisionVentaCompartida(itemKeyRevision, versionSesionRevision, tokenSesionRevision)"
     ) == 4
-    assert review_mutation_segment.count("return conBloqueoColasVentas(function()") == 2
+    assert review_mutation_segment.count(
+        "return conBloqueoColasVentas(function(exigirBloqueoVigente)"
+    ) == 2
     quitar_segment = segment_between(
         review_mutation_segment,
         "function quitarRevisionVentaCompartida",
@@ -296,7 +306,7 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "var tokenSesionRevision = TOKEN" in review_segment
     assert review_segment.count("if (!revisionLegacySigueActiva()) return") == 5
     assert review_segment.count("if (!await recargarColasVentasCompartidas()) return") == 5
-    assert "return conBloqueoColasVentas(function()" in quarantine_segment
+    assert "return conBloqueoColasVentas(function(exigirBloqueoVigente)" in quarantine_segment
     assert "exigirSesionColasVigente(versionSesionCuarentena, tokenSesionCuarentena)" in quarantine_segment
     assert quarantine_segment.index("_ventasPendientes = leerVentasPendientesLocal()") < quarantine_segment.index(
         "var movidas = moverVentasLocalesLegacyARevision(propietarioDesconocido)"
@@ -335,9 +345,9 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "invalidarTareasSesion()" in login_segment
     assert login_segment.count("verificarPropietarioColasVentas(d.access_token)") == 2
     assert "if (!leerPropietarioColasVentas()) _indexedDBSinPropietarioAlCargar = true" in login_segment
-    assert "return conBloqueoColasVentas(function()" in login_segment
+    assert "return conBloqueoColasVentas(function(exigirBloqueoVigente)" in login_segment
     assert login_segment.rindex("verificarPropietarioColasVentas(d.access_token)") > login_segment.index(
-        "return conBloqueoColasVentas(function()"
+        "return conBloqueoColasVentas(function(exigirBloqueoVigente)"
     )
     assert login_segment.rindex("verificarPropietarioColasVentas(d.access_token)") < login_segment.index(
         "invalidarTareasSesion()"
@@ -353,9 +363,10 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "if (!credencialesCompartidasSiguenSiendoSesion()) return false" in logout_segment
     cleanup_segment = segment_between(
         logout_segment,
-        "function limpiarSesionConBloqueo()",
+        "function limpiarSesionConBloqueo(exigirBloqueoVigente)",
         "var limpiezaSesionCompartida",
     )
+    assert "(exigirBloqueoVigente || exigirBloqueoCierre)()" in cleanup_segment
     assert cleanup_segment.index("if (!credencialesCompartidasSiguenSiendoSesion()) return false") < cleanup_segment.index(
         "return limpiarClavesSesionCompartida()"
     )
@@ -366,14 +377,14 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "asegurarPropietarioColasVentas(true, propietarioVentasSesion)" in logout_segment
     assert "clearSensitiveCachesPreservingSales" in logout_segment
     assert "PENDING_SALES_OWNER_MISMATCH" in html
-    assert "conBloqueoColasVentas(function()" in logout_segment
+    assert "conBloqueoColasVentas(function(exigirBloqueoVigente)" in logout_segment
     assert "var exigirColasVacias" in logout_segment
     assert "var bloqueoColasAdquirido" in logout_segment
-    assert "return conBloqueoColasVentas(function()" in logout_segment
+    assert "return conBloqueoColasVentas(function(exigirBloqueoVigente)" in logout_segment
     assert "_ventasPendientes = leerVentasPendientesLocal()" in logout_segment
     assert "_ventasLegacyRevision = leerVentasLegacyRevision()" in logout_segment
     assert "return {cerrada: false, ventasPendientes: ventasDetectadas}" in logout_segment
-    assert "cerrarSesion({bloqueoColasAdquirido: true})" in logout_segment
+    assert "exigirBloqueoVigente: exigirBloqueoVigente" in logout_segment
     assert logout_segment.index("if (!preservarVentasPendientes && exigirColasVacias") < logout_segment.index(
         "invalidarTareasSesion()"
     )
@@ -467,11 +478,11 @@ def test_logout_revokes_push_without_reusing_a_new_session():
     shared_cleanup_segment = segment_between(
         logout_segment,
         "function limpiarClavesSesionCompartida()",
-        "function limpiarSesionConBloqueo()",
+        "function limpiarSesionConBloqueo(exigirBloqueoVigente)",
     )
     locked_cleanup_segment = segment_between(
         logout_segment,
-        "function limpiarSesionConBloqueo()",
+        "function limpiarSesionConBloqueo(exigirBloqueoVigente)",
         "var limpiezaSesionCompartida",
     )
     assert "localStorage.removeItem(FCM_TOKEN_KEY)" in shared_cleanup_segment
@@ -499,6 +510,96 @@ def test_expired_session_preserves_account_bound_sales():
     assert "clearSensitiveCachesPreservingSales" in expiry_segment
     assert "return clearSensitiveCaches({preserveSales: true})" in core
     assert "if (!preserveSales && window.indexedDB" in core
+
+
+def test_fallback_sales_lock_never_revives_an_expired_lease():
+    html = read_text("docs/index.html")
+    lock_source = segment_between(
+        html,
+        "var VENTAS_QUEUE_LOCK_NAME",
+        "function conBloqueoColasVentas",
+    )
+    script = f"""
+const vm = require('vm');
+let now = 1000;
+let tokenSequence = 0;
+const values = new Map();
+const intervals = [];
+const localStorage = {{
+  get length() {{ return values.size; }},
+  key(index) {{ return Array.from(values.keys())[index] || null; }},
+  getItem(key) {{ return values.has(key) ? values.get(key) : null; }},
+  setItem(key, value) {{ values.set(key, String(value)); }},
+  removeItem(key) {{ values.delete(key); }}
+}};
+const FakeDate = Date;
+FakeDate.now = () => now;
+const context = {{
+  Promise,
+  JSON,
+  Date: FakeDate,
+  localStorage,
+  setTimeout,
+  setInterval(callback) {{ intervals.push(callback); return intervals.length; }},
+  clearInterval() {{}},
+  nuevaClaveIdempotencia() {{ tokenSequence += 1; return 'token-' + tokenSequence; }}
+}};
+vm.createContext(context);
+vm.runInContext({json.dumps(lock_source)}, context);
+
+(async () => {{
+  let continueTask;
+  let signalStarted;
+  let mutated = false;
+  const started = new Promise(resolve => {{ signalStarted = resolve; }});
+  const running = context.conBloqueoLocalColasVentas(function(assertLease) {{
+    signalStarted();
+    return new Promise((resolve, reject) => {{
+      continueTask = function() {{
+        try {{
+          assertLease();
+          mutated = true;
+          resolve();
+        }} catch (error) {{
+          reject(error);
+        }}
+      }};
+    }});
+  }}, 1000);
+
+  await started;
+  now += 16001;
+  context.contendientesBloqueoVentas();
+  localStorage.setItem(context.VENTAS_QUEUE_LOCK_PREFIX + 'other', JSON.stringify({{
+    token: 'other',
+    ticket: now,
+    expiresAt: now + 15000
+  }}));
+  intervals[0]();
+  if (localStorage.getItem(context.VENTAS_QUEUE_LOCK_PREFIX + 'token-1')) {{
+    throw new Error('The expired lease was recreated');
+  }}
+
+  continueTask();
+  let rejected = false;
+  try {{ await running; }} catch (error) {{ rejected = true; }}
+  if (!rejected || mutated) throw new Error('A stale task mutated after losing its lease');
+}})().catch(error => {{
+  console.error(error.stack || error);
+  process.exitCode = 1;
+}});
+"""
+
+    result = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_unmatched_legacy_indexeddb_sales_stay_in_manual_quarantine():
