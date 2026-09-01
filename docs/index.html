@@ -5343,6 +5343,10 @@ function ventaPendienteProtegidaPara(venta, propietario) {
     normalizarIdentidadVentas(venta._queue_owner) === normalizarIdentidadVentas(propietario);
 }
 
+function revisionVentaProtegidaPara(item, propietario) {
+  return ventaPendienteProtegidaPara(item, propietario);
+}
+
 function esErrorVentaNoReintentable(e) {
   var status = parseInt(e && e.status, 10) || 0;
   if (status < 400 || status >= 500) return false;
@@ -5354,7 +5358,7 @@ function crearRevisionVentaRechazada(venta, e) {
   var base = String(venta.idempotency_key || timestamp).replace(/[^A-Za-z0-9-]/g, '-').slice(0, 70);
   var ventaLimpia = payloadVentaPendiente(venta);
   ventaLimpia._timestamp = timestamp;
-  return {
+  var revision = {
     key: 'rechazada-' + base,
     timestamp: timestamp,
     venta: ventaLimpia,
@@ -5362,6 +5366,14 @@ function crearRevisionVentaRechazada(venta, e) {
     error_status: parseInt(e && e.status, 10) || 0,
     error_mensaje: String((e && e.message) || 'La venta no fue aceptada').slice(0, 240)
   };
+  var propietarioRevision = normalizarIdentidadVentas(venta && venta._queue_owner);
+  if (ventaPendienteProtegidaPara(venta, propietarioRevision)) {
+    revision._queue_version = VENTAS_QUEUE_ROW_VERSION;
+    revision._queue_owner = propietarioRevision;
+  } else {
+    revision.propietario_desconocido = true;
+  }
+  return revision;
 }
 
 function huellaVentaLegacy(venta) {
@@ -5424,10 +5436,10 @@ function emparejarVentasLegacyIndexedDB(registros) {
   return indexedEmparejadas;
 }
 
-function marcarRevisionesSinPropietario() {
+function marcarRevisionesNoProtegidas(propietario) {
   var marcadas = 0;
   _ventasLegacyRevision = _ventasLegacyRevision.map(function(item) {
-    if (!item || item.propietario_desconocido) return item;
+    if (!item || item.propietario_desconocido || revisionVentaProtegidaPara(item, propietario)) return item;
     marcadas++;
     return Object.assign({}, item, {propietario_desconocido: true});
   });
@@ -5467,6 +5479,10 @@ function moverVentasLocalesLegacyARevision(propietarioDesconocido) {
         ventaRevision._timestamp = timestamp;
       }
       var revision = {key: key, timestamp: timestamp, venta: ventaRevision};
+      if (protegidaParaSesion) {
+        revision._queue_version = VENTAS_QUEUE_ROW_VERSION;
+        revision._queue_owner = propietarioActual;
+      }
       if (propietarioDesconocido || !protegidaParaSesion) revision.propietario_desconocido = true;
       _ventasLegacyRevision.push(revision);
       existentes[key] = true;
@@ -5486,8 +5502,9 @@ function cuarentenarVentasLocalesLegacyCompartida() {
     exigirSesionColasVigente(versionSesionCuarentena, tokenSesionCuarentena);
     _ventasPendientes = leerVentasPendientesLocal();
     _ventasLegacyRevision = leerVentasLegacyRevision();
-    var propietarioDesconocido = !leerPropietarioColasVentas();
-    var marcadas = propietarioDesconocido ? marcarRevisionesSinPropietario() : 0;
+    var propietarioActual = leerPropietarioColasVentas() || identidadActualColasVentas();
+    var propietarioDesconocido = !propietarioActual;
+    var marcadas = marcarRevisionesNoProtegidas(propietarioActual);
     var movidas = moverVentasLocalesLegacyARevision(propietarioDesconocido);
     if (!movidas && !marcadas) return 0;
     if (!guardarVentasLegacyRevision() || !guardarVentasPendientesLocal()) {
@@ -5566,14 +5583,28 @@ function recuperarVentaLegacyCompartida(itemKey, versionSesion, tokenSesion) {
     });
     if (indice < 0) return {recuperada: false, revisionPendiente: false};
     var itemActual = _ventasLegacyRevision[indice];
-    if (itemActual.propietario_desconocido) {
+    var propietarioRecuperacion = usuarioIdDesdeTokenVentas(tokenSesion);
+    if (!propietarioRecuperacion) throw new Error('No se pudo identificar al usuario de la venta.');
+    if (itemActual.propietario_desconocido || !revisionVentaProtegidaPara(itemActual, propietarioRecuperacion)) {
+      if (!itemActual.propietario_desconocido) {
+        _ventasLegacyRevision[indice] = Object.assign({}, itemActual, {propietario_desconocido: true});
+        if (!guardarVentasLegacyRevision()) {
+          _ventasLegacyRevision = leerVentasLegacyRevision();
+          throw new Error('No se pudo proteger la venta antigua. No cierres la app.');
+        }
+      }
       throw new Error('Esta venta no tiene usuario identificado y no se puede enviar automáticamente.');
+    }
+    var propietarioCola = leerPropietarioColasVentas();
+    if (propietarioCola && propietarioCola !== propietarioRecuperacion) {
+      throw new Error('Las ventas pendientes pertenecen a otra sesión.');
+    }
+    if (!propietarioCola && !asegurarPropietarioColasVentas(true, propietarioRecuperacion)) {
+      throw new Error('No se pudo proteger al usuario de la venta.');
     }
     if (!itemActual.venta) throw new Error('Esta venta ya no se puede recuperar.');
     var claveRecuperacion = claveIdempotenciaVentaLegacy(itemActual);
     if (!claveRecuperacion) throw new Error('No se pudo identificar la venta.');
-    var propietarioRecuperacion = usuarioIdDesdeTokenVentas(tokenSesion);
-    if (!propietarioRecuperacion) throw new Error('No se pudo identificar al usuario de la venta.');
     var ventaRecuperada = Object.assign({}, itemActual.venta, {
       idempotency_key: claveRecuperacion,
       _queue_version: VENTAS_QUEUE_ROW_VERSION,
@@ -5766,8 +5797,8 @@ function fusionarVentasPendientesCompartidas(procesadas, fallidas) {
   });
 }
 
-function fusionarVentasLegacyCompartidas() {
-  var candidatas = _ventasLegacyRevision.concat(leerVentasLegacyRevision());
+function fusionarVentasLegacyCompartidas(nuevas) {
+  var candidatas = leerVentasLegacyRevision().concat(nuevas || []);
   var vistas = {};
   return candidatas.filter(function(item) {
     var clave = String((item && item.key) || '');
@@ -5838,7 +5869,8 @@ function sincronizarVentasPreparadas() {
     if (sesionCancelada || sesionCambioDuranteSync()) return;
     return conBloqueoColasVentas(function() {
       exigirSesionColasVigente(sesionSync, tokenSesionSync);
-      _ventasLegacyRevision = fusionarVentasLegacyCompartidas();
+      _ventasLegacyRevision = leerVentasLegacyRevision();
+      marcarRevisionesNoProtegidas(propietarioSesionSync);
       var legacyExistentes = {};
       _ventasLegacyRevision.forEach(function(item) {
         if (item && item.key) legacyExistentes[item.key] = true;
@@ -5907,12 +5939,10 @@ function recuperarVentasIndexedDB() {
     if (!_indexedDBSinPropietarioAlCargar && !leerPropietarioColasVentas()) {
       asegurarPropietarioColasVentas(true, identidadActualColasVentas());
     }
-    var localesSinPropietario = !leerPropietarioColasVentas();
-    var localesProtegidas = 0;
-    if (localesSinPropietario) {
-      localesProtegidas += marcarRevisionesSinPropietario();
-      localesProtegidas += moverVentasLocalesLegacyARevision(true);
-    }
+    var propietarioMigracion = leerPropietarioColasVentas() || identidadActualColasVentas();
+    var localesSinPropietario = !propietarioMigracion;
+    var localesProtegidas = marcarRevisionesNoProtegidas(propietarioMigracion);
+    localesProtegidas += moverVentasLocalesLegacyARevision(localesSinPropietario);
     return new Promise(function(resolve) {
       var legacyEncontradas = 0;
       var db = null;
@@ -5999,7 +6029,8 @@ function recuperarVentasIndexedDB() {
           return;
         }
         _ventasPendientes = fusionarVentasPendientesCompartidas([], []);
-        _ventasLegacyRevision = fusionarVentasLegacyCompartidas();
+        _ventasLegacyRevision = fusionarVentasLegacyCompartidas(legacyAgregadas);
+        marcarRevisionesNoProtegidas(propietarioMigracion);
         var ventasGuardadas = guardarVentasPendientesLocal();
         var legacyGuardadas = guardarVentasLegacyRevision();
         if (!ventasGuardadas || !legacyGuardadas) {

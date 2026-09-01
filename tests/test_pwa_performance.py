@@ -239,15 +239,16 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "_recuperacionVentasPromise = conBloqueoColasVentas(function()" in recovery_segment
     assert "exigirSesionColasVigente(versionSesionMigracion, tokenSesionMigracion)" in recovery_segment
     assert "emparejarVentasLegacyIndexedDB(registros)" in recovery_segment
-    assert "var localesSinPropietario = !leerPropietarioColasVentas()" in recovery_segment
+    assert "var localesSinPropietario = !propietarioMigracion" in recovery_segment
     assert "asegurarPropietarioColasVentas(true, identidadActualColasVentas())" in recovery_segment
-    assert "moverVentasLocalesLegacyARevision(true)" in recovery_segment
+    assert "moverVentasLocalesLegacyARevision(localesSinPropietario)" in recovery_segment
     assert "propietario_desconocido: true" in recovery_segment
     assert "var idempotenciaIndexed = ventaLimpia && ventaLimpia.idempotency_key" in recovery_segment
     assert "existentes[idempotenciaIndexed] || legacyIdempotencias[idempotenciaIndexed]" in recovery_segment
     assert "_ventasPendientes.push(ventaLimpia)" not in recovery_segment
     assert "_ventasPendientes = fusionarVentasPendientesCompartidas([], [])" in recovery_segment
-    assert "_ventasLegacyRevision = fusionarVentasLegacyCompartidas()" in recovery_segment
+    assert "_ventasLegacyRevision = fusionarVentasLegacyCompartidas(legacyAgregadas)" in recovery_segment
+    assert "marcarRevisionesNoProtegidas(propietarioMigracion)" in recovery_segment
     assert recovery_segment.index("fusionarVentasPendientesCompartidas([], [])") < recovery_segment.index(
         "var ventasGuardadas = guardarVentasPendientesLocal()"
     )
@@ -259,7 +260,11 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "tx.abort()" in recovery_segment
     assert "tx.onabort = function() { finalizarMigracion(false); }" in recovery_segment
     assert "claveIdempotenciaVentaLegacy(itemActual)" in review_mutation_segment
-    assert "if (itemActual.propietario_desconocido)" in review_mutation_segment
+    assert (
+        "itemActual.propietario_desconocido || "
+        "!revisionVentaProtegidaPara(itemActual, propietarioRecuperacion)"
+        in review_mutation_segment
+    )
     assert "_queue_owner: propietarioRecuperacion" in review_mutation_segment
     assert "confirmarAccion({" in review_segment
     assert "item.tipo === 'rechazada'" in review_segment
@@ -300,6 +305,11 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
         "guardarVentasLegacyRevision()"
     )
     assert "cuarentenarVentasLocalesLegacyCompartida().then" in sync_segment
+    assert "marcarRevisionesNoProtegidas(propietarioSesionSync)" in sync_segment
+    assert sync_segment.index("_ventasLegacyRevision = leerVentasLegacyRevision()") < sync_segment.index(
+        "rechazadas.forEach(function(rechazo)"
+    )
+    assert "_ventasLegacyRevision = fusionarVentasLegacyCompartidas()" not in sync_segment
     assert "var total = _ventasPendientes.length + _ventasLegacyRevision.length" in html
     assert "total === 1 ? 'venta pendiente' : 'ventas pendientes'" in html
     assert 'onclick="accionVentasPendientes()"' in html
@@ -512,12 +522,12 @@ def test_unmatched_legacy_indexeddb_sales_stay_in_manual_quarantine():
     assert "return !(item && item.propietario_desconocido)" in owner_segment
     assert "if (!forzar && !hayColasVentasConPropietario()) return true" in owner_segment
     assert "var _indexedDBSinPropietarioAlCargar = !leerPropietarioColasVentas() && !identidadActualColasVentas()" in html
-    assert "var localesSinPropietario = !leerPropietarioColasVentas()" in recovery_segment
-    assert "moverVentasLocalesLegacyARevision(true)" in recovery_segment
+    assert "var localesSinPropietario = !propietarioMigracion" in recovery_segment
+    assert "moverVentasLocalesLegacyARevision(localesSinPropietario)" in recovery_segment
     assert "var idempotenciaIndexed = ventaLimpia && ventaLimpia.idempotency_key" in recovery_segment
     assert "_ventasPendientes.push(ventaLimpia)" not in recovery_segment
     assert "propietario_desconocido: true" in recovery_segment
-    assert "if (itemActual.propietario_desconocido)" in review_segment
+    assert "!revisionVentaProtegidaPara(itemActual, propietarioRecuperacion)" in review_segment
     assert review_segment.index("if (item.propietario_desconocido)") < review_segment.index(
         "if (item.tipo === 'rechazada')"
     )
@@ -555,6 +565,67 @@ def test_preupgrade_localstorage_sales_are_not_submitted_by_a_new_cashier():
     assert "revision.propietario_desconocido = true" in quarantine_segment
     assert "_queue_owner" not in payload_segment
     assert "_queue_version" not in payload_segment
+
+
+def test_preupgrade_review_rows_cannot_be_recovered_by_a_new_cashier():
+    html = read_text("docs/index.html")
+    rejected_segment = segment_between(
+        html,
+        "function crearRevisionVentaRechazada",
+        "function huellaVentaLegacy",
+    )
+    quarantine_segment = segment_between(
+        html,
+        "function marcarRevisionesNoProtegidas",
+        "function claveIdempotenciaVentaLegacy",
+    )
+    recovery_segment = segment_between(
+        html,
+        "function recuperarVentaLegacyCompartida",
+        "async function revisarSiguienteVentaLegacy",
+    )
+
+    assert "function revisionVentaProtegidaPara(item, propietario)" in html
+    assert "revision._queue_version = VENTAS_QUEUE_ROW_VERSION" in rejected_segment
+    assert "revision._queue_owner = propietarioRevision" in rejected_segment
+    assert "revision.propietario_desconocido = true" in rejected_segment
+    assert "marcarRevisionesNoProtegidas(propietarioActual)" in quarantine_segment
+    assert "revisionVentaProtegidaPara(item, propietario)" in quarantine_segment
+    assert "var propietarioRecuperacion = usuarioIdDesdeTokenVentas(tokenSesion)" in recovery_segment
+    assert "!revisionVentaProtegidaPara(itemActual, propietarioRecuperacion)" in recovery_segment
+    assert "{propietario_desconocido: true}" in recovery_segment
+    assert "propietarioCola && propietarioCola !== propietarioRecuperacion" in recovery_segment
+    assert "asegurarPropietarioColasVentas(true, propietarioRecuperacion)" in recovery_segment
+    assert recovery_segment.index("!revisionVentaProtegidaPara(itemActual, propietarioRecuperacion)") < recovery_segment.index(
+        "_ventasPendientes.push(ventaRecuperada)"
+    )
+
+
+def test_sync_does_not_restore_a_review_removed_by_another_window():
+    html = read_text("docs/index.html")
+    merge_segment = segment_between(
+        html,
+        "function fusionarVentasLegacyCompartidas",
+        "function sincronizarVentas",
+    )
+    sync_segment = segment_between(
+        html,
+        "function sincronizarVentasPreparadas",
+        "function recuperarVentasIndexedDB",
+    )
+    migration_segment = segment_between(
+        html,
+        "function recuperarVentasIndexedDB",
+        "recuperarVentasIndexedDB();",
+    )
+
+    assert "leerVentasLegacyRevision().concat(nuevas || [])" in merge_segment
+    assert "_ventasLegacyRevision.concat(leerVentasLegacyRevision())" not in merge_segment
+    assert "_ventasLegacyRevision = leerVentasLegacyRevision()" in sync_segment
+    assert sync_segment.index("_ventasLegacyRevision = leerVentasLegacyRevision()") < sync_segment.index(
+        "rechazadas.forEach(function(rechazo)"
+    )
+    assert "fusionarVentasLegacyCompartidas(legacyAgregadas)" in migration_segment
 
 
 def test_legacy_sale_matching_uses_complete_payload_and_nearest_timestamp():
