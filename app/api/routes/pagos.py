@@ -131,6 +131,14 @@ def crear_cobro_clip_pinpad(
             "estado": venta.pago_externo_estado or "pendiente",
             "respuesta": json.loads(venta.pago_externo_payload or "{}"),
         }
+    if venta.pago_externo_estado == "revision_requerida":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "El intento anterior de CLIP requiere conciliación. "
+                "No vuelvas a cobrar hasta confirmar la operación en CLIP."
+            ),
+        )
 
     try:
         respuesta = clip_service.enviar_cobro_pinpad(
@@ -139,6 +147,36 @@ def crear_cobro_clip_pinpad(
             descripcion=f"Venta {venta.folio}",
             serial_number_pos=data.serial_number_pos,
         )
+    except clip_service.ClipPaymentAttemptUncertain as e:
+        venta.pago_externo_estado = "revision_requerida"
+        venta.pago_externo_payload = json.dumps(
+            {
+                "error": str(e),
+                "requiere_conciliacion": True,
+                "folio": venta.folio,
+                "total": str(venta.total),
+            },
+            default=str,
+        )
+        registrar_evento(
+            db,
+            usuario_id=user.id,
+            usuario_nombre=user.nombre,
+            accion="marcar_intento_pago_incierto",
+            modulo="pagos",
+            entidad="ventas",
+            entidad_id=venta.id,
+            datos_nuevos={
+                "proveedor": "clip",
+                "estado": "revision_requerida",
+                "folio": venta.folio,
+                "total": str(venta.total),
+            },
+            motivo="Respuesta de CLIP no confirmada",
+            commit=False,
+        )
+        db.commit()
+        raise HTTPException(status_code=502, detail=str(e))
     except clip_service.ClipAPIError as e:
         venta.pago_externo_estado = "error_envio"
         venta.pago_externo_payload = json.dumps({"error": str(e)}, default=str)

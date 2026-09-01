@@ -1027,6 +1027,66 @@ class TestVentas:
         assert segundo.json()["payment_id"] == "clip-idempotente-1"
         assert llamadas == [venta_data["folio"]]
 
+    def test_clip_pinpad_respuesta_perdida_bloquea_reintento(
+        self,
+        client,
+        auth_headers,
+        db,
+        monkeypatch,
+    ):
+        from app.models.auditoria import LogAuditoria
+        from app.services.clip_service import ClipPaymentAttemptUncertain
+
+        pid = self._crear_producto(client, auth_headers, "CLIP-INCIERTO", "30.00")
+        self._agregar_stock(client, auth_headers, pid, 5)
+        venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "04",
+            "terminal": "clip",
+            "pago_integrado": True,
+            "monto_recibido": "0.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert venta.status_code == 201, venta.text
+        venta_data = venta.json()
+        llamadas = []
+
+        def respuesta_perdida(*_args, **_kwargs):
+            llamadas.append(venta_data["folio"])
+            raise ClipPaymentAttemptUncertain("respuesta perdida; requiere conciliación")
+
+        monkeypatch.setattr(
+            "app.services.clip_service.enviar_cobro_pinpad",
+            respuesta_perdida,
+        )
+
+        primero = client.post(
+            "/api/v1/pagos/clip/pinpad",
+            json={"venta_id": venta_data["id"]},
+            headers=auth_headers,
+        )
+        segundo = client.post(
+            "/api/v1/pagos/clip/pinpad",
+            json={"venta_id": venta_data["id"]},
+            headers=auth_headers,
+        )
+        estado = client.get(
+            f"/api/v1/pagos/clip/pinpad/{venta_data['id']}",
+            headers=auth_headers,
+        )
+
+        assert primero.status_code == 502
+        assert segundo.status_code == 409
+        assert "No vuelvas a cobrar" in segundo.json()["detail"]
+        assert estado.status_code == 200
+        assert estado.json()["estado_pago"] == "revision_requerida"
+        assert llamadas == [venta_data["folio"]]
+        auditoria = db.query(LogAuditoria).filter(
+            LogAuditoria.modulo == "pagos",
+            LogAuditoria.accion == "marcar_intento_pago_incierto",
+            LogAuditoria.entidad_id == venta_data["id"],
+        ).one()
+        assert auditoria.motivo == "Respuesta de CLIP no confirmada"
+
     @pytest.mark.parametrize(
         ("amount", "payment_id", "detail", "expected_status"),
         [

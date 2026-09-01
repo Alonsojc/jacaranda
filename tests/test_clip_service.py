@@ -157,6 +157,20 @@ def test_live_pinpad_builds_payment_with_required_webhook(monkeypatch):
     }
 
 
+def test_live_pinpad_marks_post_failure_as_uncertain(monkeypatch):
+    configure_live_pinpad(monkeypatch)
+
+    def fail_after_send(*_args, **_kwargs):
+        raise clip.ClipAPIError("respuesta perdida")
+
+    monkeypatch.setattr(clip, "_pinpad_request", fail_after_send)
+    with pytest.raises(
+        clip.ClipPaymentAttemptUncertain,
+        match="requiere conciliación",
+    ):
+        clip.enviar_cobro_pinpad(Decimal("20.00"), "T-2")
+
+
 def test_pinpad_request_and_transport_errors(monkeypatch):
     configure_live_pinpad(monkeypatch)
     monkeypatch.setattr(settings, "CLIP_PINPAD_API_URL", "https://pinpad.test/")

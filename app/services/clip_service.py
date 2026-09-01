@@ -25,6 +25,10 @@ class ClipAPIError(Exception):
     pass
 
 
+class ClipPaymentAttemptUncertain(ClipAPIError):
+    """Clip pudo recibir el cobro, pero Jacaranda no obtuvo confirmación."""
+
+
 def _get_auth_header() -> str:
     """Genera el header de autenticación Basic con API Key + Secret."""
     api_key = getattr(settings, "CLIP_API_KEY", "")
@@ -198,7 +202,13 @@ def enviar_cobro_pinpad(
     payload["webhook_url"] = callback_url
     if descripcion:
         payload["description"] = descripcion
-    return _pinpad_request("POST", "/f2f/pinpad/v1/payment", payload)
+    try:
+        return _pinpad_request("POST", "/f2f/pinpad/v1/payment", payload)
+    except ClipAPIError as exc:
+        raise ClipPaymentAttemptUncertain(
+            "No se pudo confirmar si CLIP recibió el cobro; "
+            "requiere conciliación antes de reintentar"
+        ) from exc
 
 
 def consultar_pago_pinpad(pinpad_request_id: str, include_detail: bool = True) -> dict:
