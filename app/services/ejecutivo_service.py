@@ -1,10 +1,11 @@
 """Servicio de dashboard ejecutivo - vista consolidada para dueño del negocio."""
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
+from app.core.time_utils import operation_period_bounds, operation_today
 from app.models.venta import Venta, DetalleVenta, EstadoVenta
 from app.models.pedido import Pedido, EstadoPedido
 from app.models.inventario import Producto, Ingrediente, LoteIngrediente
@@ -20,15 +21,12 @@ def _float(v) -> float:
 
 
 def _rango_dia(dia: date):
-    return (
-        datetime.combine(dia, datetime.min.time()),
-        datetime.combine(dia, datetime.max.time()),
-    )
+    return operation_period_bounds(dia, dia)
 
 
 def dashboard_ejecutivo(db: Session) -> dict:
     """Dashboard completo para el dueño del negocio."""
-    hoy = date.today()
+    hoy = operation_today()
     ayer = hoy - timedelta(days=1)
     inicio_semana = hoy - timedelta(days=hoy.weekday())
     inicio_mes = date(hoy.year, hoy.month, 1)
@@ -50,12 +48,10 @@ def dashboard_ejecutivo(db: Session) -> dict:
 
     v_hoy = _ventas_rango(inicio_hoy, fin_hoy)
     v_ayer = _ventas_rango(inicio_ayer, fin_ayer)
-    v_semana = _ventas_rango(
-        datetime.combine(inicio_semana, datetime.min.time()), fin_hoy
-    )
-    v_mes = _ventas_rango(
-        datetime.combine(inicio_mes, datetime.min.time()), fin_hoy
-    )
+    inicio_semana_dt, _ = operation_period_bounds(inicio_semana, hoy)
+    inicio_mes_dt, _ = operation_period_bounds(inicio_mes, hoy)
+    v_semana = _ventas_rango(inicio_semana_dt, fin_hoy)
+    v_mes = _ventas_rango(inicio_mes_dt, fin_hoy)
 
     total_hoy = _float(v_hoy.total)
     total_ayer = _float(v_ayer.total)
@@ -72,7 +68,7 @@ def dashboard_ejecutivo(db: Session) -> dict:
         and_(Pedido.estado == EstadoPedido.ENTREGADO,
              Pedido.fecha_entrega == hoy)).scalar() or 0
     pedidos_mes = db.query(func.count(Pedido.id)).filter(
-        Pedido.creado_en >= datetime.combine(inicio_mes, datetime.min.time())
+        Pedido.creado_en >= inicio_mes_dt
     ).scalar() or 0
 
     # ── Inventario ──
@@ -99,7 +95,7 @@ def dashboard_ejecutivo(db: Session) -> dict:
         func.sum(DetalleVenta.subtotal).label("ingresos"),
         func.sum(DetalleVenta.cantidad * Producto.costo_produccion).label("costos"),
     ).join(Venta).join(Producto, DetalleVenta.producto_id == Producto.id).filter(
-        and_(Venta.fecha >= datetime.combine(inicio_mes, datetime.min.time()),
+        and_(Venta.fecha >= inicio_mes_dt,
              Venta.estado == EstadoVenta.COMPLETADA)
     ).first()
     ingresos_mes = _float(margen_rows.ingresos) if margen_rows else 0
@@ -112,7 +108,7 @@ def dashboard_ejecutivo(db: Session) -> dict:
     total_clientes = db.query(func.count(Cliente.id)).filter(
         Cliente.activo.is_(True)).scalar() or 0
     nuevos_mes = db.query(func.count(Cliente.id)).filter(
-        and_(Cliente.creado_en >= datetime.combine(inicio_mes, datetime.min.time()),
+        and_(Cliente.creado_en >= inicio_mes_dt,
              Cliente.activo.is_(True))).scalar() or 0
 
     # Satisfacción promedio
@@ -178,7 +174,7 @@ def dashboard_ejecutivo(db: Session) -> dict:
 def resumen_semanal(db: Session) -> list[dict]:
     """Totales diarios de los últimos 7 días."""
     result = []
-    hoy = date.today()
+    hoy = operation_today()
     for i in range(6, -1, -1):
         dia = hoy - timedelta(days=i)
         inicio, fin = _rango_dia(dia)
@@ -202,20 +198,21 @@ def resumen_semanal(db: Session) -> list[dict]:
 
 def comparativo_periodos(db: Session, dias: int = 30) -> dict:
     """Compara período actual vs anterior."""
-    hoy = date.today()
+    hoy = operation_today()
     inicio_actual = hoy - timedelta(days=dias - 1)
     fin_actual = hoy
     inicio_anterior = inicio_actual - timedelta(days=dias)
     fin_anterior = inicio_actual - timedelta(days=1)
 
     def _stats(inicio, fin):
+        inicio_dt, fin_dt = operation_period_bounds(inicio, fin)
         row = db.query(
             func.sum(Venta.total).label("total"),
             func.count(Venta.id).label("cantidad"),
         ).filter(
             and_(
-                Venta.fecha >= datetime.combine(inicio, datetime.min.time()),
-                Venta.fecha <= datetime.combine(fin, datetime.max.time()),
+                Venta.fecha >= inicio_dt,
+                Venta.fecha <= fin_dt,
                 Venta.estado == EstadoVenta.COMPLETADA,
             )
         ).first()

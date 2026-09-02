@@ -4,7 +4,7 @@ Tickets, reportes de ventas, corte de caja, reportes fiscales.
 """
 
 import io
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 
 from reportlab.lib import colors
@@ -16,6 +16,7 @@ from reportlab.platypus import (
 )
 
 from app.core.config import settings
+from app.core.time_utils import operation_now
 
 
 def _header(story, styles, titulo: str, subtitulo: str = ""):
@@ -191,7 +192,7 @@ def generar_reporte_ventas_pdf(reporte: dict) -> io.BytesIO:
     # Footer
     story.append(Spacer(1, 10*mm))
     story.append(Paragraph(
-        f"<i>Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')} — {settings.RAZON_SOCIAL}</i>",
+        f"<i>Generado el {operation_now().strftime('%d/%m/%Y %H:%M')} — {settings.RAZON_SOCIAL}</i>",
         ParagraphStyle("Footer", parent=styles["Normal"], fontSize=7, textColor=colors.grey),
     ))
 
@@ -240,7 +241,7 @@ def generar_corte_caja_pdf(corte: dict) -> io.BytesIO:
 
     story.append(Spacer(1, 10*mm))
     story.append(Paragraph(
-        f"<i>Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')} — {settings.RAZON_SOCIAL}</i>",
+        f"<i>Generado el {operation_now().strftime('%d/%m/%Y %H:%M')} — {settings.RAZON_SOCIAL}</i>",
         ParagraphStyle("Footer", parent=styles["Normal"], fontSize=7, textColor=colors.grey),
     ))
 
@@ -298,7 +299,7 @@ def generar_reporte_iva_pdf(iva: dict) -> io.BytesIO:
 
     story.append(Spacer(1, 10*mm))
     story.append(Paragraph(
-        f"<i>Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')} — {settings.RAZON_SOCIAL}</i>",
+        f"<i>Generado el {operation_now().strftime('%d/%m/%Y %H:%M')} — {settings.RAZON_SOCIAL}</i>",
         ParagraphStyle("Footer", parent=styles["Normal"], fontSize=7, textColor=colors.grey),
     ))
 
@@ -381,7 +382,7 @@ def generar_reporte_isr_pdf(isr: dict) -> io.BytesIO:
 
     story.append(Spacer(1, 6*mm))
     story.append(Paragraph(
-        f"<i>Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')} — {settings.RAZON_SOCIAL}</i>",
+        f"<i>Generado el {operation_now().strftime('%d/%m/%Y %H:%M')} — {settings.RAZON_SOCIAL}</i>",
         ParagraphStyle("Footer", parent=styles["Normal"], fontSize=7, textColor=colors.grey),
     ))
 

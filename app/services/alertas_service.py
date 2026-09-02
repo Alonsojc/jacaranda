@@ -8,6 +8,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
+from app.core.time_utils import operation_day_bounds, operation_today
 from app.models.inventario import (
     Ingrediente, Producto, LoteIngrediente,
     MovimientoInventario, TipoMovimiento,
@@ -146,7 +147,7 @@ def _alertas_recetas_sin_ingredientes(db: Session) -> list[dict]:
 
 def _alertas_caducidades(db: Session, dias_aviso: int = 3) -> list[dict]:
     """Lotes de ingredientes próximos a caducar o ya caducados."""
-    hoy = date.today()
+    hoy = operation_today()
     limite = hoy + timedelta(days=dias_aviso)
 
     lotes = db.query(LoteIngrediente).filter(
@@ -179,7 +180,7 @@ def _alertas_caducidades(db: Session, dias_aviso: int = 3) -> list[dict]:
 
 def _alertas_pedidos(db: Session) -> list[dict]:
     """Pedidos pendientes: sin confirmar o con entrega próxima."""
-    hoy = date.today()
+    hoy = operation_today()
 
     # Pedidos sin confirmar (recibidos hace > 2 horas)
     hace_2h = datetime.now(timezone.utc) - timedelta(hours=2)
@@ -227,8 +228,7 @@ def _alertas_pedidos(db: Session) -> list[dict]:
 
 def _alertas_merma(db: Session) -> dict:
     """Merma del día actual."""
-    hoy_inicio = datetime.combine(date.today(), datetime.min.time())
-    hoy_fin = datetime.combine(date.today(), datetime.max.time())
+    hoy_inicio, hoy_fin = operation_day_bounds(operation_today())
 
     mermas = db.query(MovimientoInventario).filter(
         and_(

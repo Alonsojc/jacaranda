@@ -12,6 +12,7 @@ from collections import defaultdict
 from sqlalchemy import func, and_, extract
 from sqlalchemy.orm import Session
 
+from app.core.time_utils import operation_now
 from app.models.auditoria import LogAuditoria
 from app.core.config import settings
 
@@ -381,7 +382,7 @@ def respaldar_base_datos(db: Session) -> dict:
     os.makedirs(backup_dir, exist_ok=True)
 
     # Nombre del respaldo con timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = operation_now().strftime("%Y%m%d_%H%M%S")
     backup_filename = f"jacaranda_backup_{timestamp}.db"
     backup_path = os.path.join(backup_dir, backup_filename)
 

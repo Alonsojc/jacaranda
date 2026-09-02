@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.core.db_compat import db_cast_date
+from app.core.time_utils import operation_day_bounds, operation_today
 from app.models.pedido import Pedido, EstadoPedido
 
 
@@ -70,7 +70,8 @@ def tracking_pedido(db: Session, folio: str) -> dict:
 
 
 def dashboard_delivery(db: Session) -> dict:
-    hoy = date.today()
+    hoy = operation_today()
+    inicio_hoy, fin_hoy = operation_day_bounds(hoy)
 
     en_ruta = (
         db.query(func.count(Pedido.id))
@@ -87,7 +88,7 @@ def dashboard_delivery(db: Session) -> dict:
     entregados_hoy = (
         db.query(func.count(Pedido.id))
         .filter(Pedido.estado == EstadoPedido.ENTREGADO)
-        .filter(db_cast_date(Pedido.entregado_en) == hoy)
+        .filter(Pedido.entregado_en >= inicio_hoy, Pedido.entregado_en <= fin_hoy)
         .scalar()
     )
 
@@ -95,7 +96,7 @@ def dashboard_delivery(db: Session) -> dict:
     entregas_hoy = (
         db.query(Pedido)
         .filter(Pedido.estado == EstadoPedido.ENTREGADO)
-        .filter(db_cast_date(Pedido.entregado_en) == hoy)
+        .filter(Pedido.entregado_en >= inicio_hoy, Pedido.entregado_en <= fin_hoy)
         .filter(Pedido.en_ruta_en.isnot(None))
         .filter(Pedido.entregado_en.isnot(None))
         .all()

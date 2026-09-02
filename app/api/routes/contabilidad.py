@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import require_role
+from app.core.time_utils import operation_today
 from app.models.usuario import Usuario, RolUsuario
 from app.services import contabilidad_service as svc
 from app.services import excel_service
@@ -242,7 +243,7 @@ def balance_general_excel(
 ):
     """Descarga balance general en Excel."""
     buf = excel_service.exportar_balance_general(db, fecha_corte)
-    corte = (fecha_corte or date.today()).isoformat()
+    corte = (fecha_corte or operation_today()).isoformat()
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

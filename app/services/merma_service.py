@@ -271,16 +271,16 @@ def merma_vs_produccion(db: Session, dias: int = 30) -> dict:
     """Calcula porcentaje de merma vs producción en el periodo."""
     from app.models.receta import OrdenProduccion, EstadoProduccion
 
-    fecha_inicio = date.today() - timedelta(days=dias)
-    hoy = date.today()
+    hoy = _hoy_operacion()
+    fecha_inicio = hoy - timedelta(days=dias)
 
     # Total producido (órdenes completadas)
     ordenes = db.query(OrdenProduccion).filter(
         and_(
             OrdenProduccion.estado == EstadoProduccion.COMPLETADA,
             OrdenProduccion.fecha_fin.isnot(None),
-            OrdenProduccion.fecha_fin >= datetime.combine(
-                fecha_inicio, datetime.min.time(), tzinfo=timezone.utc
+            OrdenProduccion.fecha_fin >= _normalizar_fecha_db(
+                datetime.combine(fecha_inicio, datetime.min.time(), tzinfo=_zona_operacion())
             ),
         )
     ).all()
@@ -315,8 +315,8 @@ def merma_vs_produccion(db: Session, dias: int = 30) -> dict:
 
 def alertas_caducidad(db: Session, dias: int = 7) -> list[dict]:
     """Ingredientes y lotes que caducan en los próximos N días."""
-    fecha_limite = date.today() + timedelta(days=dias)
-    hoy = date.today()
+    hoy = _hoy_operacion()
+    fecha_limite = hoy + timedelta(days=dias)
 
     lotes = db.query(LoteIngrediente).filter(
         and_(
@@ -353,7 +353,7 @@ def alertas_caducidad(db: Session, dias: int = 7) -> list[dict]:
 
 def dashboard_merma(db: Session) -> dict:
     """Consolidado de merma para dashboard: hoy, semana, mes y top productos."""
-    hoy = date.today()
+    hoy = _hoy_operacion()
     inicio_semana = hoy - timedelta(days=hoy.weekday())
     inicio_mes = hoy.replace(day=1)
 

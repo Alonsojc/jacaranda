@@ -6,23 +6,26 @@ Genera reportes de IVA, ISR, ventas y estado financiero.
 from decimal import Decimal
 from datetime import date, datetime, timezone
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, extract
+from sqlalchemy import func, and_
 
-from app.core.db_compat import db_extract_dow
+from app.core.time_utils import (
+    normalize_database_datetime as _normalizar_fecha_db,
+    operation_datetime as _fecha_hora_operacion,
+    operation_period_bounds,
+    operation_today as _hoy_operacion,
+    operation_timezone as _zona_operacion,
+)
 from app.models.venta import Venta, DetalleVenta, EstadoVenta
 from app.models.empleado import RegistroNomina
 from app.models.inventario import MovimientoInventario, TipoMovimiento, Ingrediente
 from app.models.egreso import Egreso
 from app.services.pago_metodos import CANAL_PAGO_LABELS, canal_pago
-from app.services.venta_service import _normalizar_fecha_db, _zona_operacion
 
 
 def gastos_hoy(db: Session, fecha: date | None = None) -> dict:
     """Retorna egresos del día: compras de ingredientes + gastos operativos."""
-    from datetime import timezone
-    dia = fecha or date.today()
-    hoy_inicio = datetime.combine(dia, datetime.min.time(), tzinfo=timezone.utc)
-    hoy_fin = datetime.combine(dia, datetime.max.time(), tzinfo=timezone.utc)
+    dia = fecha or _hoy_operacion()
+    hoy_inicio, hoy_fin = operation_period_bounds(dia, dia)
 
     compras = db.query(MovimientoInventario).filter(
         and_(
@@ -57,7 +60,7 @@ def gastos_hoy(db: Session, fecha: date | None = None) -> dict:
             "costo_unitario": float(m.costo_unitario),
             "total": float(m.cantidad * m.costo_unitario),
             "referencia": m.referencia,
-            "hora": m.fecha.strftime("%H:%M") if m.fecha else "",
+            "hora": _fecha_hora_operacion(m.fecha).strftime("%H:%M") if m.fecha else "",
             "categoria": "ingredientes",
             "metodo_pago": "",
         })
@@ -71,7 +74,7 @@ def gastos_hoy(db: Session, fecha: date | None = None) -> dict:
             "costo_unitario": float(e.monto),
             "total": float(e.monto),
             "referencia": e.proveedor or e.notas or "",
-            "hora": e.creado_en.strftime("%H:%M") if e.creado_en else "",
+            "hora": _fecha_hora_operacion(e.creado_en).strftime("%H:%M") if e.creado_en else "",
             "categoria": e.categoria,
             "metodo_pago": e.metodo_pago,
         })
@@ -181,11 +184,13 @@ def reporte_iva_mensual(db: Session, mes: int, anio: int) -> dict:
         fecha_fin = date(anio + 1, 1, 1)
     else:
         fecha_fin = date(anio, mes + 1, 1)
+    inicio_dt, _ = operation_period_bounds(fecha_inicio, fecha_inicio)
+    fin_dt, _ = operation_period_bounds(fecha_fin, fecha_fin)
 
     ventas = db.query(Venta).filter(
         and_(
-            Venta.fecha >= datetime.combine(fecha_inicio, datetime.min.time()),
-            Venta.fecha < datetime.combine(fecha_fin, datetime.min.time()),
+            Venta.fecha >= inicio_dt,
+            Venta.fecha < fin_dt,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
     ).all()
@@ -247,13 +252,15 @@ def reporte_isr_provisional(db: Session, mes: int, anio: int) -> dict:
         fecha_fin = date(anio + 1, 1, 1)
     else:
         fecha_fin = date(anio, mes + 1, 1)
+    inicio_dt, _ = operation_period_bounds(fecha_inicio, fecha_inicio)
+    fin_dt, _ = operation_period_bounds(fecha_fin, fecha_fin)
 
     # Ingresos nominales acumulados (sin IVA)
     from app.models.inventario import Producto
     ventas = db.query(Venta).filter(
         and_(
-            Venta.fecha >= datetime.combine(fecha_inicio, datetime.min.time()),
-            Venta.fecha < datetime.combine(fecha_fin, datetime.min.time()),
+            Venta.fecha >= inicio_dt,
+            Venta.fecha < fin_dt,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
     ).all()
@@ -343,6 +350,8 @@ def reporte_productos_mas_vendidos(
     """Top productos más vendidos en un periodo."""
     from app.models.inventario import Producto
 
+    inicio, fin = operation_period_bounds(fecha_inicio, fecha_fin)
+
     resultados = (
         db.query(
             DetalleVenta.producto_id,
@@ -354,8 +363,8 @@ def reporte_productos_mas_vendidos(
         .join(Producto, DetalleVenta.producto_id == Producto.id)
         .filter(
             and_(
-                Venta.fecha >= datetime.combine(fecha_inicio, datetime.min.time()),
-                Venta.fecha <= datetime.combine(fecha_fin, datetime.max.time()),
+                Venta.fecha >= inicio,
+                Venta.fecha <= fin,
                 Venta.estado == EstadoVenta.COMPLETADA,
             )
         )
@@ -378,22 +387,24 @@ def reporte_productos_mas_vendidos(
 
 def dashboard_resumen(db: Session) -> dict:
     """Resumen ejecutivo para el dashboard principal."""
-    hoy = date.today()
+    hoy = _hoy_operacion()
     inicio_mes = date(hoy.year, hoy.month, 1)
+    inicio_hoy, fin_hoy = operation_period_bounds(hoy, hoy)
+    inicio_mes_dt, fin_mes_dt = operation_period_bounds(inicio_mes, hoy)
 
     # Ventas del día
     ventas_hoy = db.query(func.sum(Venta.total)).filter(
         and_(
-            Venta.fecha >= datetime.combine(hoy, datetime.min.time()),
-            Venta.fecha <= datetime.combine(hoy, datetime.max.time()),
+            Venta.fecha >= inicio_hoy,
+            Venta.fecha <= fin_hoy,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
     ).scalar() or Decimal("0")
 
     num_ventas_hoy = db.query(func.count(Venta.id)).filter(
         and_(
-            Venta.fecha >= datetime.combine(hoy, datetime.min.time()),
-            Venta.fecha <= datetime.combine(hoy, datetime.max.time()),
+            Venta.fecha >= inicio_hoy,
+            Venta.fecha <= fin_hoy,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
     ).scalar() or 0
@@ -401,8 +412,8 @@ def dashboard_resumen(db: Session) -> dict:
     # Ventas del mes
     ventas_mes = db.query(func.sum(Venta.total)).filter(
         and_(
-            Venta.fecha >= datetime.combine(inicio_mes, datetime.min.time()),
-            Venta.fecha <= datetime.combine(hoy, datetime.max.time()),
+            Venta.fecha >= inicio_mes_dt,
+            Venta.fecha <= fin_mes_dt,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
     ).scalar() or Decimal("0")
@@ -445,12 +456,13 @@ def reporte_margenes_producto(db: Session) -> list[dict]:
 def reporte_ventas_por_dia(db: Session, dias: int = 30) -> list[dict]:
     """Ventas diarias de los últimos N días."""
     from datetime import timedelta
-    hoy = date.today()
+    hoy = _hoy_operacion()
     inicio = hoy - timedelta(days=dias - 1)
+    inicio_dt, fin_dt = operation_period_bounds(inicio, hoy)
     ventas = db.query(Venta).filter(
         and_(
-            Venta.fecha >= datetime.combine(inicio, datetime.min.time()),
-            Venta.fecha <= datetime.combine(hoy, datetime.max.time()),
+            Venta.fecha >= inicio_dt,
+            Venta.fecha <= fin_dt,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
     ).all()
@@ -460,7 +472,7 @@ def reporte_ventas_por_dia(db: Session, dias: int = 30) -> list[dict]:
         dia = (inicio + timedelta(days=d)).isoformat()
         por_dia[dia] = {"total": 0, "tickets": 0}
     for v in ventas:
-        dia = v.fecha.strftime("%Y-%m-%d")
+        dia = _fecha_hora_operacion(v.fecha).date().isoformat()
         if dia in por_dia:
             por_dia[dia]["total"] += float(v.total)
             por_dia[dia]["tickets"] += 1
@@ -475,7 +487,7 @@ def pronostico_produccion(db: Session) -> list[dict]:
     from collections import defaultdict
     from app.models.pedido import DetallePedido, EstadoPedido, Pedido
 
-    hoy = date.today()
+    hoy = _hoy_operacion()
 
     # Obtener ventas de los últimos 28 días (4 semanas) del mismo día de la semana
     semanas = 4
@@ -483,8 +495,7 @@ def pronostico_produccion(db: Session) -> list[dict]:
 
     for w in range(1, semanas + 1):
         dia = hoy - timedelta(weeks=w)
-        inicio = datetime.combine(dia, datetime.min.time())
-        fin = datetime.combine(dia, datetime.max.time())
+        inicio, fin = operation_period_bounds(dia, dia)
 
         detalles = db.query(
             DetalleVenta.producto_id,
@@ -556,8 +567,8 @@ def alertas_caducidad(db: Session, dias: int = 7) -> list[dict]:
     from datetime import timedelta
     from app.models.inventario import LoteIngrediente, Ingrediente
 
-    limite = date.today() + timedelta(days=dias)
-    hoy = date.today()
+    hoy = _hoy_operacion()
+    limite = hoy + timedelta(days=dias)
 
     lotes = db.query(LoteIngrediente).filter(
         and_(
@@ -664,8 +675,8 @@ def reporte_mermas(
     from datetime import timedelta
     from app.models.inventario import Producto
 
-    limite = datetime.combine(
-        date.today() - timedelta(days=dias), datetime.min.time(),
+    limite, _ = operation_period_bounds(
+        _hoy_operacion() - timedelta(days=dias), _hoy_operacion()
     )
 
     mermas = db.query(MovimientoInventario).filter(
@@ -804,7 +815,7 @@ def dashboard_empleados(db: Session) -> dict:
     from datetime import timedelta
     from app.models.empleado import Empleado
 
-    hoy = date.today()
+    hoy = _hoy_operacion()
     empleados = db.query(Empleado).filter(Empleado.activo.is_(True)).all()
 
     cumpleanios = []
@@ -891,9 +902,8 @@ def reporte_ventas_por_hora(db: Session, dias: int = 7) -> list[dict]:
     from datetime import timedelta
     from app.models.inventario import Producto
 
-    hoy = date.today()
-    inicio = datetime.combine(hoy - timedelta(days=dias - 1), datetime.min.time())
-    fin = datetime.combine(hoy, datetime.max.time())
+    hoy = _hoy_operacion()
+    inicio, fin = operation_period_bounds(hoy - timedelta(days=dias - 1), hoy)
 
     ventas = db.query(Venta).filter(
         and_(
@@ -908,7 +918,7 @@ def reporte_ventas_por_hora(db: Session, dias: int = 7) -> list[dict]:
         por_hora[h] = {"hora": h, "total": 0, "tickets": 0}
 
     for v in ventas:
-        hora = v.fecha.hour if v.fecha else 0
+        hora = _fecha_hora_operacion(v.fecha).hour if v.fecha else 0
         por_hora[hora]["total"] += float(v.total)
         por_hora[hora]["tickets"] += 1
 
@@ -922,9 +932,8 @@ def analisis_abc(db: Session, dias: int = 30) -> dict:
     from datetime import timedelta
     from app.models.inventario import Producto
 
-    hoy = date.today()
-    inicio = datetime.combine(hoy - timedelta(days=dias - 1), datetime.min.time())
-    fin = datetime.combine(hoy, datetime.max.time())
+    hoy = _hoy_operacion()
+    inicio, fin = operation_period_bounds(hoy - timedelta(days=dias - 1), hoy)
 
     detalles = db.query(DetalleVenta).join(Venta).filter(
         and_(
@@ -994,7 +1003,7 @@ def dashboard_avanzado(db: Session) -> dict:
     from app.models.cliente import Cliente
     from app.models.gasto_fijo import GastoFijo
 
-    hoy = date.today()
+    hoy = _hoy_operacion()
 
     # --- Comparativo: este mes vs mes anterior ---
     inicio_mes = date(hoy.year, hoy.month, 1)
@@ -1005,12 +1014,15 @@ def dashboard_avanzado(db: Session) -> dict:
         inicio_mes_ant = date(hoy.year, hoy.month - 1, 1)
         fin_mes_ant = inicio_mes - timedelta(days=1)
 
+    inicio_este_mes, fin_este_mes = operation_period_bounds(inicio_mes, hoy)
+    inicio_anterior, fin_anterior = operation_period_bounds(inicio_mes_ant, fin_mes_ant)
+
     ventas_este_mes = db.query(
         func.sum(Venta.total), func.count(Venta.id)
     ).filter(
         and_(
-            Venta.fecha >= datetime.combine(inicio_mes, datetime.min.time()),
-            Venta.fecha <= datetime.combine(hoy, datetime.max.time()),
+            Venta.fecha >= inicio_este_mes,
+            Venta.fecha <= fin_este_mes,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
     ).first()
@@ -1019,8 +1031,8 @@ def dashboard_avanzado(db: Session) -> dict:
         func.sum(Venta.total), func.count(Venta.id)
     ).filter(
         and_(
-            Venta.fecha >= datetime.combine(inicio_mes_ant, datetime.min.time()),
-            Venta.fecha <= datetime.combine(fin_mes_ant, datetime.max.time()),
+            Venta.fecha >= inicio_anterior,
+            Venta.fecha <= fin_anterior,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
     ).first()
@@ -1054,10 +1066,11 @@ def dashboard_avanzado(db: Session) -> dict:
         else:
             mes_fin = date(y, m + 1, 1) - timedelta(days=1)
 
+        mes_inicio_dt, mes_fin_dt = operation_period_bounds(mes_inicio, mes_fin)
         total_mes = db.query(func.sum(Venta.total)).filter(
             and_(
-                Venta.fecha >= datetime.combine(mes_inicio, datetime.min.time()),
-                Venta.fecha <= datetime.combine(mes_fin, datetime.max.time()),
+                Venta.fecha >= mes_inicio_dt,
+                Venta.fecha <= mes_fin_dt,
                 Venta.estado == EstadoVenta.COMPLETADA,
             )
         ).scalar() or Decimal("0")
@@ -1101,8 +1114,8 @@ def dashboard_avanzado(db: Session) -> dict:
     costo_ventas = Decimal("0")
     detalles_mes = db.query(DetalleVenta).join(Venta).filter(
         and_(
-            Venta.fecha >= datetime.combine(inicio_mes, datetime.min.time()),
-            Venta.fecha <= datetime.combine(hoy, datetime.max.time()),
+            Venta.fecha >= inicio_este_mes,
+            Venta.fecha <= fin_este_mes,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
     ).all()
@@ -1160,9 +1173,8 @@ def punto_de_equilibrio(db: Session, dias: int = 30) -> dict:
     from app.models.inventario import Producto
     from app.models.gasto_fijo import GastoFijo
 
-    hoy = date.today()
-    inicio = datetime.combine(hoy - timedelta(days=dias - 1), datetime.min.time())
-    fin = datetime.combine(hoy, datetime.max.time())
+    hoy = _hoy_operacion()
+    inicio, fin = operation_period_bounds(hoy - timedelta(days=dias - 1), hoy)
 
     # Ingresos del periodo
     ventas = db.query(Venta).filter(
@@ -1244,15 +1256,14 @@ def flujo_efectivo_proyectado(db: Session, meses: int = 3) -> dict:
     from app.models.gasto_fijo import GastoFijo
     from app.models.empleado import Empleado
 
-    hoy = date.today()
+    hoy = _hoy_operacion()
 
     # Calcular ingresos promedio mensuales de últimos 3 meses
     ingresos_mensuales = []
     for i in range(3):
         mes_fin = hoy.replace(day=1) - timedelta(days=1) if i == 0 else (hoy.replace(day=1) - timedelta(days=30 * i))
         mes_inicio = mes_fin.replace(day=1)
-        inicio_dt = datetime.combine(mes_inicio, datetime.min.time())
-        fin_dt = datetime.combine(mes_fin, datetime.max.time())
+        inicio_dt, fin_dt = operation_period_bounds(mes_inicio, mes_fin)
         total = db.query(func.coalesce(func.sum(Venta.total), 0)).filter(
             and_(Venta.estado == EstadoVenta.COMPLETADA,
                  Venta.fecha >= inicio_dt, Venta.fecha <= fin_dt)
@@ -1317,28 +1328,22 @@ def comparativo_anual(db: Session, anio: int) -> list[dict]:
     Compara ventas mes a mes del año indicado vs. el año anterior.
     Retorna lista de {mes, ventas_actual, ventas_anterior, cambio_pct}.
     """
+    inicio, fin = operation_period_bounds(date(anio - 1, 1, 1), date(anio, 12, 31))
+    ventas = db.query(Venta.fecha, Venta.total).filter(
+        Venta.estado == EstadoVenta.COMPLETADA,
+        Venta.fecha >= inicio,
+        Venta.fecha <= fin,
+    ).all()
+    totales: dict[tuple[int, int], float] = {}
+    for fecha, total in ventas:
+        local = _fecha_hora_operacion(fecha)
+        clave = (local.year, local.month)
+        totales[clave] = totales.get(clave, 0.0) + float(total or 0)
+
     resultados = []
     for mes in range(1, 13):
-        # Ventas del año actual
-        ventas_actual = db.query(
-            func.coalesce(func.sum(Venta.total), 0)
-        ).filter(
-            Venta.estado == EstadoVenta.COMPLETADA,
-            extract("year", Venta.fecha) == anio,
-            extract("month", Venta.fecha) == mes,
-        ).scalar()
-
-        # Ventas del año anterior
-        ventas_anterior = db.query(
-            func.coalesce(func.sum(Venta.total), 0)
-        ).filter(
-            Venta.estado == EstadoVenta.COMPLETADA,
-            extract("year", Venta.fecha) == anio - 1,
-            extract("month", Venta.fecha) == mes,
-        ).scalar()
-
-        ventas_actual = float(ventas_actual or 0)
-        ventas_anterior = float(ventas_anterior or 0)
+        ventas_actual = totales.get((anio, mes), 0.0)
+        ventas_anterior = totales.get((anio - 1, mes), 0.0)
 
         if ventas_anterior > 0:
             cambio_pct = round(
@@ -1367,37 +1372,28 @@ def analisis_estacionalidad(db: Session) -> dict:
     Identifica meses y fechas pico (Día de Muertos, Navidad,
     Día de las Madres, San Valentín, etc.)
     """
+    ventas = db.query(Venta.fecha, Venta.total).filter(
+        Venta.estado == EstadoVenta.COMPLETADA
+    ).all()
+    ventas_locales = [
+        (_fecha_hora_operacion(fecha), float(total or 0))
+        for fecha, total in ventas
+        if fecha is not None
+    ]
+
     # --- Ventas promedio por mes (todos los años) ---
     ventas_por_mes = []
     for mes in range(1, 13):
-        total = db.query(
-            func.coalesce(func.sum(Venta.total), 0)
-        ).filter(
-            Venta.estado == EstadoVenta.COMPLETADA,
-            extract("month", Venta.fecha) == mes,
-        ).scalar()
-
-        conteo = db.query(
-            func.count(Venta.id)
-        ).filter(
-            Venta.estado == EstadoVenta.COMPLETADA,
-            extract("month", Venta.fecha) == mes,
-        ).scalar()
-
-        # Número de años distintos con ventas en este mes
-        anios_distintos = db.query(
-            func.count(func.distinct(extract("year", Venta.fecha)))
-        ).filter(
-            Venta.estado == EstadoVenta.COMPLETADA,
-            extract("month", Venta.fecha) == mes,
-        ).scalar() or 1
-
-        promedio_mensual = float(total or 0) / max(anios_distintos, 1)
+        ventas_mes = [(fecha, total) for fecha, total in ventas_locales if fecha.month == mes]
+        total = sum(total for _, total in ventas_mes)
+        conteo = len(ventas_mes)
+        anios_distintos = len({fecha.year for fecha, _ in ventas_mes}) or 1
+        promedio_mensual = total / anios_distintos
         ventas_por_mes.append({
             "mes": mes,
-            "total_historico": round(float(total or 0), 2),
+            "total_historico": round(total, 2),
             "promedio_anual": round(promedio_mensual, 2),
-            "transacciones_totales": conteo or 0,
+            "transacciones_totales": conteo,
         })
 
     # Promedio global para calcular índice estacional
@@ -1421,30 +1417,19 @@ def analisis_estacionalidad(db: Session) -> dict:
 
     picos_festivos = []
     for evento in fechas_especiales:
-        total_evento = db.query(
-            func.coalesce(func.sum(Venta.total), 0)
-        ).filter(
-            Venta.estado == EstadoVenta.COMPLETADA,
-            extract("month", Venta.fecha) == evento["mes"],
-            extract("day", Venta.fecha) >= evento["dia_inicio"],
-            extract("day", Venta.fecha) <= evento["dia_fin"],
-        ).scalar()
-
-        conteo_evento = db.query(
-            func.count(Venta.id)
-        ).filter(
-            Venta.estado == EstadoVenta.COMPLETADA,
-            extract("month", Venta.fecha) == evento["mes"],
-            extract("day", Venta.fecha) >= evento["dia_inicio"],
-            extract("day", Venta.fecha) <= evento["dia_fin"],
-        ).scalar()
-
-        if float(total_evento or 0) > 0:
+        ventas_evento = [
+            total
+            for fecha, total in ventas_locales
+            if fecha.month == evento["mes"]
+            and evento["dia_inicio"] <= fecha.day <= evento["dia_fin"]
+        ]
+        total_evento = sum(ventas_evento)
+        if total_evento > 0:
             picos_festivos.append({
                 "evento": evento["nombre"],
                 "periodo": f"{evento['dia_inicio']}-{evento['dia_fin']}/{evento['mes']:02d}",
                 "ventas_totales": round(float(total_evento), 2),
-                "transacciones": conteo_evento or 0,
+                "transacciones": len(ventas_evento),
             })
 
     # Ordenar picos por ventas descendente
@@ -1452,29 +1437,20 @@ def analisis_estacionalidad(db: Session) -> dict:
 
     # --- Día de la semana más fuerte ---
     ventas_por_dia_semana = []
-    # SQLite: strftime('%w', fecha) -> 0=domingo, ..., 6=sábado
     nombres_dia = {0: "Domingo", 1: "Lunes", 2: "Martes", 3: "Miércoles",
                    4: "Jueves", 5: "Viernes", 6: "Sábado"}
     for dow in range(7):
-        total_dow = db.query(
-            func.coalesce(func.sum(Venta.total), 0)
-        ).filter(
-            Venta.estado == EstadoVenta.COMPLETADA,
-            db_extract_dow(Venta.fecha) == str(dow),
-        ).scalar()
-
-        conteo_dow = db.query(
-            func.count(Venta.id)
-        ).filter(
-            Venta.estado == EstadoVenta.COMPLETADA,
-            db_extract_dow(Venta.fecha) == str(dow),
-        ).scalar()
+        ventas_dow = [
+            total
+            for fecha, total in ventas_locales
+            if (fecha.weekday() + 1) % 7 == dow
+        ]
 
         ventas_por_dia_semana.append({
             "dia": nombres_dia[dow],
             "dia_numero": dow,
-            "ventas_totales": round(float(total_dow or 0), 2),
-            "transacciones": conteo_dow or 0,
+            "ventas_totales": round(sum(ventas_dow), 2),
+            "transacciones": len(ventas_dow),
         })
 
     # Mejor y peor mes
@@ -1510,7 +1486,7 @@ def alertas_consolidadas(db: Session) -> list[dict]:
     from app.models.inventario import Producto, LoteIngrediente
     from app.models.pedido import Pedido
 
-    hoy = date.today()
+    hoy = _hoy_operacion()
     alertas = []
 
     # 1. Stock bajo / agotado

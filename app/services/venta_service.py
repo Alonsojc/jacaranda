@@ -7,7 +7,6 @@ Genera tickets conforme a Ley Federal de Protección al Consumidor.
 import json
 from decimal import Decimal
 from datetime import datetime, timezone, date
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_
 from sqlalchemy.exc import IntegrityError
@@ -29,6 +28,12 @@ from app.services.pago_metodos import (
     validar_metodo_terminal,
 )
 from app.core.config import settings
+from app.core.time_utils import (
+    normalize_database_datetime as _normalizar_fecha_db,
+    operation_datetime as _fecha_hora_operacion,
+    operation_today as _hoy_operacion,
+    operation_timezone as _zona_operacion,
+)
 
 # Loyalty: 1 punto por cada $10 MXN gastados, 100 puntos = $50 descuento
 PUNTOS_POR_PESO = Decimal("0.1")  # 1 punto por $10
@@ -37,24 +42,6 @@ CENTAVO = Decimal("0.01")
 
 # Compatibilidad con módulos previos que importaban el helper privado desde POS.
 _normalizar_metodo_terminal = normalizar_metodo_terminal
-
-
-def _zona_operacion() -> ZoneInfo:
-    try:
-        return ZoneInfo(settings.APP_TIMEZONE)
-    except ZoneInfoNotFoundError:
-        return ZoneInfo("America/Mexico_City")
-
-
-def _hoy_operacion() -> date:
-    return datetime.now(_zona_operacion()).date()
-
-
-def _normalizar_fecha_db(valor: datetime) -> datetime:
-    valor_utc = valor.astimezone(timezone.utc)
-    if settings.DATABASE_URL.startswith("sqlite"):
-        return valor_utc.replace(tzinfo=None)
-    return valor_utc
 
 
 def _terminal_por_defecto_pago(metodo: MetodoPago, terminal: TerminalPago | None) -> TerminalPago:
@@ -942,9 +929,17 @@ def listar_ventas(
         joinedload(Venta.pagos),
     )
     if fecha_inicio:
-        query = query.filter(Venta.fecha >= datetime.combine(fecha_inicio, datetime.min.time()))
+        query = query.filter(
+            Venta.fecha >= _normalizar_fecha_db(
+                datetime.combine(fecha_inicio, datetime.min.time(), tzinfo=_zona_operacion())
+            )
+        )
     if fecha_fin:
-        query = query.filter(Venta.fecha <= datetime.combine(fecha_fin, datetime.max.time()))
+        query = query.filter(
+            Venta.fecha <= _normalizar_fecha_db(
+                datetime.combine(fecha_fin, datetime.max.time(), tzinfo=_zona_operacion())
+            )
+        )
     return query.order_by(Venta.fecha.desc()).limit(limit).all()
 
 
@@ -995,7 +990,7 @@ def generar_ticket(db: Session, venta_id: int) -> dict:
         "rfc": settings.RFC,
         "direccion": f"C.P. {settings.DOMICILIO_FISCAL_CP}",
         "folio": venta.folio,
-        "fecha": venta.fecha.strftime("%d/%m/%Y %H:%M:%S"),
+        "fecha": _fecha_hora_operacion(venta.fecha).strftime("%d/%m/%Y %H:%M:%S"),
         "cajero": f"Usuario #{venta.usuario_id}",
         "productos": productos,
         "subtotal": f"${venta.subtotal:,.2f}",

@@ -9,6 +9,7 @@ from datetime import date, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
+from app.core.time_utils import operation_today
 from app.models.cofepris import (
     RegistroTemperatura, RegistroLimpieza, ControlPlagas,
     InspeccionSanitaria, LicenciaSanitaria, AreaEstablecimiento,
@@ -147,7 +148,7 @@ def listar_inspecciones(db: Session):
 # --- Licencias ---
 
 def licencias_por_vencer(db: Session, dias: int = 30) -> list[LicenciaSanitaria]:
-    fecha_limite = date.today() + timedelta(days=dias)
+    fecha_limite = operation_today() + timedelta(days=dias)
     return db.query(LicenciaSanitaria).filter(
         and_(
             LicenciaSanitaria.fecha_vencimiento.isnot(None),
@@ -161,7 +162,7 @@ def licencias_por_vencer(db: Session, dias: int = 30) -> list[LicenciaSanitaria]
 
 def generar_reporte_cumplimiento(db: Session) -> dict:
     """Genera reporte general de cumplimiento COFEPRIS."""
-    hoy = date.today()
+    hoy = operation_today()
     hace_30_dias = hoy - timedelta(days=30)
 
     # Temperaturas fuera de rango en últimos 30 días

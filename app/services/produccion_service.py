@@ -10,6 +10,11 @@ from collections import defaultdict
 from sqlalchemy import func, and_
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.time_utils import (
+    operation_datetime,
+    operation_period_bounds,
+    operation_today,
+)
 from app.models.venta import Venta, DetalleVenta, EstadoVenta
 from app.models.inventario import Producto, Ingrediente
 from app.models.receta import Receta, RecetaIngrediente, OrdenProduccion, EstadoProduccion
@@ -22,8 +27,9 @@ def predecir_demanda(db: Session, dias_prediccion: int = 7, semanas_historial: i
     Predice la demanda de cada producto para los próximos N días
     basándose en el historial de ventas ponderado por recencia y día de la semana.
     """
-    hoy = date.today()
+    hoy = operation_today()
     inicio_historial = hoy - timedelta(weeks=semanas_historial)
+    inicio_historial_dt, _ = operation_period_bounds(inicio_historial, hoy)
 
     # Obtener ventas históricas por producto y día de la semana
     ventas = (
@@ -35,7 +41,7 @@ def predecir_demanda(db: Session, dias_prediccion: int = 7, semanas_historial: i
         .join(Venta)
         .filter(
             and_(
-                Venta.fecha >= datetime.combine(inicio_historial, datetime.min.time()),
+                Venta.fecha >= inicio_historial_dt,
                 Venta.estado == EstadoVenta.COMPLETADA,
             )
         )
@@ -53,7 +59,7 @@ def predecir_demanda(db: Session, dias_prediccion: int = 7, semanas_historial: i
             continue
         producto_id = v.producto_id
         if isinstance(v.fecha, datetime):
-            fecha = v.fecha.date()
+            fecha = operation_datetime(v.fecha).date()
         elif isinstance(v.fecha, date):
             fecha = v.fecha
         else:
@@ -214,8 +220,9 @@ def generar_plan_produccion(db: Session, dias: int = 7) -> dict:
     # Tiempo total estimado
     tiempo_total = sum(item.get("tiempo_estimado_min", 0) for item in plan_items)
 
+    hoy = operation_today()
     return {
-        "periodo": f"{date.today().isoformat()} a {(date.today() + timedelta(days=dias)).isoformat()}",
+        "periodo": f"{hoy.isoformat()} a {(hoy + timedelta(days=dias)).isoformat()}",
         "productos_a_producir": len(plan_items),
         "tiempo_total_estimado_min": tiempo_total,
         "tiempo_total_estimado_hrs": round(tiempo_total / 60, 1),
@@ -232,8 +239,9 @@ def analisis_eficiencia(db: Session, dias: int = 30) -> dict:
     Analiza la eficiencia de producción: merma vs producción,
     productos sobre/sub producidos, tendencias.
     """
-    hoy = date.today()
+    hoy = operation_today()
     inicio = hoy - timedelta(days=dias)
+    inicio_dt, fin_dt = operation_period_bounds(inicio, hoy)
 
     # Producción en el periodo
     ordenes = (
@@ -241,7 +249,8 @@ def analisis_eficiencia(db: Session, dias: int = 30) -> dict:
         .options(joinedload(OrdenProduccion.receta))
         .filter(
             and_(
-                OrdenProduccion.fecha_inicio >= datetime.combine(inicio, datetime.min.time()),
+                OrdenProduccion.fecha_inicio >= inicio_dt,
+                OrdenProduccion.fecha_inicio <= fin_dt,
                 OrdenProduccion.estado == EstadoProduccion.COMPLETADA,
             )
         )
@@ -263,7 +272,8 @@ def analisis_eficiencia(db: Session, dias: int = 30) -> dict:
         .join(Venta)
         .filter(
             and_(
-                Venta.fecha >= datetime.combine(inicio, datetime.min.time()),
+                Venta.fecha >= inicio_dt,
+                Venta.fecha <= fin_dt,
                 Venta.estado == EstadoVenta.COMPLETADA,
             )
         )
@@ -320,6 +330,8 @@ def analisis_eficiencia(db: Session, dias: int = 30) -> dict:
 
 def dashboard_produccion(db: Session) -> dict:
     """Dashboard consolidado de producción y planificación."""
+    hoy = operation_today()
+    hoy_inicio, hoy_fin = operation_period_bounds(hoy, hoy)
     # Predicción resumida (próximos 7 días)
     prediccion = predecir_demanda(db, dias_prediccion=7)
     productos_con_deficit = [p for p in prediccion if p["requiere_produccion"]]
@@ -335,7 +347,8 @@ def dashboard_produccion(db: Session) -> dict:
         db.query(func.count(OrdenProduccion.id))
         .filter(
             and_(
-                OrdenProduccion.fecha_inicio >= datetime.combine(date.today(), datetime.min.time()),
+                OrdenProduccion.fecha_inicio >= hoy_inicio,
+                OrdenProduccion.fecha_inicio <= hoy_fin,
                 OrdenProduccion.estado == EstadoProduccion.COMPLETADA,
             )
         )
@@ -346,7 +359,7 @@ def dashboard_produccion(db: Session) -> dict:
     eficiencia = analisis_eficiencia(db, dias=30)
 
     return {
-        "fecha": date.today().isoformat(),
+        "fecha": hoy.isoformat(),
         "ordenes_activas": ordenes_activas,
         "ordenes_completadas_hoy": ordenes_hoy,
         "productos_con_deficit": len(productos_con_deficit),

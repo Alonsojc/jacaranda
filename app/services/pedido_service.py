@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
 
 from app.core.config import settings
+from app.core.time_utils import operation_today
 from app.models.inventario import Producto, TipoMovimiento
 from app.models.pedido import Pedido, DetallePedido, EstadoPedido, OrigenPedido
 from app.schemas.pedido import PedidoCreate, PedidoUpdate
@@ -74,7 +75,7 @@ def stock_reservado_producto(
         .filter(
             DetallePedido.producto_id == producto_id,
             Pedido.estado.in_(_ESTADOS_QUE_RESERVAN),
-            Pedido.fecha_entrega >= date.today(),
+            Pedido.fecha_entrega >= operation_today(),
         )
     )
     if exclude_pedido_id:
@@ -396,7 +397,7 @@ def listar_pedidos(
 
 def pedidos_del_dia(db: Session, fecha: date | None = None) -> list[Pedido]:
     if not fecha:
-        fecha = date.today()
+        fecha = operation_today()
     return (
         db.query(Pedido)
         .filter(Pedido.fecha_entrega == fecha)
@@ -415,7 +416,7 @@ def obtener_pedido(db: Session, pedido_id: int) -> Pedido:
 
 def resumen_reservas(db: Session, fecha: date | None = None) -> dict:
     """Resumen de stock/capacidad comprometidos por pedidos activos."""
-    dia = fecha or date.today()
+    dia = fecha or operation_today()
     capacidad = _capacidad_diaria()
     activos = db.query(Pedido).filter(
         Pedido.fecha_entrega == dia,
@@ -432,7 +433,7 @@ def resumen_reservas(db: Session, fecha: date | None = None) -> dict:
         .join(Producto, Producto.id == DetallePedido.producto_id)
         .filter(
             Pedido.estado.in_(_ESTADOS_QUE_RESERVAN),
-            Pedido.fecha_entrega >= date.today(),
+            Pedido.fecha_entrega >= operation_today(),
             DetallePedido.producto_id.isnot(None),
         )
         .group_by(DetallePedido.producto_id, Producto.nombre, Producto.stock_actual)

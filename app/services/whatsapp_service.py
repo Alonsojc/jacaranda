@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
+from app.core.time_utils import operation_today
 from app.models.inventario import Producto
 from app.models.pedido import (
     DetallePedido,
@@ -411,7 +412,7 @@ def _crear_pedido_desde_mensaje(
         folio=folio,
         cliente_nombre=telefono,  # Best we have from a WhatsApp message
         cliente_telefono=telefono,
-        fecha_entrega=date.today() + timedelta(days=1),
+        fecha_entrega=operation_today() + timedelta(days=1),
         estado=EstadoPedido.RECIBIDO,
         origen=OrigenPedido.WHATSAPP,
         total=total,

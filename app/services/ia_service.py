@@ -4,12 +4,12 @@ Algoritmos estadísticos sin dependencias externas de ML.
 """
 
 from decimal import Decimal
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from collections import defaultdict
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
-from app.core.db_compat import db_cast_date
+from app.core.time_utils import operation_datetime, operation_period_bounds, operation_today
 from app.models.venta import Venta, DetalleVenta, EstadoVenta
 from app.models.inventario import Producto, HistorialPrecio
 
@@ -27,26 +27,26 @@ def pronostico_demanda(
     Pronóstico de demanda por producto para los próximos N días.
     Usa media móvil ponderada por día de semana + detección de tendencia.
     """
-    hoy = date.today()
+    hoy = operation_today()
     inicio = hoy - timedelta(weeks=semanas_historico)
-    inicio_dt = datetime.combine(inicio, datetime.min.time(), tzinfo=timezone.utc)
+    inicio_dt, _ = operation_period_bounds(inicio, hoy)
 
-    # Get all completed sale details with date info
+    # Agrupar en Python conserva el día operativo de CDMX, también por la noche.
     rows = db.query(
         DetalleVenta.producto_id,
-        db_cast_date(Venta.fecha).label("dia"),
-        func.sum(DetalleVenta.cantidad).label("qty"),
+        Venta.fecha,
+        DetalleVenta.cantidad,
     ).join(Venta, Venta.id == DetalleVenta.venta_id).filter(
         and_(Venta.estado == EstadoVenta.COMPLETADA, Venta.fecha >= inicio_dt)
-    ).group_by(
-        DetalleVenta.producto_id, db_cast_date(Venta.fecha)
     ).all()
 
     # Organize: {producto_id: {date_str: qty}}
-    ventas_por_prod = defaultdict(dict)
-    for pid, dia, qty in rows:
-        d = dia if isinstance(dia, date) else date.fromisoformat(str(dia))
-        ventas_por_prod[pid][d] = float(qty)
+    ventas_por_prod = defaultdict(lambda: defaultdict(float))
+    for pid, fecha, qty in rows:
+        if fecha is None:
+            continue
+        dia = operation_datetime(fecha).date()
+        ventas_por_prod[pid][dia] += float(qty)
 
     # Load products
     productos = {p.id: p for p in db.query(Producto).filter(Producto.activo.is_(True)).all()}
@@ -223,9 +223,9 @@ def analisis_pricing(db: Session, dias: int = 60) -> list[dict]:
     """
     Análisis de pricing: elasticidad, sugerencias de precio, productos sin rotación.
     """
-    hoy = date.today()
+    hoy = operation_today()
     inicio = hoy - timedelta(days=dias)
-    inicio_dt = datetime.combine(inicio, datetime.min.time(), tzinfo=timezone.utc)
+    inicio_dt, _ = operation_period_bounds(inicio, hoy)
 
     productos = db.query(Producto).filter(Producto.activo.is_(True)).all()
 
@@ -265,7 +265,9 @@ def analisis_pricing(db: Session, dias: int = 60) -> list[dict]:
             )
         ).scalar()
 
-        dias_sin_venta = (hoy - ultima_venta.date()).days if ultima_venta else 999
+        dias_sin_venta = (
+            hoy - operation_datetime(ultima_venta).date()
+        ).days if ultima_venta else 999
 
         # Price elasticity from price history
         elasticidad = _calcular_elasticidad(db, prod.id, inicio_dt)
@@ -451,7 +453,7 @@ def precision_modelo(db: Session, dias_atras: int = 14) -> dict:
     Evalúa precisión del pronóstico comparando predicciones pasadas con ventas reales.
     Simula lo que hubiera predicho hace N días y compara con lo que pasó.
     """
-    hoy = date.today()
+    hoy = operation_today()
     errores = []
     comparaciones = []
 
@@ -463,8 +465,7 @@ def precision_modelo(db: Session, dias_atras: int = 14) -> dict:
         predicho = _predecir_dia_historico(db, dia_evaluado, semanas=6)
 
         # What actually happened
-        inicio_dt = datetime.combine(dia_evaluado, datetime.min.time(), tzinfo=timezone.utc)
-        fin_dt = datetime.combine(dia_evaluado, datetime.max.time(), tzinfo=timezone.utc)
+        inicio_dt, fin_dt = operation_period_bounds(dia_evaluado, dia_evaluado)
 
         real = db.query(
             DetalleVenta.producto_id,
@@ -534,29 +535,34 @@ def _predecir_dia_historico(
 ) -> dict[int, float]:
     """Predice ventas para un día usando datos anteriores a ese día."""
     inicio = dia - timedelta(weeks=semanas)
-    inicio_dt = datetime.combine(inicio, datetime.min.time(), tzinfo=timezone.utc)
-    fin_dt = datetime.combine(dia - timedelta(days=1), datetime.max.time(), tzinfo=timezone.utc)
+    inicio_dt, fin_dt = operation_period_bounds(inicio, dia - timedelta(days=1))
 
     rows = db.query(
         DetalleVenta.producto_id,
-        db_cast_date(Venta.fecha).label("d"),
-        func.sum(DetalleVenta.cantidad).label("qty"),
+        Venta.fecha,
+        DetalleVenta.cantidad,
     ).join(Venta, Venta.id == DetalleVenta.venta_id).filter(
         and_(
             Venta.estado == EstadoVenta.COMPLETADA,
             Venta.fecha >= inicio_dt,
             Venta.fecha <= fin_dt,
         )
-    ).group_by(DetalleVenta.producto_id, db_cast_date(Venta.fecha)).all()
+    ).all()
 
     # Group by product and day-of-week matching target
     target_dow = dia.weekday()
+    totales_por_dia = defaultdict(float)
+    for pid, fecha, qty in rows:
+        if fecha is None:
+            continue
+        fecha_operacion = operation_datetime(fecha).date()
+        totales_por_dia[(pid, fecha_operacion)] += float(qty)
+
     por_prod = defaultdict(list)
-    for pid, d_raw, qty in rows:
-        d = d_raw if isinstance(d_raw, date) else date.fromisoformat(str(d_raw))
+    for (pid, d), qty in totales_por_dia.items():
         if d.weekday() == target_dow:
             week_num = (d - inicio).days // 7
-            por_prod[pid].append((week_num, float(qty)))
+            por_prod[pid].append((week_num, qty))
 
     predicciones = {}
     for pid, series in por_prod.items():
