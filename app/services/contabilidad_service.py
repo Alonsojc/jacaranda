@@ -21,6 +21,7 @@ from app.models.gasto_fijo import GastoFijo
 from app.models.egreso import Egreso
 from app.models.empleado import RegistroNomina
 from app.models.merma import RegistroMerma
+from app.core.time_utils import operation_period_bounds, operation_today
 from app.services.pago_metodos import canal_pago, etiqueta_canal_pago
 from app.services.venta_service import _normalizar_fecha_db, _zona_operacion
 
@@ -269,8 +270,8 @@ def balance_general(db: Session, fecha_corte: date | None = None) -> dict:
     Balance general a una fecha de corte.
     Combina saldos de pólizas contables + estimaciones de datos operativos.
     """
-    corte = fecha_corte or date.today()
-    corte_dt = datetime.combine(corte, datetime.max.time(), tzinfo=timezone.utc)
+    corte = fecha_corte or operation_today()
+    _, corte_dt = operation_period_bounds(corte, corte)
 
     # 1. Saldos desde pólizas contables
     saldos_polizas = _saldos_cuentas(db, corte)

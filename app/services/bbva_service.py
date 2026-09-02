@@ -20,6 +20,7 @@ from datetime import date
 from decimal import Decimal
 
 from app.core.config import settings
+from app.core.time_utils import operation_today
 
 
 class BBVAAPIError(Exception):
@@ -142,7 +143,7 @@ def conciliar_ventas_bbva(
         }
     """
     if not fecha:
-        fecha = date.today()
+        fecha = operation_today()
 
     try:
         movimientos = obtener_movimientos(fecha)

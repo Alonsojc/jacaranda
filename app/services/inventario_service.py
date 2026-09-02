@@ -8,6 +8,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
+from app.core.time_utils import operation_today
 from app.models.inventario import (
     Ingrediente, Producto, MovimientoInventario, LoteIngrediente,
     CategoriaProducto, Proveedor, TipoMovimiento, UnidadMedida,
@@ -193,7 +194,7 @@ def alertas_empaques(db: Session) -> list[dict]:
 def ingredientes_por_caducar(db: Session, dias: int = 7) -> list[LoteIngrediente]:
     """Lotes de ingredientes que caducan en los próximos N días."""
     from datetime import timedelta
-    fecha_limite = date.today() + timedelta(days=dias)
+    fecha_limite = operation_today() + timedelta(days=dias)
     return db.query(LoteIngrediente).filter(
         and_(
             LoteIngrediente.fecha_caducidad.isnot(None),

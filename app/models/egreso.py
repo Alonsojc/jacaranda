@@ -7,6 +7,7 @@ from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Tex
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.core.time_utils import operation_today
 
 
 class Egreso(Base):
@@ -17,7 +18,7 @@ class Egreso(Base):
     monto: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     categoria: Mapped[str] = mapped_column(String(60), default="operativo", index=True)
     metodo_pago: Mapped[str] = mapped_column(String(30), default="efectivo", index=True)
-    fecha: Mapped[date] = mapped_column(Date, default=date.today, index=True)
+    fecha: Mapped[date] = mapped_column(Date, default=operation_today, index=True)
     proveedor_id: Mapped[int | None] = mapped_column(ForeignKey("proveedores.id"), index=True)
     proveedor: Mapped[str | None] = mapped_column(String(150))
     notas: Mapped[str | None] = mapped_column(Text)

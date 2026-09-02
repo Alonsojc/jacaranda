@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import require_admin_or_override, require_permission
 from app.core.security_validation import detect_mime
+from app.core.time_utils import operation_today
 from app.models.egreso import Egreso
 from app.models.gasto_fijo import GastoFijo
 from app.models.inventario import Proveedor
@@ -67,8 +68,8 @@ def _normalizar_catalogo(value: str | None, default: str, permitidos: set[str], 
 
 
 def _validar_fecha_operativa(value: date | None) -> date:
-    fecha = value or date.today()
-    if fecha > date.today() + timedelta(days=30):
+    fecha = value or operation_today()
+    if fecha > operation_today() + timedelta(days=30):
         raise HTTPException(status_code=400, detail="La fecha del egreso no puede estar más de 30 días en el futuro")
     return fecha
 
@@ -469,7 +470,7 @@ def resumen_egresos(
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_permission("egresos", "ver")),
 ):
-    dia = fecha or date.today()
+    dia = fecha or operation_today()
     mes_inicio = dia.replace(day=1)
     mes_fin = (mes_inicio.replace(year=mes_inicio.year + 1, month=1) if mes_inicio.month == 12 else mes_inicio.replace(month=mes_inicio.month + 1))
     egresos_mes = (

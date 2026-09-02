@@ -2729,7 +2729,8 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v96';
+var APP_BUILD = 'jacaranda-v97';
+var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
   compras: 'Compras',
@@ -4094,7 +4095,7 @@ function activarConTeclado(e, fn) {
 }
 
 function irKpiDashboard(tipo) {
-  var hoy = new Date().toISOString().split('T')[0];
+  var hoy = fechaHoyISO();
   if (tipo === 'ventas-hoy' || tipo === 'tickets-hoy') {
     go('corte');
     setTimeout(function() {
@@ -4113,8 +4114,7 @@ function irKpiDashboard(tipo) {
     if (tipo === 'ticket-promedio') {
       repSetRango(7);
     } else {
-      var d = new Date();
-      var inicioMes = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+      var inicioMes = hoy.slice(0, 7) + '-01';
       document.getElementById('rep-fi').value = inicioMes;
       document.getElementById('rep-ff').value = hoy;
       cargarReporteVentas();
@@ -7035,7 +7035,7 @@ function renderCafeteriaVentas(items) {
   for (var i = 0; i < items.length; i++) {
     var v = items[i];
     var saldo = parseFloat(v.saldo_pendiente) || 0;
-    var fecha = v.fecha ? new Date(v.fecha).toLocaleDateString('es-MX', {day:'2-digit', month:'short'}) : '';
+    var fecha = v.fecha ? formatearInstanteOperacion(v.fecha, {day:'2-digit', month:'short'}) : '';
     var venc = v.fecha_credito ? new Date(v.fecha_credito + 'T00:00:00').toLocaleDateString('es-MX', {day:'2-digit', month:'short'}) : '';
     h += '<div class="caf-sale">';
     h += '<div class="caf-sale-head"><div><strong>' + escHtml(v.folio) + ' &bull; ' + escHtml(v.cafeteria_nombre) + '</strong><br>';
@@ -7198,9 +7198,66 @@ function renderCafReport(data, elId) {
 
 // ─── Pedidos ──────────────────────────────────────────────────────
 function fechaHoyISO() {
-  var d = new Date();
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().slice(0, 10);
+  return fechaISOOperacion(new Date());
+}
+
+function partesFechaOperacion(value, incluirHora) {
+  var opciones = {
+    timeZone: APP_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  };
+  if (incluirHora) {
+    opciones.hour = '2-digit';
+    opciones.minute = '2-digit';
+    opciones.hourCycle = 'h23';
+  }
+  var resultado = {};
+  new Intl.DateTimeFormat('en-US', opciones).formatToParts(value || new Date()).forEach(function(parte) {
+    if (parte.type !== 'literal') resultado[parte.type] = parte.value;
+  });
+  return resultado;
+}
+
+function fechaISOOperacion(value) {
+  var p = partesFechaOperacion(value || new Date(), false);
+  return p.year + '-' + p.month + '-' + p.day;
+}
+
+function fechaHoraOperacionInput(value) {
+  var p = partesFechaOperacion(value || new Date(), true);
+  return p.year + '-' + p.month + '-' + p.day + 'T' + p.hour + ':' + p.minute;
+}
+
+function fechaCalendarioISO(value) {
+  return value.getFullYear() + '-' + String(value.getMonth() + 1).padStart(2, '0') + '-' + String(value.getDate()).padStart(2, '0');
+}
+
+function fechaDiasAntesISO(dias) {
+  var base = fechaLocalDesdeISO(fechaHoyISO());
+  base.setDate(base.getDate() - dias);
+  return fechaCalendarioISO(base);
+}
+
+function fechaHoraOperacion(value) {
+  return new Intl.DateTimeFormat('es-MX', {
+    timeZone: APP_TIMEZONE,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  }).format(value);
+}
+
+function instanteUTC(value) {
+  if (value instanceof Date) return value;
+  var texto = String(value || '');
+  if (/^\d{4}-\d{2}-\d{2}T/.test(texto) && !/(Z|[+-]\d{2}:?\d{2})$/.test(texto)) texto += 'Z';
+  return new Date(texto);
+}
+
+function formatearInstanteOperacion(value, opciones) {
+  var config = Object.assign({timeZone: APP_TIMEZONE}, opciones || {});
+  return new Intl.DateTimeFormat('es-MX', config).format(instanteUTC(value));
 }
 
 function fechaLocalDesdeISO(value) {
@@ -9158,7 +9215,7 @@ function guardarConteo() {
 
 // ─── Exportar corte ──────────────────────────────────────────────
 function exportarCorte() {
-  var fecha = document.getElementById('c-fecha').value || new Date().toISOString().split('T')[0];
+  var fecha = document.getElementById('c-fecha').value || fechaHoyISO();
   var ef = document.getElementById('c-total-ef').textContent;
   var tar = document.getElementById('c-total-tar').textContent;
   var clip = document.getElementById('c-total-clip').textContent;
@@ -9315,7 +9372,7 @@ function verHistorialPrecio(productoId, nombre) {
     var msg = '';
     for (var i = 0; i < hist.length; i++) {
       var h = hist[i];
-      var fecha = h.fecha ? new Date(h.fecha).toLocaleDateString('es-MX') : '';
+      var fecha = h.fecha ? formatearInstanteOperacion(h.fecha) : '';
       msg += fecha + ': $' + h.precio_anterior + ' \u2192 $' + h.precio_nuevo + '\n';
     }
     mostrarAviso({
@@ -10249,7 +10306,7 @@ function exportarListaProductosCSV() {
       var p = prods[i];
       csv += '"' + (p.codigo||'') + '","' + (p.nombre||'').replace(/"/g,'""') + '",' + (p.precio_unitario||0) + ',' + (p.precio_cafeteria||'') + ',' + (p.costo_produccion||0) + ',' + (p.stock_actual||0) + ',' + (p.stock_minimo||0) + ',' + (p.unidad_medida||'') + '\n';
     }
-    _descargarCSV('productos_' + new Date().toISOString().split('T')[0] + '.csv', csv);
+    _descargarCSV('productos_' + fechaHoyISO() + '.csv', csv);
   }).catch(function() { toast('Error al exportar', true); });
 }
 
@@ -10263,7 +10320,7 @@ function exportarListaIngredientesCSV() {
       var estado = stock <= 0 ? 'Urgente' : stock <= min ? 'Pedir' : 'OK';
       csv += '"' + (g.nombre||'').replace(/"/g,'""') + '",' + stock + ',' + (g.unidad_medida||'') + ',' + (g.costo_unitario||0) + ',' + min + ',' + estado + '\n';
     }
-    _descargarCSV('ingredientes_' + new Date().toISOString().split('T')[0] + '.csv', csv);
+    _descargarCSV('ingredientes_' + fechaHoyISO() + '.csv', csv);
   }).catch(function() { toast('Error al exportar', true); });
 }
 
@@ -10477,7 +10534,7 @@ function sumarPagoCorte(totales, metodo, monto, terminal) {
 }
 
 function corteFechaHoy() {
-  document.getElementById('c-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('c-fecha').value = fechaHoyISO();
   cargarCorte();
 }
 
@@ -10485,7 +10542,7 @@ function cargarCorte() {
   actualizarVisibilidadFinanzasCorte();
   // Set date picker to today if empty
   var fechaInput = document.getElementById('c-fecha');
-  if (!fechaInput.value) fechaInput.value = new Date().toISOString().split('T')[0];
+  if (!fechaInput.value) fechaInput.value = fechaHoyISO();
   var hoy = fechaInput.value;
   api('GET', '/punto-de-venta/ventas?fecha_inicio=' + hoy + '&fecha_fin=' + hoy).then(function(ventas) {
     var efTotal = 0, tarTotal = 0, transTotal = 0, clipTotal = 0, bbvaTotal = 0, totalGeneral = 0, tickets = 0;
@@ -10520,7 +10577,7 @@ function cargarCorte() {
           bbvaTotal += t.bbva;
         }
       }
-      var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
+      var hora = v.fecha ? formatearInstanteOperacion(v.fecha, {hour:'2-digit',minute:'2-digit'}) : '';
       h += '<div class="srow" style="cursor:pointer" onclick="verTicket(' + v.id + ',' + (v.estado==='cancelada') + ')">';
       h += '<span style="min-width:0"><span>' + escHtml(v.folio) + ' &bull; ' + hora + ' &bull; ' + escHtml(met) + estado + '</span>';
       var ref = referenciaPagoVenta(v);
@@ -10553,8 +10610,7 @@ function cargarCorte() {
   var hvfi = document.getElementById('hv-fi');
   if (!hvff.value) {
     hvff.value = hoy;
-    var d7 = new Date(); d7.setDate(d7.getDate() - 7);
-    hvfi.value = d7.toISOString().split('T')[0];
+    hvfi.value = fechaDiasAntesISO(7);
   }
 }
 
@@ -10976,7 +11032,7 @@ function realizarCorte() {
   }).then(function(corte) {
     var dif = parseFloat(corte.diferencia) || 0;
     toast('Corte registrado \u2014 Diferencia: $' + fmt(dif));
-    cargarResumenCorte(document.getElementById('c-fecha').value || new Date().toISOString().split('T')[0]);
+    cargarResumenCorte(document.getElementById('c-fecha').value || fechaHoyISO());
     cargarHistorialCortes();
   }).catch(function(e) { toast(e.message || 'Error al registrar corte', true); });
 }
@@ -11387,7 +11443,7 @@ function cargarHistorialCortes() {
     var h = '<table class="tbl"><tr><th>Fecha</th><th>Ventas</th><th>Tickets</th><th>Efectivo</th><th>Diferencia</th></tr>';
     for (var i = 0; i < cortes.length; i++) {
       var c = cortes[i];
-      var f = new Date(c.fecha).toLocaleDateString('es-MX', {day:'2-digit',month:'short'});
+      var f = formatearInstanteOperacion(c.fecha, {day:'2-digit',month:'short'});
       var dif = parseFloat(c.diferencia) || 0;
       var difColor = Math.abs(dif) < 1 ? 'var(--grn)' : '#b91c1c';
       h += '<tr>';
@@ -11429,7 +11485,7 @@ function renderHistVentas() {
   for (var i = 0; i < ventas.length; i++) {
     var v = ventas[i];
     var tot = parseFloat(v.total) || 0;
-    var f = v.fecha ? new Date(v.fecha).toLocaleDateString('es-MX', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+    var f = v.fecha ? formatearInstanteOperacion(v.fecha, {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
     var met = etiquetaPagoVenta(v);
     var cls = v.estado === 'cancelada' ? 'bout' : 'bok';
     var est = v.estado === 'cancelada' ? 'Cancelada' : 'OK';
@@ -11454,9 +11510,8 @@ function exportarHistVentasCSV() {
   var csv = 'Folio,Fecha,Hora,Metodo Pago,Referencia,Productos,Subtotal,IVA,Total,Estado\n';
   for (var i = 0; i < _histVentas.length; i++) {
     var v = _histVentas[i];
-    var f = v.fecha ? new Date(v.fecha) : null;
-    var fecha = f ? f.toLocaleDateString('es-MX') : '';
-    var hora = f ? f.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
+    var fecha = v.fecha ? formatearInstanteOperacion(v.fecha) : '';
+    var hora = v.fecha ? formatearInstanteOperacion(v.fecha, {hour:'2-digit',minute:'2-digit'}) : '';
     csv += v.folio + ',' + fecha + ',' + hora + ',"' + etiquetaPagoVenta(v).replace(/"/g,'""') + '","' + referenciaPagoVenta(v).replace(/"/g,'""') + '","' + resumenProductosVenta(v).replace(/"/g,'""') + '",';
     csv += (parseFloat(v.subtotal)||0).toFixed(2) + ',' + (parseFloat(v.total_impuestos)||0).toFixed(2) + ',';
     csv += (parseFloat(v.total)||0).toFixed(2) + ',' + v.estado + '\n';
@@ -11467,7 +11522,7 @@ function exportarHistVentasCSV() {
 }
 
 function exportarCorteCSV() {
-  var fecha = document.getElementById('c-fecha').value || new Date().toISOString().split('T')[0];
+  var fecha = document.getElementById('c-fecha').value || fechaHoyISO();
   var csv = 'Corte de Caja - ' + fecha + '\n\n';
   csv += 'Concepto,Monto\n';
   csv += 'Efectivo,' + (document.getElementById('c-total-ef').textContent.replace('$','').replace(/,/g,'')) + '\n';
@@ -11481,14 +11536,14 @@ function exportarCorteCSV() {
   csv += 'Folio,Hora,Metodo,Referencia,Productos,Total,Estado\n';
   for (var i = 0; i < _corteVentas.length; i++) {
     var v = _corteVentas[i];
-    var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '';
+    var hora = v.fecha ? formatearInstanteOperacion(v.fecha, {hour:'2-digit',minute:'2-digit'}) : '';
     csv += v.folio + ',' + hora + ',"' + etiquetaPagoVenta(v).replace(/"/g,'""') + '","' + referenciaPagoVenta(v).replace(/"/g,'""') + '","' + resumenProductosVenta(v).replace(/"/g,'""') + '",' + (parseFloat(v.total)||0).toFixed(2) + ',' + v.estado + '\n';
   }
   _descargarCSV('corte_' + fecha + '.csv', csv);
 }
 
 function compartirCorteWhatsApp() {
-  var fecha = document.getElementById('c-fecha').value || new Date().toISOString().split('T')[0];
+  var fecha = document.getElementById('c-fecha').value || fechaHoyISO();
   var diasNombre = ['Domingo','Lunes','Martes','Mi\u00e9rcoles','Jueves','Viernes','S\u00e1bado'];
   var d = new Date(fecha + 'T12:00:00');
   var dia = diasNombre[d.getDay()];
@@ -11530,24 +11585,25 @@ function cargarPronostico() {
 
 // ─── Dashboard data ───────────────────────────────────────────────
 
+function actualizarFechaDashboard(fechaISO) {
+  var fechaEl = document.getElementById('d-fecha-hoy');
+  var fecha = fechaLocalDesdeISO(fechaISO);
+  if (!fechaEl || !fecha) return;
+  var dias = ['Domingo','Lunes','Martes','Mi\u00e9rcoles','Jueves','Viernes','S\u00e1bado'];
+  var meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  fechaEl.textContent = dias[fecha.getDay()] + ', ' + fecha.getDate() + ' de ' + meses[fecha.getMonth()] + ' de ' + fecha.getFullYear();
+}
+
 function cargarDashboard() {
   if (Date.now() - _dashCacheAt > 30000) {
     _dashGetCache = {};
     _dashCacheAt = Date.now();
   }
   _dashAlertas = '';
-  // Fecha de hoy en el header
-  try {
-    var fechaEl = document.getElementById('d-fecha-hoy');
-    if (fechaEl) {
-      var dias = ['Domingo','Lunes','Martes','Mi\u00e9rcoles','Jueves','Viernes','S\u00e1bado'];
-      var meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-      var hoy = new Date();
-      fechaEl.textContent = dias[hoy.getDay()] + ', ' + hoy.getDate() + ' de ' + meses[hoy.getMonth()] + ' de ' + hoy.getFullYear();
-    }
-  } catch(e){}
+  actualizarFechaDashboard(fechaHoyISO());
   // Dashboard endpoint returns {ventas_hoy: {total, numero_ventas}, ventas_mes: {total}}
   dashGet('/reportes/dashboard').then(function(d) {
+    actualizarFechaDashboard(d.fecha || fechaHoyISO());
     var vh = d.ventas_hoy || {};
     var vm = d.ventas_mes || {};
     document.getElementById('d-ventas').textContent = '$' + fmt(vh.total);
@@ -11570,9 +11626,8 @@ function cargarDashboard() {
   deferDashboard(cargarDashAvanzado, 500);
 
   // Load top products
-  var hoy = new Date();
-  var inicio = hoy.getFullYear() + '-' + String(hoy.getMonth()+1).padStart(2,'0') + '-01';
-  var fin = hoy.toISOString().split('T')[0];
+  var fin = fechaHoyISO();
+  var inicio = fin.slice(0, 7) + '-01';
   deferDashboard(function() { api('GET', '/reportes/productos-mas-vendidos?fecha_inicio=' + inicio + '&fecha_fin=' + fin + '&limit=5').then(function(tops) {
     var h = '';
     for (var i = 0; i < tops.length; i++) {
@@ -11718,7 +11773,7 @@ function dashAction(label, targetFn) {
 }
 
 function cargarAlertasPracticas() {
-  var hoy = new Date().toISOString().split('T')[0];
+  var hoy = fechaHoyISO();
   Promise.all([
     dashGet('/inventario/productos'),
     dashGet('/inventario/ingredientes'),
@@ -12029,21 +12084,21 @@ function repTab(tab) {
 }
 
 function initReportes() {
-  var hoy = new Date().toISOString().split('T')[0];
-  var hace30 = new Date(Date.now() - 30*86400000).toISOString().split('T')[0];
+  var hoy = fechaHoyISO();
+  var hace30 = fechaDiasAntesISO(30);
   if (!document.getElementById('rep-fi').value) {
     document.getElementById('rep-fi').value = hace30;
     document.getElementById('rep-ff').value = hoy;
     document.getElementById('rep-pfi').value = hace30;
     document.getElementById('rep-pff').value = hoy;
   }
-  var mes = new Date().getMonth() + 1;
+  var mes = parseInt(hoy.slice(5, 7), 10);
   document.getElementById('rep-fmes').value = mes;
 }
 
 function repSetRango(dias) {
-  var hoy = new Date().toISOString().split('T')[0];
-  var desde = new Date(Date.now() - dias*86400000).toISOString().split('T')[0];
+  var hoy = fechaHoyISO();
+  var desde = fechaDiasAntesISO(dias);
   document.getElementById('rep-fi').value = desde;
   document.getElementById('rep-ff').value = hoy;
   cargarReporteVentas();
@@ -12205,7 +12260,7 @@ function exportarMermasCSV() {
     var d = _mermasData.desglose[i];
     csv += d.tipo + ',"' + d.nombre.replace(/"/g,'""') + '",' + d.total_cantidad + ',' + d.movimientos + ',' + d.costo_estimado + '\n';
   }
-  _descargarCSV('mermas_' + new Date().toISOString().split('T')[0] + '.csv', csv);
+  _descargarCSV('mermas_' + fechaHoyISO() + '.csv', csv);
 }
 
 // ─── Análisis ABC ────────────────────────────────────────────────
@@ -12277,7 +12332,7 @@ function cargarPuntoEquilibrio() {
 
 // ─── Comparativo anual + Estacionalidad ─────────────────────────
 function cargarComparativoAnual() {
-  var anio = document.getElementById('rep-yoy-anio').value || new Date().getFullYear();
+  var anio = document.getElementById('rep-yoy-anio').value || fechaHoyISO().slice(0, 4);
   api('GET', '/reportes/comparativo-anual?anio=' + anio).then(function(r) {
     var meses = r.meses || [];
     var h = '<div class="card" style="overflow-x:auto"><h3>Ventas ' + anio + ' vs ' + (anio - 1) + '</h3>';
@@ -12336,7 +12391,7 @@ function cargarEstacionalidad() {
 // ─── N\u00f3mina ────────────────────────────────────────────────────
 function initNomina() {
   // Set default dates to current fortnight
-  var hoy = new Date();
+  var hoy = fechaLocalDesdeISO(fechaHoyISO());
   var dia = hoy.getDate();
   var fi, ff;
   if (dia <= 15) {
@@ -12346,8 +12401,8 @@ function initNomina() {
     fi = new Date(hoy.getFullYear(), hoy.getMonth(), 16);
     ff = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
   }
-  document.getElementById('nom-fi').value = fi.toISOString().split('T')[0];
-  document.getElementById('nom-ff').value = ff.toISOString().split('T')[0];
+  document.getElementById('nom-fi').value = fechaCalendarioISO(fi);
+  document.getElementById('nom-ff').value = fechaCalendarioISO(ff);
   cargarHistorialNominas();
 }
 
@@ -12560,7 +12615,7 @@ function cargarTemperaturas() {
     var h = '';
     for (var i = 0; i < Math.min(temps.length, 20); i++) {
       var t = temps[i];
-      var fecha = t.creado_en ? new Date(t.creado_en).toLocaleString('es-MX',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+      var fecha = t.creado_en ? formatearInstanteOperacion(t.creado_en, {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
       var cumple = t.estado_cumplimiento === 'CONFORME';
       h += '<div class="srow"><span>' + (areaLabels[t.area]||t.area) + ' &bull; ' + fecha + '</span>';
       h += '<span><span class="badge ' + (cumple ? 'bok' : 'bout') + '">' + t.temperatura + '\u00b0C</span></span></div>';
@@ -12588,7 +12643,7 @@ function cargarLimpiezas() {
     var h = '';
     for (var i = 0; i < Math.min(limps.length, 20); i++) {
       var l = limps[i];
-      var fecha = l.creado_en ? new Date(l.creado_en).toLocaleString('es-MX',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+      var fecha = l.creado_en ? formatearInstanteOperacion(l.creado_en, {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
       h += '<div class="srow"><span>' + (l.area||'') + ' &bull; ' + (l.tipo_limpieza||'') + ' &bull; ' + fecha + '</span>';
       h += '<span class="badge bok">\u2713</span></div>';
     }
@@ -12625,7 +12680,7 @@ function cargarInspecciones() {
     var h = '';
     for (var i = 0; i < Math.min(insps.length, 10); i++) {
       var ins = insps[i];
-      var fecha = ins.creado_en ? new Date(ins.creado_en).toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'}) : '';
+      var fecha = ins.creado_en ? formatearInstanteOperacion(ins.creado_en, {day:'numeric',month:'short',year:'numeric'}) : '';
       var cal = ins.calificacion_general || 0;
       var cls = cal >= 80 ? 'bok' : cal >= 60 ? 'blow' : 'bout';
       h += '<div class="srow"><span>' + (ins.tipo_inspeccion||'') + ' &bull; ' + (ins.inspector||'') + ' &bull; ' + fecha + '</span>';
@@ -12864,7 +12919,7 @@ function exportarMargenesCSV() {
       var p = prods[i];
       csv += '"' + p.nombre + '",' + p.precio.toFixed(2) + ',' + p.costo.toFixed(2) + ',' + p.margen.toFixed(2) + ',' + p.margen_pct + ',' + Math.round(p.stock) + '\n';
     }
-    _descargarCSV('margenes_' + new Date().toISOString().split('T')[0] + '.csv', csv);
+    _descargarCSV('margenes_' + fechaHoyISO() + '.csv', csv);
   }).catch(function() { toast('Error al exportar', true); });
 }
 
@@ -12979,7 +13034,7 @@ function renderOrdenProd(o, estado) {
     if (_prodRecetas[i].id === o.receta_id) { receta = _prodRecetas[i]; break; }
   }
   var nombre = receta ? receta.nombre : 'Receta #' + o.receta_id;
-  var fecha = o.fecha_programada ? new Date(o.fecha_programada).toLocaleString('es-MX', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+  var fecha = o.fecha_programada ? formatearInstanteOperacion(o.fecha_programada, {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
 
   var badgeCls = estado === 'planificada' ? 'bpend' : estado === 'en_proceso' ? 'blow' : 'bok';
   var badgeText = estado === 'planificada' ? 'Planificada' : estado === 'en_proceso' ? 'En proceso' : 'Completada';
@@ -13010,7 +13065,7 @@ function renderOrdenProd(o, estado) {
     h += '<span class="green">' + o.cantidad_producida + ' producidas</span>';
     if (parseFloat(o.cantidad_merma) > 0) h += ' &bull; <span style="color:#b91c1c">' + o.cantidad_merma + ' merma</span>';
     if (o.fecha_fin) {
-      var dur = Math.round((new Date(o.fecha_fin) - new Date(o.fecha_inicio)) / 60000);
+      var dur = Math.round((instanteUTC(o.fecha_fin) - instanteUTC(o.fecha_inicio)) / 60000);
       h += ' &bull; ' + dur + ' min';
     }
     h += '</div>';
@@ -13058,7 +13113,7 @@ function completarOrdenProduccion() {
 }
 
 function iniciarTimerProd(orden) {
-  var start = new Date(orden.fecha_inicio).getTime();
+  var start = instanteUTC(orden.fecha_inicio).getTime();
   function tick() {
     var el = document.getElementById('pt-val-' + orden.id);
     if (!el) { clearInterval(_prodTimers[orden.id]); delete _prodTimers[orden.id]; return; }
@@ -13073,9 +13128,7 @@ function iniciarTimerProd(orden) {
 }
 
 function abrirNuevaOrden() {
-  var ahora = new Date();
-  ahora.setMinutes(ahora.getMinutes() - ahora.getTimezoneOffset());
-  document.getElementById('mop-fecha').value = ahora.toISOString().slice(0, 16);
+  document.getElementById('mop-fecha').value = fechaHoraOperacionInput(new Date());
   document.getElementById('mop-lotes').value = '1';
   document.getElementById('mop-notas').value = '';
   document.getElementById('modal-orden-prod').classList.add('on');
@@ -13492,14 +13545,14 @@ function contaTab(tab) {
 }
 
 function initContabilidad() {
-  var hoy = new Date().toISOString().split('T')[0];
-  var hace30 = new Date(Date.now() - 30*86400000).toISOString().split('T')[0];
+  var hoy = fechaHoyISO();
+  var hace30 = fechaDiasAntesISO(30);
   document.getElementById('conta-er-fi').value = hace30;
   document.getElementById('conta-er-ff').value = hoy;
   document.getElementById('conta-bg-fecha').value = hoy;
   document.getElementById('conta-ld-fi').value = hace30;
   document.getElementById('conta-ld-ff').value = hoy;
-  var mes = new Date().getMonth() + 1;
+  var mes = parseInt(hoy.slice(5, 7), 10);
   document.getElementById('conta-bk-mes').value = mes;
   // Load cuentas for asiento modal
   api('GET', '/contabilidad/cuentas').then(function(cat) {
@@ -13513,8 +13566,8 @@ function initContabilidad() {
 }
 
 function contaSetRango(dias) {
-  var hoy = new Date().toISOString().split('T')[0];
-  var desde = new Date(Date.now() - dias*86400000).toISOString().split('T')[0];
+  var hoy = fechaHoyISO();
+  var desde = fechaDiasAntesISO(dias);
   document.getElementById('conta-er-fi').value = desde;
   document.getElementById('conta-er-ff').value = hoy;
   cargarEdoResultados();
@@ -13529,7 +13582,7 @@ function descargarExcelER() {
 function descargarExcelBG() {
   var fecha = document.getElementById('conta-bg-fecha').value;
   var qs = fecha ? '?fecha_corte=' + encodeURIComponent(fecha) : '';
-  descargarArchivoAutenticado('/api/v1/contabilidad/balance-general/excel' + qs, 'balance_general_' + (fecha || new Date().toISOString().split('T')[0]) + '.xlsx', 'Excel descargado', 'Error al descargar Excel');
+  descargarArchivoAutenticado('/api/v1/contabilidad/balance-general/excel' + qs, 'balance_general_' + (fecha || fechaHoyISO()) + '.xlsx', 'Excel descargado', 'Error al descargar Excel');
 }
 function descargarExcelPol() {
   var fi = document.getElementById('conta-ld-fi').value;
@@ -13719,7 +13772,7 @@ function seedearCatalogo() {
 var _maLineas = 0;
 
 function abrirNuevoAsiento() {
-  document.getElementById('ma-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('ma-fecha').value = fechaHoyISO();
   document.getElementById('ma-concepto').value = '';
   document.getElementById('ma-tipo').value = 'diario';
   _maLineas = 0;
@@ -13784,7 +13837,7 @@ function guardarAsiento() {
 
 // Movimiento bancario
 function abrirNuevoMovBanco() {
-  document.getElementById('mmb-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('mmb-fecha').value = fechaHoyISO();
   document.getElementById('mmb-concepto').value = '';
   document.getElementById('mmb-ref').value = '';
   document.getElementById('mmb-deposito').value = '0';
@@ -14257,7 +14310,7 @@ var _moduloNombres = {
 };
 
 function descargarBackup() {
-  descargarArchivoAutenticado('/api/v1/backup/descargar', 'jacaranda_backup_' + new Date().toISOString().split('T')[0] + '.sql', 'Último backup descargado', 'Error al descargar backup');
+  descargarArchivoAutenticado('/api/v1/backup/descargar', 'jacaranda_backup_' + fechaHoyISO() + '.sql', 'Último backup descargado', 'Error al descargar backup');
 }
 
 function crearBackupManual() {
@@ -14731,7 +14784,7 @@ async function pagarCuenta(id) {
     acceptText: 'Registrar pago'
   });
   if (!monto) return;
-  api('POST', '/compras/cuentas-pagar/' + id + '/pago', { monto: monto, metodo_pago: 'transferencia', fecha_pago: new Date().toISOString().slice(0,10) }).then(function() { toast('Pago registrado'); cargarCuentasPagar(); }).catch(function(e) { toast(e.message || 'Error', true); });
+  api('POST', '/compras/cuentas-pagar/' + id + '/pago', { monto: monto, metodo_pago: 'transferencia', fecha_pago: fechaHoyISO() }).then(function() { toast('Pago registrado'); cargarCuentasPagar(); }).catch(function(e) { toast(e.message || 'Error', true); });
 }
 async function recibirOrden(id) {
   if (_recepcionesCompraEnProceso[id]) {
@@ -14932,8 +14985,7 @@ function cargarMermaRegistros() {
   }).catch(function() { document.getElementById('merma-registros-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
 }
 function cargarMermaResumen() {
-  var hoy = new Date(), y = hoy.getFullYear(), m = String(hoy.getMonth()+1).padStart(2,'0');
-  var inicio = y + '-' + m + '-01', fin = hoy.toISOString().slice(0,10);
+  var fin = fechaHoyISO(), inicio = fin.slice(0, 7) + '-01';
   api('GET', '/merma/resumen?fecha_inicio=' + inicio + '&fecha_fin=' + fin).then(function(data) {
     var h = '<div class="row r3">';
     h += '<div class="card kpi"><div class="n">' + (data.total_registros||0) + '</div><div class="l">Registros</div></div>';

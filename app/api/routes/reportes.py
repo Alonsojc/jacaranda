@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.time_utils import operation_today
 from app.services import pdf_service
 from app.core.database import get_db
 from app.core.dependencies import require_admin_financials, require_permission, require_role
@@ -283,11 +284,12 @@ def descargar_backup(
     src = Path(db_path)
     if not src.exists():
         raise HTTPException(status_code=404, detail="Base de datos no encontrada")
-    backup_path = Path(f"/tmp/jacaranda_backup_{date.today().isoformat()}.db")
+    hoy = operation_today().isoformat()
+    backup_path = Path(f"/tmp/jacaranda_backup_{hoy}.db")
     shutil.copy2(str(src), str(backup_path))
     return FileResponse(
         path=str(backup_path),
-        filename=f"jacaranda_backup_{date.today().isoformat()}.db",
+        filename=f"jacaranda_backup_{hoy}.db",
         media_type="application/octet-stream",
     )
 

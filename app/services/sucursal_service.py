@@ -8,6 +8,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, func
 
+from app.core.time_utils import operation_today
 from app.models.sucursal import (
     Sucursal, InventarioSucursal, Traspaso, DetalleTraspaso, EstadoTraspaso,
 )
@@ -190,7 +191,7 @@ def actualizar_stock_sucursal(
 
 def _generar_folio_traspaso(db: Session) -> str:
     """Genera folio con formato TR-YYYYMMDD-NNN."""
-    hoy = date.today().strftime("%Y%m%d")
+    hoy = operation_today().strftime("%Y%m%d")
     prefijo = f"TR-{hoy}-"
 
     ultimo = (
@@ -431,7 +432,7 @@ def reporte_financiero_consolidado(db: Session) -> dict:
     from datetime import timedelta
 
     sucursales = db.query(Sucursal).filter(Sucursal.activo.is_(True)).all()
-    hoy = date.today()
+    hoy = operation_today()
     inicio_mes = date(hoy.year, hoy.month, 1)
 
     resultados_sucursal = []

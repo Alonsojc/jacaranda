@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import require_admin_or_override, require_permission
+from app.core.time_utils import operation_now, operation_today
 from app.models.usuario import Usuario
 from app.services.auditoria_service import registrar_evento
 from app.schemas.inventario import (
@@ -409,7 +410,7 @@ def registrar_compra_ingrediente(
 ):
     """Registrar entrada de ingrediente (compra a proveedor)."""
     from app.models.inventario import Ingrediente, TipoMovimiento, LoteIngrediente
-    from datetime import datetime, timezone, timedelta, date
+    from datetime import timedelta
     from decimal import Decimal
 
     ingrediente = db.query(Ingrediente).filter(Ingrediente.id == ingrediente_id).first()
@@ -429,10 +430,10 @@ def registrar_compra_ingrediente(
         raise HTTPException(status_code=400, detail=str(e))
 
     # Crear lote
-    hoy = date.today()
+    hoy = operation_today()
     lote = LoteIngrediente(
         ingrediente_id=ingrediente_id,
-        numero_lote=f"L-{datetime.now().strftime('%Y%m%d%H%M')}",
+        numero_lote=f"L-{operation_now().strftime('%Y%m%d%H%M')}",
         fecha_recepcion=hoy,
         fecha_caducidad=hoy + timedelta(days=30),
         cantidad=Decimal(str(cantidad)),
@@ -626,10 +627,9 @@ def conteo_nocturno(
     """Registrar conteo nocturno de productos."""
     from app.models.conteo_inventario import ConteoInventario
     from app.models.inventario import Producto, TipoMovimiento
-    from datetime import date
     from decimal import Decimal
 
-    hoy = date.today()
+    hoy = operation_today()
     resultados = []
     for c in conteos:
         producto = db.query(Producto).filter(

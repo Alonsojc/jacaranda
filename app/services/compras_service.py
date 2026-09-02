@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_
 from sqlalchemy.exc import IntegrityError
 
+from app.core.time_utils import operation_today
 from app.models.compras import (
     OrdenCompra, DetalleOrdenCompra, CuentaPagar, PagoCuentaPagar,
     EvaluacionProveedor, RecepcionOrdenCompra, EstadoOrdenCompra,
@@ -85,7 +86,7 @@ def obtener_proveedor(db: Session, proveedor_id: int) -> dict:
 
 def _generar_folio_oc(db: Session) -> str:
     """Genera folio auto-incremental: OC-YYYYMMDD-NNN."""
-    hoy = date.today().strftime("%Y%m%d")
+    hoy = operation_today().strftime("%Y%m%d")
     prefijo = f"OC-{hoy}-"
     ultima = db.query(OrdenCompra).filter(
         OrdenCompra.folio.like(f"{prefijo}%")
@@ -153,7 +154,7 @@ def crear_orden_compra(db: Session, data: dict) -> dict:
         folio=folio,
         proveedor_id=data["proveedor_id"],
         sucursal_id=data.get("sucursal_id"),
-        fecha_emision=date.today(),
+        fecha_emision=operation_today(),
         fecha_entrega_esperada=fecha_entrega,
         estado=EstadoOrdenCompra.BORRADOR,
         subtotal=subtotal,
@@ -343,7 +344,7 @@ def recibir_orden(
 
         if toda_completa:
             orden.estado = EstadoOrdenCompra.RECIBIDA
-            orden.fecha_recepcion = date.today()
+            orden.fecha_recepcion = operation_today()
         else:
             orden.estado = EstadoOrdenCompra.PARCIAL
 
@@ -522,7 +523,7 @@ def registrar_pago(db: Session, cuenta_id: int, data: dict) -> dict:
 
 def calendario_pagos(db: Session, dias: int = 30) -> list[dict]:
     """Cuentas por pagar que vencen en los próximos N días."""
-    hoy = date.today()
+    hoy = operation_today()
     limite = hoy + timedelta(days=dias)
 
     cuentas = db.query(CuentaPagar).options(
@@ -664,7 +665,7 @@ def dashboard_compras(db: Session) -> dict:
     - Órdenes en progreso
     - Top proveedores por volumen
     """
-    hoy = date.today()
+    hoy = operation_today()
 
     # Cuentas por pagar pendientes
     pendientes = db.query(

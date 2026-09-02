@@ -7,6 +7,7 @@ from decimal import Decimal
 from datetime import date, datetime, timezone
 from sqlalchemy.orm import Session
 
+from app.core.time_utils import operation_now, operation_today
 from app.models.empleado import Empleado, RegistroNomina, RegistroAsistencia, TipoJornada
 from app.schemas.empleado import EmpleadoCreate, EmpleadoUpdate, AsistenciaCreate, NominaCalculoRequest
 from app.utils.tax_calculator import (
@@ -67,7 +68,7 @@ def listar_empleados(db: Session, solo_activos: bool = True, skip: int = 0, limi
 
 
 def _calcular_antiguedad(fecha_ingreso: date) -> int:
-    hoy = date.today()
+    hoy = operation_today()
     return (hoy - fecha_ingreso).days // 365
 
 
@@ -393,7 +394,7 @@ def generar_recibo_nomina_pdf(db: Session, nomina_id: int):
         "Footer", parent=styles["Normal"], fontSize=7, textColor=colors.grey,
     )
     story.append(Paragraph(
-        f"<i>Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')} — {settings.RAZON_SOCIAL}</i>",
+        f"<i>Generado el {operation_now().strftime('%d/%m/%Y %H:%M')} — {settings.RAZON_SOCIAL}</i>",
         footer_style,
     ))
 

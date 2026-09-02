@@ -4,6 +4,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from pydantic import BaseModel, Field, model_validator
 
+from app.core.time_utils import operation_today
+
 
 class DetallePedidoCreate(BaseModel):
     descripcion: str
@@ -29,7 +31,7 @@ class PedidoCreate(BaseModel):
 
     @model_validator(mode="after")
     def validar_fecha_y_detalles(self):
-        if self.fecha_entrega < date.today():
+        if self.fecha_entrega < operation_today():
             raise ValueError("La fecha de entrega no puede estar en el pasado")
         if not self.detalles:
             raise ValueError("El pedido debe tener al menos un detalle")

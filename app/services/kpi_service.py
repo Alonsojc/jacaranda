@@ -3,24 +3,24 @@ Servicio de KPIs consolidados para dashboard con gráficas (Chart.js).
 Agrega métricas de todos los módulos del sistema.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
-from app.core.db_compat import db_extract_hour, db_extract_dow
+from app.core.time_utils import (
+    operation_datetime as _fecha_hora_operacion,
+    operation_period_bounds,
+    operation_today as _hoy_operacion,
+)
 from app.models.venta import Venta, DetalleVenta, EstadoVenta
 from app.models.inventario import Producto, Ingrediente
 from app.models.cliente import Cliente
 from app.services.pago_metodos import CANAL_PAGO_LABELS, canal_pago
-from app.services.venta_service import _normalizar_fecha_db, _zona_operacion
 
 
 def _rango_dia(dia: date):
-    return (
-        datetime.combine(dia, datetime.min.time()),
-        datetime.combine(dia, datetime.max.time()),
-    )
+    return operation_period_bounds(dia, dia)
 
 
 def _float(v) -> float:
@@ -33,25 +33,27 @@ def _float(v) -> float:
 
 def ventas_por_hora(db: Session, fecha: date | None = None) -> list[dict]:
     """Ventas agrupadas por hora del día."""
-    dia = fecha or date.today()
+    dia = fecha or _hoy_operacion()
     inicio, fin = _rango_dia(dia)
 
-    _hour = db_extract_hour(Venta.fecha)
-    rows = db.query(
-        _hour.label("hora"),
-        func.sum(Venta.total).label("total"),
-        func.count(Venta.id).label("cantidad"),
-    ).filter(
+    ventas = db.query(Venta).filter(
         and_(
             Venta.fecha >= inicio,
             Venta.fecha <= fin,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
-    ).group_by(_hour).order_by("hora").all()
+    ).all()
+
+    por_hora: dict[int, dict] = {}
+    for venta in ventas:
+        hora = _fecha_hora_operacion(venta.fecha).hour
+        item = por_hora.setdefault(hora, {"total": 0.0, "cantidad": 0})
+        item["total"] += _float(venta.total)
+        item["cantidad"] += 1
 
     return [
-        {"hora": f"{r.hora}:00", "total": _float(r.total), "cantidad": r.cantidad}
-        for r in rows
+        {"hora": f"{hora}:00", "total": round(item["total"], 2), "cantidad": item["cantidad"]}
+        for hora, item in sorted(por_hora.items())
     ]
 
 
@@ -59,33 +61,33 @@ def ventas_por_hora(db: Session, fecha: date | None = None) -> list[dict]:
 
 def ventas_por_dia_semana(db: Session, semanas: int = 4) -> list[dict]:
     """Promedio de ventas por día de la semana."""
-    inicio = datetime.combine(
-        date.today() - timedelta(weeks=semanas), datetime.min.time()
-    )
-    fin = datetime.combine(date.today(), datetime.max.time())
+    hoy = _hoy_operacion()
+    inicio, fin = operation_period_bounds(hoy - timedelta(weeks=semanas), hoy)
 
-    _dow = db_extract_dow(Venta.fecha)
-    rows = db.query(
-        _dow.label("dow"),
-        func.sum(Venta.total).label("total"),
-        func.count(Venta.id).label("cantidad"),
-    ).filter(
+    ventas = db.query(Venta).filter(
         and_(
             Venta.fecha >= inicio,
             Venta.fecha <= fin,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
-    ).group_by(_dow).all()
+    ).all()
 
     nombres = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
+    acumulado: dict[int, dict] = {}
+    for venta in ventas:
+        # Python: lunes=0; la interfaz conserva domingo=0.
+        dow = (_fecha_hora_operacion(venta.fecha).weekday() + 1) % 7
+        item = acumulado.setdefault(dow, {"total": 0.0, "cantidad": 0})
+        item["total"] += _float(venta.total)
+        item["cantidad"] += 1
+
     result = []
-    for r in rows:
-        idx = int(r.dow)
+    for idx, item in acumulado.items():
         result.append({
             "dia": nombres[idx],
             "dia_num": idx,
-            "total": round(_float(r.total) / semanas, 2),
-            "cantidad_promedio": round(r.cantidad / semanas, 1),
+            "total": round(item["total"] / semanas, 2),
+            "cantidad_promedio": round(item["cantidad"] / semanas, 1),
         })
     result.sort(key=lambda x: x["dia_num"])
     return result
@@ -95,10 +97,8 @@ def ventas_por_dia_semana(db: Session, semanas: int = 4) -> list[dict]:
 
 def top_productos(db: Session, dias: int = 30, limite: int = 10) -> list[dict]:
     """Productos más vendidos por cantidad y monto."""
-    inicio = datetime.combine(
-        date.today() - timedelta(days=dias - 1), datetime.min.time()
-    )
-    fin = datetime.combine(date.today(), datetime.max.time())
+    hoy = _hoy_operacion()
+    inicio, fin = operation_period_bounds(hoy - timedelta(days=dias - 1), hoy)
 
     rows = db.query(
         DetalleVenta.producto_id,
@@ -131,7 +131,7 @@ def top_productos(db: Session, dias: int = 30, limite: int = 10) -> list[dict]:
 def tendencia_ventas(db: Session, dias: int = 30) -> list[dict]:
     """Ventas diarias para gráfica de línea."""
     result = []
-    hoy = date.today()
+    hoy = _hoy_operacion()
     for i in range(dias - 1, -1, -1):
         dia = hoy - timedelta(days=i)
         inicio, fin = _rango_dia(dia)
@@ -160,7 +160,7 @@ def tendencia_ventas(db: Session, dias: int = 30) -> list[dict]:
 def ticket_promedio_diario(db: Session, dias: int = 30) -> list[dict]:
     """Ticket promedio diario para gráfica de línea."""
     result = []
-    hoy = date.today()
+    hoy = _hoy_operacion()
     for i in range(dias - 1, -1, -1):
         dia = hoy - timedelta(days=i)
         inicio, fin = _rango_dia(dia)
@@ -212,11 +212,12 @@ def kpi_inventario(db: Session) -> dict:
     ).filter(Producto.activo.is_(True)).scalar() or Decimal("0")
 
     # Lotes por vencer en 7 días
-    prox_semana = date.today() + timedelta(days=7)
+    hoy = _hoy_operacion()
+    prox_semana = hoy + timedelta(days=7)
     lotes_por_vencer = db.query(func.count(LoteIngrediente.id)).filter(
         and_(
             LoteIngrediente.fecha_caducidad <= prox_semana,
-            LoteIngrediente.fecha_caducidad >= date.today(),
+            LoteIngrediente.fecha_caducidad >= hoy,
             LoteIngrediente.cantidad_disponible > 0,
         )
     ).scalar() or 0
@@ -240,8 +241,9 @@ def kpi_inventario(db: Session) -> dict:
 
 def kpi_clientes(db: Session) -> dict:
     """Métricas de clientes: total, nuevos del mes, distribución niveles."""
-    hoy = date.today()
+    hoy = _hoy_operacion()
     inicio_mes = date(hoy.year, hoy.month, 1)
+    inicio_mes_dt, _ = operation_period_bounds(inicio_mes, hoy)
 
     total_clientes = db.query(func.count(Cliente.id)).filter(
         Cliente.activo.is_(True)
@@ -249,7 +251,7 @@ def kpi_clientes(db: Session) -> dict:
 
     nuevos_mes = db.query(func.count(Cliente.id)).filter(
         and_(
-            Cliente.creado_en >= datetime.combine(inicio_mes, datetime.min.time()),
+            Cliente.creado_en >= inicio_mes_dt,
             Cliente.activo.is_(True),
         )
     ).scalar() or 0
@@ -275,16 +277,8 @@ def kpi_clientes(db: Session) -> dict:
 
 def distribucion_metodos_pago(db: Session, dias: int = 30) -> list[dict]:
     """Distribución de métodos de pago."""
-    zona = _zona_operacion()
-    hoy = datetime.now(zona).date()
-    inicio = _normalizar_fecha_db(
-        datetime.combine(
-            hoy - timedelta(days=dias - 1), datetime.min.time(), tzinfo=zona
-        )
-    )
-    fin = _normalizar_fecha_db(
-        datetime.combine(hoy, datetime.max.time(), tzinfo=zona)
-    )
+    hoy = _hoy_operacion()
+    inicio, fin = operation_period_bounds(hoy - timedelta(days=dias - 1), hoy)
 
     ventas = db.query(Venta).filter(
         and_(
@@ -324,9 +318,10 @@ def distribucion_metodos_pago(db: Session, dias: int = 30) -> list[dict]:
 
 def dashboard_kpis(db: Session) -> dict:
     """Dashboard principal con todos los KPIs para gráficas."""
-    hoy = date.today()
+    hoy = _hoy_operacion()
     inicio_hoy, fin_hoy = _rango_dia(hoy)
     inicio_mes = date(hoy.year, hoy.month, 1)
+    inicio_mes_dt, fin_mes_dt = operation_period_bounds(inicio_mes, hoy)
 
     # Ventas hoy
     ventas_hoy_row = db.query(
@@ -347,8 +342,8 @@ def dashboard_kpis(db: Session) -> dict:
         func.count(Venta.id).label("cantidad"),
     ).filter(
         and_(
-            Venta.fecha >= datetime.combine(inicio_mes, datetime.min.time()),
-            Venta.fecha <= fin_hoy,
+            Venta.fecha >= inicio_mes_dt,
+            Venta.fecha <= fin_mes_dt,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
     ).first()

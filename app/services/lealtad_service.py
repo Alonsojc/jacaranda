@@ -17,6 +17,7 @@ from urllib.parse import quote
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 
+from app.core.time_utils import operation_today
 from app.models.cliente import Cliente
 from app.models.lealtad import (
     Cupon, CuponCliente, HistorialPuntos,
@@ -785,7 +786,7 @@ def listar_cupones(db: Session, activos_only: bool = True) -> list[Cupon]:
     """Lista cupones, opcionalmente solo los activos."""
     query = db.query(Cupon)
     if activos_only:
-        hoy = date.today()
+        hoy = operation_today()
         query = query.filter(
             Cupon.activo.is_(True),
             Cupon.estado == EstadoCupon.ACTIVO,
@@ -812,7 +813,7 @@ def validar_cupon(
     if not cupon.activo or cupon.estado != EstadoCupon.ACTIVO:
         return {"valid": False, "reason": "Cupon inactivo o cancelado"}
 
-    hoy = date.today()
+    hoy = operation_today()
     if hoy < cupon.fecha_inicio:
         return {"valid": False, "reason": "Cupon aun no vigente"}
     if hoy > cupon.fecha_fin:
@@ -894,7 +895,7 @@ def asignar_cupon_cliente(db: Session, cupon_id: int, cliente_id: int) -> CuponC
 
 def cumpleanos_del_mes(db: Session) -> list[Cliente]:
     """Lista clientes que cumplen anos este mes."""
-    mes_actual = date.today().month
+    mes_actual = operation_today().month
     return (
         db.query(Cliente)
         .filter(
@@ -912,7 +913,7 @@ def enviar_ofertas_cumpleanos(db: Session) -> list[dict]:
     Genera cupones de cumpleanos para clientes que
     cumplen anos este mes y aun no tienen cupon de cumpleanos vigente.
     """
-    hoy = date.today()
+    hoy = operation_today()
     config = obtener_configuracion(db)
     if not config.cumpleanos_promo_activa:
         return []
@@ -1002,7 +1003,7 @@ def dashboard_lealtad(db: Session) -> dict:
     )
 
     # Cupones activos
-    hoy = date.today()
+    hoy = operation_today()
     cupones_activos = (
         db.query(func.count(Cupon.id))
         .filter(
