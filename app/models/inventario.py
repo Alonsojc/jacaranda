@@ -85,6 +85,7 @@ class Ingrediente(Base):
     stock_actual: Mapped[Decimal] = mapped_column(Numeric(12, 4), default=Decimal("0"))
     stock_minimo: Mapped[Decimal] = mapped_column(Numeric(12, 4), default=Decimal("0"))
     costo_unitario: Mapped[Decimal] = mapped_column(Numeric(12, 4), default=Decimal("0"))
+    es_empaque: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 
     # Proveedor principal
     proveedor_id: Mapped[int | None] = mapped_column(ForeignKey("proveedores.id"))
@@ -124,6 +125,7 @@ class Producto(Base):
     # Precios
     precio_unitario: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     precio_cafeteria: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    precio_uber_eats: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     costo_produccion: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
 
     # Inventario

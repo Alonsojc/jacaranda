@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "c7d8e9f0a1b2 (head)"
+ALEMBIC_HEAD = "d8e9f0a1b2c3 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:
@@ -25,12 +25,25 @@ def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[s
 
 
 def test_alembic_upgrade_head_on_clean_database(tmp_path):
-    database_url = f"sqlite:///{tmp_path / 'clean.db'}"
+    db_path = tmp_path / "clean.db"
+    database_url = f"sqlite:///{db_path}"
 
     _run([sys.executable, "-m", "alembic", "upgrade", "head"], database_url)
     current = _run([sys.executable, "-m", "alembic", "current"], database_url)
 
     assert ALEMBIC_HEAD in current.stdout
+
+    conn = sqlite3.connect(db_path)
+    try:
+        producto_columns = {row[1] for row in conn.execute("PRAGMA table_info(productos)")}
+        ingrediente_columns = {row[1] for row in conn.execute("PRAGMA table_info(ingredientes)")}
+        venta_columns = {row[1] for row in conn.execute("PRAGMA table_info(ventas)")}
+    finally:
+        conn.close()
+
+    assert "precio_uber_eats" in producto_columns
+    assert "es_empaque" in ingrediente_columns
+    assert "canal" in venta_columns
 
 
 def test_alembic_upgrade_head_on_precreated_schema(tmp_path):

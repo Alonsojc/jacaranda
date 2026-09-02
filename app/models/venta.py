@@ -51,6 +51,7 @@ class Venta(Base):
     idempotency_key: Mapped[str | None] = mapped_column(
         String(80), unique=True, index=True
     )
+    canal: Mapped[str] = mapped_column(String(20), default="mostrador", index=True)
 
     # Relaciones
     cliente_id: Mapped[int | None] = mapped_column(ForeignKey("clientes.id"), index=True)

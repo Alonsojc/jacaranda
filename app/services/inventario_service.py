@@ -5,8 +5,10 @@ Control de stock, movimientos, alertas de mínimos y trazabilidad por lote.
 
 from decimal import Decimal
 from datetime import date
+import re
+import unicodedata
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 
 from app.core.time_utils import operation_today
 from app.models.inventario import (
@@ -16,7 +18,7 @@ from app.models.inventario import (
 from app.schemas.inventario import (
     IngredienteCreate, IngredienteUpdate, ProductoCreate, ProductoUpdate,
     MovimientoCreate, LoteCreate, CategoriaCreate, ProveedorCreate,
-    CompraProductosCreate,
+    CompraProductosCreate, EmpaqueCreate,
 )
 
 
@@ -51,7 +53,10 @@ def listar_proveedores(db: Session, skip: int = 0, limit: int = 100):
 # --- Ingredientes ---
 
 def crear_ingrediente(db: Session, data: IngredienteCreate) -> Ingrediente:
-    ingrediente = Ingrediente(**data.model_dump())
+    values = data.model_dump()
+    if data.unidad_medida in {UnidadMedida.CAJA, UnidadMedida.BOLSA}:
+        values["es_empaque"] = True
+    ingrediente = Ingrediente(**values)
     db.add(ingrediente)
     db.commit()
     db.refresh(ingrediente)
@@ -82,6 +87,76 @@ def listar_ingredientes(
     elif solo_activos:
         query = query.filter(Ingrediente.activo.is_(True))
     return query.offset(skip).limit(limit).all()
+
+
+def listar_empaques(db: Session, solo_activos: bool = True):
+    query = db.query(Ingrediente).filter(Ingrediente.es_empaque.is_(True))
+    if solo_activos:
+        query = query.filter(Ingrediente.activo.is_(True))
+    return query.order_by(Ingrediente.nombre).all()
+
+
+def crear_empaque(
+    db: Session,
+    data: EmpaqueCreate,
+    usuario_id: int | None = None,
+) -> Ingrediente:
+    nombre = data.nombre.strip()
+    existente = db.query(Ingrediente).filter(
+        func.lower(Ingrediente.nombre) == nombre.lower()
+    ).first()
+    if existente:
+        raise ValueError(f"Ya existe un insumo llamado '{existente.nombre}'")
+
+    ingrediente = Ingrediente(
+        nombre=nombre,
+        unidad_medida=data.unidad_medida,
+        stock_actual=Decimal("0"),
+        stock_minimo=data.stock_minimo,
+        costo_unitario=data.costo_unitario,
+        es_empaque=True,
+    )
+    db.add(ingrediente)
+    db.flush()
+
+    if data.stock_actual > 0:
+        registrar_movimiento(
+            db,
+            MovimientoCreate(
+                ingrediente_id=ingrediente.id,
+                tipo=TipoMovimiento.ENTRADA_AJUSTE,
+                cantidad=data.stock_actual,
+                costo_unitario=data.costo_unitario,
+                referencia="Existencia inicial de caja/empaque",
+            ),
+            usuario_id,
+            commit=False,
+        )
+
+    if usuario_id:
+        from app.services.auditoria_service import registrar_evento
+
+        registrar_evento(
+            db,
+            usuario_id=usuario_id,
+            usuario_nombre=None,
+            accion="crear_empaque",
+            modulo="inventario",
+            entidad="ingrediente",
+            entidad_id=ingrediente.id,
+            datos_nuevos={
+                "nombre": nombre,
+                "unidad_medida": data.unidad_medida.value,
+                "stock_actual": data.stock_actual,
+                "stock_minimo": data.stock_minimo,
+                "costo_unitario": data.costo_unitario,
+            },
+            commit=False,
+        )
+
+    db.commit()
+    db.refresh(ingrediente)
+    return ingrediente
 
 
 def obtener_ingrediente(db: Session, id: int) -> Ingrediente:
@@ -222,15 +297,21 @@ def _validar_caja_ingrediente(
         UnidadMedida.PIEZA,
     ):
         raise ValueError("El empaque debe usar unidad caja, bolsa o pieza")
+    if not ingrediente.es_empaque:
+        if ingrediente.unidad_medida in (UnidadMedida.CAJA, UnidadMedida.BOLSA):
+            ingrediente.es_empaque = True
+        else:
+            raise ValueError("Selecciona un insumo marcado como caja/empaque")
     if caja_cantidad is not None and Decimal(str(caja_cantidad)) <= 0:
         raise ValueError("La cantidad de cajas/empaques por pieza debe ser mayor a cero")
 
 
 def crear_producto(db: Session, data: ProductoCreate) -> Producto:
-    if db.query(Producto).filter(Producto.codigo == data.codigo).first():
+    codigo = data.codigo.strip().upper()
+    if db.query(Producto).filter(func.upper(Producto.codigo) == codigo).first():
         raise ValueError(f"Ya existe un producto con código '{data.codigo}'")
     _validar_caja_ingrediente(db, data.caja_ingrediente_id, data.caja_cantidad)
-    producto = Producto(**data.model_dump())
+    producto = Producto(**data.model_dump(exclude={"codigo"}), codigo=codigo)
     db.add(producto)
     db.commit()
     db.refresh(producto)
@@ -276,6 +357,25 @@ def actualizar_producto(db: Session, id: int, data: ProductoUpdate, usuario_id: 
             },
             commit=False,
         )
+    if (
+        "precio_uber_eats" in updates
+        and updates["precio_uber_eats"] != producto.precio_uber_eats
+    ):
+        registrar_evento(
+            db,
+            usuario_id=usuario_id,
+            usuario_nombre=None,
+            accion="actualizar_precio_uber_eats",
+            modulo="inventario",
+            entidad="producto",
+            entidad_id=producto.id,
+            datos_anteriores={"precio_uber_eats": producto.precio_uber_eats},
+            datos_nuevos={
+                "precio_uber_eats": updates["precio_uber_eats"],
+                "producto": producto.nombre,
+            },
+            commit=False,
+        )
     for key, value in updates.items():
         setattr(producto, key, value)
     db.commit()
@@ -305,6 +405,63 @@ def obtener_producto(db: Session, id: int) -> Producto:
     if not producto:
         raise ValueError("Producto no encontrado")
     return producto
+
+
+def codigo_producto_disponible(
+    db: Session,
+    codigo: str,
+    exclude_id: int | None = None,
+) -> tuple[str, bool]:
+    normalizado = str(codigo or "").strip().upper()
+    if not normalizado:
+        raise ValueError("Escribe un código")
+    query = db.query(Producto.id).filter(func.upper(Producto.codigo) == normalizado)
+    if exclude_id is not None:
+        query = query.filter(Producto.id != exclude_id)
+    return normalizado, query.first() is None
+
+
+def sugerir_codigo_producto(
+    db: Session,
+    nombre: str | None = None,
+    codigo_base: str | None = None,
+) -> dict:
+    base_limpia = str(codigo_base or "").strip().upper()
+    if base_limpia:
+        match = re.match(r"^(.+?)(?:[-_ ](\d+))?$", base_limpia)
+        prefijo_original = match.group(1) if match else base_limpia
+    else:
+        texto = str(nombre or "").strip()
+        texto = re.sub(
+            r"\s+(?:ind\.?|chic[oa]|grande|median[oa]|mini|x\d+|individual)$",
+            "",
+            texto,
+            flags=re.IGNORECASE,
+        )
+        ascii_texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
+        palabras = re.findall(r"[A-Za-z0-9]+", ascii_texto.upper())
+        if len(palabras) >= 2:
+            prefijo_original = "".join(palabra[0] for palabra in palabras[:4])
+        elif palabras:
+            prefijo_original = palabras[0][:3]
+        else:
+            prefijo_original = "PR"
+
+    prefijo = re.sub(r"[^A-Z0-9]+", "-", prefijo_original).strip("-")[:12] or "PR"
+    patron = re.compile(rf"^{re.escape(prefijo)}-(\d+)$", re.IGNORECASE)
+    numeros = []
+    for (codigo,) in db.query(Producto.codigo).filter(
+        func.upper(Producto.codigo).like(f"{prefijo}-%")
+    ).all():
+        encontrado = patron.match(str(codigo or "").strip())
+        if encontrado:
+            numeros.append(int(encontrado.group(1)))
+    siguiente = max(numeros, default=0) + 1
+    sugerido = f"{prefijo}-{siguiente:03d}"
+    while not codigo_producto_disponible(db, sugerido)[1]:
+        siguiente += 1
+        sugerido = f"{prefijo}-{siguiente:03d}"
+    return {"codigo": sugerido, "prefijo": prefijo, "disponible": True}
 
 
 # --- Movimientos de inventario ---

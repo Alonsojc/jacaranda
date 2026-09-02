@@ -3,6 +3,7 @@
 from pydantic import BaseModel, Field, field_validator
 from decimal import Decimal
 from datetime import datetime
+from typing import Literal
 
 from app.models.venta import MetodoPago, FormaPago, EstadoVenta, TerminalPago
 
@@ -37,6 +38,7 @@ class PagoVentaCreate(BaseModel):
 
 class VentaCreate(BaseModel):
     idempotency_key: str | None = Field(default=None, max_length=80)
+    canal: Literal["mostrador", "uber_eats"] = "mostrador"
     cliente_id: int | None = None
     metodo_pago: MetodoPago = MetodoPago.EFECTIVO
     terminal: TerminalPago = TerminalPago.EFECTIVO
@@ -97,6 +99,7 @@ class VentaResponse(BaseModel):
     id: int
     folio: str
     serie: str
+    canal: str = "mostrador"
     cliente_id: int | None
     subtotal: Decimal
     descuento: Decimal

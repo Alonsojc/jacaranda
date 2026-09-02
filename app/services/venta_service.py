@@ -258,7 +258,14 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         )
         stock_info["cantidad_vendida"] += cantidad_solicitada
 
-        precio = producto.precio_unitario
+        if data.canal == "uber_eats":
+            if producto.precio_uber_eats is None or producto.precio_uber_eats <= 0:
+                raise ValueError(
+                    f"Producto '{producto.nombre}' no tiene precio de Uber Eats configurado"
+                )
+            precio = producto.precio_uber_eats
+        else:
+            precio = producto.precio_unitario
         subtotal_linea = (precio * item.cantidad) - item.descuento
         tasa_iva = _obtener_tasa_iva_pos(tasa_factura_pos)
         monto_iva = (subtotal_linea * tasa_iva).quantize(Decimal("0.01"))
@@ -379,6 +386,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             folio=folio,
             serie="T",
             idempotency_key=data.idempotency_key,
+            canal=data.canal,
             cliente_id=data.cliente_id,
             usuario_id=usuario_id,
             subtotal=subtotal_total,
