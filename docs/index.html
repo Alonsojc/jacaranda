@@ -137,6 +137,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .sales-mode-btn:hover{background:#faf3f0;color:var(--v)}
 .sales-mode-btn.active{background:var(--v);color:#fff;box-shadow:0 2px 7px rgba(196,152,138,.25)}
 .sales-mode-btn:focus-visible{outline:3px solid rgba(196,152,138,.25);outline-offset:1px}
+.cafeteria-tools{display:flex;justify-content:flex-end;gap:.4rem;margin:-.35rem 0 1rem;flex-wrap:wrap}
 .sales-mode-badge{display:none;margin-bottom:.55rem;padding:.38rem .55rem;border-radius:7px;background:#fff7ed;color:#9a3412;font-size:.75rem;font-weight:800;border:1px solid #fed7aa;text-align:center}
 .sales-mode-badge.on{display:block}
 .variant-option{display:flex;align-items:center;justify-content:space-between;min-height:56px;padding:.7rem .8rem;border:1px solid var(--brd);border-radius:10px;cursor:pointer;transition:all .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
@@ -350,7 +351,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .desc-input{width:55px;padding:.2rem .3rem;border:1px solid var(--brd);border-radius:5px;font-size:.72rem;font-family:inherit;text-align:center}
 .desc-input:focus{outline:none;border-color:var(--v)}
 @media(max-width:900px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.pos-prods{max-height:none}.prods{grid-template-columns:repeat(3,1fr)}.nav-links{flex-wrap:wrap;gap:.15rem}.nav-links a{padding:.4rem .55rem;font-size:.73rem}.pmt{grid-template-columns:1fr!important}#pos-btn-prods{display:block!important}.tkt{position:sticky;bottom:0;z-index:10}#cafeteria .caf-account{position:static;bottom:auto;z-index:auto}table{font-size:.75rem}th,td{padding:.3rem .4rem!important}}
-@media(max-width:600px){.prods{grid-template-columns:repeat(2,1fr)}.qty-btn{width:36px;height:36px;font-size:1.1rem}.cobrar{padding:1rem;font-size:1rem}.pi-body{padding:.5rem}.pi-img,.pi-noimg{height:70px}.frow{grid-template-columns:1fr}.wrap{width:min(100% - 1.2rem,1240px);padding:.8rem 0 1rem}nav{padding:.5rem .8rem}.pbtn{padding:.9rem .5rem;font-size:.85rem}.ti{padding:.45rem 0;font-size:.85rem}.tkt h3{font-size:1rem}.card{padding:.8rem;border-radius:10px;overflow-x:auto;-webkit-overflow-scrolling:touch}.tab{padding:.5rem .8rem;font-size:.78rem;min-height:40px;white-space:nowrap}.kpi .n{font-size:1.3rem}.kpi .l{font-size:.7rem}h2{font-size:1.1rem;margin-bottom:.7rem}.page-header{gap:.6rem}.page-actions{width:100%;justify-content:flex-start}.page-actions .limpiar,.page-actions .cobrar{flex:1 1 auto}.page-toolbar{gap:.45rem}.page-toolbar .section-tabs{flex-basis:100%}.srow{padding:.5rem 0;font-size:.82rem;min-height:36px}.badge{padding:.25rem .5rem;font-size:.72rem}}
+@media(max-width:600px){.prods{grid-template-columns:repeat(2,1fr)}.qty-btn{width:36px;height:36px;font-size:1.1rem}.cobrar{padding:1rem;font-size:1rem}.pi-body{padding:.5rem}.pi-img,.pi-noimg{height:70px}.frow{grid-template-columns:1fr}.wrap{width:min(100% - 1.2rem,1240px);padding:.8rem 0 1rem}nav{padding:.5rem .8rem}.pbtn{padding:.9rem .5rem;font-size:.85rem}.ti{padding:.45rem 0;font-size:.85rem}.tkt h3{font-size:1rem}.card{padding:.8rem;border-radius:10px;overflow-x:auto;-webkit-overflow-scrolling:touch}.tab{padding:.5rem .8rem;font-size:.78rem;min-height:40px;white-space:nowrap}.kpi .n{font-size:1.3rem}.kpi .l{font-size:.7rem}h2{font-size:1.1rem;margin-bottom:.7rem}.page-header{gap:.6rem}.page-actions{width:100%;justify-content:flex-start}.page-actions .limpiar,.page-actions .cobrar{flex:1 1 auto}.cafeteria-tools{justify-content:stretch;margin:.1rem 0 .8rem}.cafeteria-tools .limpiar{flex:1 1 auto}.page-toolbar{gap:.45rem}.page-toolbar .section-tabs{flex-basis:100%}.srow{padding:.5rem 0;font-size:.82rem;min-height:36px}.badge{padding:.25rem .5rem;font-size:.72rem}}
 @media(max-width:420px){.prods{grid-template-columns:1fr 1fr}.pi .pn{font-size:.78rem}.pi .pp{font-size:1rem}.nav-links a{padding:.35rem .4rem;font-size:.68rem}.r4{grid-template-columns:1fr}.card{margin-bottom:.6rem}}
 .notif-panel{position:fixed;top:50px;right:10px;width:360px;max-height:500px;background:#fff;border:1px solid var(--brd);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:100;overflow-y:auto;display:none}
 .notif-panel.on{display:block}
@@ -844,10 +845,10 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <button type="button" class="sales-mode-btn active" data-sales-mode="cafeterias" data-module="cafeteria" onclick="cambiarModoVenta('cafeterias')" role="tab" aria-label="Men&uacute; de cafeter&iacute;as" aria-selected="true">Cafeter&iacute;as</button>
 <button type="button" class="sales-mode-btn" data-sales-mode="uber_eats" data-module="pos" onclick="cambiarModoVenta('uber_eats')" role="tab" aria-label="Men&uacute; de Uber Eats" aria-selected="false">Uber Eats</button>
 </div>
-<div class="page-actions">
+</div>
+<div class="cafeteria-tools" aria-label="Acciones de cafeter&iacute;as">
 <button class="limpiar" style="width:auto;margin:0;padding:.45rem .8rem" onclick="irEditarPreciosCafeteria()">Precios caf&eacute;</button>
 <button class="limpiar" style="width:auto;margin:0;padding:.45rem .8rem" onclick="cargarCafeteria()">Actualizar</button>
-</div>
 </div>
 <div class="row r4" style="margin-bottom:1rem">
 <div class="card kpi"><div class="n" id="caf-k-llevado">$0</div><div class="l">Llevado semana</div></div>
