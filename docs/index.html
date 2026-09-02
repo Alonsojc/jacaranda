@@ -1245,6 +1245,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <h2>Listas</h2>
 <div class="section-tabs" style="margin-bottom:1rem">
 <span class="tab active" onclick="listTab('l-prods')">Productos</span>
+<span class="tab" onclick="listTab('l-familias')">Familias</span>
 <span class="tab" onclick="listTab('l-empaques')">Cajas y empaques</span>
 <span class="tab" data-feature-disabled="ingredientes" hidden onclick="listTab('l-ings')">Ingredientes</span>
 <span class="tab" data-feature-disabled="recetas" hidden onclick="listTab('l-recs')">Recetas</span>
@@ -1265,6 +1266,16 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="card" style="overflow-x:auto">
 <input type="text" id="l-prods-buscar" placeholder="Buscar producto..." oninput="filtrarTabla('l-prods-tbl',this.value)" style="width:100%;padding:.45rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.83rem;margin-bottom:.6rem">
 <div id="l-prods-tbl"><p style="color:var(--mut)">Cargando...</p></div>
+</div>
+</div>
+
+<div id="l-familias" style="display:none">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">Una familia junta sus presentaciones en Punto de venta. Cada presentación conserva su propio código, precio y stock.</p>
+<button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="abrirNuevaFamiliaProducto()">+ Nueva familia</button>
+</div>
+<div class="card" style="overflow-x:auto">
+<div id="l-familias-tbl"><p style="color:var(--mut)">Cargando...</p></div>
 </div>
 </div>
 
@@ -2404,7 +2415,11 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <h3 id="mnp-title">Nuevo producto</h3>
 <div class="frow">
 <div class="fg"><label>C&oacute;digo</label><input id="mnp-codigo" placeholder="AC-001" autocapitalize="characters" oninput="codigoProductoEditado()" onblur="validarCodigoProducto()"><div class="field-assist"><small id="mnp-codigo-estado">Escribe uno o pide el siguiente libre.</small><button type="button" class="field-assist-btn" onclick="sugerirCodigoNuevo()">Sugerir libre</button></div></div>
-<div class="fg"><label>Nombre</label><input id="mnp-nombre" placeholder="Apple Crumble chico" oninput="sugerirCajaParaProducto('mnp');programarSugerenciaCodigoProducto()"><div class="field-assist"><small>Mismo nombre base + chico, mediano, grande, individual o x16.</small></div></div>
+<div class="fg"><label>Nombre</label><input id="mnp-nombre" placeholder="Caja Brownies x16" oninput="sugerirCajaParaProducto('mnp');programarSugerenciaCodigoProducto()"><div class="field-assist"><small>El nombre identifica esta presentación; la familia la agrupa en venta.</small></div></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Familia</label><select id="mnp-familia"><option value="">Producto sin familia</option></select><div class="field-assist"><small>Agrupa presentaciones en un solo menú.</small><button type="button" class="field-assist-btn" onclick="abrirNuevaFamiliaProducto('mnp')">Nueva familia</button></div></div>
+<div class="fg"><label>Presentaci&oacute;n</label><input id="mnp-presentacion" placeholder="x16, chico, grande"><div class="field-assist"><small>Solo se usa al elegir una familia.</small></div></div>
 </div>
 <div class="frow">
 <div class="fg"><label>Precio mostrador</label><input type="number" id="mnp-precio" step="0.01" min="0.01" placeholder="100"></div>
@@ -2503,6 +2518,10 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="frow">
 <div class="fg"><label>Nombre</label><input id="mep-nombre" oninput="sugerirCajaParaProducto('mep')"></div>
 <div class="fg"><label>C&oacute;digo</label><input id="mep-codigo" disabled style="background:#f5eeeb"></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Familia</label><select id="mep-familia"><option value="">Producto sin familia</option></select><div class="field-assist"><small>Usa una familia para mostrar variantes juntas.</small><button type="button" class="field-assist-btn" onclick="abrirNuevaFamiliaProducto('mep')">Nueva familia</button></div></div>
+<div class="fg"><label>Presentaci&oacute;n</label><input id="mep-presentacion" placeholder="x16, chico, grande"><div class="field-assist"><small id="mep-familia-assist">Sin familia: se vende como producto individual.</small><button type="button" class="field-assist-btn" id="mep-crear-familia" onclick="crearFamiliaDesdeProducto()">Convertir en familia</button></div></div>
 </div>
 <div class="frow">
 <div class="fg"><label>Precio mostrador</label><input type="number" id="mep-precio" step="0.01" min="0.01"></div>
@@ -2838,7 +2857,7 @@ var POS_FACTURA_IVA_TASA = 0.08, _posFacturaIvaActiva = false;
 var _clienteRecompensaActual = null, _canjearRecompensaLealtad = false;
 var cafCart = [], cafPm = 'trans', _cafFacturaIvaActiva = false, _cafGroups = {}, _cafGroupOrder = [], _cafProductById = {}, _cafVentas = [], _cafClientes = [], _cafEnProceso = false, _cafIdempotencyKey = null, _cafClienteGuardando = false;
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
-var _nuevoProductoBase = null, _codigoProductoTimer = null, _codigoProductoEditado = false;
+var _nuevoProductoBase = null, _codigoProductoTimer = null, _codigoProductoEditado = false, _familiasProducto = [];
 var _pedidoEnProceso = false, _pedidoIdempotencyKey = null;
 var _clienteEditId = null;
 var _recepcionesCompraEnProceso = {};
@@ -6581,10 +6600,19 @@ function filtrarPOS() {
   }
 }
 
-function splitNombreVariante(nombre) {
-  var m = nombre.match(/^(.+?)\s+(ind\.?|chico|chica|grande|mediano|mediana|mini|x\d+|individual)$/i);
-  if (m) return { nombre: m[1], variante: m[2] };
-  return { nombre: nombre, variante: null };
+function grupoFormalProducto(producto) {
+  if (producto.familia_id && producto.familia_nombre) {
+    return {
+      key: 'familia-' + producto.familia_id,
+      nombre: producto.familia_nombre,
+      presentacion: producto.presentacion || producto.nombre
+    };
+  }
+  return {
+    key: 'producto-' + producto.id,
+    nombre: producto.nombre,
+    presentacion: null
+  };
 }
 
 var _posGroups = {}; // cache for variant picker
@@ -6598,14 +6626,14 @@ function renderPOSFromData(prods) {
       activos.push(prods[i]);
     }
 
-    // Agrupar por nombre base
+    // Only an explicit family groups products. Names are not a data relation.
     var grupos = {};
     var orden = [];
     for (var i = 0; i < activos.length; i++) {
       var p = activos[i];
-      var parts = splitNombreVariante(p.nombre);
-      var key = parts.nombre.toLowerCase().trim();
-      if (!grupos[key]) { grupos[key] = { nombre: parts.nombre, imagen: null, items: [] }; orden.push(key); }
+      var formal = grupoFormalProducto(p);
+      var key = formal.key;
+      if (!grupos[key]) { grupos[key] = { nombre: formal.nombre, imagen: null, items: [] }; orden.push(key); }
       if (p.imagen && !grupos[key].imagen) grupos[key].imagen = p.imagen;
       grupos[key].items.push(p);
     }
@@ -6657,8 +6685,8 @@ function renderPOSFromData(prods) {
         h += '<span class="pi-var">' + items.length + ' presentaciones</span>';
         h += '<span class="pp">$' + fmt(pMin) + (pMin !== pMax ? ' - $' + fmt(pMax) : '') + '</span>';
       } else {
-        var parts = splitNombreVariante(items[0].nombre);
-        if (parts.variante) h += '<span class="pi-var">' + parts.variante + '</span>';
+        var presentacion = grupoFormalProducto(items[0]).presentacion;
+        if (presentacion) h += '<span class="pi-var">' + escHtml(presentacion) + '</span>';
         h += '<span class="pp">$' + fmt(pMin) + '</span>';
       }
       var stkCls = allOut ? 'pi-stk-out' : (stockTotal <= minTotal ? 'pi-stk-low' : 'pi-stk-ok');
@@ -6702,8 +6730,7 @@ function abrirVariantes(key) {
   var h = '';
   for (var i = 0; i < g.items.length; i++) {
     var p = g.items[i];
-    var parts = splitNombreVariante(p.nombre);
-    var label = parts.variante || p.nombre;
+    var label = grupoFormalProducto(p).presentacion || p.nombre;
     var precio = precioProductoPOS(p);
     var stock = parseFloat(p.stock_actual) || 0;
     var min = parseFloat(p.stock_minimo) || 0;
@@ -6750,9 +6777,9 @@ function renderCafeteriaProductos(prods) {
   for (var j = 0; j < activos.length; j++) {
     var p = activos[j];
     _cafProductById[p.id] = p;
-    var parts = splitNombreVariante(p.nombre);
-    var key = parts.nombre.toLowerCase().trim();
-    if (!grupos[key]) { grupos[key] = { nombre: parts.nombre, imagen: null, items: [] }; orden.push(key); }
+    var formal = grupoFormalProducto(p);
+    var key = formal.key;
+    if (!grupos[key]) { grupos[key] = { nombre: formal.nombre, imagen: null, items: [] }; orden.push(key); }
     if (p.imagen && !grupos[key].imagen) grupos[key].imagen = p.imagen;
     grupos[key].items.push(p);
   }
@@ -6793,7 +6820,7 @@ function renderCafeteriaProductos(prods) {
       h += '<span class="pi-var">' + items.length + ' presentaciones</span>';
       h += '<span class="pp">$' + fmt(pMin) + (pMin !== pMax ? ' - $' + fmt(pMax) : '') + '</span>';
     } else {
-      var sv = splitNombreVariante(items[0].nombre).variante;
+      var sv = grupoFormalProducto(items[0]).presentacion;
       if (sv) h += '<span class="pi-var">' + escHtml(sv) + '</span>';
       h += '<span class="pp">$' + fmt(pMin) + '</span>';
     }
@@ -6979,8 +7006,7 @@ function abrirVariantesCafeteria(key) {
   var h = '';
   for (var i = 0; i < g.items.length; i++) {
     var p = g.items[i];
-    var parts = splitNombreVariante(p.nombre);
-    var label = parts.variante || p.nombre;
+    var label = grupoFormalProducto(p).presentacion || p.nombre;
     var precio = precioCafeteriaProducto(p);
     var stock = parseFloat(p.stock_actual) || 0;
     var min = parseFloat(p.stock_minimo) || 0;
@@ -9650,6 +9676,152 @@ function cargarIngredientesParaCajas(selectedEdit, selectedNew) {
   });
 }
 
+function opcionesFamiliaProducto(selectedId) {
+  var h = '<option value="">Producto sin familia</option>';
+  for (var i = 0; i < _familiasProducto.length; i++) {
+    var familia = _familiasProducto[i];
+    if (!familia.activo) continue;
+    h += '<option value="' + familia.id + '"' + (String(familia.id) === String(selectedId || '') ? ' selected' : '') + '>' + escHtml(familia.nombre) + '</option>';
+  }
+  return h;
+}
+
+function actualizarAyudaFamiliaProducto(prefix) {
+  var select = document.getElementById(prefix + '-familia');
+  var presentacion = document.getElementById(prefix + '-presentacion');
+  if (!select || !presentacion) return;
+  var tieneFamilia = !!select.value;
+  if (prefix === 'mep') {
+    var ayuda = document.getElementById('mep-familia-assist');
+    var convertir = document.getElementById('mep-crear-familia');
+    if (ayuda) ayuda.textContent = tieneFamilia
+      ? 'Esta presentación aparecerá dentro de la familia seleccionada.'
+      : 'Sin familia: se vende como producto individual.';
+    if (convertir) convertir.style.display = tieneFamilia ? 'none' : '';
+  }
+}
+
+function llenarOpcionesFamiliaProducto(prefix, selectedId) {
+  var select = document.getElementById(prefix + '-familia');
+  if (!select) return;
+  select.innerHTML = opcionesFamiliaProducto(selectedId);
+  select.onchange = function() { actualizarAyudaFamiliaProducto(prefix); };
+  actualizarAyudaFamiliaProducto(prefix);
+}
+
+function cargarFamiliasProducto(prefix, selectedId) {
+  return api('GET', '/inventario/familias-producto').then(function(familias) {
+    _familiasProducto = familias || [];
+    if (prefix) llenarOpcionesFamiliaProducto(prefix, selectedId);
+    return _familiasProducto;
+  });
+}
+
+function leerRelacionFamiliaProducto(prefix) {
+  var select = document.getElementById(prefix + '-familia');
+  var input = document.getElementById(prefix + '-presentacion');
+  var familiaId = select && select.value ? parseInt(select.value, 10) : null;
+  var presentacion = input ? input.value.trim() : '';
+  if (!familiaId && presentacion) {
+    toast('Elige una familia para usar la presentación', true);
+    return null;
+  }
+  if (familiaId && !presentacion) {
+    toast('Escribe la presentación, por ejemplo x8, x16 o grande', true);
+    return null;
+  }
+  return { familia_id: familiaId, presentacion: presentacion || null };
+}
+
+async function abrirNuevaFamiliaProducto(prefix) {
+  var nombre = await solicitarEntrada({
+    title: 'Nueva familia',
+    message: 'Agrupa presentaciones del mismo producto.',
+    detail: 'Ejemplo: Caja Brownies. Los códigos siguen siendo únicos por presentación.',
+    label: 'Nombre de familia',
+    placeholder: 'Caja Brownies',
+    acceptText: 'Crear familia'
+  });
+  nombre = nombre && nombre.trim();
+  if (!nombre) return;
+  apiProtegida('POST', '/inventario/familias-producto', { nombre: nombre }, 'crear familia de producto').then(function(familia) {
+    return cargarFamiliasProducto(prefix, familia.id).then(function() {
+      if (prefix) {
+        var presentacion = document.getElementById(prefix + '-presentacion');
+        if (presentacion) presentacion.focus();
+      }
+      cargarListaFamiliasProducto();
+      toast('Familia creada: ' + familia.nombre);
+    });
+  }).catch(function(error) { toast(error.message || 'No se pudo crear la familia', true); });
+}
+
+function crearFamiliaDesdeProducto() {
+  var id = parseInt(document.getElementById('mep-id').value, 10);
+  if (!id) return;
+  apiProtegida('POST', '/inventario/productos/' + id + '/crear-familia', null, 'crear familia de producto').then(function(producto) {
+    document.getElementById('mep-nombre').value = producto.nombre;
+    document.getElementById('mep-presentacion').value = producto.presentacion || '';
+    return cargarFamiliasProducto('mep', producto.familia_id).then(function() {
+      toast('Ahora es parte de la familia ' + producto.familia_nombre);
+      cargarListaFamiliasProducto();
+    });
+  }).catch(function(error) { toast(error.message || 'No se pudo crear la familia', true); });
+}
+
+async function editarFamiliaProducto(id, nombre) {
+  var nuevoNombre = await solicitarEntrada({
+    title: 'Editar familia',
+    message: 'Este nombre se verá como un solo producto en Punto de venta.',
+    label: 'Nombre de familia',
+    value: nombre,
+    acceptText: 'Guardar'
+  });
+  nuevoNombre = nuevoNombre && nuevoNombre.trim();
+  if (!nuevoNombre || nuevoNombre === nombre) return;
+  apiProtegida('PUT', '/inventario/familias-producto/' + id, { nombre: nuevoNombre }, 'editar familia de producto').then(function() {
+    toast('Familia actualizada');
+    cargarListaFamiliasProducto();
+    cargarPOSProductos();
+    cargarCafeteriaProductos();
+  }).catch(function(error) { toast(error.message || 'No se pudo actualizar la familia', true); });
+}
+
+function cargarListaFamiliasProducto() {
+  var tabla = document.getElementById('l-familias-tbl');
+  if (!tabla) return Promise.resolve([]);
+  return Promise.all([
+    cargarFamiliasProducto(),
+    api('GET', '/inventario/productos')
+  ]).then(function(resultado) {
+    var familias = resultado[0] || [];
+    var productos = resultado[1] || [];
+    var conteos = {};
+    productos.forEach(function(producto) {
+      if (producto.familia_id) conteos[producto.familia_id] = (conteos[producto.familia_id] || 0) + 1;
+    });
+    if (!familias.length) {
+      tabla.innerHTML = '<p style="color:var(--mut);margin:0">Aún no hay familias. Crea una cuando un producto tenga dos o más presentaciones.</p>';
+      return familias;
+    }
+    var h = '<table class="tbl"><tr><th>Familia</th><th>Presentaciones</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
+    familias.forEach(function(familia) {
+      var nombreArg = jsArg(familia.nombre);
+      h += '<tr><td><strong>' + escHtml(familia.nombre) + '</strong></td>';
+      h += '<td>' + (conteos[familia.id] || 0) + '</td>';
+      h += '<td>' + (familia.activo ? '<span class="badge bok">Activa</span>' : '<span class="badge bout">Desactivada</span>') + '</td>';
+      h += '<td class="actions-cell"><div class="action-buttons">';
+      h += actionBtn('Editar', '&#9998;', 'editarFamiliaProducto(' + familia.id + ',' + nombreArg + ')');
+      h += '</div></td></tr>';
+    });
+    tabla.innerHTML = h + '</table>';
+    return familias;
+  }).catch(function() {
+    tabla.innerHTML = '<p style="color:var(--mut)">Error al cargar familias</p>';
+    return [];
+  });
+}
+
 function payloadCajaProducto(prefix) {
   var cajaEl = document.getElementById(prefix + '-caja');
   var cantidadEl = document.getElementById(prefix + '-caja-cant');
@@ -10088,6 +10260,8 @@ function editarProducto(id) {
     document.getElementById('mep-costo').value = parseFloat(p.costo_produccion);
     document.getElementById('mep-minimo').value = parseFloat(p.stock_minimo);
     document.getElementById('mep-caja-cant').value = parseFloat(p.caja_cantidad || 1) || 1;
+    document.getElementById('mep-presentacion').value = p.presentacion || '';
+    cargarFamiliasProducto('mep', p.familia_id || '');
     cargarIngredientesParaCajas(p.caja_ingrediente_id || '');
     document.getElementById('mep-title').textContent = 'Editar: ' + p.nombre;
     // Imagen
@@ -10131,6 +10305,8 @@ function guardarProducto() {
     toast('El precio de mostrador debe ser mayor a cero', true);
     return;
   }
+  var relacionFamilia = leerRelacionFamiliaProducto('mep');
+  if (!relacionFamilia) return;
   var cajaPayload = payloadCajaProducto('mep');
   if (!cajaProductoValida(cajaPayload)) {
     toast('Indica cajas/empaques por pieza mayor a cero', true);
@@ -10145,6 +10321,8 @@ function guardarProducto() {
     stock_minimo: parseFloat(document.getElementById('mep-minimo').value),
     caja_ingrediente_id: cajaPayload.caja_ingrediente_id,
     caja_cantidad: cajaPayload.caja_cantidad,
+    familia_id: relacionFamilia.familia_id,
+    presentacion: relacionFamilia.presentacion,
   };
   pedirPasswordAdminSiHaceFalta('editar producto').then(function(headers) {
     // Subir imagen si se seleccionó una nueva
@@ -10393,9 +10571,9 @@ async function eliminarReceta(id, nombre) {
 
 // ─── Listas page ─────────────────────────────────────────────────
 function listTab(tab, evt) {
-  var permitidos = ['l-prods','l-empaques','l-clientes','l-nomina','l-lealtad'];
+  var permitidos = ['l-prods','l-familias','l-empaques','l-clientes','l-nomina','l-lealtad'];
   if (permitidos.indexOf(tab) < 0) tab = 'l-prods';
-  ['l-prods','l-empaques','l-ings','l-recs','l-clientes','l-nomina','l-lealtad'].forEach(function(t) {
+  ['l-prods','l-familias','l-empaques','l-ings','l-recs','l-clientes','l-nomina','l-lealtad'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
@@ -10404,6 +10582,7 @@ function listTab(tab, evt) {
   var target = (evt && evt.target) || (implicitEvent && implicitEvent.target) || document.querySelector('#listas .tab[onclick*="' + tab + '"]');
   if (target) target.classList.add('active');
   if (tab === 'l-empaques') cargarListaEmpaques();
+  if (tab === 'l-familias') cargarListaFamiliasProducto();
   if (tab === 'l-clientes') cargarListaClientes();
   if (tab === 'l-nomina') initNomina();
   if (tab === 'l-lealtad') cargarLealtad();
@@ -10420,6 +10599,7 @@ function filtrarTabla(id, q) {
 
 function cargarListas() {
   cargarListaProductos();
+  cargarListaFamiliasProducto();
   cargarListaEmpaques();
   cargarListaClientes();
 }
@@ -10443,8 +10623,9 @@ function cargarListaProductos() {
       var nombreArg = jsArg(p.nombre);
       h += '<tr>';
       var cajaNota = p.caja_ingrediente_id ? '<span class="caf-price-note">Caja: ' + escHtml(nombreCajaProducto(p)) + '</span>' : '';
+      var familiaNota = p.familia_nombre ? '<span class="caf-price-note">Familia: ' + escHtml(p.familia_nombre) + ' · ' + escHtml(p.presentacion || 'Sin presentación') + '</span>' : '<span class="caf-price-note">Producto individual</span>';
       h += '<td><strong>' + escHtml(p.codigo || '') + '</strong></td>';
-      h += '<td><strong>' + escHtml(p.nombre) + '</strong>' + cajaNota + '</td>';
+      h += '<td><strong>' + escHtml(p.nombre) + '</strong>' + familiaNota + cajaNota + '</td>';
       h += '<td>$' + fmt(precio) + '</td>';
       h += '<td>' + (precioCafe > 0 ? '$' + fmt(precioCafe) : '<span style="color:var(--mut)">&mdash;</span>') + '</td>';
       h += '<td>' + (precioUber > 0 ? '$' + fmt(precioUber) : '<span style="color:var(--mut)">&mdash;</span>') + '</td>';
@@ -10736,19 +10917,23 @@ function nuevoProducto() {
   document.getElementById('mnp-costo').value = '';
   document.getElementById('mnp-minimo').value = '0';
   document.getElementById('mnp-caja-cant').value = '1';
+  document.getElementById('mnp-presentacion').value = '';
+  llenarOpcionesFamiliaProducto('mnp', '');
   actualizarEstadoCodigo('Escribe uno o pide el siguiente libre.', '');
+  cargarFamiliasProducto('mnp', '').catch(function() {});
   cargarIngredientesParaCajas('', '');
   document.getElementById('modal-new-prod').classList.add('on');
   setTimeout(function() { document.getElementById('mnp-nombre').focus(); }, 100);
 }
 
 function nuevaPresentacion(id) {
-  api('GET', '/inventario/productos/' + id).then(function(producto) {
+  apiProtegida('POST', '/inventario/productos/' + id + '/crear-familia', null, 'crear familia de producto').then(function(producto) {
     _nuevoProductoBase = producto;
     _codigoProductoEditado = false;
-    var base = splitNombreVariante(producto.nombre).nombre;
+    var base = producto.familia_nombre || producto.nombre;
     document.getElementById('mnp-title').textContent = 'Nueva presentación de ' + base;
     document.getElementById('mnp-nombre').value = base + ' ';
+    document.getElementById('mnp-presentacion').value = '';
     document.getElementById('mnp-codigo').value = '';
     document.getElementById('mnp-precio').value = parseFloat(producto.precio_unitario) || '';
     document.getElementById('mnp-precio-caf').value = producto.precio_cafeteria ? parseFloat(producto.precio_cafeteria) : '';
@@ -10757,14 +10942,16 @@ function nuevaPresentacion(id) {
     document.getElementById('mnp-minimo').value = Math.round(parseFloat(producto.stock_minimo) || 0);
     document.getElementById('mnp-caja-cant').value = parseFloat(producto.caja_cantidad || 1) || 1;
     actualizarEstadoCodigo('Buscando el siguiente código de esta familia...', '');
-    cargarIngredientesParaCajas('', producto.caja_ingrediente_id || '');
-    document.getElementById('modal-new-prod').classList.add('on');
-    sugerirCodigoNuevo();
-    setTimeout(function() {
-      var nombre = document.getElementById('mnp-nombre');
-      nombre.focus();
-      nombre.setSelectionRange(nombre.value.length, nombre.value.length);
-    }, 100);
+    return Promise.all([
+      cargarFamiliasProducto('mnp', producto.familia_id),
+      cargarIngredientesParaCajas('', producto.caja_ingrediente_id || '')
+    ]).then(function() {
+      document.getElementById('modal-new-prod').classList.add('on');
+      sugerirCodigoNuevo();
+      setTimeout(function() {
+        document.getElementById('mnp-presentacion').focus();
+      }, 100);
+    });
   }).catch(function(error) {
     toast(error.message || 'No se pudo preparar la presentación', true);
   });
@@ -10840,6 +11027,8 @@ async function crearProducto() {
     toast('Elige un código disponible', true);
     return;
   }
+  var relacionFamilia = leerRelacionFamiliaProducto('mnp');
+  if (!relacionFamilia) return;
   var cajaPayload = payloadCajaProducto('mnp');
   if (!cajaProductoValida(cajaPayload)) {
     toast('Indica cajas/empaques por pieza mayor a cero', true);
@@ -10853,6 +11042,8 @@ async function crearProducto() {
     stock_minimo: parseFloat(document.getElementById('mnp-minimo').value) || 0,
     caja_ingrediente_id: cajaPayload.caja_ingrediente_id,
     caja_cantidad: cajaPayload.caja_cantidad,
+    familia_id: relacionFamilia.familia_id,
+    presentacion: relacionFamilia.presentacion,
   };
   var precioCafe = parseFloat(document.getElementById('mnp-precio-caf').value);
   if (precioCafe > 0) data.precio_cafeteria = precioCafe;

@@ -7,7 +7,7 @@ from datetime import datetime, date, timezone
 from decimal import Decimal
 from sqlalchemy import (
     String, Integer, DateTime, Date, ForeignKey, Text,
-    Numeric, Boolean, Enum as SAEnum,
+    Numeric, Boolean, Enum as SAEnum, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
@@ -111,9 +111,27 @@ class Ingrediente(Base):
     )
 
 
+class FamiliaProducto(Base):
+    """Familia comercial que agrupa presentaciones vendibles de un producto."""
+
+    __tablename__ = "familias_producto"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    nombre: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    creado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    productos: Mapped[list["Producto"]] = relationship(back_populates="familia")
+
+
 class Producto(Base):
     """Productos terminados para venta."""
     __tablename__ = "productos"
+    __table_args__ = (
+        UniqueConstraint("familia_id", "presentacion", name="uq_productos_familia_presentacion"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     codigo: Mapped[str] = mapped_column(String(50), unique=True, index=True)
@@ -121,6 +139,10 @@ class Producto(Base):
     descripcion: Mapped[str | None] = mapped_column(Text)
     imagen: Mapped[str | None] = mapped_column(Text)  # base64 data URL
     categoria_id: Mapped[int | None] = mapped_column(ForeignKey("categorias_producto.id"))
+    familia_id: Mapped[int | None] = mapped_column(
+        ForeignKey("familias_producto.id"), index=True
+    )
+    presentacion: Mapped[str | None] = mapped_column(String(100))
 
     # Precios
     precio_unitario: Mapped[Decimal] = mapped_column(Numeric(12, 2))
@@ -173,6 +195,11 @@ class Producto(Base):
 
     # Relaciones
     categoria: Mapped["CategoriaProducto | None"] = relationship(back_populates="productos")
+    familia: Mapped["FamiliaProducto | None"] = relationship(back_populates="productos")
+
+    @property
+    def familia_nombre(self) -> str | None:
+        return self.familia.nombre if self.familia else None
     caja_ingrediente: Mapped["Ingrediente | None"] = relationship(
         foreign_keys="Producto.caja_ingrediente_id"
     )

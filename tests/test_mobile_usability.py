@@ -149,3 +149,17 @@ def test_products_offer_guided_codes_presentations_uber_price_and_packaging_cata
     assert "Cajas y empaques</span>" in html
     assert 'id="l-empaques"' in html
     assert "/inventario/empaques" in html
+
+
+def test_product_families_are_explicit_instead_of_inferred_from_names():
+    html = read_text("docs/index.html")
+
+    assert 'id="l-familias"' in html
+    assert 'id="mnp-familia"' in html
+    assert 'id="mep-familia"' in html
+    assert 'id="mnp-presentacion"' in html
+    assert 'id="mep-presentacion"' in html
+    assert "function grupoFormalProducto" in html
+    assert "key: 'familia-' + producto.familia_id" in html
+    assert "/inventario/familias-producto" in html
+    assert "/inventario/productos/' + id + '/crear-familia" in html

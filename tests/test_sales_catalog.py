@@ -67,6 +67,69 @@ def test_codigos_se_normalizan_validan_y_sugieren(client, auth_headers):
     assert "Ya existe" in duplicado.json()["detail"]
 
 
+def test_familias_formales_ligan_presentaciones_sin_usar_el_codigo(client, auth_headers):
+    familia = client.post(
+        "/api/v1/inventario/familias-producto",
+        json={"nombre": "Caja Brownies"},
+        headers=auth_headers,
+    )
+    assert familia.status_code == 201, familia.text
+    familia_data = familia.json()
+
+    x16 = _crear_producto(
+        client,
+        auth_headers,
+        "CJ-001",
+        nombre="Caja Brownies x16",
+        familia_id=familia_data["id"],
+        presentacion="x16",
+    )
+    assert x16["familia_id"] == familia_data["id"]
+    assert x16["familia_nombre"] == "Caja Brownies"
+    assert x16["presentacion"] == "x16"
+
+    x8 = _crear_producto(
+        client,
+        auth_headers,
+        "CJ-002",
+        nombre="Caja Brownies x8",
+        familia_id=familia_data["id"],
+        presentacion="x8",
+    )
+    assert x8["familia_id"] == familia_data["id"]
+
+    repetida = client.post(
+        "/api/v1/inventario/productos",
+        json={
+            "codigo": "CJ-009",
+            "nombre": "Otra caja de brownies",
+            "precio_unitario": "100.00",
+            "familia_id": familia_data["id"],
+            "presentacion": "x16",
+        },
+        headers=auth_headers,
+    )
+    assert repetida.status_code == 400
+    assert "Ya existe una presentación" in repetida.json()["detail"]
+
+    actualizar_repetida = client.put(
+        f"/api/v1/inventario/productos/{x8['id']}",
+        json={"presentacion": "x16"},
+        headers=auth_headers,
+    )
+    assert actualizar_repetida.status_code == 400
+    assert "Ya existe una presentación" in actualizar_repetida.json()["detail"]
+
+    individual = _crear_producto(client, auth_headers, "BR-001", nombre="Brownie")
+    convertida = client.post(
+        f"/api/v1/inventario/productos/{individual['id']}/crear-familia",
+        headers=auth_headers,
+    )
+    assert convertida.status_code == 200, convertida.text
+    assert convertida.json()["familia_nombre"] == "Brownie"
+    assert convertida.json()["presentacion"] == "Original"
+
+
 def test_venta_uber_eats_usa_solo_su_precio_configurado(client, auth_headers):
     producto = _crear_producto(
         client,

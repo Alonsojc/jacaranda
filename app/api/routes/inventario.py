@@ -15,6 +15,7 @@ from app.schemas.inventario import (
     ProveedorCreate, ProveedorResponse,
     IngredienteCreate, IngredienteUpdate, IngredienteResponse,
     EmpaqueCreate,
+    FamiliaProductoCreate, FamiliaProductoUpdate, FamiliaProductoResponse,
     ProductoCreate, ProductoUpdate, ProductoResponse,
     MovimientoCreate, MovimientoResponse,
     CompraProductosCreate, CompraProductosResponse,
@@ -245,14 +246,47 @@ def reactivar_ingrediente(
 
 # --- Productos ---
 
+@router.post("/familias-producto", response_model=FamiliaProductoResponse, status_code=201)
+def crear_familia_producto(
+    data: FamiliaProductoCreate,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_permission("inv", "editar")),
+):
+    try:
+        return svc.crear_familia_producto(db, data, usuario_id=user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/familias-producto", response_model=list[FamiliaProductoResponse])
+def listar_familias_producto(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("inv", "ver")),
+):
+    return svc.listar_familias_producto(db)
+
+
+@router.put("/familias-producto/{familia_id}", response_model=FamiliaProductoResponse)
+def actualizar_familia_producto(
+    familia_id: int,
+    data: FamiliaProductoUpdate,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_admin_or_override("inv", "editar familia de producto")),
+):
+    try:
+        return svc.actualizar_familia_producto(db, familia_id, data, usuario_id=user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @router.post("/productos", response_model=ProductoResponse, status_code=201)
 def crear_producto(
     data: ProductoCreate,
     db: Session = Depends(get_db),
-    _user: Usuario = Depends(require_permission("inv", "editar")),
+    user: Usuario = Depends(require_permission("inv", "editar")),
 ):
     try:
-        return svc.crear_producto(db, data)
+        return svc.crear_producto(db, data, usuario_id=user.id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -319,6 +353,20 @@ def listar_productos_inactivos(
     )
 
 
+@router.post("/productos/{id}/crear-familia", response_model=ProductoResponse)
+def crear_familia_desde_producto(
+    id: int,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_admin_or_override("inv", "crear familia de producto")),
+):
+    try:
+        return svc.crear_familia_desde_producto(db, id, usuario_id=user.id)
+    except ValueError as exc:
+        db.rollback()
+        status_code = 404 if str(exc) == "Producto no encontrado" else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
+
+
 @router.get("/productos/{id}", response_model=ProductoResponse)
 def obtener_producto(id: int, db: Session = Depends(get_db), _user: Usuario = Depends(require_permission("inv", "ver"))):
     try:
@@ -337,7 +385,9 @@ def actualizar_producto(
     try:
         return svc.actualizar_producto(db, id, data, usuario_id=user.id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        db.rollback()
+        status_code = 404 if str(e) == "Producto no encontrado" else 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 @router.put("/productos/{id}/imagen")
