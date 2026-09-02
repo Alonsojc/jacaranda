@@ -23,7 +23,7 @@ nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1p
 .logo:hover{opacity:.85}
 .logo span{color:var(--mut);font-family:'Inter',sans-serif;font-size:.7rem;font-weight:300;letter-spacing:.15em;display:block;margin-top:-2px}
 .nav-links{display:flex;gap:.3rem;flex:1;min-width:0;flex-wrap:wrap;justify-content:flex-end}
-.nav-links a{text-decoration:none;color:var(--mut);font-size:.82rem;font-weight:500;padding:.5rem .8rem;border-radius:8px;cursor:pointer}
+.nav-links a{text-decoration:none;color:var(--mut);font-size:.82rem;font-weight:500;padding:.5rem .8rem;border-radius:8px;cursor:pointer;min-height:44px;display:inline-flex;align-items:center;justify-content:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .nav-links a:hover,.nav-links a.on{color:var(--v);background:#faf3f0}
 .wa{background:var(--grn)!important;color:#fff!important;border-radius:20px!important;font-size:.78rem!important}
 .wrap{width:min(100% - 3rem,1240px);margin:0 auto;padding:1.5rem 0 2rem;overflow:visible}
@@ -111,6 +111,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .pos-prods{max-height:calc(100vh - 180px);overflow-y:auto;padding-right:.3rem}
 .prods{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;align-content:start}
 .pi{background:#fff;border-radius:14px;padding:0;text-align:center;border:1px solid var(--brd);cursor:pointer;transition:all .2s;user-select:none;overflow:hidden;display:flex;flex-direction:column;align-items:center}
+.pi{min-height:170px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .pi:hover{border-color:var(--v);box-shadow:0 6px 20px rgba(196,152,138,.18);transform:translateY(-2px)}
 .pi:active{transform:scale(.97);box-shadow:none}
 .pi-img{width:100%;height:90px;object-fit:cover;display:block}
@@ -128,6 +129,22 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .pi-action{margin-top:.35rem;min-height:34px;padding:.42rem .8rem;border:none;border-radius:9px;background:linear-gradient(135deg,#c4988a,#b8877a);color:#fff;font-weight:700;font-size:.75rem;cursor:pointer;box-shadow:0 2px 8px rgba(196,152,138,.2)}
 .pi-action.secondary{background:#f5eeeb;color:var(--v);box-shadow:none}
 .pi-action:active{transform:scale(.97)}
+.sales-header{display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem;margin-bottom:1rem;flex-wrap:wrap}
+.sales-header-copy h2{margin-bottom:.2rem}
+.sales-header-copy p{font-size:.8rem;color:var(--mut);margin:0;line-height:1.35}
+.sales-mode-tabs{display:flex;align-items:stretch;gap:.3rem;padding:.3rem;background:#fff;border:1px solid var(--brd);border-radius:10px;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.sales-mode-btn{min-height:46px;padding:.6rem .85rem;border:0;border-radius:7px;background:transparent;color:var(--mut);font:700 .78rem 'Inter',sans-serif;white-space:nowrap;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.sales-mode-btn:hover{background:#faf3f0;color:var(--v)}
+.sales-mode-btn.active{background:var(--v);color:#fff;box-shadow:0 2px 7px rgba(196,152,138,.25)}
+.sales-mode-btn:focus-visible{outline:3px solid rgba(196,152,138,.25);outline-offset:1px}
+.sales-mode-badge{display:none;margin-bottom:.55rem;padding:.38rem .55rem;border-radius:7px;background:#fff7ed;color:#9a3412;font-size:.75rem;font-weight:800;border:1px solid #fed7aa;text-align:center}
+.sales-mode-badge.on{display:block}
+.variant-option{display:flex;align-items:center;justify-content:space-between;min-height:56px;padding:.7rem .8rem;border:1px solid var(--brd);border-radius:10px;cursor:pointer;transition:all .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.variant-option:hover,.variant-option:focus{border-color:var(--v);background:#faf3f0;outline:none}
+.field-assist{display:flex;align-items:center;gap:.35rem;margin-top:.3rem;min-height:24px}
+.field-assist small{font-size:.7rem;color:var(--mut);line-height:1.25;flex:1}
+.field-assist small.ok{color:#047857;font-weight:700}.field-assist small.err{color:#b91c1c;font-weight:700}
+.field-assist-btn{min-height:36px;border:1px solid var(--brd);border-radius:7px;background:#fff;color:var(--v);padding:.35rem .55rem;font:700 .72rem 'Inter',sans-serif;cursor:pointer;white-space:nowrap}
 .tkt{background:#fff;border-radius:12px;padding:1.1rem;border:1px solid var(--brd)}
 .tkt h3{font-size:.9rem;margin-bottom:.6rem}
 .ti{display:flex;justify-content:space-between;font-size:.82rem;padding:.35rem 0;border-bottom:1px solid #f0e8e5}
@@ -193,13 +210,14 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .action-btn.danger:hover{background:#fef2f2;border-color:#ef4444}
 .action-icon{font-size:.95rem;line-height:1}
 .action-label{white-space:nowrap}
-.product-actions-table{min-width:1180px}
-.product-actions-table .col-price,.product-actions-table .col-caf-price,.product-actions-table .col-cost{width:105px}
+.product-actions-table{min-width:1480px}
+.product-actions-table .col-code{width:105px}
+.product-actions-table .col-price,.product-actions-table .col-caf-price,.product-actions-table .col-uber-price,.product-actions-table .col-cost{width:105px}
 .product-actions-table .col-stock{width:120px}
 .product-actions-table .col-min{width:72px}
 .product-actions-table .col-status{width:118px}
-.product-actions-table .col-actions{width:390px}
-.product-actions-table th.actions-th,.product-actions-table td.actions-cell{width:390px;white-space:nowrap}
+.product-actions-table .col-actions{width:500px}
+.product-actions-table th.actions-th,.product-actions-table td.actions-cell{width:500px;white-space:nowrap}
 .product-actions-table td{vertical-align:middle}
 .product-actions-table .action-buttons{flex-wrap:nowrap;gap:.28rem}
 .product-actions-table .action-btn{padding:.46rem .55rem;font-size:.74rem}
@@ -392,7 +410,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .ia-act-subir{color:#047857}.ia-act-bajar{color:#f59e0b}.ia-act-descuento{color:#b91c1c}.ia-act-mantener{color:var(--mut)}
 /* Nav dropdown groups */
 .nav-group{position:relative;display:inline-block}
-.nav-group>a{text-decoration:none;color:var(--mut);font-size:.82rem;font-weight:500;padding:.5rem .8rem;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:.25rem}
+.nav-group>a{text-decoration:none;color:var(--mut);font-size:.82rem;font-weight:500;padding:.5rem .8rem;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.25rem;min-height:44px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .nav-group>a:hover,.nav-group.open>a{color:var(--v);background:#faf3f0}
 .nav-group>a::after{content:'\25BE';font-size:.6rem;opacity:.5}
 .nav-group>a.on{color:var(--v);background:#faf3f0}
@@ -401,7 +419,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .nav-dd::before{content:'';position:absolute;left:0;right:0;top:-10px;height:10px}
 .nav-group:hover .nav-dd,.nav-group:focus-within .nav-dd,.nav-group.open .nav-dd{display:block}
 @keyframes ddIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
-.nav-dd a{display:block;padding:.45rem .9rem;font-size:.82rem;color:var(--txt);text-decoration:none;cursor:pointer;transition:background .12s;white-space:normal;font-weight:500;line-height:1.25;overflow-wrap:anywhere}
+.nav-dd a{display:flex;align-items:center;min-height:48px;padding:.65rem .9rem;font-size:.82rem;color:var(--txt);text-decoration:none;cursor:pointer;transition:background .12s;white-space:normal;font-weight:500;line-height:1.25;overflow-wrap:anywhere;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .nav-dd a:hover{background:#faf3f0;color:var(--v)}
 .nav-dd a.on{color:var(--v);font-weight:600}
 .nav-dd-sep{height:1px;background:var(--brd);margin:.25rem .6rem}
@@ -459,13 +477,14 @@ button:disabled{cursor:not-allowed;opacity:.55;box-shadow:none!important;transfo
 @media(pointer:coarse){
 button:not(.password-toggle),input:not([type="checkbox"]):not([type="radio"]),select,textarea{min-height:44px}
 input:not([type="checkbox"]):not([type="radio"]),select,textarea{font-size:16px!important}
-.cobrar,.limpiar,.wa-btn,.pbtn,.tab,.mm-link{min-height:48px}
+.cobrar,.limpiar,.wa-btn,.pbtn,.tab,.mm-link,.sales-mode-btn,.action-btn{min-height:48px}
 .qty-btn{width:44px;height:44px}
-.tab,.pbtn,.pi,.mn-item,.mm-link,.qty-btn,.catalog-icon-btn,.mobile-cart-bar{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.tab,.pbtn,.pi,.mn-item,.mm-link,.qty-btn,.catalog-icon-btn,.mobile-cart-bar,.sales-mode-btn,.action-btn,.nav-links a,.nav-group>a,.nav-dd a{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 }
 @media(max-width:900px){
 input:not([type="checkbox"]):not([type="radio"]),select,textarea{min-height:44px;font-size:16px!important}
 .cobrar,.limpiar,.wa-btn,.pbtn,.tab,.mm-link,.catalog-icon-btn,.pos-tax-toggle{min-height:48px}
+.sales-header{align-items:stretch}.sales-mode-tabs{width:100%}.sales-mode-btn{flex:1 0 auto;min-height:50px;font-size:.85rem}
 #pos .tkt{position:static;bottom:auto;z-index:auto}
 #pos .tkt.mobile-open{display:block;position:fixed;left:50%;bottom:0;transform:translateX(-50%);z-index:82;width:min(100%,560px);max-height:88vh;max-height:88dvh;overflow-y:auto;border-radius:16px 16px 0 0;padding:1rem 1rem calc(1rem + env(safe-area-inset-bottom,0px));box-shadow:0 -12px 35px rgba(74,53,48,.24)}
 .pmt{grid-template-columns:repeat(2,minmax(0,1fr))!important}
@@ -528,12 +547,11 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <nav role="navigation" aria-label="Navegaci&oacute;n principal">
 <a class="logo" onclick="irInicio();return false" href="#dash" aria-label="Ver dashboard">Jacaranda<span>sharing flavors</span></a>
 <div class="nav-links">
+<a class="sales-nav-link" data-pg="pos" onclick="abrirPuntoVenta()">Punto de venta</a>
 <a class="on" data-pg="dash" onclick="irInicio()">Dashboard</a>
 <div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,PANADERO,PRODUCCION,CONSULTA,CAJERO,CONTADOR">
   <a>Operaci&oacute;n</a>
   <div class="nav-dd">
-    <a data-pg="pos" onclick="go('pos')">&#128181; Punto de venta</a>
-    <a data-pg="cafeteria" onclick="go('cafeteria')">&#9749; Cafeter&iacute;a</a>
     <a data-pg="ped" onclick="go('ped')">&#128230; Pedidos <span id="ped-badge" style="display:none;background:#ef4444;color:#fff;font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;vertical-align:top;min-width:14px;text-align:center"></span></a>
     <a data-pg="inv" onclick="go('inv')">&#128230; Inventario <span id="inv-badge" style="display:none;background:#ef4444;color:#fff;font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;vertical-align:top;min-width:14px;text-align:center"></span></a>
     <a data-pg="prod" onclick="go('prod')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,PANADERO,PRODUCCION">&#127838; Producci&oacute;n</a>
@@ -735,17 +753,28 @@ table.tbl th,table.tbl td{font-size:.8rem}
 
 <!-- POS -->
 <div class="page" id="pos">
-<h2>Punto de Venta</h2>
+<div class="sales-header">
+<div class="sales-header-copy">
+<h2>Punto de venta</h2>
+<p id="pos-mode-copy">Venta directa en mostrador.</p>
+</div>
+<div class="sales-mode-tabs" role="tablist" aria-label="Seleccionar men&uacute; de venta">
+<button type="button" class="sales-mode-btn active" data-sales-mode="mostrador" data-module="pos" onclick="cambiarModoVenta('mostrador')" role="tab" aria-label="Men&uacute; de punto de venta" aria-selected="true">Punto de venta</button>
+<button type="button" class="sales-mode-btn" data-sales-mode="cafeterias" data-module="cafeteria" onclick="cambiarModoVenta('cafeterias')" role="tab" aria-label="Men&uacute; de cafeter&iacute;as" aria-selected="false">Cafeter&iacute;as</button>
+<button type="button" class="sales-mode-btn" data-sales-mode="uber_eats" data-module="pos" onclick="cambiarModoVenta('uber_eats')" role="tab" aria-label="Men&uacute; de Uber Eats" aria-selected="false">Uber Eats</button>
+</div>
+</div>
 <div class="pos-grid">
 <div class="pos-prods">
 <input type="text" id="pos-search" placeholder="Buscar producto..." oninput="filtrarPOS()" style="width:100%;padding:.55rem .8rem;border:1px solid var(--brd);border-radius:10px;font-size:.85rem;margin-bottom:.7rem;font-family:inherit;transition:border-color .2s;outline:none" onfocus="this.style.borderColor='var(--v)'" onblur="this.style.borderColor=''">
+<div id="pos-mode-badge" class="sales-mode-badge">Precios y venta de Uber Eats</div>
 <div id="pos-products">
 <p style="color:var(--mut);text-align:center;padding:2rem">Cargando productos...</p>
 </div>
 </div><!-- pos-prods -->
 <div class="tkt" id="pos-ticket-panel" role="region" aria-label="Ticket de venta">
 <div class="ticket-heading">
-<h3>Ticket</h3>
+<h3 id="pos-ticket-title">Ticket mostrador</h3>
 <button type="button" class="mobile-ticket-close" onclick="cerrarTicketMovil()" aria-label="Cerrar ticket" title="Cerrar ticket">&times;</button>
 </div>
 <div id="pos-offline-banner" role="status" aria-live="polite" style="display:none;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:.45rem .6rem;margin-bottom:.5rem;font-size:.78rem;color:#92400e">
@@ -805,10 +834,15 @@ table.tbl th,table.tbl td{font-size:.8rem}
 
 <!-- CAFETERIA -->
 <div class="page" id="cafeteria">
-<div class="page-header">
-<div class="page-title">
-<h2>Cafeter&iacute;a</h2>
-<p>Venta a cafeter&iacute;as con precio especial, cr&eacute;dito y reportes de pagos separados del punto de venta diario.</p>
+<div class="sales-header">
+<div class="sales-header-copy">
+<h2>Punto de venta</h2>
+<p>Entrega a cafeter&iacute;as con precio especial, cr&eacute;dito y pagos posteriores.</p>
+</div>
+<div class="sales-mode-tabs" role="tablist" aria-label="Seleccionar men&uacute; de venta">
+<button type="button" class="sales-mode-btn" data-sales-mode="mostrador" data-module="pos" onclick="cambiarModoVenta('mostrador')" role="tab" aria-label="Men&uacute; de punto de venta" aria-selected="false">Punto de venta</button>
+<button type="button" class="sales-mode-btn active" data-sales-mode="cafeterias" data-module="cafeteria" onclick="cambiarModoVenta('cafeterias')" role="tab" aria-label="Men&uacute; de cafeter&iacute;as" aria-selected="true">Cafeter&iacute;as</button>
+<button type="button" class="sales-mode-btn" data-sales-mode="uber_eats" data-module="pos" onclick="cambiarModoVenta('uber_eats')" role="tab" aria-label="Men&uacute; de Uber Eats" aria-selected="false">Uber Eats</button>
 </div>
 <div class="page-actions">
 <button class="limpiar" style="width:auto;margin:0;padding:.45rem .8rem" onclick="irEditarPreciosCafeteria()">Precios caf&eacute;</button>
@@ -1210,6 +1244,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <h2>Listas</h2>
 <div class="section-tabs" style="margin-bottom:1rem">
 <span class="tab active" onclick="listTab('l-prods')">Productos</span>
+<span class="tab" onclick="listTab('l-empaques')">Cajas y empaques</span>
 <span class="tab" data-feature-disabled="ingredientes" hidden onclick="listTab('l-ings')">Ingredientes</span>
 <span class="tab" data-feature-disabled="recetas" hidden onclick="listTab('l-recs')">Recetas</span>
 <span class="tab" onclick="listTab('l-clientes')">Clientes</span>
@@ -1229,6 +1264,17 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="card" style="overflow-x:auto">
 <input type="text" id="l-prods-buscar" placeholder="Buscar producto..." oninput="filtrarTabla('l-prods-tbl',this.value)" style="width:100%;padding:.45rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.83rem;margin-bottom:.6rem">
 <div id="l-prods-tbl"><p style="color:var(--mut)">Cargando...</p></div>
+</div>
+</div>
+
+<div id="l-empaques" style="display:none">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
+<p style="font-size:.83rem;color:var(--mut);margin:0">Crea las cajas y empaques que despu&eacute;s puedes asignar a cada producto.</p>
+<button class="cobrar" style="width:auto;padding:.5rem 1rem;font-size:.8rem;margin:0" onclick="nuevoEmpaque()">+ Nueva caja o empaque</button>
+</div>
+<div class="card" style="overflow-x:auto">
+<input type="text" id="l-empaques-buscar" placeholder="Buscar caja o empaque..." oninput="filtrarTabla('l-empaques-tbl',this.value)" style="width:100%;padding:.55rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.83rem;margin-bottom:.6rem">
+<div id="l-empaques-tbl"><p style="color:var(--mut)">Cargando...</p></div>
 </div>
 </div>
 
@@ -1991,8 +2037,8 @@ table.tbl th,table.tbl td{font-size:.8rem}
 
 <!-- MOBILE BOTTOM NAV -->
 <div class="mobile-nav" id="mobile-nav" role="navigation" aria-label="Navegaci&oacute;n m&oacute;vil">
+<a onclick="abrirPuntoVenta()" data-pg="pos" class="mn-item sales-nav-link"><span class="mn-icon">&#128179;</span><span class="mn-label">Venta</span></a>
 <a onclick="irInicio()" data-pg="dash" class="mn-item on"><span class="mn-icon">&#127968;</span><span class="mn-label">Dashboard</span></a>
-<a onclick="go('pos')" data-pg="pos" class="mn-item"><span class="mn-icon">&#128179;</span><span class="mn-label">Venta</span></a>
 <a onclick="go('ped')" data-pg="ped" class="mn-item"><span class="mn-icon">&#128203;</span><span class="mn-label">Pedidos</span></a>
 <a onclick="go('inv')" data-pg="inv" class="mn-item"><span class="mn-icon">&#128230;</span><span class="mn-label">Inventario</span></a>
 <a onclick="abrirMobileMenu(event);return false" class="mn-item"><span class="mn-icon">&#9776;</span><span class="mn-label">M&aacute;s</span></a>
@@ -2007,7 +2053,6 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="mm-items">
 <div class="mm-section" data-mobile-section="operacion">
 <div class="mm-section-title">Trabajo diario</div>
-<a data-pg="cafeteria" onclick="navegarMobile('cafeteria', event);return false" class="mm-link">&#9749; Cafeter&iacute;a</a>
 <a data-pg="corte" onclick="navegarMobile('corte', event);return false" class="mm-link">&#128200; Corte de caja</a>
 <a data-pg="egresos" onclick="navegarMobile('egresos', event);return false" class="mm-link">&#128179; Egresos</a>
 <a data-pg="prod" onclick="navegarMobile('prod', event);return false" class="mm-link">&#127838; Producci&oacute;n</a>
@@ -2355,22 +2400,26 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <!-- MODAL: Nuevo Producto -->
 <div class="modal-bg" id="modal-new-prod">
 <div class="modal">
-<h3>Nuevo Producto</h3>
+<h3 id="mnp-title">Nuevo producto</h3>
 <div class="frow">
-<div class="fg"><label>C&oacute;digo</label><input id="mnp-codigo" placeholder="IN-007"></div>
-<div class="fg"><label>Nombre</label><input id="mnp-nombre" placeholder="Galletas de chocolate" oninput="sugerirCajaParaProducto('mnp')"></div>
+<div class="fg"><label>C&oacute;digo</label><input id="mnp-codigo" placeholder="AC-001" autocapitalize="characters" oninput="codigoProductoEditado()" onblur="validarCodigoProducto()"><div class="field-assist"><small id="mnp-codigo-estado">Escribe uno o pide el siguiente libre.</small><button type="button" class="field-assist-btn" onclick="sugerirCodigoNuevo()">Sugerir libre</button></div></div>
+<div class="fg"><label>Nombre</label><input id="mnp-nombre" placeholder="Apple Crumble chico" oninput="sugerirCajaParaProducto('mnp');programarSugerenciaCodigoProducto()"><div class="field-assist"><small>Mismo nombre base + chico, mediano, grande, individual o x16.</small></div></div>
 </div>
 <div class="frow">
-<div class="fg"><label>Precio venta</label><input type="number" id="mnp-precio" step="0.01" placeholder="100"></div>
+<div class="fg"><label>Precio mostrador</label><input type="number" id="mnp-precio" step="0.01" min="0.01" placeholder="100"></div>
 <div class="fg"><label>Precio cafeter&iacute;a</label><input type="number" id="mnp-precio-caf" step="0.01" placeholder="80"></div>
 </div>
 <div class="frow">
-<div class="fg"><label>Costo producci&oacute;n</label><input type="number" id="mnp-costo" step="0.01" placeholder="35"></div>
-<div class="fg"><label>Stock m&iacute;nimo</label><input type="number" id="mnp-minimo" step="1" value="0"></div>
+<div class="fg"><label>Precio Uber Eats</label><input type="number" id="mnp-precio-uber" step="0.01" min="0.01" placeholder="Opcional"></div>
+<div class="fg"><label>Costo producci&oacute;n</label><input type="number" id="mnp-costo" step="0.01" min="0" placeholder="35"></div>
 </div>
 <div class="frow">
+<div class="fg"><label>Stock m&iacute;nimo</label><input type="number" id="mnp-minimo" step="1" value="0"></div>
 <div class="fg"><label>Caja/empaque</label><select id="mnp-caja"><option value="">Sin caja asignada</option></select></div>
+</div>
+<div class="frow">
 <div class="fg"><label>Cajas por pieza</label><input type="number" id="mnp-caja-cant" step="0.01" min="0" value="1"></div>
+<div class="fg"><label>Cat&aacute;logo de cajas</label><button type="button" class="limpiar" style="margin:0" onclick="irCatalogoEmpaquesDesdeProducto('modal-new-prod')">Editar cajas y empaques</button></div>
 </div>
 <div style="display:flex;gap:.5rem;margin-top:.5rem">
 <button class="cobrar" style="flex:1" onclick="crearProducto()">Crear Producto</button>
@@ -2455,16 +2504,20 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="fg"><label>C&oacute;digo</label><input id="mep-codigo" disabled style="background:#f5eeeb"></div>
 </div>
 <div class="frow">
-<div class="fg"><label>Precio venta</label><input type="number" id="mep-precio" step="0.01"></div>
+<div class="fg"><label>Precio mostrador</label><input type="number" id="mep-precio" step="0.01" min="0.01"></div>
 <div class="fg"><label>Precio cafeter&iacute;a</label><input type="number" id="mep-precio-caf" step="0.01" placeholder="Opcional"></div>
 </div>
 <div class="frow">
-<div class="fg"><label>Costo producci&oacute;n</label><input type="number" id="mep-costo" step="0.01"></div>
-<div class="fg"><label>Stock m&iacute;nimo (alerta)</label><input type="number" id="mep-minimo" step="1"></div>
+<div class="fg"><label>Precio Uber Eats</label><input type="number" id="mep-precio-uber" step="0.01" min="0.01" placeholder="Opcional"></div>
+<div class="fg"><label>Costo producci&oacute;n</label><input type="number" id="mep-costo" step="0.01" min="0"></div>
 </div>
 <div class="frow">
+<div class="fg"><label>Stock m&iacute;nimo (alerta)</label><input type="number" id="mep-minimo" step="1"></div>
 <div class="fg"><label>Caja/empaque</label><select id="mep-caja"><option value="">Sin caja asignada</option></select></div>
+</div>
+<div class="frow">
 <div class="fg"><label>Cajas por pieza</label><input type="number" id="mep-caja-cant" step="0.01" min="0" value="1"></div>
+<div class="fg"><label>Cat&aacute;logo de cajas</label><button type="button" class="limpiar" style="margin:0" onclick="irCatalogoEmpaquesDesdeProducto('modal-edit-prod')">Editar cajas y empaques</button></div>
 </div>
 <div style="display:flex;gap:.5rem;margin-top:.5rem">
 <button class="cobrar" style="flex:1" onclick="guardarProducto()">Guardar</button>
@@ -2501,6 +2554,41 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div style="display:flex;gap:.5rem;margin-top:.5rem">
 <button onclick="guardarMerma()" style="flex:1;padding:.6rem;border:none;border-radius:10px;background:#ef4444;color:#fff;font-weight:600;font-size:.85rem;cursor:pointer">Registrar merma</button>
 <button class="limpiar" style="flex:1;padding:.5rem 1.2rem" onclick="cerrarModal('modal-merma')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Nueva Caja o Empaque -->
+<div class="modal-bg" id="modal-new-pack">
+<div class="modal">
+<h3>Nueva caja o empaque</h3>
+<div class="frow">
+<div class="fg"><label>Nombre</label><input id="mne-nombre" placeholder="Caja grande"></div>
+<div class="fg"><label>Unidad</label><select id="mne-unidad"><option value="caja">Caja</option><option value="bolsa">Bolsa</option><option value="pz">Pieza</option></select></div>
+</div>
+<div class="frow">
+<div class="fg"><label>Existencia inicial</label><input type="number" id="mne-stock" min="0" step="1" value="0"></div>
+<div class="fg"><label>Avisar cuando queden</label><input type="number" id="mne-minimo" min="0" step="1" value="5"></div>
+</div>
+<div class="fg"><label>Costo por unidad</label><input type="number" id="mne-costo" min="0" step="0.01" value="0"></div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="cobrar" style="flex:1" onclick="crearEmpaque()">Guardar caja</button>
+<button class="limpiar" style="flex:1;padding:.5rem 1.2rem" onclick="cerrarModal('modal-new-pack')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Ajustar Caja o Empaque -->
+<div class="modal-bg" id="modal-pack-stock">
+<div class="modal" style="max-width:420px">
+<h3 id="mpe-title">Ajustar existencias</h3>
+<input type="hidden" id="mpe-id">
+<p id="mpe-info" style="font-size:.82rem;color:var(--mut);margin-bottom:.75rem"></p>
+<div class="fg"><label>Existencia contada</label><input type="number" id="mpe-stock" min="0" step="1"></div>
+<div class="fg"><label>Motivo</label><input id="mpe-motivo" maxlength="200" value="Conteo de cajas" placeholder="Conteo, compra o correcci&oacute;n"></div>
+<div style="display:flex;gap:.5rem;margin-top:.5rem">
+<button class="cobrar" style="flex:1" onclick="guardarAjusteEmpaque()">Guardar existencia</button>
+<button class="limpiar" style="flex:1;padding:.5rem 1.2rem" onclick="cerrarModal('modal-pack-stock')">Cancelar</button>
 </div>
 </div>
 </div>
@@ -2729,7 +2817,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v97';
+var APP_BUILD = 'jacaranda-v98';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -2744,11 +2832,12 @@ var PAGINAS_DESACTIVADAS = {
   prod: 'Producci\u00f3n'
 };
 var TOKEN = localStorage.getItem('jacaranda_token') || '';
-var cart = [], pm = 'ef';
+var cart = [], pm = 'ef', _posCanal = 'mostrador';
 var POS_FACTURA_IVA_TASA = 0.08, _posFacturaIvaActiva = false;
 var _clienteRecompensaActual = null, _canjearRecompensaLealtad = false;
 var cafCart = [], cafPm = 'trans', _cafFacturaIvaActiva = false, _cafGroups = {}, _cafGroupOrder = [], _cafProductById = {}, _cafVentas = [], _cafClientes = [], _cafEnProceso = false, _cafIdempotencyKey = null, _cafClienteGuardando = false;
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
+var _nuevoProductoBase = null, _codigoProductoTimer = null, _codigoProductoEditado = false;
 var _pedidoEnProceso = false, _pedidoIdempotencyKey = null;
 var _clienteEditId = null;
 var _recepcionesCompraEnProceso = {};
@@ -2912,9 +3001,11 @@ function moduloFallbackActivo(u) {
 
 function actualizarVisibilidadModulos() {
   var permisos = window._permisos || {};
-  document.querySelectorAll('.nav-links a[data-pg], .mobile-menu .mm-link[data-pg]').forEach(function(a) {
+  document.querySelectorAll('.nav-links a[data-pg], .mobile-nav .mn-item[data-pg], .mobile-menu .mm-link[data-pg]').forEach(function(a) {
     var mod = a.getAttribute('data-pg');
-    var visible = !moduloDesactivado(mod) && !paginaDesactivada(mod) && !!permisos[mod];
+    var visible = a.classList.contains('sales-nav-link')
+      ? (!!permisos.pos || !!permisos.cafeteria)
+      : (!moduloDesactivado(mod) && !paginaDesactivada(mod) && !!permisos[mod]);
     a.style.display = visible ? '' : 'none';
   });
   document.querySelectorAll('[data-module]').forEach(function(el) {
@@ -2935,6 +3026,10 @@ function actualizarVisibilidadModulos() {
     section.hidden = !Array.prototype.some.call(links, function(link) {
       return link.style.display !== 'none';
     });
+  });
+  document.querySelectorAll('.sales-mode-btn[data-module]').forEach(function(button) {
+    var mod = button.getAttribute('data-module');
+    button.style.display = permisos[mod] ? '' : 'none';
   });
   actualizarVisibilidadFinanzasCorte();
 }
@@ -4047,12 +4142,15 @@ function activarPagina(p) {
   document.querySelectorAll('.page').forEach(function(e) { e.classList.remove('on'); });
   target.classList.add('on');
   document.querySelectorAll('.nav-links a[data-pg]').forEach(function(a) {
-    a.classList.toggle('on', a.getAttribute('data-pg') === p);
+    var salesActive = a.classList.contains('sales-nav-link') && (p === 'pos' || p === 'cafeteria');
+    a.classList.toggle('on', salesActive || a.getAttribute('data-pg') === p);
   });
   // Mobile bottom nav highlight
   document.querySelectorAll('.mn-item[data-pg]').forEach(function(a) {
-    a.classList.toggle('on', a.getAttribute('data-pg') === p);
+    var salesActive = a.classList.contains('sales-nav-link') && (p === 'pos' || p === 'cafeteria');
+    a.classList.toggle('on', salesActive || a.getAttribute('data-pg') === p);
   });
+  actualizarModoVentaUI(p === 'cafeteria' ? 'cafeterias' : _posCanal);
   localStorage.setItem('jacaranda_tab', p);
   window.scrollTo(0, 0);
   return p;
@@ -4125,6 +4223,74 @@ function irKpiDashboard(tipo) {
 }
 
 // ─── POS ──────────────────────────────────────────────────────────
+function actualizarModoVentaUI(modo) {
+  modo = modo === 'cafeterias' ? 'cafeterias' : (modo === 'uber_eats' ? 'uber_eats' : 'mostrador');
+  document.querySelectorAll('.sales-mode-btn').forEach(function(button) {
+    var active = button.getAttribute('data-sales-mode') === modo;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  var copy = document.getElementById('pos-mode-copy');
+  var title = document.getElementById('pos-ticket-title');
+  var badge = document.getElementById('pos-mode-badge');
+  var search = document.getElementById('pos-search');
+  if (copy) copy.textContent = modo === 'uber_eats'
+    ? 'Venta con precios configurados para Uber Eats.'
+    : 'Venta directa en mostrador.';
+  if (title) title.textContent = modo === 'uber_eats' ? 'Ticket Uber Eats' : 'Ticket mostrador';
+  if (badge) badge.classList.toggle('on', modo === 'uber_eats');
+  if (search) search.placeholder = modo === 'uber_eats' ? 'Buscar en menú Uber Eats...' : 'Buscar producto...';
+}
+
+function abrirPuntoVenta() {
+  var permisos = window._permisos || {};
+  if (!permisos.pos && permisos.cafeteria) {
+    cambiarModoVenta('cafeterias');
+    return;
+  }
+  cambiarModoVenta('mostrador');
+}
+
+async function cambiarModoVenta(modo) {
+  var permisos = window._permisos || {};
+  if (modo === 'cafeterias') {
+    if (!permisos.cafeteria) {
+      toast('No tienes permiso para ventas a cafeterías', true);
+      return;
+    }
+    actualizarModoVentaUI('cafeterias');
+    go('cafeteria');
+    return;
+  }
+  if (!permisos.pos) {
+    toast('No tienes permiso para punto de venta', true);
+    return;
+  }
+  modo = modo === 'uber_eats' ? 'uber_eats' : 'mostrador';
+  if (_posCanal !== modo && cart.length) {
+    var ok = await confirmarAccion({
+      title: 'Cambiar menú de venta',
+      message: '¿Cambiar de menú y limpiar el ticket actual?',
+      detail: 'Los precios de mostrador y Uber Eats son diferentes.',
+      acceptText: 'Cambiar menú',
+      tone: 'danger'
+    });
+    if (!ok) {
+      actualizarModoVentaUI(_posCanal);
+      return;
+    }
+    limpiar();
+  }
+  _posCanal = modo;
+  actualizarModoVentaUI(modo);
+  go('pos');
+}
+
+function precioProductoPOS(producto) {
+  if (_posCanal === 'uber_eats') return parseFloat(producto.precio_uber_eats) || 0;
+  return parseFloat(producto.precio_unitario) || 0;
+}
+
 var POS_DRAFT_KEY = 'jacaranda_pos_draft';
 var POS_DRAFT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 var _posDraftRestoredFor = '';
@@ -4152,6 +4318,7 @@ function savePosDraft() {
       owner: posDraftOwner(),
       savedAt: Date.now(),
       paymentMethod: pm,
+      channel: _posCanal,
       invoiceTax: !!_posFacturaIvaActiva,
       idempotencyKey: _ventaIdempotencyKey || null,
       items: cart.map(function(item) {
@@ -4189,11 +4356,13 @@ function restorePosDraft(u) {
     _posRestoringDraft = true;
     cart = items;
     _posDraftNeedsReconcile = true;
+    _posCanal = draft.channel === 'uber_eats' ? 'uber_eats' : 'mostrador';
     _posFacturaIvaActiva = !!draft.invoiceTax;
     pm = ['ef','clip','trans','bbva'].indexOf(draft.paymentMethod) >= 0 ? draft.paymentMethod : 'ef';
     var savedSaleKey = String(draft.idempotencyKey || '').trim();
     _ventaIdempotencyKey = /^venta-[A-Za-z0-9-]{8,190}$/.test(savedSaleKey) ? savedSaleKey : null;
     setPm(pm);
+    actualizarModoVentaUI(_posCanal);
     ren();
     toast('Ticket en curso recuperado');
   } catch(e) {
@@ -4220,7 +4389,11 @@ function reconcilePosDraftWithProducts(products) {
       removed++;
       return null;
     }
-    var price = Math.max(0, Number(product.precio_unitario) || 0);
+    var price = Math.max(0, precioProductoPOS(product));
+    if (_posCanal === 'uber_eats' && price <= 0) {
+      removed++;
+      return null;
+    }
     item.n = String(product.nombre || item.n).trim().slice(0, 160);
     item.p = price;
     item.desc = Math.min(Math.max(Number(item.desc) || 0, 0), price * item.q);
@@ -4918,7 +5091,7 @@ function procesarVenta() {
   var detalles = cart.map(function(c) {
     return {producto_id: c.id, cantidad: Math.max(1, parseInt(c.q, 10) || 1), descuento: c.desc || 0};
   });
-  var body = {detalles: detalles, forma_pago: 'PUE', idempotency_key: _ventaIdempotencyKey, iva_factura_tasa: _posFacturaIvaActiva ? POS_FACTURA_IVA_TASA : 0};
+  var body = {detalles: detalles, canal: _posCanal, forma_pago: 'PUE', idempotency_key: _ventaIdempotencyKey, iva_factura_tasa: _posFacturaIvaActiva ? POS_FACTURA_IVA_TASA : 0};
   var clienteId = document.getElementById('pos-cliente').value;
   if (clienteId) body.cliente_id = parseInt(clienteId);
   if (_canjearRecompensaLealtad) {
@@ -6408,7 +6581,7 @@ function filtrarPOS() {
 }
 
 function splitNombreVariante(nombre) {
-  var m = nombre.match(/^(.+?)\s+(ind\.?|chico|grande|mediano|mini|x\d+|individual)$/i);
+  var m = nombre.match(/^(.+?)\s+(ind\.?|chico|chica|grande|mediano|mediana|mini|x\d+|individual)$/i);
   if (m) return { nombre: m[1], variante: m[2] };
   return { nombre: nombre, variante: null };
 }
@@ -6418,7 +6591,11 @@ var _posGroups = {}; // cache for variant picker
 function renderPOSFromData(prods) {
     // Filtrar activos
     var activos = [];
-    for (var i = 0; i < prods.length; i++) { if (prods[i].activo) activos.push(prods[i]); }
+    for (var i = 0; i < prods.length; i++) {
+      if (!prods[i].activo) continue;
+      if (_posCanal === 'uber_eats' && precioProductoPOS(prods[i]) <= 0) continue;
+      activos.push(prods[i]);
+    }
 
     // Agrupar por nombre base
     var grupos = {};
@@ -6450,7 +6627,7 @@ function renderPOSFromData(prods) {
       // Precio rango y stock total
       var pMin = Infinity, pMax = 0, stockTotal = 0, minTotal = 0, allOut = true;
       for (var i = 0; i < items.length; i++) {
-        var pr = parseFloat(items[i].precio_unitario) || 0;
+        var pr = precioProductoPOS(items[i]);
         if (pr < pMin) pMin = pr;
         if (pr > pMax) pMax = pr;
         var st = parseFloat(items[i].stock_actual) || 0;
@@ -6462,7 +6639,7 @@ function renderPOSFromData(prods) {
       var clickAttr;
       if (single) {
         var p = items[0];
-        var clickCode = 'add(' + p.id + ',' + jsArg(p.nombre) + ',' + (parseFloat(p.precio_unitario)||0) + ')';
+        var clickCode = 'add(' + p.id + ',' + jsArg(p.nombre) + ',' + precioProductoPOS(p) + ')';
         clickAttr = 'onclick="' + escHtml(clickCode) + '"';
       } else {
         clickAttr = 'onclick="' + escHtml('abrirVariantes(' + jsArg(orden[gi]) + ')') + '"';
@@ -6489,6 +6666,9 @@ function renderPOSFromData(prods) {
       h += '</div></div>';
     }
     h += '</div>';
+    if (!activos.length && _posCanal === 'uber_eats') {
+      h = '<div class="empty-state"><div class="es-text">No hay productos con precio Uber Eats. Agr&eacute;galos en Listas &gt; Productos.</div></div>';
+    }
     document.getElementById('pos-products').innerHTML = h;
 }
 
@@ -6523,18 +6703,15 @@ function abrirVariantes(key) {
     var p = g.items[i];
     var parts = splitNombreVariante(p.nombre);
     var label = parts.variante || p.nombre;
-    var precio = parseFloat(p.precio_unitario) || 0;
+    var precio = precioProductoPOS(p);
     var stock = parseFloat(p.stock_actual) || 0;
     var min = parseFloat(p.stock_minimo) || 0;
     var agotado = stock <= 0;
     var stkCls = agotado ? 'pi-stk-out' : (stock <= min ? 'pi-stk-low' : 'pi-stk-ok');
     var stkTxt = agotado ? 'Agotado' : Math.round(stock) + ' pzas';
     var variantClick = 'add(' + p.id + ',' + jsArg(p.nombre) + ',' + precio + ');cerrarModal(\'modal-variante\')';
-    h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem .8rem;border:1px solid var(--brd);border-radius:10px;cursor:pointer;transition:all .15s'
-      + (agotado ? ';opacity:.72' : '') + '" '
-      + 'onmouseover="this.style.borderColor=\'var(--v)\';this.style.background=\'#faf3f0\'" '
-      + 'onmouseout="this.style.borderColor=\'\';this.style.background=\'\'" '
-      + 'onclick="' + escHtml(variantClick) + '">';
+    h += '<div class="variant-option" role="button" tabindex="0" style="' + (agotado ? 'opacity:.72' : '') + '" '
+      + 'onclick="' + escHtml(variantClick) + '" onkeydown="activarConTeclado(event,function(){' + escHtml(variantClick) + '})">';
     h += '<div><strong style="font-size:.9rem">' + escHtml(label) + '</strong>';
     h += '<span style="margin-left:.5rem;color:var(--v);font-weight:700;font-size:.95rem">$' + fmt(precio) + '</span></div>';
     h += '<span class="pi-stock-chip ' + stkCls + '">' + stkTxt + '</span>';
@@ -9386,6 +9563,7 @@ function verHistorialPrecio(productoId, nombre) {
 
 // ─── Dynamic inventory loading ───────────────────────────────────
 var _allIngs = []; // Cache for ingredient list (used in recipe edit)
+var _allEmpaques = []; // Cache separado para no mezclar ingredientes con cajas
 var _recetasCache = [];
 
 var _invProds = [];
@@ -9397,8 +9575,8 @@ var _compraProductosEnProceso = false;
 
 function nombreCajaProducto(p) {
   if (!p || !p.caja_ingrediente_id) return '';
-  for (var i = 0; i < _allIngs.length; i++) {
-    if (Number(_allIngs[i].id) === Number(p.caja_ingrediente_id)) return _allIngs[i].nombre;
+  for (var i = 0; i < _allEmpaques.length; i++) {
+    if (Number(_allEmpaques[i].id) === Number(p.caja_ingrediente_id)) return _allEmpaques[i].nombre;
   }
   return 'Insumo #' + p.caja_ingrediente_id;
 }
@@ -9412,8 +9590,8 @@ function esIngredienteEmpaque(ing) {
 function opcionesCajaProducto(selectedId) {
   selectedId = selectedId ? String(selectedId) : '';
   var h = '<option value="">Sin caja asignada</option>';
-  for (var i = 0; i < _allIngs.length; i++) {
-    var ing = _allIngs[i];
+  for (var i = 0; i < _allEmpaques.length; i++) {
+    var ing = _allEmpaques[i];
     if (!esIngredienteEmpaque(ing) && String(ing.id) !== selectedId) continue;
     var selected = String(ing.id) === selectedId ? ' selected' : '';
     h += '<option value="' + ing.id + '"' + selected + '>' + escHtml(ing.nombre) + ' (' + escHtml(ing.unidad_medida) + ')</option>';
@@ -9436,8 +9614,8 @@ function sugerirCajaParaProducto(prefix) {
   if (!nombreEl || !cajaEl || cajaEl.value) return;
   var tamano = tamanoCajaPorNombre(nombreEl.value);
   if (!tamano) return;
-  for (var i = 0; i < _allIngs.length; i++) {
-    var ing = _allIngs[i];
+  for (var i = 0; i < _allEmpaques.length; i++) {
+    var ing = _allEmpaques[i];
     if (!esIngredienteEmpaque(ing)) continue;
     var nombre = String(ing.nombre || '').toLowerCase();
     if (nombre.indexOf('caja') >= 0 && nombre.indexOf(tamano) >= 0) {
@@ -9460,14 +9638,14 @@ function llenarOpcionesCajaProducto(selectedEdit, selectedNew) {
 }
 
 function cargarIngredientesParaCajas(selectedEdit, selectedNew) {
-  if (_allIngs.length) {
+  if (_allEmpaques.length) {
     llenarOpcionesCajaProducto(selectedEdit, selectedNew);
-    return Promise.resolve(_allIngs);
+    return Promise.resolve(_allEmpaques);
   }
-  return api('GET', '/inventario/ingredientes').then(function(ings) {
-    _allIngs = ings || [];
+  return api('GET', '/inventario/empaques').then(function(ings) {
+    _allEmpaques = ings || [];
     llenarOpcionesCajaProducto(selectedEdit, selectedNew);
-    return _allIngs;
+    return _allEmpaques;
   });
 }
 
@@ -9518,7 +9696,7 @@ function cargarProductos() {
     renderInvProductos();
     renderCompraProductos();
     cargarAlertasEmpaques();
-    if (!_allIngs.length && !_cajasProductoFetchIntentado && prods.some(function(p) { return p.caja_ingrediente_id; })) {
+    if (!_allEmpaques.length && !_cajasProductoFetchIntentado && prods.some(function(p) { return p.caja_ingrediente_id; })) {
       _cajasProductoFetchIntentado = true;
       cargarIngredientesParaCajas().then(function() {
         renderInvProductos();
@@ -9551,26 +9729,29 @@ function renderInvProductos() {
   var start = _invProdPage * _invProdPerPage;
   var page = filtered.slice(start, start + _invProdPerPage);
 
-  var h = '<table class="tbl product-actions-table"><colgroup><col><col class="col-price"><col class="col-caf-price"><col class="col-stock"><col class="col-min"><col class="col-status"><col class="col-actions"></colgroup><tr><th>Producto</th><th>Precio</th><th>Cafeter&iacute;a</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
+  var h = '<table class="tbl product-actions-table"><colgroup><col class="col-code"><col><col class="col-price"><col class="col-caf-price"><col class="col-uber-price"><col class="col-stock"><col class="col-min"><col class="col-status"><col class="col-actions"></colgroup><tr><th>C&oacute;digo</th><th>Producto</th><th>Mostrador</th><th>Cafeter&iacute;a</th><th>Uber Eats</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
   for (var i = 0; i < page.length; i++) {
     var p = page[i];
     var stock = parseFloat(p.stock_actual) || 0;
     var min = parseFloat(p.stock_minimo) || 0;
     var precio = parseFloat(p.precio_unitario) || 0;
     var precioCafe = parseFloat(p.precio_cafeteria) || 0;
+    var precioUber = parseFloat(p.precio_uber_eats) || 0;
     var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
     var txt = stock <= 0 ? 'Agotado' : stock <= min ? 'Bajo' : 'OK';
     var esc = p.nombre.replace(/'/g,"\\'");
     var nombreArg = jsArg(p.nombre);
     var cajaNota = p.caja_ingrediente_id ? '<span class="caf-price-note">Caja: ' + escHtml(nombreCajaProducto(p)) + '</span>' : '';
-    h += '<tr><td>' + escHtml(p.nombre) + cajaNota + '</td>';
+    h += '<tr><td><strong>' + escHtml(p.codigo || '') + '</strong></td><td>' + escHtml(p.nombre) + cajaNota + '</td>';
     h += '<td>$' + fmt(precio) + '</td>';
     h += '<td>' + (precioCafe > 0 ? '$' + fmt(precioCafe) : '<span style="color:var(--mut)">&mdash;</span>') + '</td>';
+    h += '<td>' + (precioUber > 0 ? '$' + fmt(precioUber) : '<span style="color:var(--mut)">&mdash;</span>') + '</td>';
     h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline;cursor:pointer">' + Math.round(stock) + ' pzas</a></td>';
     h += '<td>' + Math.round(min) + '</td>';
     h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
     h += '<td class="actions-cell"><div class="action-buttons">';
     h += actionBtn('Editar', '&#9998;', 'editarProducto(' + p.id + ')');
+    h += actionBtn('Presentaci\u00f3n', '+', 'nuevaPresentacion(' + p.id + ')');
     h += actionBtn('Merma', '&#128465;', 'abrirMerma(' + p.id + ',' + nombreArg + ',' + Math.round(stock) + ')');
     h += actionBtn('Precios', '&#128200;', 'verHistorialPrecio(' + p.id + ',' + nombreArg + ')');
     h += actionBtn('Desactivar', '&#10005;', 'eliminarProducto(' + p.id + ',' + nombreArg + ')', 'danger');
@@ -9902,6 +10083,7 @@ function editarProducto(id) {
     document.getElementById('mep-codigo').value = p.codigo;
     document.getElementById('mep-precio').value = parseFloat(p.precio_unitario);
     document.getElementById('mep-precio-caf').value = p.precio_cafeteria ? parseFloat(p.precio_cafeteria) : '';
+    document.getElementById('mep-precio-uber').value = p.precio_uber_eats ? parseFloat(p.precio_uber_eats) : '';
     document.getElementById('mep-costo').value = parseFloat(p.costo_produccion);
     document.getElementById('mep-minimo').value = parseFloat(p.stock_minimo);
     document.getElementById('mep-caja-cant').value = parseFloat(p.caja_cantidad || 1) || 1;
@@ -9942,6 +10124,12 @@ function previewProductImage(input) {
 function guardarProducto() {
   var id = document.getElementById('mep-id').value;
   var precioCafeRaw = document.getElementById('mep-precio-caf').value;
+  var precioUberRaw = document.getElementById('mep-precio-uber').value;
+  var precioMostrador = parseFloat(document.getElementById('mep-precio').value);
+  if (!isFinite(precioMostrador) || precioMostrador <= 0) {
+    toast('El precio de mostrador debe ser mayor a cero', true);
+    return;
+  }
   var cajaPayload = payloadCajaProducto('mep');
   if (!cajaProductoValida(cajaPayload)) {
     toast('Indica cajas/empaques por pieza mayor a cero', true);
@@ -9949,8 +10137,9 @@ function guardarProducto() {
   }
   var data = {
     nombre: document.getElementById('mep-nombre').value,
-    precio_unitario: parseFloat(document.getElementById('mep-precio').value),
+    precio_unitario: precioMostrador,
     precio_cafeteria: precioCafeRaw ? parseFloat(precioCafeRaw) : null,
+    precio_uber_eats: precioUberRaw ? parseFloat(precioUberRaw) : null,
     costo_produccion: parseFloat(document.getElementById('mep-costo').value),
     stock_minimo: parseFloat(document.getElementById('mep-minimo').value),
     caja_ingrediente_id: cajaPayload.caja_ingrediente_id,
@@ -10027,17 +10216,17 @@ function guardarAjuste() {
   }).catch(function() { toast('Error al ajustar stock', true); });
 }
 
-function editarIngrediente(id) {
-  api('GET', '/inventario/ingredientes').then(function(ings) {
-    var g = null;
-    for (var i = 0; i < ings.length; i++) { if (ings[i].id === id) { g = ings[i]; break; } }
-    if (!g) return;
+var _editIngContext = 'ingrediente';
+
+function editarIngrediente(id, context) {
+  _editIngContext = context === 'empaque' ? 'empaque' : 'ingrediente';
+  api('GET', '/inventario/ingredientes/' + id).then(function(g) {
     document.getElementById('mei-id').value = g.id;
     document.getElementById('mei-nombre').value = g.nombre;
     document.getElementById('mei-unidad').value = g.unidad_medida;
     document.getElementById('mei-costo').value = parseFloat(g.costo_unitario);
     document.getElementById('mei-minimo').value = parseFloat(g.stock_minimo);
-    document.getElementById('mei-title').textContent = 'Editar: ' + g.nombre;
+    document.getElementById('mei-title').textContent = (_editIngContext === 'empaque' ? 'Editar caja: ' : 'Editar: ') + g.nombre;
     document.getElementById('modal-edit-ing').classList.add('on');
   });
 }
@@ -10049,11 +10238,17 @@ function guardarIngrediente() {
     costo_unitario: parseFloat(document.getElementById('mei-costo').value),
     stock_minimo: parseFloat(document.getElementById('mei-minimo').value),
   };
-  apiProtegida('PUT', '/inventario/ingredientes/' + id, data, 'editar ingrediente').then(function() {
-    toast('Ingrediente actualizado');
+  apiProtegida('PUT', '/inventario/ingredientes/' + id, data, _editIngContext === 'empaque' ? 'editar empaque' : 'editar ingrediente').then(function() {
+    toast(_editIngContext === 'empaque' ? 'Caja o empaque actualizado' : 'Ingrediente actualizado');
     cerrarModal('modal-edit-ing');
-    cargarIngredientes();
-    cargarListaIngredientes();
+    if (_editIngContext === 'empaque') {
+      _allEmpaques = [];
+      cargarListaEmpaques();
+      cargarAlertasEmpaques();
+    } else {
+      cargarIngredientes();
+      cargarListaIngredientes();
+    }
   }).catch(function() { toast('Error al guardar', true); });
 }
 
@@ -10197,9 +10392,9 @@ async function eliminarReceta(id, nombre) {
 
 // ─── Listas page ─────────────────────────────────────────────────
 function listTab(tab, evt) {
-  var permitidos = ['l-prods','l-clientes','l-nomina','l-lealtad'];
+  var permitidos = ['l-prods','l-empaques','l-clientes','l-nomina','l-lealtad'];
   if (permitidos.indexOf(tab) < 0) tab = 'l-prods';
-  ['l-prods','l-ings','l-recs','l-clientes','l-nomina','l-lealtad'].forEach(function(t) {
+  ['l-prods','l-empaques','l-ings','l-recs','l-clientes','l-nomina','l-lealtad'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
@@ -10207,6 +10402,7 @@ function listTab(tab, evt) {
   var implicitEvent = (typeof event !== 'undefined' && event && event.target && event.target.classList && event.target.classList.contains('tab')) ? event : null;
   var target = (evt && evt.target) || (implicitEvent && implicitEvent.target) || document.querySelector('#listas .tab[onclick*="' + tab + '"]');
   if (target) target.classList.add('active');
+  if (tab === 'l-empaques') cargarListaEmpaques();
   if (tab === 'l-clientes') cargarListaClientes();
   if (tab === 'l-nomina') initNomina();
   if (tab === 'l-lealtad') cargarLealtad();
@@ -10223,35 +10419,40 @@ function filtrarTabla(id, q) {
 
 function cargarListas() {
   cargarListaProductos();
+  cargarListaEmpaques();
   cargarListaClientes();
 }
 
 function cargarListaProductos() {
   api('GET', '/inventario/productos').then(function(prods) {
-    if (!_allIngs.length && !_cajasProductoFetchIntentado && prods.some(function(p) { return p.caja_ingrediente_id; })) {
+    if (!_allEmpaques.length && !_cajasProductoFetchIntentado && prods.some(function(p) { return p.caja_ingrediente_id; })) {
       _cajasProductoFetchIntentado = true;
       cargarIngredientesParaCajas().then(cargarListaProductos).catch(function() {});
     }
-    var h = '<table class="tbl product-actions-table"><colgroup><col><col class="col-price"><col class="col-caf-price"><col class="col-cost"><col class="col-stock"><col class="col-min"><col class="col-actions"></colgroup><tr><th>Producto</th><th>Precio</th><th>Cafeter&iacute;a</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th class="actions-th">Acciones</th></tr>';
+    var h = '<table class="tbl product-actions-table"><colgroup><col class="col-code"><col><col class="col-price"><col class="col-caf-price"><col class="col-uber-price"><col class="col-cost"><col class="col-stock"><col class="col-min"><col class="col-actions"></colgroup><tr><th>C&oacute;digo</th><th>Producto</th><th>Mostrador</th><th>Cafeter&iacute;a</th><th>Uber Eats</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th class="actions-th">Acciones</th></tr>';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
       var stock = parseFloat(p.stock_actual) || 0;
       var min = parseFloat(p.stock_minimo) || 0;
       var precio = parseFloat(p.precio_unitario) || 0;
       var precioCafe = parseFloat(p.precio_cafeteria) || 0;
+      var precioUber = parseFloat(p.precio_uber_eats) || 0;
       var costo = parseFloat(p.costo_produccion) || 0;
       var esc = p.nombre.replace(/'/g,"\\'");
       var nombreArg = jsArg(p.nombre);
       h += '<tr>';
       var cajaNota = p.caja_ingrediente_id ? '<span class="caf-price-note">Caja: ' + escHtml(nombreCajaProducto(p)) + '</span>' : '';
+      h += '<td><strong>' + escHtml(p.codigo || '') + '</strong></td>';
       h += '<td><strong>' + escHtml(p.nombre) + '</strong>' + cajaNota + '</td>';
       h += '<td>$' + fmt(precio) + '</td>';
       h += '<td>' + (precioCafe > 0 ? '$' + fmt(precioCafe) : '<span style="color:var(--mut)">&mdash;</span>') + '</td>';
+      h += '<td>' + (precioUber > 0 ? '$' + fmt(precioUber) : '<span style="color:var(--mut)">&mdash;</span>') + '</td>';
       h += '<td style="color:var(--mut)">$' + fmt(costo) + '</td>';
       h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline">' + Math.round(stock) + '</a></td>';
       h += '<td>' + Math.round(min) + '</td>';
       h += '<td class="actions-cell"><div class="action-buttons">';
       h += actionBtn('Editar', '&#9998;', 'editarProducto(' + p.id + ')');
+      h += actionBtn('Presentaci\u00f3n', '+', 'nuevaPresentacion(' + p.id + ')');
       h += actionBtn('Merma', '&#128465;', 'abrirMerma(' + p.id + ',' + nombreArg + ',' + Math.round(stock) + ')');
       h += actionBtn('Precios', '&#128200;', 'verHistorialPrecio(' + p.id + ',' + nombreArg + ')');
       h += actionBtn('Desactivar', '&#10005;', 'eliminarProducto(' + p.id + ',' + nombreArg + ')', 'danger');
@@ -10263,6 +10464,152 @@ function cargarListaProductos() {
   }).catch(function() {
     document.getElementById('l-prods-tbl').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>';
   });
+}
+
+function cargarListaEmpaques() {
+  var table = document.getElementById('l-empaques-tbl');
+  if (!table) return Promise.resolve([]);
+  return Promise.all([
+    api('GET', '/inventario/empaques'),
+    api('GET', '/inventario/productos')
+  ]).then(function(result) {
+    var empaques = result[0] || [];
+    var productos = result[1] || [];
+    _allEmpaques = empaques;
+    llenarOpcionesCajaProducto();
+    var productosPorEmpaque = {};
+    productos.forEach(function(producto) {
+      if (!producto.caja_ingrediente_id) return;
+      var key = String(producto.caja_ingrediente_id);
+      if (!productosPorEmpaque[key]) productosPorEmpaque[key] = [];
+      productosPorEmpaque[key].push(producto.nombre);
+    });
+    var h = '<table class="tbl" style="min-width:900px"><tr><th>Caja o empaque</th><th>Existencia</th><th>Avisar en</th><th>Costo</th><th>Productos asignados</th><th class="actions-th">Acciones</th></tr>';
+    for (var i = 0; i < empaques.length; i++) {
+      var empaque = empaques[i];
+      var stock = parseFloat(empaque.stock_actual) || 0;
+      var minimo = parseFloat(empaque.stock_minimo) || 0;
+      var ligados = productosPorEmpaque[String(empaque.id)] || [];
+      var estado = stock <= 0 ? 'bout' : (stock <= minimo ? 'blow' : 'bok');
+      var nombreArg = jsArg(empaque.nombre);
+      h += '<tr>';
+      h += '<td><strong>' + escHtml(empaque.nombre) + '</strong><span class="caf-price-note">' + escHtml(empaque.unidad_medida) + '</span></td>';
+      h += '<td><span class="badge ' + estado + '">' + fmtQty(stock) + '</span></td>';
+      h += '<td>' + fmtQty(minimo) + '</td>';
+      h += '<td>$' + fmt(empaque.costo_unitario) + '</td>';
+      h += '<td>' + (ligados.length ? escHtml(ligados.join(', ')) : '<span style="color:var(--mut)">Sin asignar</span>') + '</td>';
+      h += '<td class="actions-cell"><div class="action-buttons">';
+      h += actionBtn('Editar', '&#9998;', 'editarIngrediente(' + empaque.id + ',\'empaque\')');
+      h += actionBtn('Existencias', '&#128230;', 'ajustarStockEmpaque(' + empaque.id + ',' + nombreArg + ',' + stock + ')');
+      h += actionBtn('Desactivar', '&#10005;', 'eliminarEmpaque(' + empaque.id + ',' + nombreArg + ')', 'danger');
+      h += '</div></td></tr>';
+    }
+    if (!empaques.length) {
+      h += '<tr><td colspan="6" style="color:var(--mut);padding:1rem">Todav&iacute;a no hay cajas o empaques.</td></tr>';
+    }
+    h += '</table>';
+    table.innerHTML = h;
+    return empaques;
+  }).catch(function() {
+    table.innerHTML = '<p style="color:#b91c1c">No se pudieron cargar las cajas y empaques.</p>';
+    return [];
+  });
+}
+
+function nuevoEmpaque() {
+  document.getElementById('mne-nombre').value = '';
+  document.getElementById('mne-unidad').value = 'caja';
+  document.getElementById('mne-stock').value = '0';
+  document.getElementById('mne-minimo').value = '5';
+  document.getElementById('mne-costo').value = '0';
+  document.getElementById('modal-new-pack').classList.add('on');
+  setTimeout(function() { document.getElementById('mne-nombre').focus(); }, 100);
+}
+
+function crearEmpaque() {
+  var nombre = document.getElementById('mne-nombre').value.trim();
+  if (nombre.length < 2) {
+    toast('Escribe el nombre de la caja o empaque', true);
+    return;
+  }
+  var data = {
+    nombre: nombre,
+    unidad_medida: document.getElementById('mne-unidad').value,
+    stock_actual: parseFloat(document.getElementById('mne-stock').value) || 0,
+    stock_minimo: parseFloat(document.getElementById('mne-minimo').value) || 0,
+    costo_unitario: parseFloat(document.getElementById('mne-costo').value) || 0
+  };
+  apiProtegida('POST', '/inventario/empaques', data, 'crear empaque').then(function() {
+    toast('Caja guardada: ' + nombre);
+    cerrarModal('modal-new-pack');
+    _allEmpaques = [];
+    cargarListaEmpaques();
+    cargarAlertasEmpaques();
+  }).catch(function(error) {
+    toast(error.message || 'No se pudo guardar la caja', true);
+  });
+}
+
+function ajustarStockEmpaque(id, nombre, stock) {
+  document.getElementById('mpe-id').value = id;
+  document.getElementById('mpe-title').textContent = 'Existencias: ' + nombre;
+  document.getElementById('mpe-info').textContent = 'Existencia actual: ' + fmtQty(stock);
+  document.getElementById('mpe-stock').value = Math.max(0, Math.round(Number(stock) || 0));
+  document.getElementById('mpe-motivo').value = 'Conteo de cajas';
+  document.getElementById('modal-pack-stock').classList.add('on');
+  setTimeout(function() {
+    var input = document.getElementById('mpe-stock');
+    input.focus();
+    input.select();
+  }, 100);
+}
+
+function guardarAjusteEmpaque() {
+  var id = document.getElementById('mpe-id').value;
+  var stock = parseFloat(document.getElementById('mpe-stock').value);
+  var motivo = document.getElementById('mpe-motivo').value.trim();
+  if (!isFinite(stock) || stock < 0 || Math.floor(stock) !== stock) {
+    toast('La existencia debe ser un número entero de cero en adelante', true);
+    return;
+  }
+  if (motivo.length < 3) {
+    toast('Escribe el motivo del ajuste', true);
+    return;
+  }
+  var url = '/inventario/ingredientes/' + id + '/ajuste-stock?cantidad=' + encodeURIComponent(stock) + '&motivo=' + encodeURIComponent(motivo);
+  apiProtegida('POST', url, null, 'ajustar empaque').then(function(result) {
+    toast(result.empaque + ': ' + fmtQty(result.stock_anterior) + ' a ' + fmtQty(result.stock_nuevo));
+    cerrarModal('modal-pack-stock');
+    _allEmpaques = [];
+    cargarListaEmpaques();
+    cargarAlertasEmpaques();
+  }).catch(function(error) {
+    toast(error.message || 'No se pudo ajustar la existencia', true);
+  });
+}
+
+async function eliminarEmpaque(id, nombre) {
+  var ok = await confirmarAccion({
+    title: 'Desactivar caja o empaque',
+    message: '¿Desactivar "' + nombre + '"?',
+    detail: 'Debe tener existencia cero y no estar asignado a productos activos.',
+    acceptText: 'Desactivar',
+    tone: 'danger'
+  });
+  if (!ok) return;
+  apiProtegida('DELETE', '/inventario/ingredientes/' + id, null, 'desactivar empaque').then(function() {
+    toast('Caja o empaque desactivado');
+    _allEmpaques = [];
+    cargarListaEmpaques();
+  }).catch(function(error) {
+    toast(error.message || 'No se puede desactivar esta caja', true);
+  });
+}
+
+function irCatalogoEmpaquesDesdeProducto(modalId) {
+  cerrarModal(modalId);
+  go('listas');
+  setTimeout(function() { listTab('l-empaques'); }, 0);
 }
 
 function cargarListaIngredientes() {
@@ -10301,10 +10648,10 @@ function cargarListaIngredientes() {
 
 function exportarListaProductosCSV() {
   api('GET', '/inventario/productos').then(function(prods) {
-    var csv = 'Codigo,Producto,Precio,Precio Cafeteria,Costo,Stock,Minimo,Unidad\n';
+    var csv = 'Codigo,Producto,Precio Mostrador,Precio Cafeteria,Precio Uber Eats,Costo,Stock,Minimo,Unidad\n';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
-      csv += '"' + (p.codigo||'') + '","' + (p.nombre||'').replace(/"/g,'""') + '",' + (p.precio_unitario||0) + ',' + (p.precio_cafeteria||'') + ',' + (p.costo_produccion||0) + ',' + (p.stock_actual||0) + ',' + (p.stock_minimo||0) + ',' + (p.unidad_medida||'') + '\n';
+      csv += '"' + (p.codigo||'') + '","' + (p.nombre||'').replace(/"/g,'""') + '",' + (p.precio_unitario||0) + ',' + (p.precio_cafeteria||'') + ',' + (p.precio_uber_eats||'') + ',' + (p.costo_produccion||0) + ',' + (p.stock_actual||0) + ',' + (p.stock_minimo||0) + ',' + (p.unidad_medida||'') + '\n';
     }
     _descargarCSV('productos_' + fechaHoyISO() + '.csv', csv);
   }).catch(function() { toast('Error al exportar', true); });
@@ -10377,22 +10724,121 @@ function cargarListaRecetas() {
 
 // ─── Create new product/ingredient ──────────────────────────────
 function nuevoProducto() {
+  _nuevoProductoBase = null;
+  _codigoProductoEditado = false;
+  document.getElementById('mnp-title').textContent = 'Nuevo producto';
   document.getElementById('mnp-codigo').value = '';
   document.getElementById('mnp-nombre').value = '';
   document.getElementById('mnp-precio').value = '';
   document.getElementById('mnp-precio-caf').value = '';
+  document.getElementById('mnp-precio-uber').value = '';
   document.getElementById('mnp-costo').value = '';
   document.getElementById('mnp-minimo').value = '0';
   document.getElementById('mnp-caja-cant').value = '1';
+  actualizarEstadoCodigo('Escribe uno o pide el siguiente libre.', '');
   cargarIngredientesParaCajas('', '');
   document.getElementById('modal-new-prod').classList.add('on');
+  setTimeout(function() { document.getElementById('mnp-nombre').focus(); }, 100);
 }
 
-function crearProducto() {
+function nuevaPresentacion(id) {
+  api('GET', '/inventario/productos/' + id).then(function(producto) {
+    _nuevoProductoBase = producto;
+    _codigoProductoEditado = false;
+    var base = splitNombreVariante(producto.nombre).nombre;
+    document.getElementById('mnp-title').textContent = 'Nueva presentación de ' + base;
+    document.getElementById('mnp-nombre').value = base + ' ';
+    document.getElementById('mnp-codigo').value = '';
+    document.getElementById('mnp-precio').value = parseFloat(producto.precio_unitario) || '';
+    document.getElementById('mnp-precio-caf').value = producto.precio_cafeteria ? parseFloat(producto.precio_cafeteria) : '';
+    document.getElementById('mnp-precio-uber').value = producto.precio_uber_eats ? parseFloat(producto.precio_uber_eats) : '';
+    document.getElementById('mnp-costo').value = parseFloat(producto.costo_produccion) || 0;
+    document.getElementById('mnp-minimo').value = Math.round(parseFloat(producto.stock_minimo) || 0);
+    document.getElementById('mnp-caja-cant').value = parseFloat(producto.caja_cantidad || 1) || 1;
+    actualizarEstadoCodigo('Buscando el siguiente código de esta familia...', '');
+    cargarIngredientesParaCajas('', producto.caja_ingrediente_id || '');
+    document.getElementById('modal-new-prod').classList.add('on');
+    sugerirCodigoNuevo();
+    setTimeout(function() {
+      var nombre = document.getElementById('mnp-nombre');
+      nombre.focus();
+      nombre.setSelectionRange(nombre.value.length, nombre.value.length);
+    }, 100);
+  }).catch(function(error) {
+    toast(error.message || 'No se pudo preparar la presentación', true);
+  });
+}
+
+function actualizarEstadoCodigo(texto, clase) {
+  var estado = document.getElementById('mnp-codigo-estado');
+  if (!estado) return;
+  estado.textContent = texto;
+  estado.className = clase || '';
+}
+
+function codigoProductoEditado() {
+  var input = document.getElementById('mnp-codigo');
+  input.value = input.value.toUpperCase().replace(/\s+/g, '-');
+  _codigoProductoEditado = true;
+  if (_codigoProductoTimer) clearTimeout(_codigoProductoTimer);
+  _codigoProductoTimer = setTimeout(validarCodigoProducto, 350);
+}
+
+function programarSugerenciaCodigoProducto() {
+  if (_codigoProductoEditado) return;
+  if (_codigoProductoTimer) clearTimeout(_codigoProductoTimer);
+  _codigoProductoTimer = setTimeout(function() {
+    if (document.getElementById('mnp-nombre').value.trim().length >= 2) sugerirCodigoNuevo();
+  }, 500);
+}
+
+function sugerirCodigoNuevo() {
+  var nombre = document.getElementById('mnp-nombre').value.trim();
+  var params = [];
+  if (nombre) params.push('nombre=' + encodeURIComponent(nombre));
+  if (_nuevoProductoBase && _nuevoProductoBase.codigo) {
+    params.push('codigo_base=' + encodeURIComponent(_nuevoProductoBase.codigo));
+  }
+  actualizarEstadoCodigo('Buscando código libre...', '');
+  return api('GET', '/inventario/productos/codigo-sugerido?' + params.join('&')).then(function(result) {
+    document.getElementById('mnp-codigo').value = result.codigo;
+    _codigoProductoEditado = false;
+    actualizarEstadoCodigo(result.codigo + ' está disponible.', 'ok');
+    return result;
+  }).catch(function(error) {
+    actualizarEstadoCodigo(error.message || 'No se pudo sugerir el código.', 'err');
+    return null;
+  });
+}
+
+function validarCodigoProducto() {
+  var codigo = document.getElementById('mnp-codigo').value.trim().toUpperCase();
+  if (!codigo) {
+    actualizarEstadoCodigo('El código es obligatorio.', 'err');
+    return Promise.resolve(false);
+  }
+  return api('GET', '/inventario/productos/codigo-disponible?codigo=' + encodeURIComponent(codigo)).then(function(result) {
+    document.getElementById('mnp-codigo').value = result.codigo;
+    actualizarEstadoCodigo(
+      result.disponible ? result.codigo + ' está disponible.' : result.codigo + ' ya está ocupado.',
+      result.disponible ? 'ok' : 'err'
+    );
+    return !!result.disponible;
+  }).catch(function(error) {
+    actualizarEstadoCodigo(error.message || 'No se pudo revisar el código.', 'err');
+    return false;
+  });
+}
+
+async function crearProducto() {
   var codigo = document.getElementById('mnp-codigo').value.trim();
   var nombre = document.getElementById('mnp-nombre').value.trim();
   var precio = parseFloat(document.getElementById('mnp-precio').value);
-  if (!codigo || !nombre || !precio) { toast('Llena código, nombre y precio', true); return; }
+  if (!codigo || !nombre || !precio || precio <= 0) { toast('Llena código, nombre y precio de mostrador', true); return; }
+  if (!(await validarCodigoProducto())) {
+    toast('Elige un código disponible', true);
+    return;
+  }
   var cajaPayload = payloadCajaProducto('mnp');
   if (!cajaProductoValida(cajaPayload)) {
     toast('Indica cajas/empaques por pieza mayor a cero', true);
@@ -10409,6 +10855,8 @@ function crearProducto() {
   };
   var precioCafe = parseFloat(document.getElementById('mnp-precio-caf').value);
   if (precioCafe > 0) data.precio_cafeteria = precioCafe;
+  var precioUber = parseFloat(document.getElementById('mnp-precio-uber').value);
+  if (precioUber > 0) data.precio_uber_eats = precioUber;
   api('POST', '/inventario/productos', data).then(function() {
     toast('Producto creado: ' + nombre);
     cerrarModal('modal-new-prod');
@@ -10416,6 +10864,7 @@ function crearProducto() {
     cargarProductos();
     cargarPOSProductos();
     cargarCafeteriaProductos();
+    _nuevoProductoBase = null;
   }).catch(function(e) { toast(e.message || 'Error al crear producto', true); });
 }
 

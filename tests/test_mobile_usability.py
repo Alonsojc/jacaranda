@@ -24,7 +24,7 @@ def test_mobile_form_controls_are_large_enough_for_ios():
     assert 'input:not([type="checkbox"]):not([type="radio"]),select,textarea{min-height:44px;font-size:16px!important}' in html
     assert "button:not(.password-toggle),input" in html
     assert "min-height:44px" in html
-    assert ".cobrar,.limpiar,.wa-btn,.pbtn,.tab,.mm-link{min-height:48px}" in html
+    assert ".cobrar,.limpiar,.wa-btn,.pbtn,.tab,.mm-link,.sales-mode-btn,.action-btn{min-height:48px}" in html
     assert ".catalog-icon-btn,.pos-tax-toggle{min-height:48px}" in html
     assert ".qty-btn{width:44px;height:44px}" in html
     assert ".pmt{grid-template-columns:repeat(2,minmax(0,1fr))!important}" in html
@@ -108,3 +108,37 @@ def test_hidden_ingredient_purchase_has_no_dead_egresos_action():
 
     assert "Compra de ingredientes" not in egresos
     assert "invTab('compras')" not in egresos
+
+
+def test_sales_are_one_touch_first_module_with_three_clear_menus():
+    html = read_text("docs/index.html")
+    nav = segment_between(html, '<div class="nav-links">', '</nav>')
+    operation = segment_between(nav, '<a>Operaci&oacute;n</a>', '<div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,CONTADOR,CONSULTA">')
+
+    assert nav.index('class="sales-nav-link"') < nav.index('data-pg="dash"')
+    assert "Punto de venta" in nav
+    assert 'data-pg="pos" onclick="go(\'pos\')"' not in operation
+    assert 'data-pg="cafeteria"' not in operation
+    assert html.count('data-sales-mode="mostrador"') == 2
+    assert html.count('data-sales-mode="cafeterias"') == 2
+    assert html.count('data-sales-mode="uber_eats"') == 2
+    assert "async function cambiarModoVenta" in html
+    assert "canal: _posCanal" in html
+    assert ".nav-dd a{display:flex;align-items:center;min-height:48px" in html
+    assert ".pi{min-height:170px" in html
+
+
+def test_products_offer_guided_codes_presentations_uber_price_and_packaging_catalog():
+    html = read_text("docs/index.html")
+
+    assert 'id="mnp-precio-uber"' in html
+    assert 'id="mep-precio-uber"' in html
+    assert "precio_uber_eats: precioUberRaw ? parseFloat(precioUberRaw) : null" in html
+    assert "function nuevaPresentacion" in html
+    assert "/inventario/productos/codigo-sugerido" in html
+    assert "/inventario/productos/codigo-disponible" in html
+    assert "<th>Uber Eats</th>" in html
+    assert "<th>C&oacute;digo</th>" in html
+    assert "Cajas y empaques</span>" in html
+    assert 'id="l-empaques"' in html
+    assert "/inventario/empaques" in html

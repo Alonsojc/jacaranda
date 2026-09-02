@@ -1,5 +1,7 @@
 """Rutas de gestión de inventario."""
 
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 
@@ -12,6 +14,7 @@ from app.schemas.inventario import (
     CategoriaCreate, CategoriaResponse,
     ProveedorCreate, ProveedorResponse,
     IngredienteCreate, IngredienteUpdate, IngredienteResponse,
+    EmpaqueCreate,
     ProductoCreate, ProductoUpdate, ProductoResponse,
     MovimientoCreate, MovimientoResponse,
     CompraProductosCreate, CompraProductosResponse,
@@ -62,6 +65,27 @@ def listar_ingredientes(skip: int = Query(default=0, ge=0), limit: int = Query(d
     return svc.listar_ingredientes(db, skip=skip, limit=limit)
 
 
+@router.get("/empaques", response_model=list[IngredienteResponse])
+def listar_empaques(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("inv", "ver")),
+):
+    return svc.listar_empaques(db)
+
+
+@router.post("/empaques", response_model=IngredienteResponse, status_code=201)
+def crear_empaque(
+    data: EmpaqueCreate,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_admin_or_override("inv", "crear empaque")),
+):
+    try:
+        return svc.crear_empaque(db, data, user.id)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @router.get("/ingredientes/inactivos", response_model=list[IngredienteResponse])
 def listar_ingredientes_inactivos(
     skip: int = Query(default=0, ge=0),
@@ -91,6 +115,55 @@ def actualizar_ingrediente(
         return svc.actualizar_ingrediente(db, id, data)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/ingredientes/{id}/ajuste-stock")
+def ajustar_stock_ingrediente(
+    id: int,
+    cantidad: Decimal = Query(..., ge=0),
+    motivo: str = Query(..., min_length=3, max_length=200),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_admin_or_override("inv", "ajustar empaque")),
+):
+    from app.models.inventario import Ingrediente, TipoMovimiento
+
+    ingrediente = db.query(Ingrediente).filter(
+        Ingrediente.id == id
+    ).with_for_update().first()
+    if not ingrediente:
+        raise HTTPException(status_code=404, detail="Caja/empaque no encontrado")
+    if not ingrediente.es_empaque:
+        raise HTTPException(status_code=400, detail="El insumo no está marcado como empaque")
+    if cantidad != cantidad.to_integral_value():
+        raise HTTPException(status_code=400, detail="La existencia del empaque debe ser entera")
+
+    anterior = Decimal(str(ingrediente.stock_actual or 0))
+    diferencia = cantidad - anterior
+    if diferencia:
+        movimiento = MovimientoCreate(
+            ingrediente_id=id,
+            tipo=(
+                TipoMovimiento.ENTRADA_AJUSTE
+                if diferencia > 0
+                else TipoMovimiento.SALIDA_AJUSTE
+            ),
+            cantidad=abs(diferencia),
+            referencia=motivo.strip(),
+        )
+        try:
+            svc.registrar_movimiento(db, movimiento, user.id, commit=False)
+        except ValueError as exc:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=str(exc))
+    db.commit()
+    db.refresh(ingrediente)
+    return {
+        "empaque": ingrediente.nombre,
+        "stock_anterior": float(anterior),
+        "stock_nuevo": float(cantidad),
+        "diferencia": float(diferencia),
+        "motivo": motivo.strip(),
+    }
 
 
 @router.delete("/ingredientes/{id}")
@@ -193,6 +266,27 @@ def listar_productos(
     _user: Usuario = Depends(require_permission("inv", "ver")),
 ):
     return svc.listar_productos(db, q=q, skip=skip, limit=limit)
+
+
+@router.get("/productos/codigo-sugerido")
+def sugerir_codigo_producto(
+    nombre: str | None = Query(default=None, max_length=200),
+    codigo_base: str | None = Query(default=None, max_length=50),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("inv", "ver")),
+):
+    return svc.sugerir_codigo_producto(db, nombre=nombre, codigo_base=codigo_base)
+
+
+@router.get("/productos/codigo-disponible")
+def codigo_producto_disponible(
+    codigo: str = Query(..., min_length=1, max_length=50),
+    exclude_id: int | None = Query(default=None, gt=0),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("inv", "ver")),
+):
+    normalizado, disponible = svc.codigo_producto_disponible(db, codigo, exclude_id)
+    return {"codigo": normalizado, "disponible": disponible}
 
 
 @router.post(

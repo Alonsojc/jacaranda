@@ -66,6 +66,7 @@ class IngredienteCreate(BaseModel):
     tipo_alergeno: str | None = None
     requiere_refrigeracion: bool = False
     temperatura_almacenamiento: str | None = None
+    es_empaque: bool = False
 
 
 class IngredienteUpdate(BaseModel):
@@ -88,10 +89,39 @@ class IngredienteResponse(BaseModel):
     es_alergeno: bool
     tipo_alergeno: str | None
     requiere_refrigeracion: bool
+    es_empaque: bool = False
     activo: bool
     creado_en: datetime
 
     model_config = {"from_attributes": True}
+
+
+class EmpaqueCreate(BaseModel):
+    nombre: str = Field(..., min_length=2, max_length=150)
+    unidad_medida: UnidadMedida = UnidadMedida.CAJA
+    stock_actual: Decimal = Field(default=Decimal("0"), ge=0)
+    stock_minimo: Decimal = Field(default=Decimal("0"), ge=0)
+    costo_unitario: Decimal = Field(default=Decimal("0"), ge=0)
+
+    @field_validator("nombre", mode="before")
+    @classmethod
+    def limpiar_nombre(cls, value) -> str:
+        return str(value or "").strip()
+
+    @field_validator("unidad_medida")
+    @classmethod
+    def validar_unidad_empaque(cls, value: UnidadMedida) -> UnidadMedida:
+        if value not in {UnidadMedida.CAJA, UnidadMedida.BOLSA, UnidadMedida.PIEZA}:
+            raise ValueError("El empaque debe usar unidad caja, bolsa o pieza")
+        return value
+
+    @field_validator("stock_actual", "stock_minimo", mode="before")
+    @classmethod
+    def validar_existencia_entera(cls, value) -> Decimal:
+        cantidad = Decimal(str(value or 0))
+        if cantidad != cantidad.to_integral_value():
+            raise ValueError("Las existencias de cajas y empaques deben ser enteras")
+        return cantidad
 
 
 # --- Productos ---
@@ -103,6 +133,7 @@ class ProductoCreate(BaseModel):
     categoria_id: int | None = None
     precio_unitario: Decimal = Field(..., gt=0)
     precio_cafeteria: Decimal | None = Field(default=None, gt=0)
+    precio_uber_eats: Decimal | None = Field(default=None, gt=0)
     costo_produccion: Decimal = Field(default=Decimal("0"), ge=0)
     unidad_medida: UnidadMedida = UnidadMedida.PIEZA
     stock_minimo: Decimal = Field(default=Decimal("0"), ge=0)
@@ -126,11 +157,20 @@ class ProductoCreate(BaseModel):
     contiene_edulcorantes: bool = False
     contiene_cafeina: bool = False
 
+    @field_validator("codigo", mode="before")
+    @classmethod
+    def normalizar_codigo(cls, value) -> str:
+        codigo = str(value or "").strip().upper()
+        if not codigo:
+            raise ValueError("El código es obligatorio")
+        return codigo
+
 
 class ProductoUpdate(BaseModel):
     nombre: str | None = None
     precio_unitario: Decimal | None = Field(default=None, gt=0)
     precio_cafeteria: Decimal | None = Field(default=None, gt=0)
+    precio_uber_eats: Decimal | None = Field(default=None, gt=0)
     costo_produccion: Decimal | None = Field(default=None, ge=0)
     tasa_iva: TasaIVA | None = None
     activo: bool | None = None
@@ -148,6 +188,7 @@ class ProductoResponse(BaseModel):
     categoria_id: int | None
     precio_unitario: Decimal
     precio_cafeteria: Decimal | None = None
+    precio_uber_eats: Decimal | None = None
     costo_produccion: Decimal
     unidad_medida: UnidadMedida
     stock_actual: Decimal
