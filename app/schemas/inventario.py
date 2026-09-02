@@ -126,11 +126,43 @@ class EmpaqueCreate(BaseModel):
 
 # --- Productos ---
 
+class FamiliaProductoCreate(BaseModel):
+    nombre: str = Field(..., min_length=2, max_length=200)
+
+    @field_validator("nombre", mode="before")
+    @classmethod
+    def limpiar_nombre(cls, value) -> str:
+        return " ".join(str(value or "").strip().split())
+
+
+class FamiliaProductoUpdate(BaseModel):
+    nombre: str | None = Field(default=None, min_length=2, max_length=200)
+    activo: bool | None = None
+
+    @field_validator("nombre", mode="before")
+    @classmethod
+    def limpiar_nombre(cls, value) -> str | None:
+        if value is None:
+            return None
+        return " ".join(str(value).strip().split())
+
+
+class FamiliaProductoResponse(BaseModel):
+    id: int
+    nombre: str
+    activo: bool
+    creado_en: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class ProductoCreate(BaseModel):
     codigo: str = Field(..., max_length=50)
     nombre: str = Field(..., max_length=200)
     descripcion: str | None = None
     categoria_id: int | None = None
+    familia_id: int | None = Field(default=None, gt=0)
+    presentacion: str | None = Field(default=None, max_length=100)
     precio_unitario: Decimal = Field(..., gt=0)
     precio_cafeteria: Decimal | None = Field(default=None, gt=0)
     precio_uber_eats: Decimal | None = Field(default=None, gt=0)
@@ -168,6 +200,8 @@ class ProductoCreate(BaseModel):
 
 class ProductoUpdate(BaseModel):
     nombre: str | None = None
+    familia_id: int | None = Field(default=None, gt=0)
+    presentacion: str | None = Field(default=None, max_length=100)
     precio_unitario: Decimal | None = Field(default=None, gt=0)
     precio_cafeteria: Decimal | None = Field(default=None, gt=0)
     precio_uber_eats: Decimal | None = Field(default=None, gt=0)
@@ -186,6 +220,9 @@ class ProductoResponse(BaseModel):
     descripcion: str | None
     imagen: str | None = None
     categoria_id: int | None
+    familia_id: int | None = None
+    familia_nombre: str | None = None
+    presentacion: str | None = None
     precio_unitario: Decimal
     precio_cafeteria: Decimal | None = None
     precio_uber_eats: Decimal | None = None

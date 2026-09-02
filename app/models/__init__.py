@@ -3,7 +3,7 @@
 from app.models.usuario import Usuario, RolUsuario  # noqa: F401
 from app.models.cliente import Cliente  # noqa: F401
 from app.models.inventario import (  # noqa: F401
-    CategoriaProducto, Ingrediente, Producto, Proveedor,
+    CategoriaProducto, FamiliaProducto, Ingrediente, Producto, Proveedor,
     LoteIngrediente, MovimientoInventario,
     UnidadMedida, CategoriaProductoEnum, TipoMovimiento, TasaIVA,
 )

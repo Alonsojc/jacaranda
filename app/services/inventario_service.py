@@ -13,12 +13,12 @@ from sqlalchemy import and_, func
 from app.core.time_utils import operation_today
 from app.models.inventario import (
     Ingrediente, Producto, MovimientoInventario, LoteIngrediente,
-    CategoriaProducto, Proveedor, TipoMovimiento, UnidadMedida,
+    CategoriaProducto, FamiliaProducto, Proveedor, TipoMovimiento, UnidadMedida,
 )
 from app.schemas.inventario import (
     IngredienteCreate, IngredienteUpdate, ProductoCreate, ProductoUpdate,
     MovimientoCreate, LoteCreate, CategoriaCreate, ProveedorCreate,
-    CompraProductosCreate, EmpaqueCreate,
+    CompraProductosCreate, EmpaqueCreate, FamiliaProductoCreate, FamiliaProductoUpdate,
 )
 
 
@@ -281,6 +281,203 @@ def ingredientes_por_caducar(db: Session, dias: int = 7) -> list[LoteIngrediente
 
 # --- Productos ---
 
+_PRESENTACION_RE = re.compile(
+    r"^(.+?)\s+(ind\.?|chico|chica|grande|mediano|mediana|mini|x\d+|individual)$",
+    re.IGNORECASE,
+)
+
+
+def _limpiar_texto(value: str | None) -> str | None:
+    texto = " ".join(str(value or "").strip().split())
+    return texto or None
+
+
+def _separar_familia_presentacion(nombre: str) -> tuple[str, str | None]:
+    limpio = _limpiar_texto(nombre) or "Producto"
+    match = _PRESENTACION_RE.match(limpio)
+    if match:
+        return match.group(1), match.group(2)
+    return limpio, None
+
+
+def _familia_por_nombre(db: Session, nombre: str) -> FamiliaProducto | None:
+    return (
+        db.query(FamiliaProducto)
+        .filter(func.lower(FamiliaProducto.nombre) == nombre.lower())
+        .first()
+    )
+
+
+def _validar_familia_presentacion(
+    db: Session,
+    familia_id: int | None,
+    presentacion: str | None,
+    producto_id: int | None = None,
+) -> tuple[int | None, str | None]:
+    presentacion_limpia = _limpiar_texto(presentacion)
+    if familia_id is None:
+        if presentacion_limpia:
+            raise ValueError("Selecciona una familia para registrar la presentación")
+        return None, None
+
+    familia = db.query(FamiliaProducto).filter(FamiliaProducto.id == familia_id).first()
+    if not familia or not familia.activo:
+        raise ValueError("La familia seleccionada no existe o está desactivada")
+    if not presentacion_limpia:
+        raise ValueError("Escribe la presentación, por ejemplo x8, x16 o grande")
+
+    query = db.query(Producto.id).filter(
+        Producto.familia_id == familia_id,
+        func.lower(Producto.presentacion) == presentacion_limpia.lower(),
+    )
+    if producto_id is not None:
+        query = query.filter(Producto.id != producto_id)
+    if query.first():
+        raise ValueError(
+            f"Ya existe una presentación '{presentacion_limpia}' en la familia '{familia.nombre}'"
+        )
+    return familia.id, presentacion_limpia
+
+
+def crear_familia_producto(
+    db: Session,
+    data: FamiliaProductoCreate,
+    usuario_id: int | None = None,
+) -> FamiliaProducto:
+    from app.services.auditoria_service import registrar_evento
+
+    nombre = _limpiar_texto(data.nombre)
+    if not nombre:
+        raise ValueError("El nombre de la familia es obligatorio")
+    if _familia_por_nombre(db, nombre):
+        raise ValueError(f"Ya existe una familia llamada '{nombre}'")
+    familia = FamiliaProducto(nombre=nombre)
+    db.add(familia)
+    db.flush()
+    registrar_evento(
+        db,
+        usuario_id=usuario_id,
+        usuario_nombre=None,
+        accion="crear_familia_producto",
+        modulo="inventario",
+        entidad="familia_producto",
+        entidad_id=familia.id,
+        datos_nuevos={"nombre": familia.nombre},
+        commit=False,
+    )
+    db.commit()
+    db.refresh(familia)
+    return familia
+
+
+def listar_familias_producto(
+    db: Session,
+    solo_activas: bool = True,
+    limit: int = 500,
+) -> list[FamiliaProducto]:
+    query = db.query(FamiliaProducto)
+    if solo_activas:
+        query = query.filter(FamiliaProducto.activo.is_(True))
+    return query.order_by(FamiliaProducto.nombre).limit(limit).all()
+
+
+def actualizar_familia_producto(
+    db: Session,
+    familia_id: int,
+    data: FamiliaProductoUpdate,
+    usuario_id: int | None = None,
+) -> FamiliaProducto:
+    from app.services.auditoria_service import registrar_evento
+
+    familia = db.query(FamiliaProducto).filter(FamiliaProducto.id == familia_id).first()
+    if not familia:
+        raise ValueError("Familia no encontrada")
+    updates = data.model_dump(exclude_unset=True)
+    nombre = _limpiar_texto(updates.get("nombre")) if "nombre" in updates else None
+    if nombre and nombre.lower() != familia.nombre.lower():
+        existente = _familia_por_nombre(db, nombre)
+        if existente and existente.id != familia.id:
+            raise ValueError(f"Ya existe una familia llamada '{nombre}'")
+        updates["nombre"] = nombre
+    if updates.get("activo") is False:
+        hijos_activos = db.query(Producto.id).filter(
+            Producto.familia_id == familia.id,
+            Producto.activo.is_(True),
+        ).first()
+        if hijos_activos:
+            raise ValueError("No puedes desactivar una familia con presentaciones activas")
+    anteriores = {"nombre": familia.nombre, "activo": familia.activo}
+    for key, value in updates.items():
+        setattr(familia, key, value)
+    registrar_evento(
+        db,
+        usuario_id=usuario_id,
+        usuario_nombre=None,
+        accion="actualizar_familia_producto",
+        modulo="inventario",
+        entidad="familia_producto",
+        entidad_id=familia.id,
+        datos_anteriores=anteriores,
+        datos_nuevos={"nombre": familia.nombre, "activo": familia.activo},
+        commit=False,
+    )
+    db.commit()
+    db.refresh(familia)
+    return familia
+
+
+def crear_familia_desde_producto(
+    db: Session,
+    producto_id: int,
+    usuario_id: int | None = None,
+) -> Producto:
+    from app.services.auditoria_service import registrar_evento
+
+    producto = db.query(Producto).filter(Producto.id == producto_id).first()
+    if not producto:
+        raise ValueError("Producto no encontrado")
+    if producto.familia_id:
+        return producto
+
+    nombre_familia, presentacion = _separar_familia_presentacion(producto.nombre)
+    if not presentacion:
+        # Keeps historic stock and sales when a standalone product becomes
+        # the first presentation in a newly created family.
+        presentacion = "Original"
+    familia = _familia_por_nombre(db, nombre_familia)
+    if not familia:
+        familia = FamiliaProducto(nombre=nombre_familia)
+        db.add(familia)
+        db.flush()
+    familia_id, presentacion_limpia = _validar_familia_presentacion(
+        db,
+        familia.id,
+        presentacion,
+        producto.id,
+    )
+    producto.familia_id = familia_id
+    producto.presentacion = presentacion_limpia
+    registrar_evento(
+        db,
+        usuario_id=usuario_id,
+        usuario_nombre=None,
+        accion="vincular_producto_familia",
+        modulo="inventario",
+        entidad="producto",
+        entidad_id=producto.id,
+        datos_anteriores={"familia_id": None, "presentacion": None},
+        datos_nuevos={
+            "familia_id": familia_id,
+            "familia": familia.nombre,
+            "presentacion": presentacion_limpia,
+        },
+        commit=False,
+    )
+    db.commit()
+    db.refresh(producto)
+    return producto
+
+
 def _validar_caja_ingrediente(
     db: Session,
     ingrediente_id: int | None,
@@ -306,12 +503,24 @@ def _validar_caja_ingrediente(
         raise ValueError("La cantidad de cajas/empaques por pieza debe ser mayor a cero")
 
 
-def crear_producto(db: Session, data: ProductoCreate) -> Producto:
+def crear_producto(
+    db: Session,
+    data: ProductoCreate,
+    usuario_id: int | None = None,
+) -> Producto:
     codigo = data.codigo.strip().upper()
     if db.query(Producto).filter(func.upper(Producto.codigo) == codigo).first():
         raise ValueError(f"Ya existe un producto con código '{data.codigo}'")
     _validar_caja_ingrediente(db, data.caja_ingrediente_id, data.caja_cantidad)
-    producto = Producto(**data.model_dump(exclude={"codigo"}), codigo=codigo)
+    values = data.model_dump(exclude={"codigo"})
+    familia_id, presentacion = _validar_familia_presentacion(
+        db,
+        values.get("familia_id"),
+        values.get("presentacion"),
+    )
+    values["familia_id"] = familia_id
+    values["presentacion"] = presentacion
+    producto = Producto(**values, codigo=codigo)
     db.add(producto)
     db.commit()
     db.refresh(producto)
@@ -329,6 +538,15 @@ def actualizar_producto(db: Session, id: int, data: ProductoUpdate, usuario_id: 
     caja_cantidad = updates.get("caja_cantidad", producto.caja_cantidad)
     if "caja_ingrediente_id" in updates or "caja_cantidad" in updates:
         _validar_caja_ingrediente(db, caja_id, caja_cantidad)
+    if "familia_id" in updates or "presentacion" in updates:
+        familia_id, presentacion = _validar_familia_presentacion(
+            db,
+            updates.get("familia_id", producto.familia_id),
+            updates.get("presentacion", producto.presentacion),
+            producto.id,
+        )
+        updates["familia_id"] = familia_id
+        updates["presentacion"] = presentacion
     # Log price change
     if "precio_unitario" in updates and updates["precio_unitario"] != producto.precio_unitario:
         historial = HistorialPrecio(
@@ -373,6 +591,34 @@ def actualizar_producto(db: Session, id: int, data: ProductoUpdate, usuario_id: 
             datos_nuevos={
                 "precio_uber_eats": updates["precio_uber_eats"],
                 "producto": producto.nombre,
+            },
+            commit=False,
+        )
+    if "familia_id" in updates or "presentacion" in updates:
+        familia_anterior = producto.familia.nombre if producto.familia else None
+        familia_nueva = None
+        if updates.get("familia_id"):
+            familia_obj = db.query(FamiliaProducto).filter(
+                FamiliaProducto.id == updates["familia_id"]
+            ).first()
+            familia_nueva = familia_obj.nombre if familia_obj else None
+        registrar_evento(
+            db,
+            usuario_id=usuario_id,
+            usuario_nombre=None,
+            accion="actualizar_familia_producto",
+            modulo="inventario",
+            entidad="producto",
+            entidad_id=producto.id,
+            datos_anteriores={
+                "familia_id": producto.familia_id,
+                "familia": familia_anterior,
+                "presentacion": producto.presentacion,
+            },
+            datos_nuevos={
+                "familia_id": updates.get("familia_id"),
+                "familia": familia_nueva,
+                "presentacion": updates.get("presentacion"),
             },
             commit=False,
         )
