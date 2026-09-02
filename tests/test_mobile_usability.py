@@ -114,6 +114,11 @@ def test_sales_are_one_touch_first_module_with_three_clear_menus():
     html = read_text("docs/index.html")
     nav = segment_between(html, '<div class="nav-links">', '</nav>')
     operation = segment_between(nav, '<a>Operaci&oacute;n</a>', '<div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,CONTADOR,CONSULTA">')
+    cafeteria_header = segment_between(
+        html,
+        '<div class="page" id="cafeteria">',
+        '<div class="row r4" style="margin-bottom:1rem">',
+    )
 
     assert nav.index('class="sales-nav-link"') < nav.index('data-pg="dash"')
     assert "Punto de venta" in nav
@@ -122,6 +127,8 @@ def test_sales_are_one_touch_first_module_with_three_clear_menus():
     assert html.count('data-sales-mode="mostrador"') == 2
     assert html.count('data-sales-mode="cafeterias"') == 2
     assert html.count('data-sales-mode="uber_eats"') == 2
+    assert '<div class="page-actions">' not in cafeteria_header
+    assert '</div>\n<div class="cafeteria-tools"' in cafeteria_header
     assert "async function cambiarModoVenta" in html
     assert "canal: _posCanal" in html
     assert ".nav-dd a{display:flex;align-items:center;min-height:48px" in html
