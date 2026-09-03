@@ -163,3 +163,11 @@ def test_product_families_are_explicit_instead_of_inferred_from_names():
     assert "key: 'familia-' + producto.familia_id" in html
     assert "/inventario/familias-producto" in html
     assert "/inventario/productos/' + id + '/crear-familia" in html
+
+
+def test_global_input_dialog_opens_above_product_modals():
+    html = read_text("docs/index.html")
+
+    assert "#modal-confirmacion,#modal-entrada{z-index:130}" in html
+    assert ".modal-bg{display:none" in html
+    assert "z-index:100" in html
