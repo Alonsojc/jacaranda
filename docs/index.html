@@ -2759,8 +2759,8 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div style="display:flex;gap:.5rem;flex-wrap:wrap">
 <button class="cobrar" style="flex:1;min-width:120px" onclick="copiarTicket()">Copiar Ticket</button>
 <button class="cobrar" style="flex:1;min-width:120px;background:linear-gradient(135deg,#25d366,#128c7e)" onclick="compartirWhatsApp()">&#128172; WhatsApp</button>
-<button class="cobrar" style="flex:1;min-width:120px;background:linear-gradient(135deg,#6366f1,#4f46e5)" onclick="imprimirTicket()">&#128424; Imprimir</button>
-<button class="cobrar" style="flex:1;min-width:120px;background:linear-gradient(135deg,#b91c1c,#991b1b)" id="mt-pdf-btn" onclick="descargarTicketPDF(_mtVentaId, _mtFolio)">&#128196; PDF</button>
+<button class="cobrar" style="flex:1;min-width:120px;background:#2563eb" id="mt-thermal-print-btn" onclick="compartirTicketConThermer()">&#128424; Enviar a Thermer</button>
+<button class="cobrar" style="flex:1;min-width:120px;background:#991b1b" id="mt-pdf-btn" onclick="descargarTicketPDF(_mtVentaId, _mtFolio)">&#128196; Guardar PDF</button>
 <button class="limpiar" style="flex:1;min-width:120px;padding:.5rem 1.2rem" onclick="cerrarModal('modal-ticket')">Cerrar</button>
 </div>
 </div>
@@ -6413,6 +6413,8 @@ function mostrarTicket(venta) {
     _ultimoTicket = null;
   });
   document.getElementById('modal-ticket').classList.add('on');
+  // Precarga el generador antes del toque de compartir en iOS.
+  ensureJsPDF().catch(function() {});
 }
 
 var _ultimoTicket = null;
@@ -9484,53 +9486,133 @@ function guardarMerma() {
   }).catch(function(e) { toast(e.message || 'Error', true); });
 }
 
-// ─── Imprimir ticket térmica ─────────────────────────────────────
-function imprimirTicket() {
-  if (!_ultimoTicket) { toast('No hay ticket para imprimir', true); return; }
-  var tk = _ultimoTicket;
-  var w = window.open('', '_blank', 'width=300,height=600');
-  if (!w) { toast('Permite ventanas emergentes para imprimir', true); return; }
-  var h = '<html><head><style>';
-  h += '*{margin:0;padding:0;box-sizing:border-box}';
-  h += 'body{font-family:"Courier New",monospace;font-size:12px;width:58mm;margin:0 auto;padding:3mm;line-height:1.4}';
-  h += '.c{text-align:center} .b{font-weight:bold} .line{border-top:1px dashed #000;margin:4px 0}';
-  h += '.row{display:flex;justify-content:space-between} .big{font-size:16px}';
-  h += '.cut{page-break-after:always}';
-  h += '@media print{@page{size:58mm auto;margin:0}body{padding:2mm}}';
-  h += '</style></head><body>';
-  h += '<div class="c b" style="font-size:14px">JACARANDA</div>';
-  h += '<div class="c" style="font-size:10px">sharing flavors</div>';
-  h += '<div class="c" style="font-size:9px">' + (tk.razon_social || '') + '</div>';
-  h += '<div class="c" style="font-size:9px">RFC: ' + (tk.rfc || '') + '</div>';
-  h += '<div class="c" style="font-size:9px">' + (tk.direccion || 'Plaza Distrito Marqu\u00e9s, Qro.') + '</div>';
-  h += '<div class="line"></div>';
-  h += '<div class="c b">' + tk.folio + '</div>';
-  h += '<div class="c" style="font-size:10px">' + (tk.fecha || '') + '</div>';
-  h += '<div class="c" style="font-size:9px">' + (tk.cajero || '') + '</div>';
-  h += '<div class="line"></div>';
-  if (tk.productos) {
-    for (var i = 0; i < tk.productos.length; i++) {
-      var p = tk.productos[i];
-      h += '<div class="row"><span>' + p.cantidad + 'x ' + p.nombre + '</span><span>$' + fmt(p.subtotal) + '</span></div>';
-    }
+// ─── Ticket térmico por hoja de compartir ────────────────────────
+// La MP58C6 usa rollo de 58 mm y sólo imprime 48 mm de contenido útil.
+function textoTicketTermico(valor) {
+  return String(valor == null ? '' : valor).replace(/[\r\n]+/g, ' ').trim();
+}
+
+function nombreArchivoTicketTermico(tk) {
+  var folio = textoTicketTermico(tk && tk.folio).replace(/[^A-Za-z0-9_-]/g, '') || 'venta';
+  return 'ticket_' + folio + '.pdf';
+}
+
+function crearTicketTermicoPdf(tk) {
+  var jsPDF = window.jspdf.jsPDF;
+  var anchoPapel = 58;
+  var margen = 5;
+  var contenido = 48;
+  // La altura inicial se reduce al final a la necesaria para no desperdiciar papel.
+  var doc = new jsPDF({orientation: 'p', unit: 'mm', format: [anchoPapel, 300]});
+  var y = 5;
+
+  function alturaLinea(tamano) { return Math.max(2.7, tamano * 0.43); }
+  function texto(valor, tamano, opciones) {
+    opciones = opciones || {};
+    doc.setFont('helvetica', opciones.negritas ? 'bold' : 'normal');
+    doc.setFontSize(tamano);
+    var lineas = doc.splitTextToSize(textoTicketTermico(valor), opciones.ancho || contenido);
+    doc.text(lineas, opciones.x == null ? margen : opciones.x, y, {align: opciones.alinear || 'left'});
+    y += lineas.length * alturaLinea(tamano);
   }
-  h += '<div class="line"></div>';
-  h += '<div class="row"><span>Subtotal</span><span>' + tk.subtotal + '</span></div>';
-  h += '<div class="row"><span>IVA</span><span>' + tk.iva + '</span></div>';
-  h += '<div class="row b big"><span>TOTAL</span><span>' + tk.total + '</span></div>';
-  h += '<div class="line"></div>';
-  h += '<div class="row"><span>M\u00e9todo</span><span>' + tk.metodo_pago + '</span></div>';
-  if (tk.monto_recibido && tk.monto_recibido !== '$0.00') h += '<div class="row"><span>Recibido</span><span>' + tk.monto_recibido + '</span></div>';
-  if (tk.cambio && tk.cambio !== '$0.00') h += '<div class="row b"><span>Cambio</span><span>' + tk.cambio + '</span></div>';
-  h += '<div class="line"></div>';
-  h += '<div class="c" style="font-size:9px;margin-top:6px">' + (tk.leyenda_fiscal || '') + '</div>';
-  h += '<div class="c" style="font-size:10px;margin-top:4px">Gracias por su compra</div>';
-  h += '<div class="c" style="font-size:9px">@jacaranda.flavors</div>';
-  h += '<div style="margin-top:16px"></div>'; // espacio para corte
-  h += '<script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)}<\/script>';
-  h += '</body></html>';
-  w.document.write(h);
-  w.document.close();
+  function separador() {
+    y += 1;
+    doc.setDrawColor(80);
+    doc.setLineWidth(.15);
+    doc.setLineDashPattern([.7, .7], 0);
+    doc.line(margen, y, anchoPapel - margen, y);
+    doc.setLineDashPattern([], 0);
+    y += 3;
+  }
+  function fila(etiqueta, valor, negritas) {
+    doc.setFont('helvetica', negritas ? 'bold' : 'normal');
+    doc.setFontSize(negritas ? 8 : 7);
+    doc.text(textoTicketTermico(etiqueta), margen, y);
+    doc.text(textoTicketTermico(valor), anchoPapel - margen, y, {align: 'right'});
+    y += alturaLinea(negritas ? 8 : 7);
+  }
+
+  texto(tk.razon_social || 'JACARANDA', 10, {alinear: 'center', x: anchoPapel / 2, negritas: true});
+  texto('sharing flavors', 6, {alinear: 'center', x: anchoPapel / 2});
+  if (tk.rfc) texto('RFC: ' + tk.rfc, 6, {alinear: 'center', x: anchoPapel / 2});
+  if (tk.direccion) texto(tk.direccion, 6, {alinear: 'center', x: anchoPapel / 2});
+  separador();
+  texto(tk.folio, 8, {alinear: 'center', x: anchoPapel / 2, negritas: true});
+  texto(tk.fecha, 6, {alinear: 'center', x: anchoPapel / 2});
+  if (tk.cajero) texto(tk.cajero, 6, {alinear: 'center', x: anchoPapel / 2});
+  separador();
+
+  (tk.productos || []).forEach(function(producto) {
+    var cantidad = fmtQty(producto.cantidad);
+    var lineas = doc.splitTextToSize(cantidad + 'x ' + textoTicketTermico(producto.nombre), contenido - 16);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.text(lineas, margen, y);
+    doc.text('$' + fmt(producto.subtotal), anchoPapel - margen, y, {align: 'right'});
+    y += lineas.length * alturaLinea(7) + 1;
+  });
+
+  separador();
+  fila('Subtotal', tk.subtotal);
+  if (tk.descuento && tk.descuento !== '$0.00') fila('Descuento', '-' + tk.descuento);
+  fila('IVA', tk.iva);
+  fila('TOTAL', tk.total, true);
+  separador();
+  texto('Pago: ' + textoTicketTermico(tk.metodo_pago), 7);
+  if (tk.monto_recibido && tk.monto_recibido !== '$0.00') fila('Recibido', tk.monto_recibido);
+  if (tk.cambio && tk.cambio !== '$0.00') fila('Cambio', tk.cambio, true);
+  separador();
+  if (tk.leyenda_fiscal) texto(tk.leyenda_fiscal, 5.5, {alinear: 'center', x: anchoPapel / 2});
+  texto('Gracias por su compra', 7, {alinear: 'center', x: anchoPapel / 2, negritas: true});
+  texto('@jacaranda.flavors', 6, {alinear: 'center', x: anchoPapel / 2});
+
+  doc.internal.pageSize.setHeight(Math.max(70, Math.ceil(y + 8)));
+  return {blob: doc.output('blob'), filename: nombreArchivoTicketTermico(tk)};
+}
+
+function descargarBlobLocal(blob, filename) {
+  var url = URL.createObjectURL(blob);
+  var link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+}
+
+function compartirTicketConThermer() {
+  if (!_ultimoTicket) { toast('Espera a que cargue el ticket', true); return; }
+  if (!(window.jspdf && window.jspdf.jsPDF)) {
+    ensureJsPDF().then(function() {
+      toast('Ticket listo. Toca Enviar a Thermer otra vez');
+    }).catch(function() {
+      toast('No se pudo preparar el ticket', true);
+    });
+    return;
+  }
+  try {
+    var ticketPdf = crearTicketTermicoPdf(_ultimoTicket);
+    var archivo = new File([ticketPdf.blob], ticketPdf.filename, {type: 'application/pdf'});
+    if (navigator.canShare && navigator.share && navigator.canShare({files: [archivo]})) {
+      toast('En la hoja de compartir, elige Thermer');
+      navigator.share({
+        title: 'Ticket ' + _ultimoTicket.folio,
+        text: 'Ticket Jacaranda ' + _ultimoTicket.folio,
+        files: [archivo]
+      }).then(function() {
+        toast('Ticket enviado a Thermer');
+      }).catch(function(error) {
+        if (error && error.name === 'AbortError') return;
+        descargarBlobLocal(ticketPdf.blob, ticketPdf.filename);
+        toast('No se pudo abrir Thermer; guardé el PDF', true);
+      });
+      return;
+    }
+    descargarBlobLocal(ticketPdf.blob, ticketPdf.filename);
+    toast('PDF guardado. Ábrelo y compártelo con Thermer');
+  } catch (error) {
+    console.warn('No se pudo preparar ticket térmico:', error);
+    toast('No se pudo preparar el ticket', true);
+  }
 }
 
 // ─── Fotos masivas ───────────────────────────────────────────────
