@@ -37,5 +37,6 @@ def test_thermal_ticket_uses_ios_share_sheet_and_not_airprint():
     assert "{type: 'image/png'}" in thermal
     assert "navigator.canShare({files: [archivo]})" in thermal
     assert "navigator.share({" in thermal
+    assert "cerrarModal('modal-ticket');" in thermal
     assert "En la hoja de compartir, elige Thermer y abre Image" in thermal
     assert "window.print()" not in thermal

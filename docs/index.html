@@ -9623,6 +9623,9 @@ function compartirTicketConThermer() {
     var ticketImagen = crearTicketTermicoImagen(_ultimoTicket);
     var archivo = new File([ticketImagen.blob], ticketImagen.filename, {type: 'image/png'});
     if (navigator.canShare && navigator.share && navigator.canShare({files: [archivo]})) {
+      // iOS puede dejar la web congelada detrás de la app receptora si el modal sigue abierto.
+      // El ticket ya está guardado y siempre se puede consultar desde el historial.
+      cerrarModal('modal-ticket');
       toast('En la hoja de compartir, elige Thermer y abre Image');
       navigator.share({
         title: 'Ticket ' + _ultimoTicket.folio,
