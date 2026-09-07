@@ -6413,8 +6413,6 @@ function mostrarTicket(venta) {
     _ultimoTicket = null;
   });
   document.getElementById('modal-ticket').classList.add('on');
-  // Precarga el generador antes del toque de compartir en iOS.
-  ensureJsPDF().catch(function() {});
 }
 
 var _ultimoTicket = null;
@@ -9494,62 +9492,99 @@ function textoTicketTermico(valor) {
 
 function nombreArchivoTicketTermico(tk) {
   var folio = textoTicketTermico(tk && tk.folio).replace(/[^A-Za-z0-9_-]/g, '') || 'venta';
-  return 'ticket_' + folio + '.pdf';
+  return 'ticket_' + folio + '.png';
 }
 
-function crearTicketTermicoPdf(tk) {
-  var jsPDF = window.jspdf.jsPDF;
-  var anchoPapel = 58;
-  var margen = 5;
-  var contenido = 48;
-  // La altura inicial se reduce al final a la necesaria para no desperdiciar papel.
-  var doc = new jsPDF({orientation: 'p', unit: 'mm', format: [anchoPapel, 300]});
-  var y = 5;
+function crearTicketTermicoImagen(tk) {
+  // 384 puntos equivalen a los 48 mm imprimibles de la MP58C6 a 8 puntos/mm.
+  var ancho = 384;
+  var margen = 16;
+  var contenido = ancho - (margen * 2);
+  var productos = tk.productos || [];
+  var temporal = document.createElement('canvas');
+  temporal.width = ancho;
+  temporal.height = Math.max(1200, 900 + (productos.length * 90));
+  var ctx = temporal.getContext('2d');
+  var y = 24;
 
-  function alturaLinea(tamano) { return Math.max(2.7, tamano * 0.43); }
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, temporal.width, temporal.height);
+  ctx.fillStyle = '#000';
+  ctx.textBaseline = 'top';
+
+  function fuente(tamano, negritas) {
+    ctx.font = (negritas ? 'bold ' : '') + tamano + 'px Courier New, monospace';
+  }
+  function lineas(valor, maximo) {
+    var palabras = textoTicketTermico(valor).split(/\s+/);
+    var resultado = [];
+    var actual = '';
+    for (var i = 0; i < palabras.length; i++) {
+      var propuesta = actual ? actual + ' ' + palabras[i] : palabras[i];
+      if (actual && ctx.measureText(propuesta).width > maximo) {
+        resultado.push(actual);
+        actual = palabras[i];
+      } else {
+        actual = propuesta;
+      }
+    }
+    if (actual) resultado.push(actual);
+    return resultado.length ? resultado : [''];
+  }
   function texto(valor, tamano, opciones) {
     opciones = opciones || {};
-    doc.setFont('helvetica', opciones.negritas ? 'bold' : 'normal');
-    doc.setFontSize(tamano);
-    var lineas = doc.splitTextToSize(textoTicketTermico(valor), opciones.ancho || contenido);
-    doc.text(lineas, opciones.x == null ? margen : opciones.x, y, {align: opciones.alinear || 'left'});
-    y += lineas.length * alturaLinea(tamano);
+    fuente(tamano, opciones.negritas);
+    var partes = lineas(valor, opciones.ancho || contenido);
+    var x = opciones.x == null ? margen : opciones.x;
+    ctx.textAlign = opciones.alinear || 'left';
+    partes.forEach(function(parte) {
+      ctx.fillText(parte, x, y);
+      y += Math.ceil(tamano * 1.34);
+    });
   }
   function separador() {
-    y += 1;
-    doc.setDrawColor(80);
-    doc.setLineWidth(.15);
-    doc.setLineDashPattern([.7, .7], 0);
-    doc.line(margen, y, anchoPapel - margen, y);
-    doc.setLineDashPattern([], 0);
-    y += 3;
+    y += 6;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(margen, y);
+    ctx.lineTo(ancho - margen, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    y += 12;
   }
   function fila(etiqueta, valor, negritas) {
-    doc.setFont('helvetica', negritas ? 'bold' : 'normal');
-    doc.setFontSize(negritas ? 8 : 7);
-    doc.text(textoTicketTermico(etiqueta), margen, y);
-    doc.text(textoTicketTermico(valor), anchoPapel - margen, y, {align: 'right'});
-    y += alturaLinea(negritas ? 8 : 7);
+    fuente(negritas ? 16 : 14, negritas);
+    ctx.textAlign = 'left';
+    ctx.fillText(textoTicketTermico(etiqueta), margen, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(textoTicketTermico(valor), ancho - margen, y);
+    y += negritas ? 24 : 21;
   }
 
-  texto(tk.razon_social || 'JACARANDA', 10, {alinear: 'center', x: anchoPapel / 2, negritas: true});
-  texto('sharing flavors', 6, {alinear: 'center', x: anchoPapel / 2});
-  if (tk.rfc) texto('RFC: ' + tk.rfc, 6, {alinear: 'center', x: anchoPapel / 2});
-  if (tk.direccion) texto(tk.direccion, 6, {alinear: 'center', x: anchoPapel / 2});
+  texto(tk.razon_social || 'JACARANDA', 22, {alinear: 'center', x: ancho / 2, negritas: true});
+  texto('sharing flavors', 13, {alinear: 'center', x: ancho / 2});
+  if (tk.rfc) texto('RFC: ' + tk.rfc, 13, {alinear: 'center', x: ancho / 2});
+  if (tk.direccion) texto(tk.direccion, 13, {alinear: 'center', x: ancho / 2});
   separador();
-  texto(tk.folio, 8, {alinear: 'center', x: anchoPapel / 2, negritas: true});
-  texto(tk.fecha, 6, {alinear: 'center', x: anchoPapel / 2});
-  if (tk.cajero) texto(tk.cajero, 6, {alinear: 'center', x: anchoPapel / 2});
+  texto(tk.folio, 18, {alinear: 'center', x: ancho / 2, negritas: true});
+  texto(tk.fecha, 13, {alinear: 'center', x: ancho / 2});
+  if (tk.cajero) texto(tk.cajero, 13, {alinear: 'center', x: ancho / 2});
   separador();
 
-  (tk.productos || []).forEach(function(producto) {
-    var cantidad = fmtQty(producto.cantidad);
-    var lineas = doc.splitTextToSize(cantidad + 'x ' + textoTicketTermico(producto.nombre), contenido - 16);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.text(lineas, margen, y);
-    doc.text('$' + fmt(producto.subtotal), anchoPapel - margen, y, {align: 'right'});
-    y += lineas.length * alturaLinea(7) + 1;
+  productos.forEach(function(producto) {
+    var importe = '$' + fmt(producto.subtotal);
+    fuente(14, false);
+    var anchoImporte = ctx.measureText(importe).width;
+    var partes = lineas(fmtQty(producto.cantidad) + 'x ' + textoTicketTermico(producto.nombre), contenido - anchoImporte - 12);
+    var inicio = y;
+    ctx.textAlign = 'left';
+    partes.forEach(function(parte) {
+      ctx.fillText(parte, margen, y);
+      y += 19;
+    });
+    ctx.textAlign = 'right';
+    ctx.fillText(importe, ancho - margen, inicio);
+    y += 4;
   });
 
   separador();
@@ -9558,16 +9593,19 @@ function crearTicketTermicoPdf(tk) {
   fila('IVA', tk.iva);
   fila('TOTAL', tk.total, true);
   separador();
-  texto('Pago: ' + textoTicketTermico(tk.metodo_pago), 7);
+  texto('Pago: ' + textoTicketTermico(tk.metodo_pago), 14);
   if (tk.monto_recibido && tk.monto_recibido !== '$0.00') fila('Recibido', tk.monto_recibido);
   if (tk.cambio && tk.cambio !== '$0.00') fila('Cambio', tk.cambio, true);
   separador();
-  if (tk.leyenda_fiscal) texto(tk.leyenda_fiscal, 5.5, {alinear: 'center', x: anchoPapel / 2});
-  texto('Gracias por su compra', 7, {alinear: 'center', x: anchoPapel / 2, negritas: true});
-  texto('@jacaranda.flavors', 6, {alinear: 'center', x: anchoPapel / 2});
+  if (tk.leyenda_fiscal) texto(tk.leyenda_fiscal, 11, {alinear: 'center', x: ancho / 2});
+  texto('Gracias por su compra', 14, {alinear: 'center', x: ancho / 2, negritas: true});
+  texto('@jacaranda.flavors', 12, {alinear: 'center', x: ancho / 2});
 
-  doc.internal.pageSize.setHeight(Math.max(70, Math.ceil(y + 8)));
-  return {blob: doc.output('blob'), filename: nombreArchivoTicketTermico(tk)};
+  var final = document.createElement('canvas');
+  final.width = ancho;
+  final.height = Math.max(560, Math.ceil(y + 30));
+  final.getContext('2d').drawImage(temporal, 0, 0);
+  return {blob: dataUrlToBlob(final.toDataURL('image/png')), filename: nombreArchivoTicketTermico(tk)};
 }
 
 function descargarBlobLocal(blob, filename) {
@@ -9581,19 +9619,11 @@ function descargarBlobLocal(blob, filename) {
 
 function compartirTicketConThermer() {
   if (!_ultimoTicket) { toast('Espera a que cargue el ticket', true); return; }
-  if (!(window.jspdf && window.jspdf.jsPDF)) {
-    ensureJsPDF().then(function() {
-      toast('Ticket listo. Toca Enviar a Thermer otra vez');
-    }).catch(function() {
-      toast('No se pudo preparar el ticket', true);
-    });
-    return;
-  }
   try {
-    var ticketPdf = crearTicketTermicoPdf(_ultimoTicket);
-    var archivo = new File([ticketPdf.blob], ticketPdf.filename, {type: 'application/pdf'});
+    var ticketImagen = crearTicketTermicoImagen(_ultimoTicket);
+    var archivo = new File([ticketImagen.blob], ticketImagen.filename, {type: 'image/png'});
     if (navigator.canShare && navigator.share && navigator.canShare({files: [archivo]})) {
-      toast('En la hoja de compartir, elige Thermer');
+      toast('En la hoja de compartir, elige Thermer y abre Image');
       navigator.share({
         title: 'Ticket ' + _ultimoTicket.folio,
         text: 'Ticket Jacaranda ' + _ultimoTicket.folio,
@@ -9602,13 +9632,13 @@ function compartirTicketConThermer() {
         toast('Ticket enviado a Thermer');
       }).catch(function(error) {
         if (error && error.name === 'AbortError') return;
-        descargarBlobLocal(ticketPdf.blob, ticketPdf.filename);
-        toast('No se pudo abrir Thermer; guardé el PDF', true);
+        descargarBlobLocal(ticketImagen.blob, ticketImagen.filename);
+        toast('No se pudo abrir Thermer; guardé la imagen', true);
       });
       return;
     }
-    descargarBlobLocal(ticketPdf.blob, ticketPdf.filename);
-    toast('PDF guardado. Ábrelo y compártelo con Thermer');
+    descargarBlobLocal(ticketImagen.blob, ticketImagen.filename);
+    toast('Imagen guardada. Ábrela y compártela con Thermer');
   } catch (error) {
     console.warn('No se pudo preparar ticket térmico:', error);
     toast('No se pudo preparar el ticket', true);

@@ -20,20 +20,22 @@ def test_ticket_modal_uses_thermal_share_action_instead_of_airprint():
     assert 'onclick="imprimirTicket()"' not in modal
 
 
-def test_thermal_ticket_is_58mm_paper_with_48mm_printable_content():
-    thermal = _segment("function crearTicketTermicoPdf", "// ─── Fotos masivas")
+def test_thermal_ticket_is_a_48mm_printable_image_for_58mm_paper():
+    thermal = _segment("function crearTicketTermicoImagen", "// ─── Fotos masivas")
 
-    assert "var anchoPapel = 58;" in thermal
-    assert "var contenido = 48;" in thermal
-    assert "format: [anchoPapel, 300]" in thermal
-    assert "doc.internal.pageSize.setHeight" in thermal
+    assert "var ancho = 384;" in thermal
+    assert "384 puntos equivalen a los 48 mm imprimibles" in thermal
+    assert "final.toDataURL('image/png')" in thermal
+    assert "filename: nombreArchivoTicketTermico(tk)" in thermal
+    assert "return 'ticket_' + folio + '.png';" in HTML
 
 
 def test_thermal_ticket_uses_ios_share_sheet_and_not_airprint():
     thermal = _segment("function compartirTicketConThermer", "// ─── Fotos masivas")
 
-    assert "new File([ticketPdf.blob]" in thermal
+    assert "new File([ticketImagen.blob]" in thermal
+    assert "{type: 'image/png'}" in thermal
     assert "navigator.canShare({files: [archivo]})" in thermal
     assert "navigator.share({" in thermal
-    assert "En la hoja de compartir, elige Thermer" in thermal
+    assert "En la hoja de compartir, elige Thermer y abre Image" in thermal
     assert "window.print()" not in thermal
