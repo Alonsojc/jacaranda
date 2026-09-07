@@ -30,9 +30,12 @@ def test_thermal_ticket_is_a_48mm_printable_image_for_58mm_paper():
     assert "return 'ticket_' + folio + '.png';" in HTML
 
 
-def test_thermal_ticket_uses_ios_share_sheet_and_not_airprint():
+def test_thermal_ticket_uses_native_ios_schema_with_image_fallback():
     thermal = _segment("function compartirTicketConThermer", "// ─── Fotos masivas")
 
+    assert "esDispositivoAppleMovil()" in thermal
+    assert "abrirThermerNativo(_ultimoTicket);" in thermal
+    assert "cerrarModal('modal-ticket');" in thermal
     assert "new File([ticketImagen.blob]" in thermal
     assert "{type: 'image/png'}" in thermal
     assert "navigator.canShare({files: [archivo]})" in thermal
@@ -40,3 +43,13 @@ def test_thermal_ticket_uses_ios_share_sheet_and_not_airprint():
     assert "cerrarModal('modal-ticket');" in thermal
     assert "En la hoja de compartir, elige Thermer y abre Image" in thermal
     assert "window.print()" not in thermal
+
+
+def test_thermal_ticket_uses_documented_thermer_scheme_with_native_text_entries():
+    thermal = _segment("function textoThermer", "function nombreArchivoTicketTermico")
+
+    assert "texto.normalize('NFD')" in thermal
+    assert "var entradas = {};" in thermal
+    assert "type: 0," in thermal
+    assert "align: opciones.alinear == null ? 0 : opciones.alinear" in thermal
+    assert "window.location.href = 'thermer://?data=' + datos;" in thermal

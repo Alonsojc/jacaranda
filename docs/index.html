@@ -9484,10 +9484,82 @@ function guardarMerma() {
   }).catch(function(e) { toast(e.message || 'Error', true); });
 }
 
-// ─── Ticket térmico por hoja de compartir ────────────────────────
+// ─── Ticket térmico para Thermer ─────────────────────────────────
 // La MP58C6 usa rollo de 58 mm y sólo imprime 48 mm de contenido útil.
 function textoTicketTermico(valor) {
   return String(valor == null ? '' : valor).replace(/[\r\n]+/g, ' ').trim();
+}
+
+function textoThermer(valor) {
+  var texto = textoTicketTermico(valor);
+  return texto.normalize ? texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : texto;
+}
+
+function esDispositivoAppleMovil() {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent || '') ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function crearDatosTicketThermer(tk) {
+  var entradas = {};
+  var indice = 0;
+  var anchoLinea = 32;
+
+  function texto(contenido, opciones) {
+    opciones = opciones || {};
+    entradas[indice++] = {
+      type: 0,
+      content: textoThermer(contenido),
+      bold: opciones.negritas ? 1 : 0,
+      align: opciones.alinear == null ? 0 : opciones.alinear,
+      format: opciones.formato == null ? 0 : opciones.formato
+    };
+  }
+  function separador() { texto('--------------------------------'); }
+  function fila(etiqueta, valor, negritas) {
+    var izquierda = textoThermer(etiqueta);
+    var derecha = textoThermer(valor);
+    if (izquierda.length + derecha.length + 1 > anchoLinea) {
+      texto(izquierda, {negritas: negritas});
+      texto(derecha, {negritas: negritas, alinear: 2});
+      return;
+    }
+    texto(izquierda + new Array(anchoLinea - izquierda.length - derecha.length + 1).join(' ') + derecha, {negritas: negritas});
+  }
+
+  texto(tk.razon_social || 'JACARANDA', {negritas: true, alinear: 1});
+  texto('sharing flavors', {alinear: 1});
+  if (tk.rfc) texto('RFC: ' + tk.rfc, {alinear: 1});
+  if (tk.direccion) texto(tk.direccion, {alinear: 1});
+  separador();
+  texto(tk.folio, {negritas: true, alinear: 1});
+  texto(tk.fecha, {alinear: 1});
+  if (tk.cajero) texto(tk.cajero, {alinear: 1});
+  separador();
+
+  (tk.productos || []).forEach(function(producto) {
+    fila(fmtQty(producto.cantidad) + 'x ' + producto.nombre, '$' + fmt(producto.subtotal));
+  });
+
+  separador();
+  fila('Subtotal', tk.subtotal);
+  if (tk.descuento && tk.descuento !== '$0.00') fila('Descuento', '-' + tk.descuento);
+  fila('IVA', tk.iva);
+  fila('TOTAL', tk.total, true);
+  separador();
+  texto('Pago: ' + tk.metodo_pago);
+  if (tk.monto_recibido && tk.monto_recibido !== '$0.00') fila('Recibido', tk.monto_recibido);
+  if (tk.cambio && tk.cambio !== '$0.00') fila('Cambio', tk.cambio, true);
+  separador();
+  if (tk.leyenda_fiscal) texto(tk.leyenda_fiscal, {alinear: 1});
+  texto('Gracias por su compra', {negritas: true, alinear: 1});
+  texto('@jacaranda.flavors', {alinear: 1});
+  return entradas;
+}
+
+function abrirThermerNativo(tk) {
+  var datos = encodeURIComponent(JSON.stringify(crearDatosTicketThermer(tk)));
+  window.location.href = 'thermer://?data=' + datos;
 }
 
 function nombreArchivoTicketTermico(tk) {
@@ -9620,6 +9692,12 @@ function descargarBlobLocal(blob, filename) {
 function compartirTicketConThermer() {
   if (!_ultimoTicket) { toast('Espera a que cargue el ticket', true); return; }
   try {
+    if (esDispositivoAppleMovil()) {
+      cerrarModal('modal-ticket');
+      toast('Abriendo Thermer...');
+      abrirThermerNativo(_ultimoTicket);
+      return;
+    }
     var ticketImagen = crearTicketTermicoImagen(_ultimoTicket);
     var archivo = new File([ticketImagen.blob], ticketImagen.filename, {type: 'image/png'});
     if (navigator.canShare && navigator.share && navigator.canShare({files: [archivo]})) {
