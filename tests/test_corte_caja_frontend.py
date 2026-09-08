@@ -25,3 +25,10 @@ def test_cash_closing_actions_require_reason_and_confirmation():
     assert "confirmarAccion" in lifecycle
     assert "motivo.length < 5" in lifecycle
     assert "apiProtegida('POST'" in lifecycle
+
+
+def test_cash_closing_controls_are_compact_and_touchable():
+    assert "#btn-update-app{width:48px;min-width:48px;height:48px" in HTML
+    assert 'id="c-corte-acciones" class="corte-actions"' in HTML
+    assert "action-buttons corte-actions" in HTML
+    assert ".corte-actions .action-btn{min-width:0" in HTML

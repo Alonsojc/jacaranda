@@ -25,6 +25,7 @@ nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1p
 .nav-links{display:flex;gap:.3rem;flex:1;min-width:0;flex-wrap:wrap;justify-content:flex-end}
 .nav-links a{text-decoration:none;color:var(--mut);font-size:.82rem;font-weight:500;padding:.5rem .8rem;border-radius:8px;cursor:pointer;min-height:44px;display:inline-flex;align-items:center;justify-content:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .nav-links a:hover,.nav-links a.on{color:var(--v);background:#faf3f0}
+#btn-update-app{width:48px;min-width:48px;height:48px;min-height:48px;padding:0!important;font-size:1.3rem!important;border-radius:10px}
 .wa{background:var(--grn)!important;color:#fff!important;border-radius:20px!important;font-size:.78rem!important}
 .wrap{width:min(100% - 3rem,1240px);margin:0 auto;padding:1.5rem 0 2rem;overflow:visible}
 .page{display:none;min-width:0;width:100%;max-width:100%;overflow:visible}.page.on{display:block}
@@ -203,6 +204,9 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .tbl tr:hover td{background:#fdf9f7}
 .tbl th.actions-th,.tbl td.actions-cell{width:330px}
 .action-buttons{display:flex;gap:.35rem;align-items:center;justify-content:center;flex-wrap:wrap}
+.corte-actions{flex-wrap:nowrap;gap:.25rem}
+.corte-actions .action-btn{min-width:0;min-height:44px;flex:1 1 0;padding:.35rem .28rem;font-size:.64rem;gap:.16rem;white-space:nowrap}
+.corte-actions .action-icon{font-size:.82rem}
 .action-btn{min-height:46px;min-width:46px;padding:.54rem .7rem;border:1px solid var(--brd);border-radius:9px;background:#fff;color:var(--txt);font:600 .76rem 'Inter',sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:.28rem;cursor:pointer;text-decoration:none;line-height:1.1;transition:background .15s,border-color .15s,transform .1s,box-shadow .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .action-btn:hover{background:#faf3f0;border-color:var(--v);color:var(--v)}
 .action-btn:active{transform:scale(.97)}
@@ -1089,7 +1093,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="card" style="min-width:0;overflow:hidden">
 <h3>Cuadre de caja</h3>
 <div id="c-cerrado-msg" style="display:none;background:#ecfdf5;border:1px solid #bbf7d0;color:#166534;border-radius:8px;padding:.45rem .6rem;margin-bottom:.6rem;font-size:.8rem;font-weight:600"></div>
-<div id="c-corte-acciones" style="display:none;gap:.4rem;flex-wrap:wrap;margin:-.1rem 0 .7rem"></div>
+<div id="c-corte-acciones" class="corte-actions" style="display:none;margin:-.1rem 0 .7rem"></div>
 <div class="srow"><span>Total ventas del d&iacute;a</span><span class="green" id="c-total">$0.00</span></div>
 <div class="srow"><span>Tickets</span><span id="c-tickets">0</span></div>
 <div style="border-top:2px solid var(--brd);margin:.8rem 0;padding-top:.8rem">
@@ -12447,7 +12451,7 @@ function cargarHistorialCortes() {
       h += '<td>' + c.numero_ventas + '</td>';
       h += '<td>$' + fmt(c.total_ventas_efectivo) + '</td>';
       h += '<td style="color:' + difColor + ';font-weight:600">$' + fmt(dif) + '</td>';
-      h += '<td class="actions-cell"><div class="action-buttons">' + botonesCorte(c) + '</div></td>';
+      h += '<td class="actions-cell"><div class="action-buttons corte-actions">' + botonesCorte(c) + '</div></td>';
       h += '</tr>';
     }
     h += '</table>';
