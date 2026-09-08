@@ -172,7 +172,7 @@ def actualizar_corte(
     corte_id: int,
     data: CorteCajaUpdate,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(require_admin_or_override("corte", "editar corte de caja")),
+    user: Usuario = Depends(require_admin_or_override("corte", "editar corte de caja", require_password=True)),
 ):
     try:
         return svc.actualizar_corte_caja(db, corte_id, data, user.id)
@@ -185,7 +185,7 @@ def reabrir_corte(
     corte_id: int,
     data: CorteCajaAccion,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(require_admin_or_override("corte", "reabrir corte de caja")),
+    user: Usuario = Depends(require_admin_or_override("corte", "reabrir corte de caja", require_password=True)),
 ):
     try:
         return svc.cambiar_estado_corte_caja(db, corte_id, "reabierto", data.motivo, user.id)
@@ -198,7 +198,7 @@ def cancelar_corte(
     corte_id: int,
     data: CorteCajaAccion,
     db: Session = Depends(get_db),
-    user: Usuario = Depends(require_admin_or_override("corte", "cancelar corte de caja")),
+    user: Usuario = Depends(require_admin_or_override("corte", "cancelar corte de caja", require_password=True)),
 ):
     try:
         return svc.cambiar_estado_corte_caja(db, corte_id, "cancelado", data.motivo, user.id)

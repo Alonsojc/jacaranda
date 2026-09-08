@@ -886,21 +886,42 @@ class TestVentas:
         corte_id = primero.json()["id"]
         assert primero.json()["estado"] == "cerrado"
 
+        sin_password = client.put(f"/api/v1/punto-de-venta/cortes-caja/{corte_id}", json={
+            "fondo_inicial": "2100.00",
+            "efectivo_real": "2130.00",
+            "motivo": "Prueba sin contraseña",
+        }, headers=auth_headers)
+        assert sin_password.status_code == 403
+        assert "contraseña" in sin_password.json()["detail"].lower()
+
+        admin_password_headers = {
+            **auth_headers,
+            "X-Admin-Override-Password": "test1234",
+            "X-Admin-Override-Motivo": "Correccion autorizada por administrador",
+        }
+
         editado = client.put(f"/api/v1/punto-de-venta/cortes-caja/{corte_id}", json={
             "fondo_inicial": "2100.00",
             "efectivo_real": "2130.00",
             "notas": "Se corrigió el fondo inicial",
             "motivo": "Fondo inicial capturado mal",
-        }, headers=auth_headers)
+        }, headers=admin_password_headers)
         assert editado.status_code == 200, editado.text
         assert editado.json()["fondo_inicial"] == "2100.00"
         assert editado.json()["efectivo_esperado"] == "2130.00"
         assert editado.json()["diferencia"] == "0.00"
 
+        reabrir_sin_password = client.post(
+            f"/api/v1/punto-de-venta/cortes-caja/{corte_id}/reabrir",
+            json={"motivo": "Prueba sin contraseña"},
+            headers=auth_headers,
+        )
+        assert reabrir_sin_password.status_code == 403
+
         reabierto = client.post(
             f"/api/v1/punto-de-venta/cortes-caja/{corte_id}/reabrir",
             json={"motivo": "Faltaba revisar el efectivo contado"},
-            headers=auth_headers,
+            headers=admin_password_headers,
         )
         assert reabierto.status_code == 200, reabierto.text
         assert reabierto.json()["estado"] == "reabierto"
@@ -918,10 +939,17 @@ class TestVentas:
         }, headers=auth_headers)
         assert segundo.status_code == 201, segundo.text
 
+        cancelar_sin_password = client.post(
+            f"/api/v1/punto-de-venta/cortes-caja/{segundo.json()['id']}/cancelar",
+            json={"motivo": "Prueba sin contraseña"},
+            headers=auth_headers,
+        )
+        assert cancelar_sin_password.status_code == 403
+
         cancelado = client.post(
             f"/api/v1/punto-de-venta/cortes-caja/{segundo.json()['id']}/cancelar",
             json={"motivo": "Se registró un corte de prueba"},
-            headers=auth_headers,
+            headers=admin_password_headers,
         )
         assert cancelado.status_code == 200, cancelado.text
         assert cancelado.json()["estado"] == "cancelado"

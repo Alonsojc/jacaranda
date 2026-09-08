@@ -131,8 +131,8 @@ def _admin_from_override_password(db: Session, password: str | None) -> Usuario 
     return None
 
 
-def require_admin_or_override(module: str, action: str):
-    """Allow admins directly; require an admin password override for others."""
+def require_admin_or_override(module: str, action: str, *, require_password: bool = False):
+    """Allow admins directly unless this action explicitly requires a password."""
 
     def checker(
         current_user: Usuario = Depends(require_permission(module, "editar")),
@@ -146,7 +146,7 @@ def require_admin_or_override(module: str, action: str):
             alias="X-Admin-Override-Motivo",
         ),
     ) -> Usuario:
-        if current_user.rol == RolUsuario.ADMINISTRADOR:
+        if current_user.rol == RolUsuario.ADMINISTRADOR and not require_password:
             return current_user
 
         authorizing_admin = _admin_from_override_password(db, admin_password)
@@ -163,7 +163,11 @@ def require_admin_or_override(module: str, action: str):
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Esta acción requiere administrador o contraseña de administrador",
+                detail=(
+                    "Esta acción requiere la contraseña de un administrador"
+                    if require_password
+                    else "Esta acción requiere administrador o contraseña de administrador"
+                ),
             )
 
         motivo_limpio = unquote(motivo or "").strip()
