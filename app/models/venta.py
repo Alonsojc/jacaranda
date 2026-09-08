@@ -183,6 +183,11 @@ class CorteCaja(Base):
     numero_ventas: Mapped[int] = mapped_column(Integer)
     numero_cancelaciones: Mapped[int] = mapped_column(Integer, default=0)
 
+    # Un corte nunca se elimina: sus cambios de estado conservan el historial.
+    estado: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="cerrado", server_default="cerrado", index=True
+    )
+    motivo_estado: Mapped[str | None] = mapped_column(Text)
     notas: Mapped[str | None] = mapped_column(Text)
     creado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

@@ -54,3 +54,15 @@ def test_thermal_ticket_uses_documented_thermer_scheme_with_native_text_entries(
     assert "align: opciones.alinear == null ? 0 : opciones.alinear" in thermal
     assert "window.location.href = 'thermer://?data=' + datos;" in thermal
     assert "// Margen final para que la guillotina manual no corte la última línea." in thermal
+
+
+def test_cash_closing_can_print_with_the_native_thermer_schema():
+    thermal = _segment("function crearDatosCorteThermer", "function nombreArchivoTicketTermico")
+
+    assert "texto('CORTE DE CAJA'" in thermal
+    assert "fila('TOTAL EFECTIVO'" in thermal
+    assert "fila('TOTAL DEL DIA'" in thermal
+    assert "fila('Diferencia'" in thermal
+    assert "function imprimirCorteThermer" in thermal
+    assert "window.location.href = 'thermer://?data=' + datos;" in thermal
+    assert "function imprimirUltimoCorte" in thermal

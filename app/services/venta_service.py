@@ -16,7 +16,7 @@ from app.models.venta import (
 )
 from app.models.inventario import Producto, TipoMovimiento
 from app.models.cliente import Cliente
-from app.schemas.venta import VentaCreate, CorteCajaCreate
+from app.schemas.venta import VentaCreate, CorteCajaCreate, CorteCajaUpdate
 from app.schemas.inventario import MovimientoCreate
 from app.services.inventario_service import registrar_empaque_producto, registrar_movimiento
 from app.services.auditoria_service import registrar_evento
@@ -1078,6 +1078,7 @@ def _totales_corte(db: Session, fecha: date) -> dict:
     corte_existente = db.query(CorteCaja).filter(
         CorteCaja.fecha >= inicio,
         CorteCaja.fecha <= fin,
+        CorteCaja.estado == "cerrado",
     ).order_by(CorteCaja.fecha.desc()).first()
 
     return {
@@ -1115,19 +1116,54 @@ def resumen_corte_caja(db: Session, fecha: date | None = None) -> dict:
         "numero_cancelaciones": totales["numero_cancelaciones"],
         "corte_existente": corte_existente is not None,
         "corte_id": corte_existente.id if corte_existente else None,
+        "corte": corte_existente,
     }
+
+
+def _datos_corte(corte: CorteCaja) -> dict:
+    return {
+        "estado": corte.estado,
+        "fondo_inicial": corte.fondo_inicial,
+        "efectivo_real": corte.efectivo_real,
+        "efectivo_esperado": corte.efectivo_esperado,
+        "diferencia": corte.diferencia,
+        "notas": corte.notas,
+        "motivo_estado": corte.motivo_estado,
+    }
+
+
+def _motivo_corte(motivo: str) -> str:
+    limpio = (motivo or "").strip()
+    if len(limpio) < 5:
+        raise ValueError("Escribe un motivo de al menos 5 caracteres")
+    return limpio
+
+
+def _validar_diferencia_corte(
+    fondo_inicial: Decimal,
+    efectivo_real: Decimal,
+    total_ventas_efectivo: Decimal,
+    notas: str | None,
+) -> tuple[Decimal, Decimal]:
+    efectivo_esperado = fondo_inicial + total_ventas_efectivo
+    diferencia = efectivo_real - efectivo_esperado
+    if abs(diferencia) >= Decimal("1") and not (notas or "").strip():
+        raise ValueError("Agrega una nota explicando la diferencia de caja")
+    return efectivo_esperado, diferencia
 
 
 def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> CorteCaja:
     """Realiza corte de caja del día."""
     totales = _totales_corte(db, _hoy_operacion())
-    if totales["corte_existente"] and not data.permitir_repetir:
+    if totales["corte_existente"]:
         raise ValueError("Ya existe un corte de caja registrado para hoy")
 
-    efectivo_esperado = data.fondo_inicial + totales["total_efectivo"]
-    diferencia = data.efectivo_real - efectivo_esperado
-    if abs(diferencia) >= Decimal("1") and not (data.notas or "").strip():
-        raise ValueError("Agrega una nota explicando la diferencia de caja")
+    efectivo_esperado, diferencia = _validar_diferencia_corte(
+        data.fondo_inicial,
+        data.efectivo_real,
+        totales["total_efectivo"],
+        data.notas,
+    )
 
     corte = CorteCaja(
         usuario_id=usuario_id,
@@ -1171,6 +1207,90 @@ def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> 
             "numero_cancelaciones": totales["numero_cancelaciones"],
             "notas": data.notas,
         },
+        commit=False,
+    )
+    db.commit()
+    db.refresh(corte)
+    return corte
+
+
+def actualizar_corte_caja(
+    db: Session,
+    corte_id: int,
+    data: CorteCajaUpdate,
+    usuario_id: int,
+) -> CorteCaja:
+    """Corrige el conteo de un corte cerrado sin alterar su fotografía de ventas."""
+    corte = db.get(CorteCaja, corte_id)
+    if not corte:
+        raise ValueError("Corte de caja no encontrado")
+    if corte.estado != "cerrado":
+        raise ValueError("Solo se puede editar un corte cerrado")
+
+    motivo = _motivo_corte(data.motivo)
+    anterior = _datos_corte(corte)
+    esperado, diferencia = _validar_diferencia_corte(
+        data.fondo_inicial,
+        data.efectivo_real,
+        corte.total_ventas_efectivo,
+        data.notas,
+    )
+    corte.fondo_inicial = data.fondo_inicial
+    corte.efectivo_real = data.efectivo_real
+    corte.efectivo_esperado = esperado
+    corte.diferencia = diferencia
+    corte.notas = data.notas
+    db.flush()
+    registrar_evento(
+        db,
+        usuario_id=usuario_id,
+        usuario_nombre=None,
+        accion="actualizar",
+        modulo="corte",
+        entidad="corte_caja",
+        entidad_id=corte.id,
+        datos_anteriores=anterior,
+        datos_nuevos=_datos_corte(corte),
+        motivo=motivo,
+        commit=False,
+    )
+    db.commit()
+    db.refresh(corte)
+    return corte
+
+
+def cambiar_estado_corte_caja(
+    db: Session,
+    corte_id: int,
+    estado: str,
+    motivo: str,
+    usuario_id: int,
+) -> CorteCaja:
+    """Reabre o cancela un corte manteniéndolo disponible para auditoría."""
+    if estado not in {"reabierto", "cancelado"}:
+        raise ValueError("Estado de corte inválido")
+    corte = db.get(CorteCaja, corte_id)
+    if not corte:
+        raise ValueError("Corte de caja no encontrado")
+    if corte.estado != "cerrado":
+        raise ValueError("Este corte ya no está cerrado")
+
+    motivo_limpio = _motivo_corte(motivo)
+    anterior = _datos_corte(corte)
+    corte.estado = estado
+    corte.motivo_estado = motivo_limpio
+    db.flush()
+    registrar_evento(
+        db,
+        usuario_id=usuario_id,
+        usuario_nombre=None,
+        accion="reabrir" if estado == "reabierto" else "cancelar",
+        modulo="corte",
+        entidad="corte_caja",
+        entidad_id=corte.id,
+        datos_anteriores=anterior,
+        datos_nuevos=_datos_corte(corte),
+        motivo=motivo_limpio,
         commit=False,
     )
     db.commit()

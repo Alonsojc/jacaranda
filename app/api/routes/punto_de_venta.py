@@ -16,7 +16,7 @@ from app.models.gasto_fijo import GastoFijo
 from app.services.auditoria_service import registrar_evento
 from app.schemas.venta import (
     VentaCreate, VentaResponse, TicketResponse, CorteCajaCreate, CorteCajaResponse,
-    CorteCajaResumen,
+    CorteCajaResumen, CorteCajaUpdate, CorteCajaAccion,
 )
 from app.services import venta_service as svc
 
@@ -137,8 +137,11 @@ def realizar_corte(
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_permission("corte", "editar")),
 ):
-    if data.permitir_repetir and user.rol != RolUsuario.ADMINISTRADOR:
-        raise HTTPException(status_code=403, detail="Solo administrador puede repetir un corte")
+    if data.permitir_repetir:
+        raise HTTPException(
+            status_code=400,
+            detail="Para corregir un corte usa Reabrir, no registres uno duplicado",
+        )
     try:
         return svc.realizar_corte_caja(db, data, user.id)
     except ValueError as e:
@@ -162,6 +165,45 @@ def historial_cortes(
 ):
     """Historial de cortes de caja."""
     return db.query(CorteCaja).order_by(desc(CorteCaja.fecha)).limit(limit).all()
+
+
+@router.put("/cortes-caja/{corte_id}", response_model=CorteCajaResponse)
+def actualizar_corte(
+    corte_id: int,
+    data: CorteCajaUpdate,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_admin_or_override("corte", "editar corte de caja")),
+):
+    try:
+        return svc.actualizar_corte_caja(db, corte_id, data, user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400 if "no encontrado" not in str(e).lower() else 404, detail=str(e))
+
+
+@router.post("/cortes-caja/{corte_id}/reabrir", response_model=CorteCajaResponse)
+def reabrir_corte(
+    corte_id: int,
+    data: CorteCajaAccion,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_admin_or_override("corte", "reabrir corte de caja")),
+):
+    try:
+        return svc.cambiar_estado_corte_caja(db, corte_id, "reabierto", data.motivo, user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400 if "no encontrado" not in str(e).lower() else 404, detail=str(e))
+
+
+@router.post("/cortes-caja/{corte_id}/cancelar", response_model=CorteCajaResponse)
+def cancelar_corte(
+    corte_id: int,
+    data: CorteCajaAccion,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_admin_or_override("corte", "cancelar corte de caja")),
+):
+    try:
+        return svc.cambiar_estado_corte_caja(db, corte_id, "cancelado", data.motivo, user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400 if "no encontrado" not in str(e).lower() else 404, detail=str(e))
 
 
 # --- Gastos fijos ---

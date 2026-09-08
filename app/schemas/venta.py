@@ -159,6 +159,17 @@ class CorteCajaCreate(BaseModel):
     permitir_repetir: bool = False
 
 
+class CorteCajaUpdate(BaseModel):
+    fondo_inicial: Decimal = Field(..., ge=0)
+    efectivo_real: Decimal = Field(..., ge=0)
+    notas: str | None = None
+    motivo: str = Field(..., min_length=5, max_length=500)
+
+
+class CorteCajaAccion(BaseModel):
+    motivo: str = Field(..., min_length=5, max_length=500)
+
+
 class CorteCajaResponse(BaseModel):
     id: int
     fecha: datetime
@@ -174,6 +185,9 @@ class CorteCajaResponse(BaseModel):
     diferencia: Decimal
     numero_ventas: int
     numero_cancelaciones: int
+    estado: str = "cerrado"
+    motivo_estado: str | None = None
+    notas: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -191,3 +205,4 @@ class CorteCajaResumen(BaseModel):
     numero_cancelaciones: int
     corte_existente: bool
     corte_id: int | None = None
+    corte: CorteCajaResponse | None = None

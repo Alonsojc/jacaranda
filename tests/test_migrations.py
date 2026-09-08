@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "e1f2a3b4c5d6 (head)"
+ALEMBIC_HEAD = "f8a9b0c1d2e3 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:
@@ -38,6 +38,7 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path):
         producto_columns = {row[1] for row in conn.execute("PRAGMA table_info(productos)")}
         ingrediente_columns = {row[1] for row in conn.execute("PRAGMA table_info(ingredientes)")}
         venta_columns = {row[1] for row in conn.execute("PRAGMA table_info(ventas)")}
+        corte_columns = {row[1] for row in conn.execute("PRAGMA table_info(cortes_caja)")}
     finally:
         conn.close()
 
@@ -45,6 +46,7 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path):
     assert {"familia_id", "presentacion"}.issubset(producto_columns)
     assert "es_empaque" in ingrediente_columns
     assert "canal" in venta_columns
+    assert {"estado", "motivo_estado"}.issubset(corte_columns)
 
 
 def test_alembic_upgrade_head_on_precreated_schema(tmp_path):
