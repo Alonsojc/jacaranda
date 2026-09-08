@@ -14,6 +14,9 @@ def test_cash_closing_surface_has_print_and_lifecycle_actions():
     assert "function reabrirCorte" in HTML
     assert "function cancelarCorte" in HTML
     assert "Corte cerrado para esta fecha" in HTML
+    assert "function apiProtegidaConPasswordAdmin" in HTML
+    assert "apiProtegidaConPasswordAdmin('PUT'" in HTML
+    assert "apiProtegidaConPasswordAdmin('POST'" in HTML
 
 
 def test_cash_closing_actions_require_reason_and_confirmation():
@@ -24,7 +27,7 @@ def test_cash_closing_actions_require_reason_and_confirmation():
     assert "solicitarEntrada" in lifecycle
     assert "confirmarAccion" in lifecycle
     assert "motivo.length < 5" in lifecycle
-    assert "apiProtegida('POST'" in lifecycle
+    assert "apiProtegidaConPasswordAdmin('POST'" in lifecycle
 
 
 def test_cash_closing_controls_are_compact_and_touchable():

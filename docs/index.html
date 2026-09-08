@@ -3792,11 +3792,12 @@ function actualizarVisibilidadFinanzasCorte() {
 
 var _adminAuthPending = null;
 
-function pedirPasswordAdminSiHaceFalta(accion) {
-  if (esAdminActual()) return Promise.resolve({});
+function pedirPasswordAdmin(accion, forzada) {
   return new Promise(function(resolve, reject) {
     _adminAuthPending = {resolve: resolve, reject: reject};
-    document.getElementById('maa-msg').textContent = 'Para ' + accion + ', pide a un administrador que autorice esta acción.';
+    document.getElementById('maa-msg').textContent = forzada
+      ? 'Escribe la contraseña del administrador para confirmar esta acción.'
+      : 'Para ' + accion + ', pide a un administrador que autorice esta acción.';
     var passInput = document.getElementById('maa-pass');
     var motivoInput = document.getElementById('maa-motivo');
     passInput.value = '';
@@ -3805,6 +3806,11 @@ function pedirPasswordAdminSiHaceFalta(accion) {
     document.getElementById('modal-admin-auth').classList.add('on');
     setTimeout(function() { passInput.focus(); }, 50);
   });
+}
+
+function pedirPasswordAdminSiHaceFalta(accion) {
+  if (esAdminActual()) return Promise.resolve({});
+  return pedirPasswordAdmin(accion, false);
 }
 
 function confirmarAdminAuth() {
@@ -3835,6 +3841,12 @@ function cancelarAdminAuth() {
 
 function apiProtegida(method, path, body, accion) {
   return pedirPasswordAdminSiHaceFalta(accion).then(function(headers) {
+    return api(method, path, body, false, headers);
+  });
+}
+
+function apiProtegidaConPasswordAdmin(method, path, body, accion) {
+  return pedirPasswordAdmin(accion, true).then(function(headers) {
     return api(method, path, body, false, headers);
   });
 }
@@ -12489,7 +12501,7 @@ function guardarEdicionCorte() {
     return;
   }
   if (motivo.length < 5) { toast('Escribe el motivo de la corrección', true); return; }
-  apiProtegida('PUT', '/punto-de-venta/cortes-caja/' + id, {
+  apiProtegidaConPasswordAdmin('PUT', '/punto-de-venta/cortes-caja/' + id, {
     fondo_inicial: fondo,
     efectivo_real: real,
     notas: document.getElementById('mce-notas').value.trim() || null,
@@ -12528,7 +12540,7 @@ async function cambiarEstadoCorte(id, accion) {
     tone: accion === 'cancelar' ? 'danger' : 'warning'
   });
   if (!confirmado) return;
-  apiProtegida('POST', '/punto-de-venta/cortes-caja/' + id + '/' + accion, {motivo: motivo}, etiqueta.toLowerCase()).then(function() {
+    apiProtegidaConPasswordAdmin('POST', '/punto-de-venta/cortes-caja/' + id + '/' + accion, {motivo: motivo}, etiqueta.toLowerCase()).then(function() {
     toast(accion === 'reabrir' ? 'Corte reabierto' : 'Corte cancelado');
     cargarCorte();
   }).catch(function(e) {
