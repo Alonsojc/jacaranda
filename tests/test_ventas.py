@@ -864,6 +864,79 @@ class TestVentas:
         assert duplicado.status_code == 400
         assert "ya existe" in duplicado.json()["detail"].lower()
 
+    def test_corte_se_puede_editar_reabrir_y_cancelar_sin_borrar_historial(
+        self, client, auth_headers, db
+    ):
+        from app.models.auditoria import LogAuditoria
+
+        pid = self._crear_producto(client, auth_headers, "CORTE-CICLO", "30.00")
+        self._agregar_stock(client, auth_headers, pid, 5)
+        venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "100.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert venta.status_code == 201
+
+        primero = client.post("/api/v1/punto-de-venta/corte-caja", json={
+            "fondo_inicial": "2000.00",
+            "efectivo_real": "2030.00",
+        }, headers=auth_headers)
+        assert primero.status_code == 201, primero.text
+        corte_id = primero.json()["id"]
+        assert primero.json()["estado"] == "cerrado"
+
+        editado = client.put(f"/api/v1/punto-de-venta/cortes-caja/{corte_id}", json={
+            "fondo_inicial": "2100.00",
+            "efectivo_real": "2130.00",
+            "notas": "Se corrigió el fondo inicial",
+            "motivo": "Fondo inicial capturado mal",
+        }, headers=auth_headers)
+        assert editado.status_code == 200, editado.text
+        assert editado.json()["fondo_inicial"] == "2100.00"
+        assert editado.json()["efectivo_esperado"] == "2130.00"
+        assert editado.json()["diferencia"] == "0.00"
+
+        reabierto = client.post(
+            f"/api/v1/punto-de-venta/cortes-caja/{corte_id}/reabrir",
+            json={"motivo": "Faltaba revisar el efectivo contado"},
+            headers=auth_headers,
+        )
+        assert reabierto.status_code == 200, reabierto.text
+        assert reabierto.json()["estado"] == "reabierto"
+        assert reabierto.json()["motivo_estado"] == "Faltaba revisar el efectivo contado"
+
+        resumen = client.get("/api/v1/punto-de-venta/corte-caja/resumen", headers=auth_headers)
+        assert resumen.status_code == 200
+        assert resumen.json()["corte_existente"] is False
+        assert resumen.json()["corte"] is None
+
+        segundo = client.post("/api/v1/punto-de-venta/corte-caja", json={
+            "fondo_inicial": "2100.00",
+            "efectivo_real": "2130.00",
+            "notas": "Conteo terminado",
+        }, headers=auth_headers)
+        assert segundo.status_code == 201, segundo.text
+
+        cancelado = client.post(
+            f"/api/v1/punto-de-venta/cortes-caja/{segundo.json()['id']}/cancelar",
+            json={"motivo": "Se registró un corte de prueba"},
+            headers=auth_headers,
+        )
+        assert cancelado.status_code == 200, cancelado.text
+        assert cancelado.json()["estado"] == "cancelado"
+
+        historial = client.get("/api/v1/punto-de-venta/cortes-caja", headers=auth_headers)
+        assert historial.status_code == 200
+        assert [c["estado"] for c in historial.json()] == ["cancelado", "reabierto"]
+        acciones = {
+            evento.accion
+            for evento in db.query(LogAuditoria).filter(
+                LogAuditoria.entidad == "corte_caja"
+            )
+        }
+        assert {"crear", "actualizar", "reabrir", "cancelar"} <= acciones
+
     def test_venta_clip_integrada_queda_pendiente_y_no_entra_corte(self, client, auth_headers):
         pid = self._crear_producto(client, auth_headers, "CLIP-PEND", "30.00")
         self._agregar_stock(client, auth_headers, pid, 5)

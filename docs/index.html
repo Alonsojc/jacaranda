@@ -1089,6 +1089,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="card" style="min-width:0;overflow:hidden">
 <h3>Cuadre de caja</h3>
 <div id="c-cerrado-msg" style="display:none;background:#ecfdf5;border:1px solid #bbf7d0;color:#166534;border-radius:8px;padding:.45rem .6rem;margin-bottom:.6rem;font-size:.8rem;font-weight:600"></div>
+<div id="c-corte-acciones" style="display:none;gap:.4rem;flex-wrap:wrap;margin:-.1rem 0 .7rem"></div>
 <div class="srow"><span>Total ventas del d&iacute;a</span><span class="green" id="c-total">$0.00</span></div>
 <div class="srow"><span>Tickets</span><span id="c-tickets">0</span></div>
 <div style="border-top:2px solid var(--brd);margin:.8rem 0;padding-top:.8rem">
@@ -2129,6 +2130,39 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="confirm-actions">
 <button class="limpiar" id="entrada-cancel" onclick="resolverEntrada(false)">Cancelar</button>
 <button class="cobrar" id="entrada-accept" onclick="resolverEntrada(true)">Aceptar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Corte registrado -->
+<div class="modal-bg" id="modal-corte-registrado">
+<div class="modal confirm-modal">
+<div class="confirm-icon" style="background:#dcfce7;color:#166534">&#10003;</div>
+<h3>Corte registrado</h3>
+<p class="confirm-message" id="corte-registrado-mensaje"></p>
+<p class="confirm-detail">Imprime este comprobante ahora o vuelve a imprimirlo desde el historial.</p>
+<div class="confirm-actions">
+<button class="limpiar" onclick="cerrarModal('modal-corte-registrado')">Después</button>
+<button class="cobrar" onclick="imprimirUltimoCorte()">&#128424; Imprimir corte</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Editar corte -->
+<div class="modal-bg" id="modal-corte-editar">
+<div class="modal" style="max-width:420px">
+<h3>Editar corte</h3>
+<p style="margin:-.35rem 0 .8rem;color:var(--mut);font-size:.82rem">Se corrige el conteo de caja. Las ventas del corte no cambian.</p>
+<input type="hidden" id="mce-id">
+<div class="frow">
+<div class="fg"><label>Fondo inicial</label><input type="number" inputmode="decimal" min="0" step="0.01" id="mce-fondo"></div>
+<div class="fg"><label>Efectivo contado</label><input type="number" inputmode="decimal" min="0" step="0.01" id="mce-real"></div>
+</div>
+<div class="fg"><label>Notas del corte</label><input id="mce-notas" placeholder="Obligatorio si hay diferencia"></div>
+<div class="fg"><label>Motivo de la corrección</label><input id="mce-motivo" placeholder="Monto contado mal, fondo corregido..."></div>
+<div style="display:flex;gap:.5rem;margin-top:1rem">
+<button class="cobrar" style="flex:1" onclick="guardarEdicionCorte()">Guardar cambios</button>
+<button class="limpiar" style="flex:1" onclick="cerrarModal('modal-corte-editar')">Cancelar</button>
 </div>
 </div>
 </div>
@@ -9566,6 +9600,86 @@ function abrirThermerNativo(tk) {
   window.location.href = 'thermer://?data=' + datos;
 }
 
+function crearDatosCorteThermer(corte) {
+  var entradas = {};
+  var indice = 0;
+  var anchoLinea = 32;
+
+  function texto(contenido, opciones) {
+    opciones = opciones || {};
+    entradas[indice++] = {
+      type: 0,
+      content: textoThermer(contenido),
+      bold: opciones.negritas ? 1 : 0,
+      align: opciones.alinear == null ? 0 : opciones.alinear,
+      format: opciones.formato == null ? 0 : opciones.formato
+    };
+  }
+  function separador() { texto('--------------------------------'); }
+  function fila(etiqueta, valor, negritas) {
+    var izquierda = textoThermer(etiqueta);
+    var derecha = textoThermer(valor);
+    if (izquierda.length + derecha.length + 1 > anchoLinea) {
+      texto(izquierda, {negritas: negritas});
+      texto(derecha, {negritas: negritas, alinear: 2});
+      return;
+    }
+    texto(izquierda + new Array(anchoLinea - izquierda.length - derecha.length + 1).join(' ') + derecha, {negritas: negritas});
+  }
+
+  texto('JACARANDA', {negritas: true, alinear: 1});
+  texto('sharing flavors', {alinear: 1});
+  separador();
+  texto('CORTE DE CAJA', {negritas: true, alinear: 1});
+  texto('Corte #' + corte.id, {alinear: 1});
+  texto(formatearInstanteOperacion(corte.fecha, {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}), {alinear: 1});
+  separador();
+  fila('Dinero inicial', '$' + fmt(corte.fondo_inicial));
+  fila('+ Ventas efectivo', '$' + fmt(corte.total_ventas_efectivo));
+  fila('TOTAL EFECTIVO', '$' + fmt(corte.efectivo_esperado), true);
+  separador();
+  fila('Ventas BBVA', '$' + fmt(corte.total_ventas_bbva));
+  fila('Ventas CLIP', '$' + fmt(corte.total_ventas_clip));
+  fila('Ventas transferencia', '$' + fmt(corte.total_ventas_transferencia));
+  if (parseFloat(corte.total_ventas_tarjeta) > 0) fila('Otra tarjeta', '$' + fmt(corte.total_ventas_tarjeta));
+  fila('TOTAL DEL DIA', '$' + fmt(corte.total_ventas), true);
+  separador();
+  fila('Efectivo contado', '$' + fmt(corte.efectivo_real));
+  fila('Diferencia', '$' + fmt(corte.diferencia), true);
+  if (corte.numero_ventas) fila('Tickets', String(corte.numero_ventas));
+  if (corte.numero_cancelaciones) fila('Cancelaciones', String(corte.numero_cancelaciones));
+  if (corte.notas) {
+    separador();
+    texto('Notas: ' + corte.notas);
+  }
+  separador();
+  texto('Corte ' + (corte.estado || 'cerrado'), {alinear: 1});
+  texto('Jacaranda', {negritas: true, alinear: 1});
+  // Margen final para que la guillotina manual no corte la última línea.
+  texto(' ');
+  texto(' ');
+  texto(' ');
+  return entradas;
+}
+
+function imprimirCorteThermer(corteId) {
+  var corte = typeof corteId === 'object' ? corteId : corteParaAccion(corteId);
+  if (!corte) { toast('No se encontró el corte para imprimir', true); return; }
+  if (!esDispositivoAppleMovil()) {
+    toast('Abre Jacaranda en el iPhone o iPad conectado a Thermer para imprimir', true);
+    return;
+  }
+  cerrarModal('modal-corte-registrado');
+  toast('Abriendo Thermer...');
+  var datos = encodeURIComponent(JSON.stringify(crearDatosCorteThermer(corte)));
+  window.location.href = 'thermer://?data=' + datos;
+}
+
+function imprimirUltimoCorte() {
+  if (!_ultimoCorteRegistrado) { toast('No hay un corte para imprimir', true); return; }
+  imprimirCorteThermer(_ultimoCorteRegistrado);
+}
+
 function nombreArchivoTicketTermico(tk) {
   var folio = textoTicketTermico(tk && tk.folio).replace(/[^A-Za-z0-9_-]/g, '') || 'venta';
   return 'ticket_' + folio + '.png';
@@ -11310,6 +11424,9 @@ var _corteVentas = [];
 var _totalVentasDia = 0;
 var _histVentas = [];
 var _corteYaCerrado = false;
+var _corteActual = null;
+var _cortesCache = {};
+var _ultimoCorteRegistrado = null;
 
 function terminalVenta(v) {
   return String((v && v.terminal) || '').toLowerCase();
@@ -11457,21 +11574,30 @@ function cargarCorte() {
 function cargarResumenCorte(fecha) {
   api('GET', '/punto-de-venta/corte-caja/resumen?fecha=' + fecha).then(function(r) {
     _corteYaCerrado = !!r.corte_existente;
+    _corteActual = r.corte || null;
     var msg = document.getElementById('c-cerrado-msg');
     var btn = document.getElementById('btn-corte');
+    var acciones = document.getElementById('c-corte-acciones');
     if (r.corte_existente) {
       msg.style.display = 'block';
-      msg.textContent = 'Corte ya registrado para esta fecha. No se puede duplicar desde caja.';
+      msg.textContent = 'Corte cerrado para esta fecha. Puedes imprimirlo, corregir el conteo, reabrirlo o cancelarlo.';
+      renderAccionesCorteActual(r.corte);
+      acciones.style.display = 'flex';
       btn.disabled = true;
       btn.style.opacity = '.55';
       btn.textContent = 'Corte ya registrado';
     } else {
       msg.style.display = 'none';
+      acciones.innerHTML = '';
+      acciones.style.display = 'none';
       btn.disabled = false;
       btn.style.opacity = '1';
       btn.textContent = 'Registrar Corte';
     }
-  }).catch(function(){ _corteYaCerrado = false; });
+  }).catch(function(){
+    _corteYaCerrado = false;
+    _corteActual = null;
+  });
 }
 
 function cargarGastos(fecha) {
@@ -11871,9 +11997,12 @@ function realizarCorte() {
     notas: document.getElementById('c-notas').value.trim() || null
   }).then(function(corte) {
     var dif = parseFloat(corte.diferencia) || 0;
-    toast('Corte registrado \u2014 Diferencia: $' + fmt(dif));
-    cargarResumenCorte(document.getElementById('c-fecha').value || fechaHoyISO());
-    cargarHistorialCortes();
+    _ultimoCorteRegistrado = corte;
+    _cortesCache[corte.id] = corte;
+    document.getElementById('corte-registrado-mensaje').textContent =
+      'Diferencia: $' + fmt(dif) + '. Toca Imprimir corte para enviarlo a Thermer.';
+    document.getElementById('modal-corte-registrado').classList.add('on');
+    cargarCorte();
   }).catch(function(e) { toast(e.message || 'Error al registrar corte', true); });
 }
 
@@ -12274,24 +12403,51 @@ function cargarPuntoEquilibrioCorte() {
 }
 
 // ─── Historial cortes ────────────────────────────────────────────
+function etiquetaEstadoCorte(corte) {
+  if (corte.estado === 'reabierto') return '<span class="badge blow">Reabierto</span>';
+  if (corte.estado === 'cancelado') return '<span class="badge bout">Cancelado</span>';
+  return '<span class="badge bok">Cerrado</span>';
+}
+
+function botonesCorte(corte) {
+  var h = actionBtn('Imprimir', '&#128424;', 'imprimirCorteThermer(' + corte.id + ')');
+  if (corte.estado === 'cerrado') {
+    h += actionBtn('Editar', '&#9998;', 'abrirEditarCorte(' + corte.id + ')');
+    h += actionBtn('Reabrir', '&#8635;', 'reabrirCorte(' + corte.id + ')');
+    h += actionBtn('Cancelar', '&#10005;', 'cancelarCorte(' + corte.id + ')', 'danger');
+  }
+  return h;
+}
+
+function renderAccionesCorteActual(corte) {
+  var acciones = document.getElementById('c-corte-acciones');
+  if (!acciones || !corte) return;
+  _cortesCache[corte.id] = corte;
+  acciones.innerHTML = botonesCorte(corte);
+}
+
 function cargarHistorialCortes() {
   api('GET', '/punto-de-venta/cortes-caja?limit=15').then(function(cortes) {
     if (!cortes.length) {
       document.getElementById('c-historial').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center">Sin cortes registrados</p>';
       return;
     }
-    var h = '<table class="tbl"><tr><th>Fecha</th><th>Ventas</th><th>Tickets</th><th>Efectivo</th><th>Diferencia</th></tr>';
+    _cortesCache = {};
+    var h = '<table class="tbl"><tr><th>Fecha</th><th>Estado</th><th>Ventas</th><th>Tickets</th><th>Efectivo</th><th>Diferencia</th><th class="actions-th">Acciones</th></tr>';
     for (var i = 0; i < cortes.length; i++) {
       var c = cortes[i];
+      _cortesCache[c.id] = c;
       var f = formatearInstanteOperacion(c.fecha, {day:'2-digit',month:'short'});
       var dif = parseFloat(c.diferencia) || 0;
       var difColor = Math.abs(dif) < 1 ? 'var(--grn)' : '#b91c1c';
       h += '<tr>';
       h += '<td>' + f + '</td>';
+      h += '<td>' + etiquetaEstadoCorte(c) + '</td>';
       h += '<td class="green">$' + fmt(c.total_ventas) + '</td>';
       h += '<td>' + c.numero_ventas + '</td>';
       h += '<td>$' + fmt(c.total_ventas_efectivo) + '</td>';
       h += '<td style="color:' + difColor + ';font-weight:600">$' + fmt(dif) + '</td>';
+      h += '<td class="actions-cell"><div class="action-buttons">' + botonesCorte(c) + '</div></td>';
       h += '</tr>';
     }
     h += '</table>';
@@ -12300,6 +12456,85 @@ function cargarHistorialCortes() {
     document.getElementById('c-historial').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Error al cargar</p>';
   });
 }
+
+function corteParaAccion(id) {
+  var corte = _cortesCache[id];
+  if (!corte && _corteActual && Number(_corteActual.id) === Number(id)) corte = _corteActual;
+  if (!corte && _ultimoCorteRegistrado && Number(_ultimoCorteRegistrado.id) === Number(id)) corte = _ultimoCorteRegistrado;
+  return corte;
+}
+
+function abrirEditarCorte(id) {
+  var corte = corteParaAccion(id);
+  if (!corte) { toast('No se encontró el corte', true); return; }
+  document.getElementById('mce-id').value = corte.id;
+  document.getElementById('mce-fondo').value = corte.fondo_inicial;
+  document.getElementById('mce-real').value = corte.efectivo_real;
+  document.getElementById('mce-notas').value = corte.notas || '';
+  document.getElementById('mce-motivo').value = '';
+  document.getElementById('modal-corte-editar').classList.add('on');
+}
+
+function guardarEdicionCorte() {
+  var id = document.getElementById('mce-id').value;
+  var fondo = parseFloat(document.getElementById('mce-fondo').value);
+  var real = parseFloat(document.getElementById('mce-real').value);
+  var motivo = document.getElementById('mce-motivo').value.trim();
+  if (isNaN(fondo) || fondo < 0 || isNaN(real) || real < 0) {
+    toast('Revisa fondo inicial y efectivo contado', true);
+    return;
+  }
+  if (motivo.length < 5) { toast('Escribe el motivo de la corrección', true); return; }
+  apiProtegida('PUT', '/punto-de-venta/cortes-caja/' + id, {
+    fondo_inicial: fondo,
+    efectivo_real: real,
+    notas: document.getElementById('mce-notas').value.trim() || null,
+    motivo: motivo
+  }, 'editar corte de caja').then(function() {
+    cerrarModal('modal-corte-editar');
+    toast('Corte actualizado');
+    cargarCorte();
+  }).catch(function(e) {
+    if (e.message !== 'Autorizacion cancelada') toast(e.message || 'No se pudo actualizar el corte', true);
+  });
+}
+
+async function cambiarEstadoCorte(id, accion) {
+  var etiqueta = accion === 'reabrir' ? 'Reabrir corte' : 'Cancelar corte';
+  var detalle = accion === 'reabrir'
+    ? 'El corte quedará en historial y podrás registrar uno nuevo para ese día.'
+    : 'El corte quedará cancelado en el historial y podrás registrar uno nuevo para ese día.';
+  var motivo = await solicitarEntrada({
+    title: etiqueta,
+    message: 'Escribe el motivo.',
+    detail: detalle,
+    label: 'Motivo',
+    placeholder: accion === 'reabrir' ? 'Conteo incompleto, faltaba revisar...' : 'Captura duplicada, corte equivocado...',
+    acceptText: 'Continuar',
+    tone: accion === 'cancelar' ? 'danger' : 'warning'
+  });
+  if (motivo == null) return;
+  motivo = motivo.trim();
+  if (motivo.length < 5) { toast('Escribe un motivo más claro', true); return; }
+  var confirmado = await confirmarAccion({
+    title: etiqueta,
+    message: accion === 'reabrir' ? '¿Reabrir este corte?' : '¿Cancelar este corte?',
+    detail: motivo,
+    acceptText: accion === 'reabrir' ? 'Reabrir' : 'Cancelar corte',
+    tone: accion === 'cancelar' ? 'danger' : 'warning'
+  });
+  if (!confirmado) return;
+  apiProtegida('POST', '/punto-de-venta/cortes-caja/' + id + '/' + accion, {motivo: motivo}, etiqueta.toLowerCase()).then(function() {
+    toast(accion === 'reabrir' ? 'Corte reabierto' : 'Corte cancelado');
+    cargarCorte();
+  }).catch(function(e) {
+    if (e.message !== 'Autorizacion cancelada') toast(e.message || 'No se pudo cambiar el corte', true);
+  });
+}
+
+function reabrirCorte(id) { cambiarEstadoCorte(id, 'reabrir'); }
+
+function cancelarCorte(id) { cambiarEstadoCorte(id, 'cancelar'); }
 
 // ─── Historial de ventas (filtrable) ─────────────────────────────
 function cargarHistVentas() {
