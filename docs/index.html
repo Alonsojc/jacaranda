@@ -9554,6 +9554,10 @@ function crearDatosTicketThermer(tk) {
   if (tk.leyenda_fiscal) texto(tk.leyenda_fiscal, {alinear: 1});
   texto('Gracias por su compra', {negritas: true, alinear: 1});
   texto('@jacaranda.flavors', {alinear: 1});
+  // Margen final para que la guillotina manual no corte la última línea.
+  texto(' ');
+  texto(' ');
+  texto(' ');
   return entradas;
 }
 

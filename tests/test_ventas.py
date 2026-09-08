@@ -723,6 +723,8 @@ class TestVentas:
         ticket = resp.json()
         assert ticket["folio"] == venta["folio"]
         assert len(ticket["productos"]) == 1
+        assert ticket["leyenda_fiscal"] == "Este ticket NO es un comprobante fiscal."
+        assert "30 días" not in ticket["leyenda_fiscal"]
 
     def test_pos_no_cobra_iva_por_default_y_agrega_8_para_factura(self, client, auth_headers):
         pid = self._crear_producto(client, auth_headers, "PASTEL-001", "100.00")

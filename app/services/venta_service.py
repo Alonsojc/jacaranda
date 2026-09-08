@@ -1014,10 +1014,7 @@ def generar_ticket(db: Session, venta_id: int) -> dict:
         "pagos": pagos_info,
         "monto_recibido": f"${venta.monto_recibido:,.2f}",
         "cambio": f"${venta.cambio:,.2f}",
-        "leyenda_fiscal": (
-            "Este ticket NO es un comprobante fiscal. "
-            "Solicite su factura en los 30 días siguientes."
-        ),
+        "leyenda_fiscal": "Este ticket NO es un comprobante fiscal.",
     }
 
 

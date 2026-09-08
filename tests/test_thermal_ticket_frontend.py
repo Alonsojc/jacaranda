@@ -53,3 +53,4 @@ def test_thermal_ticket_uses_documented_thermer_scheme_with_native_text_entries(
     assert "type: 0," in thermal
     assert "align: opciones.alinear == null ? 0 : opciones.alinear" in thermal
     assert "window.location.href = 'thermer://?data=' + datos;" in thermal
+    assert "// Margen final para que la guillotina manual no corte la última línea." in thermal
