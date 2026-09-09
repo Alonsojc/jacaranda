@@ -9545,70 +9545,92 @@ function textoThermer(valor) {
   return texto.normalize ? texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : texto;
 }
 
+// Thermer limita las entradas del plan gratuito. Cada bloque es una sola
+// entrada de texto y sus renglones se separan con el formato que documenta la app.
+function textoThermerBloque(lineas) {
+  return (lineas || []).map(function(linea) {
+    return textoThermer(linea);
+  }).join('<br />');
+}
+
+function datosThermerEnBloques(bloques) {
+  var entradas = {};
+  var indice = 0;
+  (bloques || []).forEach(function(bloque) {
+    if (!bloque || !bloque.lineas || !bloque.lineas.length) return;
+    entradas[indice++] = {
+      type: 0,
+      content: textoThermerBloque(bloque.lineas),
+      bold: bloque.negritas ? 1 : 0,
+      align: bloque.alinear == null ? 0 : bloque.alinear,
+      format: bloque.formato == null ? 0 : bloque.formato
+    };
+  });
+  return entradas;
+}
+
+function agregarFilaThermer(lineas, etiqueta, valor, anchoLinea) {
+  var izquierda = textoThermer(etiqueta);
+  var derecha = textoThermer(valor);
+  if (izquierda.length + derecha.length + 1 > anchoLinea) {
+    lineas.push(izquierda);
+    lineas.push(derecha);
+    return;
+  }
+  lineas.push(izquierda + new Array(anchoLinea - izquierda.length - derecha.length + 1).join(' ') + derecha);
+}
+
 function esDispositivoAppleMovil() {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent || '') ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
 
 function crearDatosTicketThermer(tk) {
-  var entradas = {};
-  var indice = 0;
   var anchoLinea = 32;
+  var bloques = [
+    {lineas: [], negritas: true, alinear: 1},
+    {lineas: [], alinear: 0},
+    {lineas: [], alinear: 0},
+    {lineas: [], negritas: true, alinear: 1}
+  ];
+  var encabezado = bloques[0].lineas;
+  var detalle = bloques[1].lineas;
+  var totales = bloques[2].lineas;
+  var pie = bloques[3].lineas;
+  function separador(lineas) { lineas.push('--------------------------------'); }
 
-  function texto(contenido, opciones) {
-    opciones = opciones || {};
-    entradas[indice++] = {
-      type: 0,
-      content: textoThermer(contenido),
-      bold: opciones.negritas ? 1 : 0,
-      align: opciones.alinear == null ? 0 : opciones.alinear,
-      format: opciones.formato == null ? 0 : opciones.formato
-    };
-  }
-  function separador() { texto('--------------------------------'); }
-  function fila(etiqueta, valor, negritas) {
-    var izquierda = textoThermer(etiqueta);
-    var derecha = textoThermer(valor);
-    if (izquierda.length + derecha.length + 1 > anchoLinea) {
-      texto(izquierda, {negritas: negritas});
-      texto(derecha, {negritas: negritas, alinear: 2});
-      return;
-    }
-    texto(izquierda + new Array(anchoLinea - izquierda.length - derecha.length + 1).join(' ') + derecha, {negritas: negritas});
-  }
-
-  texto(tk.razon_social || 'JACARANDA', {negritas: true, alinear: 1});
-  texto('sharing flavors', {alinear: 1});
-  if (tk.rfc) texto('RFC: ' + tk.rfc, {alinear: 1});
-  if (tk.direccion) texto(tk.direccion, {alinear: 1});
-  separador();
-  texto(tk.folio, {negritas: true, alinear: 1});
-  texto(tk.fecha, {alinear: 1});
-  if (tk.cajero) texto(tk.cajero, {alinear: 1});
-  separador();
+  encabezado.push(tk.razon_social || 'JACARANDA');
+  encabezado.push('sharing flavors');
+  if (tk.rfc) encabezado.push('RFC: ' + tk.rfc);
+  if (tk.direccion) encabezado.push(tk.direccion);
+  separador(encabezado);
+  detalle.push(tk.folio);
+  detalle.push(tk.fecha);
+  if (tk.cajero) detalle.push(tk.cajero);
+  separador(detalle);
 
   (tk.productos || []).forEach(function(producto) {
-    fila(fmtQty(producto.cantidad) + 'x ' + producto.nombre, '$' + fmt(producto.subtotal));
+    agregarFilaThermer(detalle, fmtQty(producto.cantidad) + 'x ' + producto.nombre, '$' + fmt(producto.subtotal), anchoLinea);
   });
 
-  separador();
-  fila('Subtotal', tk.subtotal);
-  if (tk.descuento && tk.descuento !== '$0.00') fila('Descuento', '-' + tk.descuento);
-  fila('IVA', tk.iva);
-  fila('TOTAL', tk.total, true);
-  separador();
-  texto('Pago: ' + tk.metodo_pago);
-  if (tk.monto_recibido && tk.monto_recibido !== '$0.00') fila('Recibido', tk.monto_recibido);
-  if (tk.cambio && tk.cambio !== '$0.00') fila('Cambio', tk.cambio, true);
-  separador();
-  if (tk.leyenda_fiscal) texto(tk.leyenda_fiscal, {alinear: 1});
-  texto('Gracias por su compra', {negritas: true, alinear: 1});
-  texto('@jacaranda.flavors', {alinear: 1});
+  separador(detalle);
+  agregarFilaThermer(totales, 'Subtotal', tk.subtotal, anchoLinea);
+  if (tk.descuento && tk.descuento !== '$0.00') agregarFilaThermer(totales, 'Descuento', '-' + tk.descuento, anchoLinea);
+  agregarFilaThermer(totales, 'IVA', tk.iva, anchoLinea);
+  agregarFilaThermer(totales, 'TOTAL', tk.total, anchoLinea);
+  separador(totales);
+  totales.push('Pago: ' + tk.metodo_pago);
+  if (tk.monto_recibido && tk.monto_recibido !== '$0.00') agregarFilaThermer(totales, 'Recibido', tk.monto_recibido, anchoLinea);
+  if (tk.cambio && tk.cambio !== '$0.00') agregarFilaThermer(totales, 'Cambio', tk.cambio, anchoLinea);
+  separador(totales);
+  if (tk.leyenda_fiscal) pie.push(tk.leyenda_fiscal);
+  pie.push('Gracias por su compra');
+  pie.push('@jacaranda.flavors');
   // Margen final para que la guillotina manual no corte la última línea.
-  texto(' ');
-  texto(' ');
-  texto(' ');
-  return entradas;
+  pie.push(' ');
+  pie.push(' ');
+  pie.push(' ');
+  return datosThermerEnBloques(bloques);
 }
 
 function abrirThermerNativo(tk) {
@@ -9617,65 +9639,52 @@ function abrirThermerNativo(tk) {
 }
 
 function crearDatosCorteThermer(corte) {
-  var entradas = {};
-  var indice = 0;
   var anchoLinea = 32;
+  var bloques = [
+    {lineas: [], negritas: true, alinear: 1},
+    {lineas: [], alinear: 0},
+    {lineas: [], alinear: 0},
+    {lineas: [], negritas: true, alinear: 1}
+  ];
+  var encabezado = bloques[0].lineas;
+  var ventas = bloques[1].lineas;
+  var resumen = bloques[2].lineas;
+  var pie = bloques[3].lineas;
+  function separador(lineas) { lineas.push('--------------------------------'); }
 
-  function texto(contenido, opciones) {
-    opciones = opciones || {};
-    entradas[indice++] = {
-      type: 0,
-      content: textoThermer(contenido),
-      bold: opciones.negritas ? 1 : 0,
-      align: opciones.alinear == null ? 0 : opciones.alinear,
-      format: opciones.formato == null ? 0 : opciones.formato
-    };
-  }
-  function separador() { texto('--------------------------------'); }
-  function fila(etiqueta, valor, negritas) {
-    var izquierda = textoThermer(etiqueta);
-    var derecha = textoThermer(valor);
-    if (izquierda.length + derecha.length + 1 > anchoLinea) {
-      texto(izquierda, {negritas: negritas});
-      texto(derecha, {negritas: negritas, alinear: 2});
-      return;
-    }
-    texto(izquierda + new Array(anchoLinea - izquierda.length - derecha.length + 1).join(' ') + derecha, {negritas: negritas});
-  }
-
-  texto('JACARANDA', {negritas: true, alinear: 1});
-  texto('sharing flavors', {alinear: 1});
-  separador();
-  texto('CORTE DE CAJA', {negritas: true, alinear: 1});
-  texto('Corte #' + corte.id, {alinear: 1});
-  texto(formatearInstanteOperacion(corte.fecha, {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}), {alinear: 1});
-  separador();
-  fila('Dinero inicial', '$' + fmt(corte.fondo_inicial));
-  fila('+ Ventas efectivo', '$' + fmt(corte.total_ventas_efectivo));
-  fila('TOTAL EFECTIVO', '$' + fmt(corte.efectivo_esperado), true);
-  separador();
-  fila('Ventas BBVA', '$' + fmt(corte.total_ventas_bbva));
-  fila('Ventas CLIP', '$' + fmt(corte.total_ventas_clip));
-  fila('Ventas transferencia', '$' + fmt(corte.total_ventas_transferencia));
-  if (parseFloat(corte.total_ventas_tarjeta) > 0) fila('Otra tarjeta', '$' + fmt(corte.total_ventas_tarjeta));
-  fila('TOTAL DEL DIA', '$' + fmt(corte.total_ventas), true);
-  separador();
-  fila('Efectivo contado', '$' + fmt(corte.efectivo_real));
-  fila('Diferencia', '$' + fmt(corte.diferencia), true);
-  if (corte.numero_ventas) fila('Tickets', String(corte.numero_ventas));
-  if (corte.numero_cancelaciones) fila('Cancelaciones', String(corte.numero_cancelaciones));
+  encabezado.push('JACARANDA');
+  encabezado.push('sharing flavors');
+  separador(encabezado);
+  encabezado.push('CORTE DE CAJA');
+  encabezado.push('Corte #' + corte.id);
+  encabezado.push(formatearInstanteOperacion(corte.fecha, {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}));
+  separador(encabezado);
+  agregarFilaThermer(ventas, 'Dinero inicial', '$' + fmt(corte.fondo_inicial), anchoLinea);
+  agregarFilaThermer(ventas, '+ Ventas efectivo', '$' + fmt(corte.total_ventas_efectivo), anchoLinea);
+  agregarFilaThermer(ventas, 'TOTAL EFECTIVO', '$' + fmt(corte.efectivo_esperado), anchoLinea);
+  separador(ventas);
+  agregarFilaThermer(ventas, 'Ventas BBVA', '$' + fmt(corte.total_ventas_bbva), anchoLinea);
+  agregarFilaThermer(ventas, 'Ventas CLIP', '$' + fmt(corte.total_ventas_clip), anchoLinea);
+  agregarFilaThermer(ventas, 'Ventas transferencia', '$' + fmt(corte.total_ventas_transferencia), anchoLinea);
+  if (parseFloat(corte.total_ventas_tarjeta) > 0) agregarFilaThermer(ventas, 'Otra tarjeta', '$' + fmt(corte.total_ventas_tarjeta), anchoLinea);
+  agregarFilaThermer(ventas, 'TOTAL DEL DIA', '$' + fmt(corte.total_ventas), anchoLinea);
+  separador(ventas);
+  agregarFilaThermer(resumen, 'Efectivo contado', '$' + fmt(corte.efectivo_real), anchoLinea);
+  agregarFilaThermer(resumen, 'Diferencia', '$' + fmt(corte.diferencia), anchoLinea);
+  if (corte.numero_ventas) agregarFilaThermer(resumen, 'Tickets', String(corte.numero_ventas), anchoLinea);
+  if (corte.numero_cancelaciones) agregarFilaThermer(resumen, 'Cancelaciones', String(corte.numero_cancelaciones), anchoLinea);
   if (corte.notas) {
-    separador();
-    texto('Notas: ' + corte.notas);
+    separador(resumen);
+    resumen.push('Notas: ' + corte.notas);
   }
-  separador();
-  texto('Corte ' + (corte.estado || 'cerrado'), {alinear: 1});
-  texto('Jacaranda', {negritas: true, alinear: 1});
+  separador(pie);
+  pie.push('Corte ' + (corte.estado || 'cerrado'));
+  pie.push('Jacaranda');
   // Margen final para que la guillotina manual no corte la última línea.
-  texto(' ');
-  texto(' ');
-  texto(' ');
-  return entradas;
+  pie.push(' ');
+  pie.push(' ');
+  pie.push(' ');
+  return datosThermerEnBloques(bloques);
 }
 
 function imprimirCorteThermer(corteId) {
