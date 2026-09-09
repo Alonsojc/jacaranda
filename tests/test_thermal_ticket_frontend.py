@@ -30,6 +30,14 @@ def test_thermal_ticket_is_a_48mm_printable_image_for_58mm_paper():
     assert "return 'ticket_' + folio + '.png';" in HTML
 
 
+def test_product_ticket_lines_keep_subtotal_next_to_quantity_and_name():
+    assert "function formatoLineaProductoTicket(producto)" in HTML
+    assert "fmtQty(producto.cantidad) + 'x  $' + fmt(producto.subtotal)" in HTML
+    assert "txt += formatoLineaProductoTicket(p) + '\\n';" in HTML
+    assert "detalle.push(formatoLineaProductoTicket(producto));" in HTML
+    assert "texto(formatoLineaProductoTicket(producto), 14, {ancho: contenido});" in HTML
+
+
 def test_thermal_ticket_uses_native_ios_schema_with_image_fallback():
     thermal = _segment("function compartirTicketConThermer", "// ─── Fotos masivas")
 

@@ -6570,7 +6570,7 @@ function copiarTicket() {
   txt += '─────────────────────\n';
   for (var i = 0; i < tk.productos.length; i++) {
     var p = tk.productos[i];
-    txt += p.cantidad + 'x ' + p.nombre + '  $' + fmt(p.subtotal) + '\n';
+    txt += formatoLineaProductoTicket(p) + '\n';
   }
   txt += '─────────────────────\n';
   txt += 'Subtotal:  ' + tk.subtotal + '\n';
@@ -6599,7 +6599,7 @@ function compartirWhatsApp() {
   txt += '─────────────────\n';
   for (var i = 0; i < tk.productos.length; i++) {
     var p = tk.productos[i];
-    txt += p.cantidad + 'x ' + p.nombre + '  $' + fmt(p.subtotal) + '\n';
+    txt += formatoLineaProductoTicket(p) + '\n';
   }
   txt += '─────────────────\n';
   txt += '*TOTAL: ' + tk.total + '*\n';
@@ -9540,6 +9540,11 @@ function textoTicketTermico(valor) {
   return String(valor == null ? '' : valor).replace(/[\r\n]+/g, ' ').trim();
 }
 
+// El importe mostrado es el subtotal de la linea; la cantidad conserva el calculo.
+function formatoLineaProductoTicket(producto) {
+  return fmtQty(producto.cantidad) + 'x  $' + fmt(producto.subtotal) + '  ' + textoTicketTermico(producto.nombre);
+}
+
 function textoThermer(valor) {
   var texto = textoTicketTermico(valor);
   return texto.normalize ? texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : texto;
@@ -9610,7 +9615,7 @@ function crearDatosTicketThermer(tk) {
   separador(detalle);
 
   (tk.productos || []).forEach(function(producto) {
-    agregarFilaThermer(detalle, fmtQty(producto.cantidad) + 'x ' + producto.nombre, '$' + fmt(producto.subtotal), anchoLinea);
+    detalle.push(formatoLineaProductoTicket(producto));
   });
 
   separador(detalle);
@@ -9787,18 +9792,7 @@ function crearTicketTermicoImagen(tk) {
   separador();
 
   productos.forEach(function(producto) {
-    var importe = '$' + fmt(producto.subtotal);
-    fuente(14, false);
-    var anchoImporte = ctx.measureText(importe).width;
-    var partes = lineas(fmtQty(producto.cantidad) + 'x ' + textoTicketTermico(producto.nombre), contenido - anchoImporte - 12);
-    var inicio = y;
-    ctx.textAlign = 'left';
-    partes.forEach(function(parte) {
-      ctx.fillText(parte, margen, y);
-      y += 19;
-    });
-    ctx.textAlign = 'right';
-    ctx.fillText(importe, ancho - margen, inicio);
+    texto(formatoLineaProductoTicket(producto), 14, {ancho: contenido});
     y += 4;
   });
 
