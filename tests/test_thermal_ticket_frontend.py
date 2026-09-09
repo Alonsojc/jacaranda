@@ -14,6 +14,8 @@ def test_ticket_modal_uses_thermal_share_action_instead_of_airprint():
     modal = _segment("<!-- MODAL: Ticket confirmación / ver ticket -->", "<!-- MODAL: Nuevo Usuario -->")
 
     assert 'id="mt-thermal-print-btn"' in modal
+    assert "Enviar a Easy POS Print" in modal
+    assert 'onclick="compartirTicketConEasyPosPrint()"' in modal
     assert "Enviar a Thermer" in modal
     assert 'onclick="compartirTicketConThermer()"' in modal
     assert "Guardar PDF" in modal
@@ -36,6 +38,16 @@ def test_product_ticket_lines_keep_subtotal_next_to_quantity_and_name():
     assert "txt += formatoLineaProductoTicket(p) + '\\n';" in HTML
     assert "detalle.push(formatoLineaProductoTicket(producto));" in HTML
     assert "texto(formatoLineaProductoTicket(producto), 14, {ancho: contenido});" in HTML
+
+
+def test_easy_pos_print_uses_ios_share_sheet_with_ticket_text_and_copy_fallback():
+    easy_pos = _segment("function textoTicketParaEasyPos", "function copiarTicket")
+
+    assert "function compartirTicketConEasyPosPrint()" in easy_pos
+    assert "navigator.share({" in easy_pos
+    assert "text: txt" in easy_pos
+    assert "Selecciona Easy POS Print" in easy_pos
+    assert "fallbackCopy(txt);" in easy_pos
 
 
 def test_thermal_ticket_uses_native_ios_schema_with_image_fallback():
