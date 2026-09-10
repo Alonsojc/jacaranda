@@ -2795,7 +2795,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <button onclick="abrirFacturar()" style="width:100%;padding:.5rem;border:2px solid #2563eb;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-weight:600;font-size:.82rem;cursor:pointer">&#128196; Facturar (CFDI)</button>
 </div>
 <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-<button class="cobrar" style="flex:1;min-width:120px" onclick="compartirTicketConEasyPosPrint()">Enviar a Easy POS Print</button>
+<button class="cobrar" style="flex:1;min-width:120px" onclick="copiarTicketParaEasyPosPrint()">Copiar para Easy POS</button>
 <button class="cobrar" style="flex:1;min-width:120px;background:linear-gradient(135deg,#25d366,#128c7e)" onclick="compartirWhatsApp()">&#128172; WhatsApp</button>
 <button class="cobrar" style="flex:1;min-width:120px;background:#2563eb" id="mt-thermal-print-btn" onclick="compartirTicketConThermer()">&#128424; Enviar a Thermer</button>
 <button class="cobrar" style="flex:1;min-width:120px;background:#991b1b" id="mt-pdf-btn" onclick="descargarTicketPDF(_mtVentaId, _mtFolio)">&#128196; Guardar PDF</button>
@@ -6582,37 +6582,20 @@ function textoTicketParaEasyPos(tk) {
   return txt;
 }
 
-function compartirTicketConEasyPosPrint() {
-  var tk = _ultimoTicket;
-  if (!tk) { toast('Espera a que cargue el ticket', true); return; }
-  var txt = textoTicketParaEasyPos(tk);
-  if (navigator.share) {
-    toast('Selecciona Easy POS Print');
-    navigator.share({
-      title: 'Ticket ' + tk.folio,
-      text: txt
-    }).then(function() {
-      toast('Ticket enviado a Easy POS Print');
-    }).catch(function(error) {
-      if (error && error.name === 'AbortError') return;
-      fallbackCopy(txt);
-      toast('No se pudo abrir Easy POS Print; ticket copiado', true);
-    });
-    return;
-  }
-  fallbackCopy(txt);
-  toast('Comparte el ticket desde un iPad o iPhone', true);
+function copiarTicketParaEasyPosPrint() {
+  copiarTicket('Ticket copiado. Abre Easy POS Print y toca Pegar');
 }
 
-function copiarTicket() {
+function copiarTicket(mensajeExito) {
   var tk = _ultimoTicket;
   if (!tk) { toast('No hay ticket para copiar', true); return; }
   var txt = textoTicketParaEasyPos(tk);
+  mensajeExito = mensajeExito || 'Ticket copiado al portapapeles';
   if (navigator.clipboard) {
     navigator.clipboard.writeText(txt).then(function() {
-      toast('Ticket copiado al portapapeles');
-    }).catch(function() { fallbackCopy(txt); });
-  } else { fallbackCopy(txt); }
+      toast(mensajeExito);
+    }).catch(function() { fallbackCopy(txt, mensajeExito); });
+  } else { fallbackCopy(txt, mensajeExito); }
 }
 
 function compartirWhatsApp() {
@@ -6637,11 +6620,11 @@ function compartirWhatsApp() {
   window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
 }
 
-function fallbackCopy(txt) {
+function fallbackCopy(txt, mensajeExito) {
   var ta = document.createElement('textarea');
   ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
   document.body.appendChild(ta); ta.select();
-  try { document.execCommand('copy'); toast('Ticket copiado'); } catch(e) { toast('No se pudo copiar', true); }
+  try { document.execCommand('copy'); toast(mensajeExito || 'Ticket copiado'); } catch(e) { toast('No se pudo copiar', true); }
   document.body.removeChild(ta);
 }
 
