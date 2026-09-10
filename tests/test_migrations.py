@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "f8a9b0c1d2e3 (head)"
+ALEMBIC_HEAD = "a1b2c3d4e5f6 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:
@@ -46,7 +46,7 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path):
     assert {"familia_id", "presentacion"}.issubset(producto_columns)
     assert "es_empaque" in ingrediente_columns
     assert "canal" in venta_columns
-    assert {"estado", "motivo_estado"}.issubset(corte_columns)
+    assert {"estado", "motivo_estado", "turno", "periodo_inicio", "periodo_fin"}.issubset(corte_columns)
 
 
 def test_alembic_upgrade_head_on_precreated_schema(tmp_path):

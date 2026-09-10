@@ -157,6 +157,16 @@ def resumen_corte(
     return svc.resumen_corte_caja(db, fecha)
 
 
+@router.get("/corte-caja/ventas", response_model=list[VentaResponse])
+def ventas_del_turno(
+    fecha: date | None = None,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("corte", "ver")),
+):
+    """Ventas del periodo que corresponde al siguiente corte de turno."""
+    return svc.ventas_periodo_corte(db, fecha)
+
+
 @router.get("/cortes-caja", response_model=list[CorteCajaResponse])
 def historial_cortes(
     limit: int = Query(default=30, le=100),

@@ -836,7 +836,7 @@ class TestVentas:
         ).json()
         assert puntos["puntos"] == 10
 
-    def test_corte_resumen_y_no_permite_duplicado(self, client, auth_headers):
+    def test_corte_resumen_separa_turnos_del_mismo_dia(self, client, auth_headers):
         pid = self._crear_producto(client, auth_headers, "CORTE-001", "30.00")
         self._agregar_stock(client, auth_headers, pid, 5)
         venta = client.post("/api/v1/punto-de-venta/ventas", json={
@@ -856,13 +856,31 @@ class TestVentas:
             "efectivo_real": "2030.00",
         }, headers=auth_headers)
         assert corte.status_code == 201, corte.text
+        assert corte.json()["turno"] == 1
+        assert corte.json()["total_ventas"] == "30.00"
 
-        duplicado = client.post("/api/v1/punto-de-venta/corte-caja", json={
+        segunda_venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": "01",
+            "monto_recibido": "100.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"}],
+        }, headers=auth_headers)
+        assert segunda_venta.status_code == 201, segunda_venta.text
+
+        siguiente_resumen = client.get(
+            "/api/v1/punto-de-venta/corte-caja/resumen",
+            headers=auth_headers,
+        )
+        assert siguiente_resumen.status_code == 200
+        assert siguiente_resumen.json()["siguiente_turno"] == 2
+        assert siguiente_resumen.json()["total_ventas"] == "30.00"
+
+        segundo = client.post("/api/v1/punto-de-venta/corte-caja", json={
             "fondo_inicial": "2000.00",
             "efectivo_real": "2030.00",
         }, headers=auth_headers)
-        assert duplicado.status_code == 400
-        assert "ya existe" in duplicado.json()["detail"].lower()
+        assert segundo.status_code == 201, segundo.text
+        assert segundo.json()["turno"] == 2
+        assert segundo.json()["total_ventas"] == "30.00"
 
     def test_corte_se_puede_editar_reabrir_y_cancelar_sin_borrar_historial(
         self, client, auth_headers, db

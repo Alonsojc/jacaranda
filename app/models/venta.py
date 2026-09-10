@@ -162,12 +162,15 @@ class PagoVenta(Base):
 
 
 class CorteCaja(Base):
-    """Corte de caja diario."""
+    """Corte de caja de un turno, conservado para auditoría."""
     __tablename__ = "cortes_caja"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    turno: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    periodo_inicio: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    periodo_fin: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     fondo_inicial: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     total_ventas_efectivo: Mapped[Decimal] = mapped_column(Numeric(14, 2))

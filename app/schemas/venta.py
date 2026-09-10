@@ -173,6 +173,9 @@ class CorteCajaAccion(BaseModel):
 class CorteCajaResponse(BaseModel):
     id: int
     fecha: datetime
+    turno: int | None = None
+    periodo_inicio: datetime | None = None
+    periodo_fin: datetime | None = None
     fondo_inicial: Decimal
     total_ventas_efectivo: Decimal
     total_ventas_tarjeta: Decimal
@@ -206,3 +209,6 @@ class CorteCajaResumen(BaseModel):
     corte_existente: bool
     corte_id: int | None = None
     corte: CorteCajaResponse | None = None
+    siguiente_turno: int = 1
+    periodo_inicio: datetime | None = None
+    periodo_fin: datetime | None = None
