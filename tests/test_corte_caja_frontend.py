@@ -13,7 +13,10 @@ def test_cash_closing_surface_has_print_and_lifecycle_actions():
     assert "function guardarEdicionCorte" in HTML
     assert "function reabrirCorte" in HTML
     assert "function cancelarCorte" in HTML
-    assert "Corte cerrado para esta fecha" in HTML
+    assert "Último corte: turno" in HTML
+    assert "Ventas del turno" in HTML
+    assert "Registrar corte · Turno" in HTML
+    assert "/punto-de-venta/corte-caja/ventas?fecha=" in HTML
     assert "function apiProtegidaConPasswordAdmin" in HTML
     assert "apiProtegidaConPasswordAdmin('PUT'" in HTML
     assert "apiProtegidaConPasswordAdmin('POST'" in HTML

@@ -1028,16 +1028,65 @@ def _rango_dia_corte(fecha: date) -> tuple[datetime, datetime]:
     )
 
 
-def _totales_corte(db: Session, fecha: date) -> dict:
+def _cortes_cerrados_del_dia(db: Session, fecha: date) -> list[CorteCaja]:
     inicio, fin = _rango_dia_corte(fecha)
-
-    ventas = db.query(Venta).filter(
-        and_(
-            Venta.fecha >= inicio,
-            Venta.fecha <= fin,
-            Venta.estado == EstadoVenta.COMPLETADA,
+    return (
+        db.query(CorteCaja)
+        .filter(
+            CorteCaja.fecha >= inicio,
+            CorteCaja.fecha <= fin,
+            CorteCaja.estado == "cerrado",
         )
-    ).all()
+        .order_by(CorteCaja.fecha.desc())
+        .all()
+    )
+
+
+def _siguiente_turno_corte(db: Session, fecha: date) -> int:
+    inicio, fin = _rango_dia_corte(fecha)
+    cortes = (
+        db.query(CorteCaja)
+        .filter(CorteCaja.fecha >= inicio, CorteCaja.fecha <= fin)
+        .order_by(CorteCaja.fecha.asc())
+        .all()
+    )
+    if not cortes:
+        return 1
+    numeros = [corte.turno or indice for indice, corte in enumerate(cortes, start=1)]
+    return max(numeros) + 1
+
+
+def _totales_corte(
+    db: Session,
+    fecha: date,
+    hasta: datetime | None = None,
+) -> dict:
+    inicio_dia, fin_dia = _rango_dia_corte(fecha)
+    momento_fin = hasta or datetime.now(timezone.utc)
+    fin_periodo = (
+        _normalizar_fecha_db(momento_fin)
+        if fecha == _fecha_hora_operacion(momento_fin).date()
+        else fin_dia
+    )
+    cortes_cerrados = _cortes_cerrados_del_dia(db, fecha)
+    corte_anterior = cortes_cerrados[0] if cortes_cerrados else None
+    periodo_inicio = (
+        corte_anterior.periodo_fin
+        or corte_anterior.fecha
+        if corte_anterior
+        else inicio_dia
+    )
+    limite_inferior = periodo_inicio if corte_anterior else inicio_dia
+
+    ventas_query = db.query(Venta).options(
+        joinedload(Venta.detalles).joinedload(DetalleVenta.producto),
+        joinedload(Venta.pagos),
+    ).filter(
+        Venta.fecha > limite_inferior if corte_anterior else Venta.fecha >= limite_inferior,
+        Venta.fecha <= fin_periodo,
+        Venta.estado == EstadoVenta.COMPLETADA,
+    )
+    ventas = ventas_query.all()
 
     # Calculate totals by payment method, considering split payments
     total_efectivo = Decimal("0")
@@ -1067,24 +1116,19 @@ def _totales_corte(db: Session, fecha: date) -> dict:
             sumar(canal_pago(v.metodo_pago, v.terminal), v.total)
     total_ventas = total_efectivo + total_tarjeta + total_transferencia + total_clip + total_bbva
 
-    cancelaciones = db.query(func.count(Venta.id)).filter(
-        and_(
-            Venta.fecha >= inicio,
-            Venta.fecha <= fin,
-            Venta.estado == EstadoVenta.CANCELADA,
-        )
-    ).scalar() or 0
-
-    corte_existente = db.query(CorteCaja).filter(
-        CorteCaja.fecha >= inicio,
-        CorteCaja.fecha <= fin,
-        CorteCaja.estado == "cerrado",
-    ).order_by(CorteCaja.fecha.desc()).first()
+    cancelaciones_query = db.query(func.count(Venta.id)).filter(
+        Venta.fecha > limite_inferior if corte_anterior else Venta.fecha >= limite_inferior,
+        Venta.fecha <= fin_periodo,
+        Venta.estado == EstadoVenta.CANCELADA,
+    )
+    cancelaciones = cancelaciones_query.scalar() or 0
 
     return {
         "fecha": fecha,
-        "inicio": inicio,
-        "fin": fin,
+        "inicio": limite_inferior,
+        "fin": fin_periodo,
+        "periodo_inicio": periodo_inicio,
+        "periodo_fin": fin_periodo,
         "ventas": ventas,
         "total_efectivo": total_efectivo,
         "total_tarjeta": total_tarjeta,
@@ -1094,7 +1138,8 @@ def _totales_corte(db: Session, fecha: date) -> dict:
         "total_ventas": total_ventas,
         "numero_ventas": len(ventas),
         "numero_cancelaciones": int(cancelaciones),
-        "corte_existente": corte_existente,
+        "corte_existente": corte_anterior,
+        "siguiente_turno": _siguiente_turno_corte(db, fecha),
     }
 
 
@@ -1117,7 +1162,16 @@ def resumen_corte_caja(db: Session, fecha: date | None = None) -> dict:
         "corte_existente": corte_existente is not None,
         "corte_id": corte_existente.id if corte_existente else None,
         "corte": corte_existente,
+        "siguiente_turno": totales["siguiente_turno"],
+        "periodo_inicio": totales["periodo_inicio"],
+        "periodo_fin": totales["periodo_fin"],
     }
+
+
+def ventas_periodo_corte(db: Session, fecha: date | None = None) -> list[Venta]:
+    """Devuelve solo las ventas del turno que está por cerrarse."""
+    dia = fecha or _hoy_operacion()
+    return _totales_corte(db, dia)["ventas"]
 
 
 def _datos_corte(corte: CorteCaja) -> dict:
@@ -1153,10 +1207,10 @@ def _validar_diferencia_corte(
 
 
 def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> CorteCaja:
-    """Realiza corte de caja del día."""
-    totales = _totales_corte(db, _hoy_operacion())
-    if totales["corte_existente"]:
-        raise ValueError("Ya existe un corte de caja registrado para hoy")
+    """Realiza el corte del turno actual y deja listo el siguiente."""
+    corte_momento = datetime.now(timezone.utc)
+    dia = _fecha_hora_operacion(corte_momento).date()
+    totales = _totales_corte(db, dia, hasta=corte_momento)
 
     efectivo_esperado, diferencia = _validar_diferencia_corte(
         data.fondo_inicial,
@@ -1167,7 +1221,10 @@ def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> 
 
     corte = CorteCaja(
         usuario_id=usuario_id,
-        fecha=datetime.now(timezone.utc),
+        fecha=_normalizar_fecha_db(corte_momento),
+        turno=totales["siguiente_turno"],
+        periodo_inicio=totales["periodo_inicio"],
+        periodo_fin=totales["periodo_fin"],
         fondo_inicial=data.fondo_inicial,
         total_ventas_efectivo=totales["total_efectivo"],
         total_ventas_tarjeta=totales["total_tarjeta"],
