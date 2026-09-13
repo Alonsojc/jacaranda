@@ -95,8 +95,8 @@ def test_frontend_keeps_session_during_temporary_server_errors():
     assert "Mantengo tu sesi" in html
     assert "expirarSesion();" in api_segment
     assert "if (r.status === 401)" in api_segment
-    assert "marcarApiTemporalmenteNoDisponible(netErr)" in api_segment
-    assert "marcarApiTemporalmenteNoDisponible(timeoutErr)" in api_segment
+    assert "marcarApiTemporalmenteNoDisponible(netErr, opciones)" in api_segment
+    assert "marcarApiTemporalmenteNoDisponible(timeoutErr, opciones)" in api_segment
     assert "var versionSesionRefresh = _versionSesion" in refresh_segment
     assert "var refreshTokenSolicitado = REFRESH_TOKEN" in refresh_segment
     assert "function sesionRefreshSigueActiva()" in refresh_segment
@@ -105,6 +105,17 @@ def test_frontend_keeps_session_during_temporary_server_errors():
     assert "return conBloqueoColasVentas(function(exigirBloqueoVigente)" in refresh_segment
     assert "}, 30000)" in refresh_segment
     assert refresh_segment.index("if (!sesionRefreshSigueActiva())") < refresh_segment.index("expirarSesion()")
+
+
+def test_dashboard_uses_seven_day_ticket_average_without_global_offline_alert():
+    html = read_text("docs/index.html")
+    spark_segment = segment_between(html, "function cargarSparklines()", "var _dashAlertas")
+    dash_segment = segment_between(html, "function dashGet(path)", "function deferDashboard")
+
+    assert "var ultimos7 = dias.slice(-7)" in spark_segment
+    assert "tickets7 > 0 ? total7 / tickets7 : 0" in spark_segment
+    assert "api('GET', path, null, false, null, null, {silenciosa: true})" in dash_segment
+    assert "var APP_BUILD = 'jacaranda-v99'" in html
 
 
 def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
