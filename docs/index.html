@@ -2878,7 +2878,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v98';
+var APP_BUILD = 'jacaranda-v99';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -3212,8 +3212,9 @@ function marcarApiDisponible() {
   if (TOKEN && typeof setConnected === 'function') setConnected(true);
 }
 
-function marcarApiTemporalmenteNoDisponible(e) {
+function marcarApiTemporalmenteNoDisponible(e, opciones) {
   if (!esErrorTemporal(e)) return;
+  if (opciones && opciones.silenciosa) return;
   _offline = true;
   actualizarBannerOffline();
   if (TOKEN && typeof setConnected === 'function') setConnected(false);
@@ -3304,7 +3305,7 @@ function errorSesionSolicitudCambiada() {
   return error;
 }
 
-function api(method, path, body, _retry, extraHeaders, versionSesionEsperada) {
+function api(method, path, body, _retry, extraHeaders, versionSesionEsperada, opciones) {
   if (!API_URL) return Promise.reject('offline');
   var versionSesionSolicitud = versionSesionEsperada == null ? _versionSesion : versionSesionEsperada;
   function sesionSolicitudSigueActiva() {
@@ -3350,7 +3351,7 @@ function api(method, path, body, _retry, extraHeaders, versionSesionEsperada) {
       if (!sesionSolicitudSigueActiva()) return Promise.reject(errorSesionSolicitudCambiada());
       return refreshAccessToken().then(function() {
         if (!sesionSolicitudSigueActiva()) throw errorSesionSolicitudCambiada();
-        return api(method, path, body, true, extraHeaders, versionSesionSolicitud);
+        return api(method, path, body, true, extraHeaders, versionSesionSolicitud, opciones);
       });
     }
     if (r.status === 401) {
@@ -3384,17 +3385,17 @@ function api(method, path, body, _retry, extraHeaders, versionSesionEsperada) {
     if (e && e.name === 'AbortError') {
       var timeoutErr = new Error('El servidor tardó demasiado en responder');
       timeoutErr.status = 504;
-      marcarApiTemporalmenteNoDisponible(timeoutErr);
+      marcarApiTemporalmenteNoDisponible(timeoutErr, opciones);
       throw timeoutErr;
     }
     if (e && (e.name === 'TypeError' || /failed to fetch/i.test(e.message || ''))) {
       var netErr = new Error('No se pudo conectar al servidor');
       netErr.status = 0;
       netErr.original = e;
-      marcarApiTemporalmenteNoDisponible(netErr);
+      marcarApiTemporalmenteNoDisponible(netErr, opciones);
       throw netErr;
     }
-    marcarApiTemporalmenteNoDisponible(e);
+    marcarApiTemporalmenteNoDisponible(e, opciones);
     throw e;
   });
   if (dedupeKey) {
@@ -3752,7 +3753,7 @@ var _dashGetCache = {};
 var _dashCacheAt = 0;
 function dashGet(path) {
   if (!_dashGetCache[path]) {
-    _dashGetCache[path] = api('GET', path).catch(function(e) {
+    _dashGetCache[path] = api('GET', path, null, false, null, null, {silenciosa: true}).catch(function(e) {
       delete _dashGetCache[path];
       throw e;
     });
@@ -8741,7 +8742,7 @@ function canjearPuntosCliente() {
 // ─── Dashboard avanzado ──────────────────────────────────────────
 var _chartMeses = null;
 function cargarDashAvanzado() {
-  api('GET', '/reportes/dashboard-avanzado').then(function(d) {
+  dashGet('/reportes/dashboard-avanzado').then(function(d) {
     // Comparativo → hero KPIs (la fila duplicada se eliminó del HTML)
     var c = d.comparativo;
     // Hero KPI "Ventas del mes": delta vs mes anterior + subtitulo proyección
@@ -12737,7 +12738,7 @@ function cargarDashboard() {
   // Load top products
   var fin = fechaHoyISO();
   var inicio = fin.slice(0, 7) + '-01';
-  deferDashboard(function() { api('GET', '/reportes/productos-mas-vendidos?fecha_inicio=' + inicio + '&fecha_fin=' + fin + '&limit=5').then(function(tops) {
+  deferDashboard(function() { dashGet('/reportes/productos-mas-vendidos?fecha_inicio=' + inicio + '&fecha_fin=' + fin + '&limit=5').then(function(tops) {
     var h = '';
     for (var i = 0; i < tops.length; i++) {
       var t = tops[i];
@@ -12750,7 +12751,7 @@ function cargarDashboard() {
   }); }, 300);
 
   // Load today's pedidos for dashboard
-  deferDashboard(function() { api('GET', '/pedidos/hoy').then(function(peds) {
+  deferDashboard(function() { dashGet('/pedidos/hoy').then(function(peds) {
     var h = '';
     var estadoClase = {recibido:'bpend',confirmado:'bconf',en_preparacion:'bprep',listo:'blist',entregado:'bok'};
     var estadoNombre = {recibido:'Recibido',confirmado:'Confirmado',en_preparacion:'Preparando',listo:'Listo',entregado:'Entregado'};
@@ -12817,7 +12818,7 @@ function cargarDashboard() {
   }).catch(function(e){ console.warn('Error cargando datos:', e); }); }, 650);
 
   // Alertas de caducidad (dentro del card de alertas)
-  deferDashboard(function() { api('GET', '/reportes/alertas-caducidad?dias=7').then(function(items) {
+  deferDashboard(function() { dashGet('/reportes/alertas-caducidad?dias=7').then(function(items) {
     var section = document.getElementById('d-caducidad-section');
     var el = document.getElementById('d-caducidad');
     if (!items.length || !section || !el) return;
@@ -12833,7 +12834,7 @@ function cargarDashboard() {
   }).catch(function(e){ console.warn('Error cargando datos:', e); }); }, 900);
 
   // Alertas consolidadas (pedidos pendientes + merma)
-  deferDashboard(function() { api('GET', '/reportes/alertas').then(function(data) {
+  deferDashboard(function() { dashGet('/reportes/alertas').then(function(data) {
     var a = '';
     // Pedidos urgentes
     if (data.pedidos_pendientes) {
@@ -12886,8 +12887,8 @@ function cargarAlertasPracticas() {
   Promise.all([
     dashGet('/inventario/productos'),
     dashGet('/inventario/ingredientes'),
-    api('GET', '/recetas/'),
-    api('GET', '/punto-de-venta/ventas?fecha_inicio=' + hoy + '&fecha_fin=' + hoy),
+    dashGet('/recetas/'),
+    dashGet('/punto-de-venta/ventas?fecha_inicio=' + hoy + '&fecha_fin=' + hoy),
   ]).then(function(res) {
     var prods = res[0] || [];
     var ings = res[1] || [];
@@ -12934,7 +12935,7 @@ function cargarPronosticoHero() {
   var totalEl = document.getElementById('d-ai-total');
   var itemsEl = document.getElementById('d-ai-items');
   if (!totalEl || !itemsEl) return;
-  api('GET', '/reportes/pronostico-produccion').then(function(items) {
+  dashGet('/reportes/pronostico-produccion').then(function(items) {
     if (!items || !items.length) {
       totalEl.textContent = 'Sin datos de ventas a\u00fan';
       itemsEl.innerHTML = '';
@@ -13026,6 +13027,13 @@ function cargarSparklines() {
     var ventas = dias.map(function(d){ return parseFloat(d.total) || 0; });
     var tickets = dias.map(function(d){ return parseInt(d.tickets) || 0; });
     var prom = dias.map(function(d){ return d.tickets > 0 ? (d.total / d.tickets) : 0; });
+    var ultimos7 = dias.slice(-7);
+    var total7 = 0, tickets7 = 0;
+    for (var i7 = 0; i7 < ultimos7.length; i7++) {
+      total7 += parseFloat(ultimos7[i7].total) || 0;
+      tickets7 += parseInt(ultimos7[i7].tickets) || 0;
+    }
+    document.getElementById('d-ticket-prom').textContent = '$' + fmt(tickets7 > 0 ? total7 / tickets7 : 0);
     _renderSpark('spark-ventas', ventas, '#10b981');
     _renderSpark('spark-tickets', tickets, '#3b82f6');
     _renderSpark('spark-ticket-prom', prom, '#ec4899');
@@ -13627,7 +13635,7 @@ function verKardex(ingredienteId, nombre) {
 
 // ─── Dashboard empleados ──────────────────────────────────────────
 function cargarDashEmpleados() {
-  api('GET', '/reportes/empleados-dashboard').then(function(r) {
+  dashGet('/reportes/empleados-dashboard').then(function(r) {
     // Cumpleaños
     var hc = '';
     if (r.cumpleanios.length) {
