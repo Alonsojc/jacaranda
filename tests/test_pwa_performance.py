@@ -49,7 +49,7 @@ def test_cors_allows_legacy_no_store_request_headers(client):
 def test_service_worker_never_caches_authenticated_api_data():
     sw = read_text("docs/sw.js")
 
-    assert "const CACHE_NAME = 'jacaranda-v98'" in sw
+    assert "const CACHE_NAME = 'jacaranda-v99'" in sw
     assert "request.headers.has('Authorization')" in sw
     assert "offlineApiResponse" in sw
     assert "'Cache-Control': 'no-store'" in sw
@@ -62,7 +62,7 @@ def test_service_worker_never_caches_authenticated_api_data():
 def test_frontend_api_cache_is_short_lived_and_not_persistent():
     html = read_text("docs/index.html")
 
-    assert "var APP_BUILD = 'jacaranda-v98'" in html
+    assert "var APP_BUILD = 'jacaranda-v99'" in html
     assert "function apiGetCacheTtl(path)" in html
     assert "if (clean === '/inventario/productos') return 45000" in html
     assert "if (clean === '/pedidos/reservas') return 15000" in html
@@ -428,7 +428,7 @@ def test_offline_sale_retry_never_crosses_into_a_new_session():
     assert "var versionSesionSolicitud = versionSesionEsperada == null ? _versionSesion : versionSesionEsperada" in api_segment
     assert "function sesionSolicitudSigueActiva()" in api_segment
     assert "errorSesionSolicitudCambiada()" in api_segment
-    assert "api(method, path, body, true, extraHeaders, versionSesionSolicitud)" in api_segment
+    assert "api(method, path, body, true, extraHeaders, versionSesionSolicitud, opciones)" in api_segment
     assert "dedupeKey = versionSesionSolicitud + ':' + path" in api_segment
     assert api_segment.index("if (!sesionSolicitudSigueActiva())") < api_segment.index(
         "refreshAccessToken()"
