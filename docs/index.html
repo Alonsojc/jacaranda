@@ -2878,7 +2878,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v99';
+var APP_BUILD = 'jacaranda-v100';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -8453,7 +8453,7 @@ function toggleNotifPanel() {
 }
 
 function cargarNotificaciones() {
-  api('GET', '/reportes/alertas').then(function(alertas) {
+  dashGet('/reportes/alertas').then(function(alertas) {
     _notifCache = alertas;
     var badge = document.getElementById('notif-badge');
     var altas = alertas.filter(function(a) { return a.prioridad === 'alta'; }).length;
@@ -8576,7 +8576,7 @@ var _fcmRegistroIntentado = false;
 function registrarFCMPush(manual) {
   if (_fcmRegistroIntentado || !TOKEN || !soportaPushWeb()) return Promise.resolve(false);
   _fcmRegistroIntentado = true;
-  return api('GET', '/notificaciones/fcm-config').then(function(cfg) {
+  return api('GET', '/notificaciones/fcm-config', null, false, null, null, {silenciosa: true}).then(function(cfg) {
     if (!cfg || !cfg.enabled || !cfg.firebase_config || !cfg.vapid_public_key) {
       if (manual) {
         setPushStatus(
@@ -12721,7 +12721,7 @@ function cargarDashboard() {
     document.getElementById('d-mes').textContent = '$' + fmt(vm.total);
     // Ticket promedio del día
     var prom = (vh.numero_ventas > 0) ? (vh.total / vh.numero_ventas) : 0;
-    document.getElementById('d-ticket-prom').textContent = '$' + fmt(prom);
+    document.getElementById('d-ticket-prom').textContent = '$' + fmt(d.ticket_promedio_7_dias != null ? d.ticket_promedio_7_dias : prom);
   }).catch(function(e){ console.warn('Error cargando datos:', e); });
   // Cargar serie de 14 días para sparklines + deltas
   deferDashboard(cargarSparklines, 80);
@@ -13033,7 +13033,9 @@ function cargarSparklines() {
       total7 += parseFloat(ultimos7[i7].total) || 0;
       tickets7 += parseInt(ultimos7[i7].tickets) || 0;
     }
-    document.getElementById('d-ticket-prom').textContent = '$' + fmt(tickets7 > 0 ? total7 / tickets7 : 0);
+    if (tickets7 > 0) {
+      document.getElementById('d-ticket-prom').textContent = '$' + fmt(total7 / tickets7);
+    }
     _renderSpark('spark-ventas', ventas, '#10b981');
     _renderSpark('spark-tickets', tickets, '#3b82f6');
     _renderSpark('spark-ticket-prom', prom, '#ec4899');
@@ -15796,7 +15798,7 @@ function autoConectar() {
   document.getElementById('login-screen').style.display = 'none';
   var cachedUser = usuarioCacheado();
   mostrarInicioGuardado(cachedUser);
-  api('GET', '/auth/me').then(function(u) {
+  api('GET', '/auth/me', null, false, null, null, {silenciosa: true}).then(function(u) {
     _reconectar = 0;
     if (_autoReconnectTimer) {
       clearTimeout(_autoReconnectTimer);

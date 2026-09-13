@@ -4,7 +4,7 @@ Genera reportes de IVA, ISR, ventas y estado financiero.
 """
 
 from decimal import Decimal
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
@@ -391,6 +391,7 @@ def dashboard_resumen(db: Session) -> dict:
     inicio_mes = date(hoy.year, hoy.month, 1)
     inicio_hoy, fin_hoy = operation_period_bounds(hoy, hoy)
     inicio_mes_dt, fin_mes_dt = operation_period_bounds(inicio_mes, hoy)
+    inicio_7_dias, fin_7_dias = operation_period_bounds(hoy - timedelta(days=6), hoy)
 
     # Ventas del día
     ventas_hoy = db.query(func.sum(Venta.total)).filter(
@@ -418,12 +419,31 @@ def dashboard_resumen(db: Session) -> dict:
         )
     ).scalar() or Decimal("0")
 
+    # El KPI visible del dashboard no debe depender de una consulta diferida:
+    # en un día sin ventas, el promedio de hoy es cero aunque haya ventas en
+    # los seis días anteriores.
+    promedio_7_dias = db.query(
+        func.sum(Venta.total).label("total"),
+        func.count(Venta.id).label("cantidad"),
+    ).filter(
+        and_(
+            Venta.fecha >= inicio_7_dias,
+            Venta.fecha <= fin_7_dias,
+            Venta.estado == EstadoVenta.COMPLETADA,
+        )
+    ).first()
+    total_7_dias = promedio_7_dias.total if promedio_7_dias else Decimal("0")
+    cantidad_7_dias = promedio_7_dias.cantidad if promedio_7_dias else 0
+
     return {
         "fecha": hoy.isoformat(),
         "ventas_hoy": {
             "total": float(ventas_hoy),
             "numero_ventas": num_ventas_hoy,
         },
+        "ticket_promedio_7_dias": round(
+            float(total_7_dias / cantidad_7_dias), 2
+        ) if cantidad_7_dias else 0,
         "ventas_mes": {
             "total": float(ventas_mes),
         },
