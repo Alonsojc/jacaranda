@@ -5,6 +5,7 @@ Genera reportes de IVA, ISR, ventas y estado financiero.
 
 from decimal import Decimal
 from datetime import date, datetime, timedelta, timezone
+import calendar
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
@@ -419,6 +420,13 @@ def dashboard_resumen(db: Session) -> dict:
         )
     ).scalar() or Decimal("0")
 
+    dias_transcurridos = (hoy - inicio_mes).days + 1
+    dias_del_mes = calendar.monthrange(hoy.year, hoy.month)[1]
+    proyeccion_mes = round(
+        float(ventas_mes) / dias_transcurridos * dias_del_mes,
+        2,
+    ) if dias_transcurridos else 0
+
     # El KPI visible del dashboard no debe depender de una consulta diferida:
     # en un día sin ventas, el promedio de hoy es cero aunque haya ventas en
     # los seis días anteriores.
@@ -444,6 +452,11 @@ def dashboard_resumen(db: Session) -> dict:
         "ticket_promedio_7_dias": round(
             float(total_7_dias / cantidad_7_dias), 2
         ) if cantidad_7_dias else 0,
+        "proyeccion": {
+            "proyeccion_mes": proyeccion_mes,
+            "dias_transcurridos": dias_transcurridos,
+            "dias_del_mes": dias_del_mes,
+        },
         "ventas_mes": {
             "total": float(ventas_mes),
         },

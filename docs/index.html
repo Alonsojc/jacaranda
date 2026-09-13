@@ -2878,7 +2878,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v100';
+var APP_BUILD = 'jacaranda-v101';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -12719,6 +12719,11 @@ function cargarDashboard() {
     document.getElementById('d-ventas').textContent = '$' + fmt(vh.total);
     document.getElementById('d-tickets').textContent = vh.numero_ventas || 0;
     document.getElementById('d-mes').textContent = '$' + fmt(vm.total);
+    var proyeccion = d.proyeccion || {};
+    var subMesEl = document.getElementById('d-sub-mes');
+    if (subMesEl && proyeccion.proyeccion_mes != null) {
+      subMesEl.textContent = 'proyecci\u00f3n: $' + fmt(proyeccion.proyeccion_mes);
+    }
     // Ticket promedio del día
     var prom = (vh.numero_ventas > 0) ? (vh.total / vh.numero_ventas) : 0;
     document.getElementById('d-ticket-prom').textContent = '$' + fmt(d.ticket_promedio_7_dias != null ? d.ticket_promedio_7_dias : prom);
