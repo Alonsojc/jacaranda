@@ -102,6 +102,13 @@ class TestReportes:
         resp = client.get("/api/v1/reportes/ventas-por-dia?dias=7", headers=auth_headers)
         assert resp.status_code == 200
 
+    def test_dashboard_incluye_ticket_promedio_siete_dias(self, client, auth_headers):
+        resp = client.get("/api/v1/reportes/dashboard", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "ticket_promedio_7_dias" in data
+        assert data["ticket_promedio_7_dias"] >= 0
+
     def test_reporte_pdf_ventas(self, client, auth_headers):
         self._crear_venta(client, auth_headers)
         hoy = date.today()
