@@ -14,8 +14,9 @@ def test_ticket_modal_uses_thermal_share_action_instead_of_airprint():
     modal = _segment("<!-- MODAL: Ticket confirmación / ver ticket -->", "<!-- MODAL: Nuevo Usuario -->")
 
     assert 'id="mt-thermal-print-btn"' in modal
-    assert "Copiar para Easy POS" in modal
-    assert 'onclick="copiarTicketParaEasyPosPrint()"' in modal
+    assert 'id="mt-easy-pos-print-btn"' in modal
+    assert "Enviar a Easy POS" in modal
+    assert 'onclick="enviarTicketAEasyPosPrint()"' in modal
     assert "Enviar a Thermer" in modal
     assert 'onclick="compartirTicketConThermer()"' in modal
     assert "Guardar PDF" in modal
@@ -40,11 +41,15 @@ def test_product_ticket_lines_keep_subtotal_next_to_quantity_and_name():
     assert "texto(formatoLineaProductoTicket(producto), 14, {ancho: contenido});" in HTML
 
 
-def test_easy_pos_print_has_explicit_copy_and_paste_fallback():
+def test_easy_pos_print_opens_directly_and_keeps_copy_fallback():
     easy_pos = _segment("function textoTicketParaEasyPos", "function compartirWhatsApp")
 
     assert "function copiarTicketParaEasyPosPrint()" in easy_pos
     assert "copiarTicket('Ticket copiado. Abre Easy POS Print y toca Pegar');" in easy_pos
+    assert "function enviarTicketAEasyPosPrint()" in easy_pos
+    assert "easyposprint://print?text=' + encodeURIComponent(texto)" in easy_pos
+    assert "&paper=58&source=' + encodeURIComponent('Jacaranda')" in easy_pos
+    assert "window.location.href = url;" in easy_pos
     assert "fallbackCopy(txt, mensajeExito);" in easy_pos
 
 

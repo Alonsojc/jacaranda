@@ -49,7 +49,7 @@ def test_cors_allows_legacy_no_store_request_headers(client):
 def test_service_worker_never_caches_authenticated_api_data():
     sw = read_text("docs/sw.js")
 
-    assert "const CACHE_NAME = 'jacaranda-v101'" in sw
+    assert "const CACHE_NAME = 'jacaranda-v102'" in sw
     assert "request.headers.has('Authorization')" in sw
     assert "offlineApiResponse" in sw
     assert "'Cache-Control': 'no-store'" in sw
@@ -62,7 +62,7 @@ def test_service_worker_never_caches_authenticated_api_data():
 def test_frontend_api_cache_is_short_lived_and_not_persistent():
     html = read_text("docs/index.html")
 
-    assert "var APP_BUILD = 'jacaranda-v101'" in html
+    assert "var APP_BUILD = 'jacaranda-v102'" in html
     assert "function apiGetCacheTtl(path)" in html
     assert "if (clean === '/inventario/productos') return 45000" in html
     assert "if (clean === '/pedidos/reservas') return 15000" in html
@@ -116,7 +116,7 @@ def test_dashboard_uses_seven_day_ticket_average_without_global_offline_alert():
     assert "if (tickets7 > 0)" in spark_segment
     assert "total7 / tickets7" in spark_segment
     assert "api('GET', path, null, false, null, null, {silenciosa: true})" in dash_segment
-    assert "var APP_BUILD = 'jacaranda-v101'" in html
+    assert "var APP_BUILD = 'jacaranda-v102'" in html
 
 
 def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():

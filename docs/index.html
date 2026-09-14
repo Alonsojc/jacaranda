@@ -2796,7 +2796,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <button onclick="abrirFacturar()" style="width:100%;padding:.5rem;border:2px solid #2563eb;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-weight:600;font-size:.82rem;cursor:pointer">&#128196; Facturar (CFDI)</button>
 </div>
 <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-<button class="cobrar" style="flex:1;min-width:120px" onclick="copiarTicketParaEasyPosPrint()">Copiar para Easy POS</button>
+<button class="cobrar" style="flex:1;min-width:120px" id="mt-easy-pos-print-btn" onclick="enviarTicketAEasyPosPrint()">&#128424; Enviar a Easy POS</button>
 <button class="cobrar" style="flex:1;min-width:120px;background:linear-gradient(135deg,#25d366,#128c7e)" onclick="compartirWhatsApp()">&#128172; WhatsApp</button>
 <button class="cobrar" style="flex:1;min-width:120px;background:#2563eb" id="mt-thermal-print-btn" onclick="compartirTicketConThermer()">&#128424; Enviar a Thermer</button>
 <button class="cobrar" style="flex:1;min-width:120px;background:#991b1b" id="mt-pdf-btn" onclick="descargarTicketPDF(_mtVentaId, _mtFolio)">&#128196; Guardar PDF</button>
@@ -2878,7 +2878,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v101';
+var APP_BUILD = 'jacaranda-v102';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -6586,6 +6586,19 @@ function textoTicketParaEasyPos(tk) {
 
 function copiarTicketParaEasyPosPrint() {
   copiarTicket('Ticket copiado. Abre Easy POS Print y toca Pegar');
+}
+
+// Easy POS Print recibe el ticket desde Safari mediante su esquema URL.
+// Se envia como texto plano para que funcione tambien en la version gratuita;
+// autoprint requiere la version completa de la aplicacion.
+function enviarTicketAEasyPosPrint() {
+  var tk = _ultimoTicket;
+  if (!tk) { toast('No hay ticket para enviar', true); return; }
+  var texto = textoTicketParaEasyPos(tk);
+  var url = 'easyposprint://print?text=' + encodeURIComponent(texto)
+    + '&paper=58&source=' + encodeURIComponent('Jacaranda');
+  toast('Abriendo Easy POS Print...');
+  window.location.href = url;
 }
 
 function copiarTicket(mensajeExito) {
