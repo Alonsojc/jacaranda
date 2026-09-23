@@ -119,7 +119,7 @@ def probar_conexion() -> dict:
         with httpx.Client(timeout=15, follow_redirects=False) as client:
             token = _access_token(client)
             response = client.get(
-                f"{API_URL}/v1/delivery/stores/{quote(store_id, safe='')}",
+                f"{API_URL}/v1/eats/stores/{quote(store_id, safe='')}",
                 headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
             )
             if response.status_code == 401:

@@ -50,7 +50,7 @@ UBER_EATS_SANDBOX_STORE_ID=<store-id-de-pruebas>
 ```
 
 El diagnostico solicita scope eats.store, usa client_credentials y consulta
-GET https://test-api.uber.com/v1/delivery/stores/{store_id}.
+GET https://test-api.uber.com/v1/eats/stores/{store_id}.
 Una prueba exitosa solo verifica autenticacion y acceso a esa tienda; no indica
 que pedidos, menu, aprobacion o tienda de produccion esten listos.
 Credenciales vacias o flag apagado deshabilitan cualquier llamada a Uber.
@@ -98,6 +98,10 @@ Podrian confirmar tambien el store_id de API correspondiente a esta tienda?
 - https://developer.uber.com/docs/eats/guides/sandbox
 - https://developer.uber.com/docs/eats/guides/webhooks
 - https://developer.uber.com/docs/eats/guides/going-live
+- https://developer.uber.com/docs/eats/references/api/v1/get-eats-stores-storeid
 
 Nota: la pagina general menciona sandbox-auth; la guia especifica de sandbox
 indica sandbox-login.uber.com/oauth/v2/token y ese es el dominio implementado.
+Para consultar la tienda usamos /v1/eats/stores/{store_id}, documentado en
+Get Store Details de Marketplace, aunque el ejemplo generico de sandbox muestra
+otra ruta bajo /v1/delivery.

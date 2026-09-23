@@ -68,7 +68,8 @@ def test_sandbox_consulta_tienda_y_reutiliza_token(monkeypatch):
             assert str(request.url) == svc.TOKEN_URL
             assert parse_qs(request.content.decode())["scope"] == ["eats.store"]
             return httpx.Response(200, json={"access_token": "private-token", "expires_in": 3600})
-        assert str(request.url) == svc.API_URL + "/v1/delivery/stores/test-store"
+        # Marketplace Get Store Details, no la ruta delivery del ejemplo generico.
+        assert str(request.url) == "https://test-api.uber.com/v1/eats/stores/test-store"
         assert request.headers["Authorization"] == "Bearer private-token"
         return httpx.Response(200, json={"store_id": "test-store", "name": "Test"})
 
