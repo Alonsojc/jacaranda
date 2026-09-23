@@ -296,6 +296,9 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 @media(max-width:560px){.pedido-product-picker{grid-template-columns:1fr 70px}.pedido-add-btn{grid-column:1/-1}.pedido-product-row{grid-template-columns:38px 38px minmax(0,1fr) 38px}.pedido-product-row .ppr-price{grid-column:3/4;font-size:.76rem}.pedido-product-row button{min-width:36px;min-height:36px}}
 .modal-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:100;justify-content:center;align-items:center;padding:1rem}
 .modal-bg.on{display:flex}
+.uber-preparacion-datos{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:.65rem 1rem;margin:1rem 0;font-size:.85rem}
+.uber-preparacion-datos dt{color:var(--mut)}
+.uber-preparacion-datos dd{margin:0;font-weight:600;overflow-wrap:anywhere}
 /* Global confirmation/input dialogs can be opened from another modal. */
 #modal-confirmacion,#modal-entrada{z-index:130}
 .modal{background:#fff;border-radius:16px;padding:1.5rem 1.5rem 2rem;width:90%;max-width:500px;max-height:calc(100vh - 6rem);overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:modalIn .25s ease-out}
@@ -775,6 +778,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="pos-prods">
 <input type="text" id="pos-search" placeholder="Buscar producto..." oninput="filtrarPOS()" style="width:100%;padding:.55rem .8rem;border:1px solid var(--brd);border-radius:10px;font-size:.85rem;margin-bottom:.7rem;font-family:inherit;transition:border-color .2s;outline:none" onfocus="this.style.borderColor='var(--v)'" onblur="this.style.borderColor=''">
 <div id="pos-mode-badge" class="sales-mode-badge">Precios y venta de Uber Eats</div>
+<button type="button" id="uber-preparacion-btn" class="limpiar" style="display:none;min-height:44px;margin-bottom:.7rem" onclick="abrirPreparacionUber()">Conexi&oacute;n Uber Eats</button>
 <div id="pos-products">
 <p style="color:var(--mut);text-align:center;padding:2rem">Cargando productos...</p>
 </div>
@@ -2805,6 +2809,20 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 </div>
 
+<!-- MODAL: Preparacion Uber Eats -->
+<div class="modal-bg" id="modal-uber-preparacion">
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="uber-preparacion-title" style="max-width:680px">
+<h3 id="uber-preparacion-title">Conexi&oacute;n Uber Eats</h3>
+<p>Pedidos autom&aacute;ticos: pendientes de activaci&oacute;n</p>
+<div id="uber-preparacion-content" aria-live="polite"></div>
+<p id="uber-prueba-resultado" role="status"></p>
+<div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem">
+<button type="button" class="cobrar" id="uber-probar-btn" style="min-height:44px" disabled onclick="probarConexionUber()">Probar conexi&oacute;n de pruebas</button>
+<button type="button" class="limpiar" style="min-height:44px" onclick="cerrarModal('modal-uber-preparacion')">Cerrar</button>
+</div>
+</div>
+</div>
+
 <!-- MODAL: Nuevo Usuario -->
 <div class="modal-bg" id="modal-usuario">
 <div class="modal" style="max-width:400px">
@@ -2878,7 +2896,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v102';
+var APP_BUILD = 'jacaranda-v103';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -4313,7 +4331,58 @@ function actualizarModoVentaUI(modo) {
     : 'Venta directa en mostrador.';
   if (title) title.textContent = modo === 'uber_eats' ? 'Ticket Uber Eats' : 'Ticket mostrador';
   if (badge) badge.classList.toggle('on', modo === 'uber_eats');
+  var uberPreparacion = document.getElementById('uber-preparacion-btn');
+  if (uberPreparacion) uberPreparacion.style.display = modo === 'uber_eats' && esAdminActual() ? 'inline-flex' : 'none';
   if (search) search.placeholder = modo === 'uber_eats' ? 'Buscar en menú Uber Eats...' : 'Buscar producto...';
+}
+
+async function abrirPreparacionUber() {
+  if (!esAdminActual()) return;
+  var content = document.getElementById('uber-preparacion-content');
+  var button = document.getElementById('uber-probar-btn');
+  document.getElementById('modal-uber-preparacion').classList.add('on');
+  document.getElementById('uber-prueba-resultado').textContent = '';
+  content.textContent = 'Cargando...';
+  button.disabled = true;
+  try {
+    var data = await api('GET', '/uber-eats/preparacion', null, false, null, null, {silenciosa: true});
+    var conexion = data.conexion;
+    var catalogo = data.catalogo;
+    var h = '<dl class="uber-preparacion-datos"><dt>Entorno</dt><dd>Pruebas (sandbox)</dd>';
+    h += '<dt>Conexión de pruebas</dt><dd>' + (conexion.habilitado ? 'Habilitada' : 'Deshabilitada') + '</dd>';
+    [['client_id', 'Aplicación de pruebas'], ['client_secret', 'Credencial privada'], ['store_id', 'Tienda de pruebas']].forEach(function(campo) {
+      h += '<dt>' + campo[1] + '</dt><dd>' + (conexion.credenciales[campo[0]] ? 'Configurada' : 'Pendiente') + '</dd>';
+    });
+    h += '<dt>Productos con precio Uber Eats</dt><dd>' + catalogo.con_precio + '</dd>';
+    h += '<dt>Productos sin precio Uber Eats</dt><dd>' + catalogo.sin_precio + '</dd>';
+    h += '<dt>Vinculación con menú actual de Uber</dt><dd>Pendiente de revisión</dd></dl>';
+    h += '<div style="overflow-x:auto;max-height:260px"><table class="tbl" style="min-width:560px"><thead><tr><th>Producto</th><th>Presentación</th><th>Precio Uber Eats</th><th>Stock</th></tr></thead><tbody>';
+    catalogo.productos.forEach(function(p) {
+      h += '<tr><td>' + escHtml(p.nombre) + '</td><td>' + escHtml(p.presentacion || '—') + '</td><td>' + (p.con_precio ? '$' + fmt(p.precio_uber_eats) : 'Sin precio') + '</td><td>' + (p.sin_stock ? 'Agotado' : 'Disponible') + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+    if (!catalogo.productos.length) h += '<p>No hay productos activos.</p>';
+    content.innerHTML = h;
+    button.disabled = !conexion.puede_probar;
+  } catch (e) {
+    content.textContent = e.message || 'No se pudo cargar la preparación de Uber Eats.';
+  }
+}
+
+async function probarConexionUber() {
+  var button = document.getElementById('uber-probar-btn');
+  if (button.disabled) return;
+  button.disabled = true;
+  var result = document.getElementById('uber-prueba-resultado');
+  result.textContent = 'Verificando conexión de pruebas...';
+  try {
+    var data = await api('POST', '/uber-eats/probar-conexion', {}, false, null, null, {silenciosa: true});
+    result.textContent = data.mensaje;
+  } catch (e) {
+    result.textContent = e.message || 'No se pudo verificar la conexión.';
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function abrirPuntoVenta() {

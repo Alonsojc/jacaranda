@@ -4,7 +4,7 @@ Incluye configuración fiscal mexicana (SAT, IVA, ISR, IMSS).
 """
 
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, SecretStr
 from decimal import Decimal
 import secrets
 
@@ -122,6 +122,12 @@ class Settings(BaseSettings):
     CLIP_WEBHOOK_SECRET: str = ""
     CLIP_ALLOW_UNSIGNED_WEBHOOKS: bool = False
     BACKEND_PUBLIC_URL: str = ""
+
+    # Uber Eats: consultas de prueba, sin operaciones reales.
+    UBER_EATS_SANDBOX_ENABLED: bool = False
+    UBER_EATS_SANDBOX_CLIENT_ID: str = ""
+    UBER_EATS_SANDBOX_CLIENT_SECRET: SecretStr = SecretStr("")
+    UBER_EATS_SANDBOX_STORE_ID: str = ""
 
     # BBVA API Market (conciliación de pagos)
     BBVA_CLIENT_ID: str = ""
