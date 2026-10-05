@@ -6,6 +6,7 @@ Tickets, reportes de ventas, corte de caja, reportes fiscales.
 import io
 from datetime import date
 from decimal import Decimal
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4
@@ -228,6 +229,18 @@ def generar_corte_caja_pdf(corte: dict) -> io.BytesIO:
     ]
     story.append(_tabla(data, col_widths=[10*cm, 5*cm]))
     story.append(Spacer(1, 4*mm))
+
+    if corte.get("fondo_entregado") is not None:
+        story.append(_tabla([
+            ["Entrega de efectivo", "Monto"],
+            ["Retiro a resguardo", f"${corte.get('retiros', 0):,.2f}"],
+            ["Fondo entregado al siguiente turno", f"${corte['fondo_entregado']:,.2f}"],
+        ], col_widths=[10*cm, 5*cm]))
+        story.append(Paragraph(
+            f"<b>Recibido por (resguardo):</b> {escape(corte.get('recibido_por') or 'Sin retiro')}",
+            styles["Normal"],
+        ))
+        story.append(Spacer(1, 4*mm))
 
     story.append(Paragraph(
         f"Número de ventas: {corte.get('numero_ventas', 0)} | "

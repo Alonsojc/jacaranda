@@ -155,6 +155,9 @@ class TicketResponse(BaseModel):
 class CorteCajaCreate(BaseModel):
     fondo_inicial: Decimal = Field(..., ge=0)
     efectivo_real: Decimal = Field(..., ge=0)
+    retiros: Decimal = Field(default=Decimal("0"), ge=0, max_digits=14, decimal_places=2)
+    fondo_entregado: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
+    recibido_por: str | None = Field(default=None, max_length=150)
     notas: str | None = None
     permitir_repetir: bool = False
 
@@ -162,6 +165,9 @@ class CorteCajaCreate(BaseModel):
 class CorteCajaUpdate(BaseModel):
     fondo_inicial: Decimal = Field(..., ge=0)
     efectivo_real: Decimal = Field(..., ge=0)
+    retiros: Decimal = Field(default=Decimal("0"), ge=0, max_digits=14, decimal_places=2)
+    fondo_entregado: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
+    recibido_por: str | None = Field(default=None, max_length=150)
     notas: str | None = None
     motivo: str = Field(..., min_length=5, max_length=500)
 
@@ -177,6 +183,9 @@ class CorteCajaResponse(BaseModel):
     periodo_inicio: datetime | None = None
     periodo_fin: datetime | None = None
     fondo_inicial: Decimal
+    retiros: Decimal = Decimal("0")
+    fondo_entregado: Decimal | None = None
+    recibido_por: str | None = None
     total_ventas_efectivo: Decimal
     total_ventas_tarjeta: Decimal
     total_ventas_transferencia: Decimal
@@ -196,6 +205,7 @@ class CorteCajaResponse(BaseModel):
 
 
 class CorteCajaResumen(BaseModel):
+    entrega_efectivo_disponible: bool = True
     fecha: str
     total_ventas_efectivo: Decimal
     total_ventas_tarjeta: Decimal

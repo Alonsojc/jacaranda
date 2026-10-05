@@ -1178,6 +1178,9 @@ def _datos_corte(corte: CorteCaja) -> dict:
     return {
         "estado": corte.estado,
         "fondo_inicial": corte.fondo_inicial,
+        "retiros": corte.retiros,
+        "fondo_entregado": corte.fondo_entregado,
+        "recibido_por": corte.recibido_por,
         "efectivo_real": corte.efectivo_real,
         "efectivo_esperado": corte.efectivo_esperado,
         "diferencia": corte.diferencia,
@@ -1206,6 +1209,24 @@ def _validar_diferencia_corte(
     return efectivo_esperado, diferencia
 
 
+def _validar_entrega_corte(
+    efectivo_real: Decimal,
+    retiros: Decimal,
+    fondo_entregado: Decimal | None,
+    recibido_por: str | None,
+) -> str | None:
+    recibido = (recibido_por or "").strip() or None
+    if fondo_entregado is None:
+        if retiros or recibido:
+            raise ValueError("Indica el fondo entregado al siguiente turno")
+        return None  # Los cortes anteriores no registraban la entrega.
+    if retiros + fondo_entregado != efectivo_real:
+        raise ValueError("Retiro a resguardo y fondo entregado deben sumar el efectivo contado")
+    if retiros > 0 and not recibido:
+        raise ValueError("Indica quién recibe el retiro a resguardo")
+    return recibido
+
+
 def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> CorteCaja:
     """Realiza el corte del turno actual y deja listo el siguiente."""
     corte_momento = datetime.now(timezone.utc)
@@ -1218,6 +1239,9 @@ def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> 
         totales["total_efectivo"],
         data.notas,
     )
+    recibido_por = _validar_entrega_corte(
+        data.efectivo_real, data.retiros, data.fondo_entregado, data.recibido_por,
+    )
 
     corte = CorteCaja(
         usuario_id=usuario_id,
@@ -1226,6 +1250,9 @@ def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> 
         periodo_inicio=totales["periodo_inicio"],
         periodo_fin=totales["periodo_fin"],
         fondo_inicial=data.fondo_inicial,
+        retiros=data.retiros,
+        fondo_entregado=data.fondo_entregado,
+        recibido_por=recibido_por,
         total_ventas_efectivo=totales["total_efectivo"],
         total_ventas_tarjeta=totales["total_tarjeta"],
         total_ventas_transferencia=totales["total_transferencia"],
@@ -1251,6 +1278,9 @@ def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> 
         entidad_id=corte.id,
         datos_nuevos={
             "fondo_inicial": data.fondo_inicial,
+            "retiros": data.retiros,
+            "fondo_entregado": data.fondo_entregado,
+            "recibido_por": recibido_por,
             "total_ventas_efectivo": totales["total_efectivo"],
             "total_ventas_tarjeta": totales["total_tarjeta"],
             "total_ventas_transferencia": totales["total_transferencia"],
@@ -1286,6 +1316,16 @@ def actualizar_corte_caja(
 
     motivo = _motivo_corte(data.motivo)
     anterior = _datos_corte(corte)
+    retiros = data.retiros if "retiros" in data.model_fields_set else corte.retiros
+    fondo_entregado = (
+        data.fondo_entregado if "fondo_entregado" in data.model_fields_set else corte.fondo_entregado
+    )
+    if corte.fondo_entregado is not None and fondo_entregado is None:
+        raise ValueError("Conserva el registro de fondo entregado al corregir este corte")
+    recibido_por = data.recibido_por if "recibido_por" in data.model_fields_set else corte.recibido_por
+    recibido_por = _validar_entrega_corte(
+        data.efectivo_real, retiros, fondo_entregado, recibido_por,
+    )
     esperado, diferencia = _validar_diferencia_corte(
         data.fondo_inicial,
         data.efectivo_real,
@@ -1293,6 +1333,9 @@ def actualizar_corte_caja(
         data.notas,
     )
     corte.fondo_inicial = data.fondo_inicial
+    corte.retiros = retiros
+    corte.fondo_entregado = fondo_entregado
+    corte.recibido_por = recibido_por
     corte.efectivo_real = data.efectivo_real
     corte.efectivo_esperado = esperado
     corte.diferencia = diferencia

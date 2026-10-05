@@ -180,6 +180,8 @@ class CorteCaja(Base):
     total_ventas_bbva: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     total_ventas: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     retiros: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    fondo_entregado: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    recibido_por: Mapped[str | None] = mapped_column(String(150), nullable=True)
     efectivo_esperado: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     efectivo_real: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     diferencia: Mapped[Decimal] = mapped_column(Numeric(14, 2))

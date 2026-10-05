@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "a1b2c3d4e5f6 (head)"
+ALEMBIC_HEAD = "b2c3d4e5f6a7 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:
@@ -47,6 +47,7 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path):
     assert "es_empaque" in ingrediente_columns
     assert "canal" in venta_columns
     assert {"estado", "motivo_estado", "turno", "periodo_inicio", "periodo_fin"}.issubset(corte_columns)
+    assert {"retiros", "fondo_entregado", "recibido_por"}.issubset(corte_columns)
 
 
 def test_alembic_upgrade_head_on_precreated_schema(tmp_path):
@@ -61,6 +62,55 @@ def test_alembic_upgrade_head_on_precreated_schema(tmp_path):
     current = _run([sys.executable, "-m", "alembic", "current"], database_url)
 
     assert ALEMBIC_HEAD in current.stdout
+
+
+def test_cash_handover_migration_preserves_legacy_cut(tmp_path):
+    db_path = tmp_path / "legacy_corte.db"
+    database_url = f"sqlite:///{db_path}"
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript("""
+            CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY);
+            INSERT INTO alembic_version VALUES ('a1b2c3d4e5f6');
+            CREATE TABLE cortes_caja (
+                id INTEGER PRIMARY KEY,
+                retiros NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                efectivo_real NUMERIC(14, 2) NOT NULL
+            );
+            INSERT INTO cortes_caja VALUES (1, 0, 5000);
+        """)
+    _run([sys.executable, "-m", "alembic", "upgrade", "head"], database_url)
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT id, retiros, efectivo_real, fondo_entregado, recibido_por FROM cortes_caja"
+        ).fetchone()
+    assert row == (1, 0, 5000, None, None)
+
+
+def test_runtime_guard_adds_cash_handover_columns_without_changing_legacy_rows(tmp_path):
+    from sqlalchemy import create_engine
+    from app.core.schema_guard import ensure_runtime_schema
+
+    db_path = tmp_path / "runtime_corte.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript("""
+            CREATE TABLE cortes_caja (
+                id INTEGER PRIMARY KEY,
+                retiros NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                efectivo_real NUMERIC(14, 2) NOT NULL
+            );
+            INSERT INTO cortes_caja VALUES (1, 0, 5000);
+        """)
+    engine = create_engine(f"sqlite:///{db_path}")
+    try:
+        ensure_runtime_schema(engine)
+        ensure_runtime_schema(engine)
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                "SELECT id, retiros, efectivo_real, fondo_entregado, recibido_por FROM cortes_caja"
+            ).fetchone()
+        assert row == (1, 0, 5000, None, None)
+    finally:
+        engine.dispose()
 
 
 def test_alembic_adds_pedido_delivery_columns_to_legacy_schema(tmp_path):
