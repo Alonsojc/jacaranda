@@ -9612,6 +9612,8 @@ function exportarCorte() {
   txt += textoEntregaCorteFormulario();
   txt += '\n';
   txt += '\u2728 _Jacaranda - sharing flavors_';
+  var guardado = corteGuardadoParaExportar();
+  if (guardado) txt = textoCorteParaEasyPos(guardado);
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(txt).then(function() { toast('Corte copiado — pégalo en WhatsApp'); });
   } else {
@@ -12183,6 +12185,35 @@ function textoEntregaCorteFormulario() {
     + '  Recibido por (resguardo): ' + textoTicketTermico(document.getElementById('c-recibido-por').value || 'Sin retiro') + '\n';
 }
 
+function corteGuardadoParaExportar() {
+  if (document.getElementById('c-real').value !== '' || !_corteActual) return null;
+  var fecha = document.getElementById('c-fecha').value || fechaHoyISO();
+  return fechaISOOperacion(_corteActual.fecha) === fecha ? _corteActual : null;
+}
+
+function csvCorteGuardado(corte) {
+  var filas = [
+    ['Corte', corte.id], ['Turno', corte.turno], ['Fecha', corte.fecha], ['Estado', corte.estado],
+    ['Fondo inicial', corte.fondo_inicial], ['Efectivo', corte.total_ventas_efectivo],
+    ['Otra tarjeta', corte.total_ventas_tarjeta], ['CLIP', corte.total_ventas_clip],
+    ['BBVA', corte.total_ventas_bbva], ['Transferencia', corte.total_ventas_transferencia],
+    ['Total ventas', corte.total_ventas], ['Efectivo contado', corte.efectivo_real],
+    ['Diferencia', corte.diferencia], ['Tickets', corte.numero_ventas]
+  ];
+  if (corte.fondo_entregado != null) {
+    filas.push(['Retiro a resguardo', corte.retiros],
+      ['Fondo entregado al siguiente turno', corte.fondo_entregado],
+      ['Recibido por (resguardo)', corte.recibido_por || 'Sin retiro']);
+  }
+  return 'Concepto,Valor\n' + filas.map(function(fila) {
+    return fila.map(function(valor) {
+      var texto = String(valor == null ? '' : valor);
+      if (/^[=+@-]/.test(texto)) texto = "'" + texto;
+      return '"' + texto.replace(/"/g, '""') + '"';
+    }).join(',');
+  }).join('\n') + '\n';
+}
+
 function realizarCorte() {
   var boton = document.getElementById('btn-corte');
   if (boton.disabled) return;
@@ -12203,6 +12234,7 @@ function realizarCorte() {
   }).then(function(corte) {
     var dif = parseFloat(corte.diferencia) || 0;
     _ultimoCorteRegistrado = corte;
+    _corteActual = corte;
     _cortesCache[corte.id] = corte;
     document.getElementById('corte-registrado-mensaje').textContent =
       'Diferencia: $' + fmt(dif) + '. Retiro: $' + fmt(corte.retiros) + '. Fondo siguiente: $' + fmt(corte.fondo_entregado) + '.';
@@ -12823,6 +12855,11 @@ function exportarHistVentasCSV() {
 
 function exportarCorteCSV() {
   var fecha = document.getElementById('c-fecha').value || fechaHoyISO();
+  var guardado = corteGuardadoParaExportar();
+  if (guardado) {
+    _descargarCSV('corte_' + fecha + '_turno_' + guardado.turno + '.csv', csvCorteGuardado(guardado));
+    return;
+  }
   var csv = 'Corte de Caja - ' + fecha + '\n\n';
   csv += 'Concepto,Monto\n';
   csv += 'Efectivo,' + (document.getElementById('c-total-ef').textContent.replace('$','').replace(/,/g,'')) + '\n';
@@ -12850,6 +12887,11 @@ function exportarCorteCSV() {
 }
 
 function compartirCorteWhatsApp() {
+  var guardado = corteGuardadoParaExportar();
+  if (guardado) {
+    window.open('https://wa.me/?text=' + encodeURIComponent(textoCorteParaEasyPos(guardado)), '_blank');
+    return;
+  }
   var fecha = document.getElementById('c-fecha').value || fechaHoyISO();
   var diasNombre = ['Domingo','Lunes','Martes','Mi\u00e9rcoles','Jueves','Viernes','S\u00e1bado'];
   var d = new Date(fecha + 'T12:00:00');

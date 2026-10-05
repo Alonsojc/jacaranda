@@ -57,6 +57,7 @@ def test_cash_handover_controls_and_print_paths():
     assert "corte.retiros" in HTML
     assert "corte.recibido_por" in HTML
     assert "r.entrega_efectivo_disponible !== true" in HTML
+    assert HTML.count("var guardado = corteGuardadoParaExportar();") == 3
 
 
 def test_cash_handover_math_validation_and_receipt_text():
@@ -78,6 +79,9 @@ const fields = {};
 const document = {getElementById: id => fields[id]};
 function fmt(n) { return Number(n).toFixed(2); }
 function formatearInstanteOperacion() { return '05/10/2026 12:00'; }
+function fechaISOOperacion(v) { return v.slice(0, 10); }
+function fechaHoyISO() { return '2026-10-05'; }
+let _corteActual = null;
 """ + helpers + thermal + receipt + easy + r"""
 fields['c-real'] = {value: '5000'};
 fields['c-fondo-entregado'] = {value: '2000'};
@@ -111,6 +115,23 @@ assert.ok(text.includes('$3000.00'));
 assert.ok(text.includes('Fondo entregado al siguiente turno\n$2000.00'));
 assert.ok(text.includes('Recibido por (resguardo):\nAlonso'));
 assert.ok(text.endsWith('\n\n\n'));
+cut.fecha = '2026-10-05T12:00:00Z';
+_corteActual = cut;
+fields['c-real'].value = '';
+fields['c-fecha'] = {value: '2026-10-05'};
+assert.equal(corteGuardadoParaExportar(), cut);
+const csv = csvCorteGuardado(cut);
+assert.ok(csv.includes('"Retiro a resguardo","3000"'));
+assert.ok(csv.includes('"Recibido por (resguardo)","Alonso"'));
+assert.ok(csv.includes('"Efectivo contado","5000"'));
+fields['c-real'].value = '2100';
+assert.equal(corteGuardadoParaExportar(), null);
+fields['c-real'].value = '';
+fields['c-fecha'].value = '2026-10-04';
+assert.equal(corteGuardadoParaExportar(), null);
+cut.recibido_por = '=unsafe,"name"';
+assert.ok(csvCorteGuardado(cut).includes("'=unsafe,"));
+assert.ok(csvCorteGuardado(cut).includes('""name""'));
 delete cut.fondo_entregado;
 assert.ok(!textoCorteParaEasyPos(cut).includes('Retiro a resguardo'));
 """
