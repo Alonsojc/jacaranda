@@ -58,6 +58,8 @@ def test_cash_handover_controls_and_print_paths():
     assert "corte.recibido_por" in HTML
     assert "r.entrega_efectivo_disponible !== true" in HTML
     assert HTML.count("var guardado = corteGuardadoParaExportar();") == 3
+    assert "if (!fondoEntregadoInput.dataset.editado)" in HTML
+    assert "this.dataset.editado='1';actualizarResguardoCorte('c')" in HTML
 
 
 def test_cash_handover_math_validation_and_receipt_text():

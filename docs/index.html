@@ -1112,7 +1112,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="srow" style="font-weight:700"><span>Diferencia</span><span id="c-dif">--</span></div>
 <h3 style="margin:.9rem 0 .6rem">Entrega de efectivo</h3>
 <div class="frow">
-<div class="fg"><label for="c-fondo-entregado">Fondo entregado al siguiente turno</label><input type="number" inputmode="decimal" min="0" step="0.01" id="c-fondo-entregado" value="2000" oninput="actualizarResguardoCorte('c')"></div>
+<div class="fg"><label for="c-fondo-entregado">Fondo entregado al siguiente turno</label><input type="number" inputmode="decimal" min="0" step="0.01" id="c-fondo-entregado" value="2000" oninput="this.dataset.editado='1';actualizarResguardoCorte('c')"></div>
 <div class="fg"><label for="c-retiro">Retiro a resguardo</label><input type="number" min="0" step="0.01" id="c-retiro" readonly></div>
 </div>
 <div class="fg"><label for="c-recibido-por">Recibido por (resguardo)</label><input id="c-recibido-por" maxlength="150" autocomplete="off"></div>
@@ -11737,7 +11737,8 @@ function cargarResumenCorte(fecha) {
     var fondoInput = document.getElementById('c-fondo');
     if (esHoy && r.corte && r.corte.fondo_entregado != null && !fondoInput.dataset.editado && !document.getElementById('c-real').value) {
       fondoInput.value = r.corte.fondo_entregado;
-      document.getElementById('c-fondo-entregado').value = r.corte.fondo_entregado;
+      var fondoEntregadoInput = document.getElementById('c-fondo-entregado');
+      if (!fondoEntregadoInput.dataset.editado) fondoEntregadoInput.value = r.corte.fondo_entregado;
       calcularDiferencia();
     }
     var siguiente = r.siguiente_turno || 1;
@@ -12248,6 +12249,7 @@ function realizarCorte() {
     document.getElementById('c-recibido-por').value = '';
     document.getElementById('c-notas').value = '';
     document.getElementById('c-fondo-entregado').value = corte.fondo_entregado;
+    delete document.getElementById('c-fondo-entregado').dataset.editado;
     calcularDiferencia();
     cargarCorte();
   }).catch(function(e) {
