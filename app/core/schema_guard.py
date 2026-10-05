@@ -207,6 +207,16 @@ def ensure_runtime_schema(engine: Engine) -> None:
                 "ON pagos_venta (pago_externo_id)"
             ))
 
+        if "cortes_caja" in tables:
+            corte_columns = {col["name"] for col in inspector.get_columns("cortes_caja")}
+            for column_name, column_type in (
+                ("fondo_entregado", Numeric(14, 2)),
+                ("recibido_por", String(150)),
+            ):
+                _add_column_if_missing(
+                    conn, engine, "cortes_caja", corte_columns, column_name, column_type,
+                )
+
         if "log_auditoria" in tables:
             auditoria_columns = {
                 col["name"] for col in inspector.get_columns("log_auditoria")

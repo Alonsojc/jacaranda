@@ -82,6 +82,8 @@ function formatearInstanteOperacion() { return '05/10/2026 12:00'; }
 function fechaISOOperacion(v) { return v.slice(0, 10); }
 function fechaHoyISO() { return '2026-10-05'; }
 let _corteActual = null;
+let _ultimoCorteRegistrado = null;
+let _corteVentas = [];
 """ + helpers + thermal + receipt + easy + r"""
 fields['c-real'] = {value: '5000'};
 fields['c-fondo-entregado'] = {value: '2000'};
@@ -119,7 +121,12 @@ cut.fecha = '2026-10-05T12:00:00Z';
 _corteActual = cut;
 fields['c-real'].value = '';
 fields['c-fecha'] = {value: '2026-10-05'};
+assert.equal(corteGuardadoParaExportar(), null);
+_ultimoCorteRegistrado = cut;
 assert.equal(corteGuardadoParaExportar(), cut);
+_corteVentas = [{total: 100}];
+assert.equal(corteGuardadoParaExportar(), null);
+_corteVentas = [];
 const csv = csvCorteGuardado(cut);
 assert.ok(csv.includes('"Retiro a resguardo","3000"'));
 assert.ok(csv.includes('"Recibido por (resguardo)","Alonso"'));

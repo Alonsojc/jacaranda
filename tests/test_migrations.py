@@ -86,6 +86,33 @@ def test_cash_handover_migration_preserves_legacy_cut(tmp_path):
     assert row == (1, 0, 5000, None, None)
 
 
+def test_runtime_guard_adds_cash_handover_columns_without_changing_legacy_rows(tmp_path):
+    from sqlalchemy import create_engine
+    from app.core.schema_guard import ensure_runtime_schema
+
+    db_path = tmp_path / "runtime_corte.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript("""
+            CREATE TABLE cortes_caja (
+                id INTEGER PRIMARY KEY,
+                retiros NUMERIC(14, 2) NOT NULL DEFAULT 0,
+                efectivo_real NUMERIC(14, 2) NOT NULL
+            );
+            INSERT INTO cortes_caja VALUES (1, 0, 5000);
+        """)
+    engine = create_engine(f"sqlite:///{db_path}")
+    try:
+        ensure_runtime_schema(engine)
+        ensure_runtime_schema(engine)
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                "SELECT id, retiros, efectivo_real, fondo_entregado, recibido_por FROM cortes_caja"
+            ).fetchone()
+        assert row == (1, 0, 5000, None, None)
+    finally:
+        engine.dispose()
+
+
 def test_alembic_adds_pedido_delivery_columns_to_legacy_schema(tmp_path):
     db_path = tmp_path / "legacy_pedidos.db"
     database_url = f"sqlite:///{db_path}"

@@ -12186,7 +12186,9 @@ function textoEntregaCorteFormulario() {
 }
 
 function corteGuardadoParaExportar() {
-  if (document.getElementById('c-real').value !== '' || !_corteActual) return null;
+  if (document.getElementById('c-real').value !== '' || !_corteActual
+      || !_ultimoCorteRegistrado || _ultimoCorteRegistrado.id !== _corteActual.id
+      || _corteVentas.length > 0) return null;
   var fecha = document.getElementById('c-fecha').value || fechaHoyISO();
   return fechaISOOperacion(_corteActual.fecha) === fecha ? _corteActual : null;
 }
@@ -12235,6 +12237,7 @@ function realizarCorte() {
     var dif = parseFloat(corte.diferencia) || 0;
     _ultimoCorteRegistrado = corte;
     _corteActual = corte;
+    _corteVentas = [];
     _cortesCache[corte.id] = corte;
     document.getElementById('corte-registrado-mensaje').textContent =
       'Diferencia: $' + fmt(dif) + '. Retiro: $' + fmt(corte.retiros) + '. Fondo siguiente: $' + fmt(corte.fondo_entregado) + '.';
