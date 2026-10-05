@@ -12210,7 +12210,7 @@ function csvCorteGuardado(corte) {
   return 'Concepto,Valor\n' + filas.map(function(fila) {
     return fila.map(function(valor) {
       var texto = String(valor == null ? '' : valor);
-      if (/^[=+@-]/.test(texto)) texto = "'" + texto;
+      if (/^[=+@-]/.test(texto) && !/^-?\d+(\.\d+)?$/.test(texto)) texto = "'" + texto;
       return '"' + texto.replace(/"/g, '""') + '"';
     }).join(',');
   }).join('\n') + '\n';

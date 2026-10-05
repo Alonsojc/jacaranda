@@ -131,6 +131,8 @@ const csv = csvCorteGuardado(cut);
 assert.ok(csv.includes('"Retiro a resguardo","3000"'));
 assert.ok(csv.includes('"Recibido por (resguardo)","Alonso"'));
 assert.ok(csv.includes('"Efectivo contado","5000"'));
+cut.diferencia = -10;
+assert.ok(csvCorteGuardado(cut).includes('"Diferencia","-10"'));
 fields['c-real'].value = '2100';
 assert.equal(corteGuardadoParaExportar(), null);
 fields['c-real'].value = '';
