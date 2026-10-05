@@ -121,5 +121,5 @@ def test_pwa_calcula_fechas_con_zona_operativa_y_renueva_cache():
     assert "function instanteUTC(value)" in html
     assert "actualizarFechaDashboard(d.fecha || fechaHoyISO())" in html
     assert "new Date().toISOString().split('T')[0]" not in html
-    assert "jacaranda-v103" in html
-    assert "jacaranda-v103" in sw
+    assert "jacaranda-v104" in html
+    assert "jacaranda-v104" in sw

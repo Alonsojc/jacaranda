@@ -1103,13 +1103,19 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="srow"><span>Tickets del turno</span><span id="c-tickets">0</span></div>
 <div style="border-top:2px solid var(--brd);margin:.8rem 0;padding-top:.8rem">
 <div class="frow" style="margin-bottom:.6rem">
-<div class="fg"><label>Fondo inicial</label><input type="number" id="c-fondo" value="2000" style="font-weight:700"></div>
-<div class="fg"><label>Efectivo contado</label><input type="number" id="c-real" placeholder="Cuenta el efectivo..." style="font-weight:700" oninput="calcularDiferencia()"></div>
+<div class="fg"><label for="c-fondo">Fondo inicial</label><input type="number" inputmode="decimal" min="0" step="0.01" id="c-fondo" value="2000" style="font-weight:700" oninput="this.dataset.editado='1';calcularDiferencia()"></div>
+<div class="fg"><label for="c-real">Efectivo contado antes del retiro</label><input type="number" inputmode="decimal" min="0" step="0.01" id="c-real" placeholder="Cuenta el efectivo..." style="font-weight:700" oninput="calcularDiferencia()"></div>
 </div>
 <div class="fg" style="margin-bottom:.6rem"><label>Notas del corte</label><input id="c-notas" placeholder="Obligatorio si hay diferencia"></div>
 <div class="srow"><span>Esperado (fondo + ventas ef.)</span><span id="c-esperado" style="font-weight:700">$2,000.00</span></div>
 <div class="srow"><span>Efectivo real</span><span id="c-contado" style="font-weight:700">--</span></div>
 <div class="srow" style="font-weight:700"><span>Diferencia</span><span id="c-dif">--</span></div>
+<h3 style="margin:.9rem 0 .6rem">Entrega de efectivo</h3>
+<div class="frow">
+<div class="fg"><label for="c-fondo-entregado">Fondo entregado al siguiente turno</label><input type="number" inputmode="decimal" min="0" step="0.01" id="c-fondo-entregado" value="2000" oninput="actualizarResguardoCorte('c')"></div>
+<div class="fg"><label for="c-retiro">Retiro a resguardo</label><input type="number" min="0" step="0.01" id="c-retiro" readonly></div>
+</div>
+<div class="fg"><label for="c-recibido-por">Recibido por (resguardo)</label><input id="c-recibido-por" maxlength="150" autocomplete="off"></div>
 </div>
 <div style="display:flex;flex-direction:column;gap:.4rem;margin-top:.6rem">
 <button class="cobrar" style="margin:0" id="btn-corte" onclick="realizarCorte()">Registrar Corte</button>
@@ -2152,7 +2158,8 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <p class="confirm-detail">Imprime este comprobante ahora o vuelve a imprimirlo desde el historial.</p>
 <div class="confirm-actions">
 <button class="limpiar" onclick="cerrarModal('modal-corte-registrado')">Después</button>
-<button class="cobrar" onclick="imprimirUltimoCorte()">&#128424; Imprimir corte</button>
+<button class="limpiar" onclick="imprimirCorteThermer(_ultimoCorteRegistrado)">Thermer</button>
+<button class="cobrar" style="grid-column:1 / -1" onclick="imprimirUltimoCorte()">&#128424; Imprimir corte</button>
 </div>
 </div>
 </div>
@@ -2165,8 +2172,13 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <input type="hidden" id="mce-id">
 <div class="frow">
 <div class="fg"><label>Fondo inicial</label><input type="number" inputmode="decimal" min="0" step="0.01" id="mce-fondo"></div>
-<div class="fg"><label>Efectivo contado</label><input type="number" inputmode="decimal" min="0" step="0.01" id="mce-real"></div>
+<div class="fg"><label for="mce-real">Efectivo contado antes del retiro</label><input type="number" inputmode="decimal" min="0" step="0.01" id="mce-real" oninput="actualizarResguardoCorte('mce')"></div>
 </div>
+<div class="frow">
+<div class="fg"><label for="mce-fondo-entregado">Fondo entregado al siguiente turno</label><input type="number" inputmode="decimal" min="0" step="0.01" id="mce-fondo-entregado" oninput="actualizarResguardoCorte('mce')"></div>
+<div class="fg"><label for="mce-retiro">Retiro a resguardo</label><input type="number" id="mce-retiro" readonly></div>
+</div>
+<div class="fg"><label for="mce-recibido-por">Recibido por (resguardo)</label><input id="mce-recibido-por" maxlength="150" autocomplete="off"></div>
 <div class="fg"><label>Notas del corte</label><input id="mce-notas" placeholder="Obligatorio si hay diferencia"></div>
 <div class="fg"><label>Motivo de la corrección</label><input id="mce-motivo" placeholder="Monto contado mal, fondo corregido..."></div>
 <div style="display:flex;gap:.5rem;margin-top:1rem">
@@ -2896,7 +2908,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v103';
+var APP_BUILD = 'jacaranda-v104';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -9597,6 +9609,7 @@ function exportarCorte() {
   txt += '  Fondo: $' + fondo + '\n';
   txt += '  Contado: $' + real + '\n';
   txt += '  Diferencia: ' + dif + '\n';
+  txt += textoEntregaCorteFormulario();
   txt += '\n';
   txt += '\u2728 _Jacaranda - sharing flavors_';
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -9771,6 +9784,14 @@ function crearDatosCorteThermer(corte) {
   separador(ventas);
   agregarFilaThermer(resumen, 'Efectivo contado', '$' + fmt(corte.efectivo_real), anchoLinea);
   agregarFilaThermer(resumen, 'Diferencia', '$' + fmt(corte.diferencia), anchoLinea);
+  if (corte.fondo_entregado != null) {
+    separador(resumen);
+    agregarFilaThermer(resumen, 'Retiro a resguardo', '$' + fmt(corte.retiros), anchoLinea);
+    resumen.push('Fondo entregado al siguiente turno');
+    resumen.push('$' + fmt(corte.fondo_entregado));
+    resumen.push('Recibido por (resguardo):');
+    resumen.push(textoTicketTermico(corte.recibido_por || 'Sin retiro'));
+  }
   if (corte.numero_ventas) agregarFilaThermer(resumen, 'Tickets', String(corte.numero_ventas), anchoLinea);
   if (corte.numero_cancelaciones) agregarFilaThermer(resumen, 'Cancelaciones', String(corte.numero_cancelaciones), anchoLinea);
   if (corte.notas) {
@@ -9800,9 +9821,25 @@ function imprimirCorteThermer(corteId) {
   window.location.href = 'thermer://?data=' + datos;
 }
 
+function textoCorteParaEasyPos(corte) {
+  var datos = crearDatosCorteThermer(corte);
+  return Object.keys(datos).map(function(key) {
+    return datos[key].content.replace(/<br \/>/g, '\n');
+  }).join('\n') + '\n\n\n';
+}
+
+function imprimirCorteEasyPos(corteId) {
+  var corte = typeof corteId === 'object' ? corteId : corteParaAccion(corteId);
+  if (!corte) { toast('No se encontró el corte para imprimir', true); return; }
+  cerrarModal('modal-corte-registrado');
+  toast('Abriendo Easy POS Print...');
+  window.location.href = 'easyposprint://print?text=' + encodeURIComponent(textoCorteParaEasyPos(corte))
+    + '&paper=58&source=' + encodeURIComponent('Jacaranda');
+}
+
 function imprimirUltimoCorte() {
   if (!_ultimoCorteRegistrado) { toast('No hay un corte para imprimir', true); return; }
-  imprimirCorteThermer(_ultimoCorteRegistrado);
+  imprimirCorteEasyPos(_ultimoCorteRegistrado);
 }
 
 function nombreArchivoTicketTermico(tk) {
@@ -11686,6 +11723,7 @@ function cargarCorte() {
 }
 
 function cargarResumenCorte(fecha) {
+  document.getElementById('btn-corte').disabled = true;
   api('GET', '/punto-de-venta/corte-caja/resumen?fecha=' + fecha).then(function(r) {
     _corteYaCerrado = false;
     _corteActual = r.corte || null;
@@ -11694,6 +11732,12 @@ function cargarResumenCorte(fecha) {
     var acciones = document.getElementById('c-corte-acciones');
     var periodo = document.getElementById('c-periodo');
     var esHoy = fecha === fechaHoyISO();
+    var fondoInput = document.getElementById('c-fondo');
+    if (esHoy && r.corte && r.corte.fondo_entregado != null && !fondoInput.dataset.editado && !document.getElementById('c-real').value) {
+      fondoInput.value = r.corte.fondo_entregado;
+      document.getElementById('c-fondo-entregado').value = r.corte.fondo_entregado;
+      calcularDiferencia();
+    }
     var siguiente = r.siguiente_turno || 1;
     if (periodo) {
       periodo.textContent = 'Turno ' + siguiente + ' · ' + (r.corte ? 'Después del corte anterior' : 'Desde el inicio del día');
@@ -11708,9 +11752,13 @@ function cargarResumenCorte(fecha) {
       acciones.innerHTML = '';
       acciones.style.display = 'none';
     }
-    btn.disabled = !esHoy;
+    btn.disabled = !esHoy || r.entrega_efectivo_disponible !== true;
     btn.style.opacity = esHoy ? '1' : '.55';
     btn.textContent = esHoy ? 'Registrar corte · Turno ' + siguiente : 'Solo lectura: selecciona Hoy';
+    if (esHoy && r.entrega_efectivo_disponible !== true) {
+      msg.style.display = 'block';
+      msg.textContent = 'El servidor está actualizando el registro de resguardo. Actualiza la página en unos momentos.';
+    }
   }).catch(function(){
     _corteYaCerrado = false;
     _corteActual = null;
@@ -12090,6 +12138,7 @@ function actualizarUtilidad() {
 }
 
 function calcularDiferencia() {
+  actualizarResguardoCorte('c');
   var real = parseFloat(document.getElementById('c-real').value);
   if (isNaN(real)) { document.getElementById('c-contado').textContent = '--'; document.getElementById('c-dif').textContent = '--'; return; }
   document.getElementById('c-contado').textContent = '$' + fmt(real);
@@ -12103,23 +12152,73 @@ function calcularDiferencia() {
   if (Math.abs(dif) < 1) difEl.textContent += ' \u2714';
 }
 
+function actualizarResguardoCorte(prefijo) {
+  var real = parseFloat(document.getElementById(prefijo + '-real').value);
+  var fondo = parseFloat(document.getElementById(prefijo + '-fondo-entregado').value);
+  var valido = Number.isFinite(real) && Number.isFinite(fondo) && fondo >= 0 && real >= fondo;
+  document.getElementById(prefijo + '-retiro').value = valido ? (real - fondo).toFixed(2) : '';
+}
+
+function datosEntregaCorte(prefijo, real) {
+  var fondoTexto = document.getElementById(prefijo + '-fondo-entregado').value;
+  var recibido = document.getElementById(prefijo + '-recibido-por').value.trim();
+  if (!fondoTexto && prefijo === 'mce' && !recibido) {
+    return {retiros: 0, fondo_entregado: null, recibido_por: null};
+  }
+  var fondo = Number(fondoTexto);
+  if (!fondoTexto || !Number.isFinite(fondo) || fondo < 0 || fondo > real) {
+    throw new Error('El fondo entregado debe estar entre cero y el efectivo contado');
+  }
+  var retiro = Math.round((real - fondo) * 100) / 100;
+  if (retiro > 0 && !recibido) throw new Error('Indica quién recibe el retiro a resguardo');
+  return {retiros: retiro, fondo_entregado: fondo, recibido_por: recibido || null};
+}
+
+function textoEntregaCorteFormulario() {
+  var fondo = document.getElementById('c-fondo-entregado').value;
+  var retiro = document.getElementById('c-retiro').value;
+  if (retiro === '' || fondo === '') return '';
+  return '  Retiro a resguardo: $' + fmt(retiro) + '\n'
+    + '  Fondo entregado al siguiente turno: $' + fmt(fondo) + '\n'
+    + '  Recibido por (resguardo): ' + textoTicketTermico(document.getElementById('c-recibido-por').value || 'Sin retiro') + '\n';
+}
+
 function realizarCorte() {
+  var boton = document.getElementById('btn-corte');
+  if (boton.disabled) return;
   var fondo = parseFloat(document.getElementById('c-fondo').value) || 0;
   var real = parseFloat(document.getElementById('c-real').value);
-  if (isNaN(real)) { toast('Ingresa el efectivo contado', true); return; }
+  if (!Number.isFinite(real) || real < 0 || fondo < 0) { toast('Revisa fondo inicial y efectivo contado', true); return; }
+  var entrega;
+  try { entrega = datosEntregaCorte('c', real); }
+  catch (e) { toast(e.message, true); return; }
+  boton.disabled = true;
   api('POST', '/punto-de-venta/corte-caja', {
     fondo_inicial: fondo,
     efectivo_real: real,
+    retiros: entrega.retiros,
+    fondo_entregado: entrega.fondo_entregado,
+    recibido_por: entrega.recibido_por,
     notas: document.getElementById('c-notas').value.trim() || null
   }).then(function(corte) {
     var dif = parseFloat(corte.diferencia) || 0;
     _ultimoCorteRegistrado = corte;
     _cortesCache[corte.id] = corte;
     document.getElementById('corte-registrado-mensaje').textContent =
-      'Diferencia: $' + fmt(dif) + '. Toca Imprimir corte para enviarlo a Thermer.';
+      'Diferencia: $' + fmt(dif) + '. Retiro: $' + fmt(corte.retiros) + '. Fondo siguiente: $' + fmt(corte.fondo_entregado) + '.';
     document.getElementById('modal-corte-registrado').classList.add('on');
+    document.getElementById('c-fondo').value = corte.fondo_entregado;
+    delete document.getElementById('c-fondo').dataset.editado;
+    document.getElementById('c-real').value = '';
+    document.getElementById('c-recibido-por').value = '';
+    document.getElementById('c-notas').value = '';
+    document.getElementById('c-fondo-entregado').value = corte.fondo_entregado;
+    calcularDiferencia();
     cargarCorte();
-  }).catch(function(e) { toast(e.message || 'Error al registrar corte', true); });
+  }).catch(function(e) {
+    boton.disabled = false;
+    toast(e.message || 'Error al registrar corte', true);
+  });
 }
 
 // ─── Clientes ────────────────────────────────────────────────────
@@ -12526,7 +12625,7 @@ function etiquetaEstadoCorte(corte) {
 }
 
 function botonesCorte(corte) {
-  var h = actionBtn('Imprimir', '&#128424;', 'imprimirCorteThermer(' + corte.id + ')');
+  var h = actionBtn('Imprimir', '&#128424;', 'imprimirCorteEasyPos(' + corte.id + ')');
   if (corte.estado === 'cerrado') {
     h += actionBtn('Editar', '&#9998;', 'abrirEditarCorte(' + corte.id + ')');
     h += actionBtn('Reabrir', '&#8635;', 'reabrirCorte(' + corte.id + ')');
@@ -12587,6 +12686,9 @@ function abrirEditarCorte(id) {
   document.getElementById('mce-id').value = corte.id;
   document.getElementById('mce-fondo').value = corte.fondo_inicial;
   document.getElementById('mce-real').value = corte.efectivo_real;
+  document.getElementById('mce-fondo-entregado').value = corte.fondo_entregado == null ? '' : corte.fondo_entregado;
+  document.getElementById('mce-recibido-por').value = corte.recibido_por || '';
+  actualizarResguardoCorte('mce');
   document.getElementById('mce-notas').value = corte.notas || '';
   document.getElementById('mce-motivo').value = '';
   document.getElementById('modal-corte-editar').classList.add('on');
@@ -12602,9 +12704,15 @@ function guardarEdicionCorte() {
     return;
   }
   if (motivo.length < 5) { toast('Escribe el motivo de la corrección', true); return; }
+  var entrega;
+  try { entrega = datosEntregaCorte('mce', real); }
+  catch (e) { toast(e.message, true); return; }
   apiProtegidaConPasswordAdmin('PUT', '/punto-de-venta/cortes-caja/' + id, {
     fondo_inicial: fondo,
     efectivo_real: real,
+    retiros: entrega.retiros,
+    fondo_entregado: entrega.fondo_entregado,
+    recibido_por: entrega.recibido_por,
     notas: document.getElementById('mce-notas').value.trim() || null,
     motivo: motivo
   }, 'editar corte de caja').then(function() {
@@ -12724,6 +12832,13 @@ function exportarCorteCSV() {
   csv += 'Transferencia,' + (document.getElementById('c-total-trans').textContent.replace('$','').replace(/,/g,'')) + '\n';
   csv += 'Total Ventas,' + (document.getElementById('c-total').textContent.replace('$','').replace(/,/g,'')) + '\n';
   csv += 'Tickets,' + document.getElementById('c-tickets').textContent + '\n';
+  if (document.getElementById('c-retiro').value !== '') {
+    csv += 'Retiro a resguardo,' + document.getElementById('c-retiro').value + '\n';
+    csv += 'Fondo entregado al siguiente turno,' + document.getElementById('c-fondo-entregado').value + '\n';
+    var recibido = textoTicketTermico(document.getElementById('c-recibido-por').value);
+    if (/^[=+@-]/.test(recibido)) recibido = "'" + recibido;
+    csv += 'Recibido por (resguardo),"' + recibido.replace(/"/g, '""') + '"\n';
+  }
   csv += '\nDetalle de ventas\n';
   csv += 'Folio,Hora,Metodo,Referencia,Productos,Total,Estado\n';
   for (var i = 0; i < _corteVentas.length; i++) {
@@ -12747,6 +12862,7 @@ function compartirCorteWhatsApp() {
   txt += 'BBVA: ' + document.getElementById('c-total-bbva').textContent + '\n';
   txt += '\ud83c\udfe6 Transferencia: ' + document.getElementById('c-total-trans').textContent + '\n';
   txt += '*Total: ' + document.getElementById('c-total').textContent + '* (' + document.getElementById('c-tickets').textContent + ' tickets)\n\n';
+  txt += textoEntregaCorteFormulario();
   window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
 }
 
