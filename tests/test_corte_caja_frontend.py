@@ -57,7 +57,8 @@ def test_cash_handover_controls_and_print_paths():
     assert "corte.retiros" in HTML
     assert "corte.recibido_por" in HTML
     assert "r.entrega_efectivo_disponible !== true" in HTML
-    assert HTML.count("var guardado = corteGuardadoParaExportar();") == 4
+    assert HTML.count("var guardado = corteGuardadoParaExportar();") == 2
+    assert HTML.count("textoCorteParaWhatsApp(corteActualParaCompartir())") == 2
     assert "if (!fondoEntregadoInput.dataset.editado)" in HTML
     assert "this.dataset.editado='1';actualizarResguardoCorte('c')" in HTML
 
@@ -256,6 +257,139 @@ imprimirCorteActual(); assert.equal(window.location.href,'');
 fields['c-fecha'].value='2026-10-06'; fields['c-real'].value='';
 imprimirCorteActual(); url = new URL(window.location.href);
 assert.ok(url.searchParams.get('text').includes('Sin contar'));
+"""
+    result = subprocess.run([node, "-e", js], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
+def test_whatsapp_cut_format_unicode_and_native_web_round_trip():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node required")
+
+    def section(start, end):
+        offset = HTML.index(start)
+        return HTML[offset:HTML.index(end, offset)]
+
+    js = r"""
+const assert = require('node:assert/strict');
+function fmt(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function textoTicketTermico(v) { return String(v ?? '').replace(/[\r\n]+/g, ' ').trim(); }
+function fechaISOOperacion(v) {
+  const parts = new Intl.DateTimeFormat('en-US', {timeZone:'America/Mexico_City', year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(new Date(v));
+  const get = type => parts.find(p => p.type === type).value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+const window = {location:{href:''}, open:(url)=>opened.push(url)};
+const document = {hidden:false};
+const opened=[], timers=[];
+function setTimeout(fn) { timers.push(fn); }
+""" + section("function textoCorteParaWhatsApp", "function compartirCorteWhatsApp") + section(
+        "function abrirWhatsAppConFallback", "function enviarCotizacionWhatsApp"
+    ) + r"""
+const cut = {id:42, turno:2, estado:'cerrado', fecha:'2026-10-06T03:00:00Z',
+  fondo_inicial:500, total_ventas_efectivo:1250.75, total_ventas_tarjeta:50,
+  total_ventas_clip:500, total_ventas_bbva:1000, total_ventas_transferencia:200,
+  total_ventas:3000.75, numero_ventas:7, efectivo_real:1750.75, diferencia:0,
+  retiros:1250.75, fondo_entregado:500, recibido_por:'Persona de prueba \u00d1'};
+const text = textoCorteParaWhatsApp(cut);
+assert.ok(text.includes('*Jacaranda* \u2014 Lunes 2026-10-05'));
+assert.ok(text.includes('Corte #42 \u00b7 cerrado\nTurno 2'));
+for (const heading of ['*Ventas por m\u00e9todo:*','*Resumen:*','*Caja:*']) assert.ok(text.includes(heading));
+for (const point of [0x1F35E,0x1F4B0,0x1F4B5,0x1F4B3,0x1F3E6,0x1F4CA,0x1F4DD,0x2728]) {
+  assert.ok(text.includes(String.fromCodePoint(point)), point.toString(16));
+}
+assert.ok(text.includes('  Total ventas: $3,000.75\n  Tickets: 7'));
+assert.ok(text.includes('  Fondo: $500.00\n  Contado: $1,750.75\n  Diferencia: $0.00 \u2714'));
+assert.ok(text.includes('  Retiro a resguardo: $1,250.75'));
+assert.ok(text.includes('  Fondo entregado al siguiente turno: $500.00'));
+assert.ok(text.includes('  Recibido por (resguardo): Persona de prueba \u00d1'));
+assert.ok(text.endsWith('\u2728 _Jacaranda - sharing flavors_'));
+assert.equal(Buffer.from(text, 'utf8').toString('utf8'), text);
+assert.ok(!text.includes('\ufffd'));
+abrirWhatsAppConFallback(text);
+let url = new URL(window.location.href);
+assert.equal(url.protocol, 'whatsapp:');
+assert.equal(url.searchParams.get('text'), text);
+assert.ok(window.location.href.includes('%F0%9F%8D%9E'));
+timers.shift()();
+url = new URL(opened[0]);
+assert.equal(url.hostname, 'web.whatsapp.com');
+assert.equal(url.searchParams.get('text'), text);
+assert.ok(!opened[0].includes('wa.me'));
+abrirWhatsAppConFallback(text); document.hidden=true; timers.shift()();
+assert.equal(opened.length,1);
+cut.efectivo_real=null; cut.diferencia=null; delete cut.fondo_entregado;
+delete cut.id; cut.estado='provisional';
+const preview = textoCorteParaWhatsApp(cut);
+assert.ok(preview.includes('Provisional - no registrado'));
+assert.ok(preview.includes('Contado: --\n  Diferencia: --'));
+assert.ok(!preview.includes('\u2714'));
+assert.ok(!preview.includes('Retiro a resguardo'));
+"""
+    result = subprocess.run([node, "-e", js], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
+def test_whatsapp_current_saved_and_incomplete_cut_use_same_snapshot():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node required")
+
+    def section(start, end):
+        offset = HTML.index(start)
+        return HTML[offset:HTML.index(end, offset)]
+
+    js = r"""
+const assert = require('node:assert/strict');
+const fields={};
+const document={getElementById:id=>fields[id] ||= {value:'',style:{},textContent:''}};
+const messages=[], errors=[], copied=[];
+const navigator={clipboard:{writeText:txt=>{copied.push(txt); return Promise.resolve();}}};
+function toast(txt, error) { if(error) errors.push(txt); }
+function abrirWhatsAppConFallback(txt) { messages.push(txt); }
+function fmt(n) { return Number(n).toFixed(2); }
+function fechaISOOperacion(v) { return v.slice(0,10); }
+function fechaHoyISO() { return '2026-10-06'; }
+let _corteVistaLista=false, _resumenCorteVista=null;
+let _corteActual=null, _ultimoCorteRegistrado=null, _corteVentas=[];
+""" + section("function actualizarResguardoCorte", "function realizarCorte") + section(
+        "function textoTicketTermico", "function imprimirCorteActual"
+    ) + section("function textoCorteParaWhatsApp", "// ─── Pronóstico producción") + section(
+        "function exportarCorte()", "// ─── Dynamic inventory loading"
+    ) + r"""
+fields['c-fecha']={value:'2026-10-06'};
+fields['c-fondo']={value:'300'};
+fields['c-real']={value:'800'};
+fields['c-fondo-entregado']={value:'300'};
+fields['c-recibido-por']={value:'Persona de prueba'};
+fields['c-notas']={value:''};
+fields['c-dif']={textContent:'$0.00 \u2714'};
+compartirCorteWhatsApp(); assert.equal(messages.length,0); assert.equal(errors.length,1);
+_corteVistaLista=true;
+_resumenCorteVista={fecha:'2026-10-06',periodo_fin:'2026-10-06T15:00:00Z',siguiente_turno:1,
+ total_ventas_efectivo:100,total_ventas_tarjeta:0,total_ventas_bbva:0,total_ventas_clip:0,
+ total_ventas_transferencia:0,total_ventas:100,numero_ventas:1};
+compartirCorteWhatsApp();
+assert.ok(messages[0].includes('Martes 2026-10-06'));
+assert.ok(messages[0].includes('  Diferencia: $400.00'));
+assert.ok(!messages[0].includes('$0.00 \u2714'));
+assert.ok(messages[0].includes('Retiro a resguardo: $500.00'));
+exportarCorte(); assert.equal(copied[0],messages[0]);
+fields['c-fecha'].value='2026-10-05'; compartirCorteWhatsApp(); assert.equal(messages.length,1);
+fields['c-fecha'].value='2026-10-06'; fields['c-real'].value='';
+_corteActual={..._resumenCorteVista,id:42,fecha:'2026-10-06T15:00:00Z',turno:1,estado:'cerrado',
+ total_ventas:999,total_ventas_efectivo:999,fondo_inicial:2000,efectivo_real:2999,diferencia:0,
+ retiros:999,fondo_entregado:2000,recibido_por:'Responsable de prueba'};
+_ultimoCorteRegistrado=_corteActual;
+compartirCorteWhatsApp();
+assert.ok(messages[1].includes('Corte #42'));
+assert.ok(messages[1].includes('Total ventas: $999.00'));
+assert.ok(messages[1].includes('Contado: $2999.00'));
+assert.ok(messages[1].includes('*Caja:*'));
+assert.ok(messages[1].includes(String.fromCodePoint(0x1F35E)));
+assert.ok(messages[1].includes('Recibido por (resguardo): Responsable de prueba'));
+assert.equal(fields['c-dif'].textContent,'$0.00 \u2714');
 """
     result = subprocess.run([node, "-e", js], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
