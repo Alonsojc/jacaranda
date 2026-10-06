@@ -7623,7 +7623,7 @@ function partesFechaOperacion(value, incluirHora) {
 }
 
 function fechaISOOperacion(value) {
-  var p = partesFechaOperacion(value || new Date(), false);
+  var p = partesFechaOperacion(instanteUTC(value || new Date()), false);
   return p.year + '-' + p.month + '-' + p.day;
 }
 

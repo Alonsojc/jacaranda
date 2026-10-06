@@ -275,16 +275,14 @@ def test_whatsapp_cut_format_unicode_and_native_web_round_trip():
 const assert = require('node:assert/strict');
 function fmt(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
 function textoTicketTermico(v) { return String(v ?? '').replace(/[\r\n]+/g, ' ').trim(); }
-function fechaISOOperacion(v) {
-  const parts = new Intl.DateTimeFormat('en-US', {timeZone:'America/Mexico_City', year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(new Date(v));
-  const get = type => parts.find(p => p.type === type).value;
-  return `${get('year')}-${get('month')}-${get('day')}`;
-}
+const APP_TIMEZONE='America/Mexico_City';
 const window = {location:{href:''}, open:(url)=>opened.push(url)};
 const document = {hidden:false};
 const opened=[], timers=[];
 function setTimeout(fn) { timers.push(fn); }
-""" + section("function textoCorteParaWhatsApp", "function compartirCorteWhatsApp") + section(
+""" + section("function partesFechaOperacion", "function fechaHoraOperacionInput") + section(
+        "function instanteUTC", "function formatearInstanteOperacion"
+    ) + section("function textoCorteParaWhatsApp", "function compartirCorteWhatsApp") + section(
         "function abrirWhatsAppConFallback", "function enviarCotizacionWhatsApp"
     ) + r"""
 const cut = {id:42, turno:2, estado:'cerrado', fecha:'2026-10-06T03:00:00Z',
@@ -294,6 +292,8 @@ const cut = {id:42, turno:2, estado:'cerrado', fecha:'2026-10-06T03:00:00Z',
   retiros:1250.75, fondo_entregado:500, recibido_por:'Persona de prueba \u00d1'};
 const text = textoCorteParaWhatsApp(cut);
 assert.ok(text.includes('*Jacaranda* \u2014 Lunes 2026-10-05'));
+assert.equal(textoCorteParaWhatsApp({...cut, fecha:'2026-10-06T03:00:00'}), text);
+assert.equal(textoCorteParaWhatsApp({...cut, fecha:new Date(cut.fecha)}), text);
 assert.ok(text.includes('Corte #42 \u00b7 cerrado\nTurno 2'));
 for (const heading of ['*Ventas por m\u00e9todo:*','*Resumen:*','*Caja:*']) assert.ok(text.includes(heading));
 for (const point of [0x1F35E,0x1F4B0,0x1F4B5,0x1F4B3,0x1F3E6,0x1F4CA,0x1F4DD,0x2728]) {
@@ -349,11 +349,13 @@ const navigator={clipboard:{writeText:txt=>{copied.push(txt); return Promise.res
 function toast(txt, error) { if(error) errors.push(txt); }
 function abrirWhatsAppConFallback(txt) { messages.push(txt); }
 function fmt(n) { return Number(n).toFixed(2); }
-function fechaISOOperacion(v) { return v.slice(0,10); }
+const APP_TIMEZONE='America/Mexico_City';
 function fechaHoyISO() { return '2026-10-06'; }
 let _corteVistaLista=false, _resumenCorteVista=null;
 let _corteActual=null, _ultimoCorteRegistrado=null, _corteVentas=[];
-""" + section("function actualizarResguardoCorte", "function realizarCorte") + section(
+""" + section("function partesFechaOperacion", "function fechaHoraOperacionInput") + section(
+        "function instanteUTC", "function formatearInstanteOperacion"
+    ) + section("function actualizarResguardoCorte", "function realizarCorte") + section(
         "function textoTicketTermico", "function imprimirCorteActual"
     ) + section("function textoCorteParaWhatsApp", "// ─── Pronóstico producción") + section(
         "function exportarCorte()", "// ─── Dynamic inventory loading"
