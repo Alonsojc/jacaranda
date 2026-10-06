@@ -2943,7 +2943,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v105';
+var APP_BUILD = 'jacaranda-v106';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -5127,7 +5127,7 @@ function abrirWhatsAppConFallback(txt) {
   window.location.href = appUrl;
   setTimeout(function() {
     if (Date.now() - openedAt < 1800 && !document.hidden) {
-      window.open(webUrl, '_blank');
+      window.location.href = webUrl;
     }
   }, 1200);
 }
@@ -7623,7 +7623,7 @@ function partesFechaOperacion(value, incluirHora) {
 }
 
 function fechaISOOperacion(value) {
-  var p = partesFechaOperacion(value || new Date(), false);
+  var p = partesFechaOperacion(instanteUTC(value || new Date()), false);
   return p.year + '-' + p.month + '-' + p.day;
 }
 
@@ -9629,43 +9629,9 @@ function guardarConteo() {
 
 // ─── Exportar corte ──────────────────────────────────────────────
 function exportarCorte() {
-  var fecha = document.getElementById('c-fecha').value || fechaHoyISO();
-  var ef = document.getElementById('c-total-ef').textContent;
-  var tar = document.getElementById('c-total-tar').textContent;
-  var clip = document.getElementById('c-total-clip').textContent;
-  var bbva = document.getElementById('c-total-bbva').textContent;
-  var trans = document.getElementById('c-total-trans').textContent;
-  var total = document.getElementById('c-total').textContent;
-  var tickets = document.getElementById('c-tickets').textContent;
-  var fondo = document.getElementById('c-fondo').value || '2000';
-  var real = document.getElementById('c-real').value || '--';
-  var dif = document.getElementById('c-dif').textContent;
-  var diasNombre = ['Domingo','Lunes','Martes','Mi\u00e9rcoles','Jueves','Viernes','S\u00e1bado'];
-  var d = new Date(fecha + 'T12:00:00');
-  var diaNombre = diasNombre[d.getDay()];
-  var txt = '\ud83c\udf5e *CORTE DE CAJA*\n';
-  txt += '*Jacaranda* \u2014 ' + diaNombre + ' ' + fecha + '\n';
-  txt += '\n';
-  txt += '\ud83d\udcb0 *Ventas por m\u00e9todo:*\n';
-  txt += '  \ud83d\udcb5 Efectivo: ' + ef + '\n';
-  txt += '  \ud83d\udcb3 Otra tarjeta: ' + tar + '\n';
-  txt += '  CLIP: ' + clip + '\n';
-  txt += '  BBVA: ' + bbva + '\n';
-  txt += '  \ud83c\udfe6 Transferencia: ' + trans + '\n';
-  txt += '\n';
-  txt += '\ud83d\udcca *Resumen:*\n';
-  txt += '  Total ventas: ' + total + '\n';
-  txt += '  Tickets: ' + tickets + '\n';
-  txt += '\n';
-  txt += '\ud83d\udcdd *Caja:*\n';
-  txt += '  Fondo: $' + fondo + '\n';
-  txt += '  Contado: $' + real + '\n';
-  txt += '  Diferencia: ' + dif + '\n';
-  txt += textoEntregaCorteFormulario();
-  txt += '\n';
-  txt += '\u2728 _Jacaranda - sharing flavors_';
-  var guardado = corteGuardadoParaExportar();
-  if (guardado) txt = textoCorteParaEasyPos(guardado);
+  var txt;
+  try { txt = textoCorteParaWhatsApp(corteActualParaCompartir()); }
+  catch (e) { toast(e.message, true); return; }
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(txt).then(function() { toast('Corte copiado — pégalo en WhatsApp'); });
   } else {
@@ -9747,35 +9713,37 @@ function textoCorteParaEasyPos(corte) {
   return lineas.join('\n') + '\n\n\n\n';
 }
 
-function imprimirCorteActual() {
+function corteActualParaCompartir() {
   if (!_corteVistaLista || !_resumenCorteVista) {
-    toast('Espera a que carguen las ventas y el corte', true);
-    return;
+    throw new Error('Espera a que carguen las ventas y el corte');
   }
   var guardado = corteGuardadoParaExportar();
-  if (guardado) { imprimirCorteEasyPos(guardado); return; }
+  if (guardado) return guardado;
   var fecha = document.getElementById('c-fecha').value;
-  if (_resumenCorteVista.fecha !== fecha) { toast('Actualiza el corte antes de imprimir', true); return; }
+  if (_resumenCorteVista.fecha !== fecha) throw new Error('Actualiza el corte antes de compartir');
   var fondo = Number(document.getElementById('c-fondo').value);
   var realTexto = document.getElementById('c-real').value;
   var real = realTexto === '' ? null : Number(realTexto);
   if (!Number.isFinite(fondo) || fondo < 0 || (real != null && (!Number.isFinite(real) || real < 0))) {
-    toast('Revisa fondo inicial y efectivo contado', true);
-    return;
+    throw new Error('Revisa fondo inicial y efectivo contado');
   }
   var entrega = {};
-  if (real != null) {
-    try { entrega = datosEntregaCorte('c', real); }
-    catch (e) { toast(e.message, true); return; }
-  }
+  if (real != null) entrega = datosEntregaCorte('c', real);
   var resumen = _resumenCorteVista;
   var esperado = Math.round((fondo + Number(resumen.total_ventas_efectivo)) * 100) / 100;
-  imprimirCorteEasyPos(Object.assign({}, resumen, entrega, {
+  return Object.assign({}, resumen, entrega, {
     id: null, turno: resumen.siguiente_turno, fecha: resumen.periodo_fin,
     fondo_inicial: fondo, efectivo_esperado: esperado, efectivo_real: real,
     diferencia: real == null ? null : Math.round((real - esperado) * 100) / 100,
     notas: document.getElementById('c-notas').value.trim(), estado: 'provisional'
-  }));
+  });
+}
+
+function imprimirCorteActual() {
+  var corte;
+  try { corte = corteActualParaCompartir(); }
+  catch (e) { toast(e.message, true); return; }
+  imprimirCorteEasyPos(corte);
 }
 
 function imprimirCorteEasyPos(corteId) {
@@ -12013,15 +11981,6 @@ function datosEntregaCorte(prefijo, real) {
   return {retiros: retiro, fondo_entregado: fondo, recibido_por: recibido || null};
 }
 
-function textoEntregaCorteFormulario() {
-  var fondo = document.getElementById('c-fondo-entregado').value;
-  var retiro = document.getElementById('c-retiro').value;
-  if (retiro === '' || fondo === '') return '';
-  return '  Retiro a resguardo: $' + fmt(retiro) + '\n'
-    + '  Fondo entregado al siguiente turno: $' + fmt(fondo) + '\n'
-    + '  Recibido por (resguardo): ' + textoTicketTermico(document.getElementById('c-recibido-por').value || 'Sin retiro') + '\n';
-}
-
 function corteGuardadoParaExportar() {
   if (document.getElementById('c-real').value !== '' || !_corteActual
       || !_ultimoCorteRegistrado || _ultimoCorteRegistrado.id !== _corteActual.id
@@ -12727,26 +12686,43 @@ function exportarCorteCSV() {
   _descargarCSV('corte_' + fecha + '.csv', csv);
 }
 
-function compartirCorteWhatsApp() {
-  var guardado = corteGuardadoParaExportar();
-  if (guardado) {
-    window.open('https://wa.me/?text=' + encodeURIComponent(textoCorteParaEasyPos(guardado)), '_blank');
-    return;
-  }
-  var fecha = document.getElementById('c-fecha').value || fechaHoyISO();
+function textoCorteParaWhatsApp(corte) {
+  var fecha = fechaISOOperacion(corte.fecha);
   var diasNombre = ['Domingo','Lunes','Martes','Mi\u00e9rcoles','Jueves','Viernes','S\u00e1bado'];
-  var d = new Date(fecha + 'T12:00:00');
-  var dia = diasNombre[d.getDay()];
-  var txt = '\ud83c\udf5e *CORTE DE CAJA*\n*Jacaranda* \u2014 ' + dia + ' ' + fecha + '\n\n';
-  txt += '\ud83d\udcb0 *Ventas:*\n';
-  txt += '\ud83d\udcb5 Efectivo: ' + document.getElementById('c-total-ef').textContent + '\n';
-  txt += '\ud83d\udcb3 Otra tarjeta: ' + document.getElementById('c-total-tar').textContent + '\n';
-  txt += 'CLIP: ' + document.getElementById('c-total-clip').textContent + '\n';
-  txt += 'BBVA: ' + document.getElementById('c-total-bbva').textContent + '\n';
-  txt += '\ud83c\udfe6 Transferencia: ' + document.getElementById('c-total-trans').textContent + '\n';
-  txt += '*Total: ' + document.getElementById('c-total').textContent + '* (' + document.getElementById('c-tickets').textContent + ' tickets)\n\n';
-  txt += textoEntregaCorteFormulario();
-  window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
+  var dia = diasNombre[new Date(fecha + 'T12:00:00Z').getUTCDay()];
+  function dinero(valor) { return valor == null ? '--' : '$' + fmt(valor); }
+  var lineas = ['\ud83c\udf5e *CORTE DE CAJA*', '*Jacaranda* \u2014 ' + dia + ' ' + fecha];
+  if (corte.id) lineas.push('Corte #' + corte.id + ' \u00b7 ' + textoTicketTermico(corte.estado || 'cerrado'));
+  else if (corte.estado === 'provisional') lineas.push('Provisional - no registrado');
+  if (corte.turno) lineas.push('Turno ' + corte.turno);
+  lineas.push('', '\ud83d\udcb0 *Ventas por m\u00e9todo:*',
+    '  \ud83d\udcb5 Efectivo: ' + dinero(corte.total_ventas_efectivo),
+    '  \ud83d\udcb3 Otra tarjeta: ' + dinero(corte.total_ventas_tarjeta),
+    '  CLIP: ' + dinero(corte.total_ventas_clip),
+    '  BBVA: ' + dinero(corte.total_ventas_bbva),
+    '  \ud83c\udfe6 Transferencia: ' + dinero(corte.total_ventas_transferencia),
+    '', '\ud83d\udcca *Resumen:*',
+    '  Total ventas: ' + dinero(corte.total_ventas),
+    '  Tickets: ' + corte.numero_ventas,
+    '', '\ud83d\udcdd *Caja:*',
+    '  Fondo: ' + dinero(corte.fondo_inicial),
+    '  Contado: ' + dinero(corte.efectivo_real),
+    '  Diferencia: ' + dinero(corte.diferencia) + (Number(corte.diferencia) === 0 && corte.diferencia != null ? ' \u2714' : ''));
+  if (corte.fondo_entregado != null) {
+    lineas.push('  Retiro a resguardo: ' + dinero(corte.retiros),
+      '  Fondo entregado al siguiente turno: ' + dinero(corte.fondo_entregado),
+      '  Recibido por (resguardo): ' + textoTicketTermico(corte.recibido_por || 'Sin retiro'));
+  }
+  if (corte.notas) lineas.push('  Notas: ' + textoTicketTermico(corte.notas));
+  lineas.push('', '\u2728 _Jacaranda - sharing flavors_');
+  return lineas.join('\n');
+}
+
+function compartirCorteWhatsApp() {
+  var txt;
+  try { txt = textoCorteParaWhatsApp(corteActualParaCompartir()); }
+  catch (e) { toast(e.message, true); return; }
+  abrirWhatsAppConFallback(txt);
 }
 
 // ─── Pronóstico producción ───────────────────────────────────────
