@@ -19,6 +19,13 @@ from app.services import alertas_service
 router = APIRouter()
 
 
+def _validar_periodo(fecha_inicio: date, fecha_fin: date) -> None:
+    if fecha_inicio > fecha_fin:
+        raise HTTPException(status_code=400, detail="La fecha inicial no puede ser mayor a la final")
+    if (fecha_fin - fecha_inicio).days > 365:
+        raise HTTPException(status_code=400, detail="Rango máximo: 1 año")
+
+
 @router.get("/dashboard")
 def dashboard(
     db: Session = Depends(get_db),
@@ -43,7 +50,19 @@ def reporte_ventas(
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_permission("rep", "ver")),
 ):
+    _validar_periodo(fecha_inicio, fecha_fin)
     return svc.reporte_ventas_periodo(db, fecha_inicio, fecha_fin)
+
+
+@router.get("/egresos", dependencies=[Depends(require_permission("rep", "ver"))])
+def reporte_egresos(
+    fecha_inicio: date = Query(...),
+    fecha_fin: date = Query(...),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("egresos", "ver")),
+):
+    _validar_periodo(fecha_inicio, fecha_fin)
+    return svc.reporte_egresos_periodo(db, fecha_inicio, fecha_fin)
 
 
 @router.get("/productos-mas-vendidos")
@@ -304,6 +323,7 @@ def reporte_ventas_pdf(
     _user: Usuario = Depends(require_permission("rep", "ver")),
 ):
     """Descarga reporte de ventas en PDF."""
+    _validar_periodo(fecha_inicio, fecha_fin)
     data = svc.reporte_ventas_periodo(db, fecha_inicio, fecha_fin)
     buf = pdf_service.generar_reporte_ventas_pdf(data)
     return StreamingResponse(

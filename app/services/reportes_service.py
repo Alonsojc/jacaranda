@@ -6,7 +6,7 @@ Genera reportes de IVA, ISR, ventas y estado financiero.
 from decimal import Decimal
 from datetime import date, datetime, timedelta, timezone
 import calendar
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, load_only
 from sqlalchemy import func, and_
 
 from app.core.time_utils import (
@@ -16,7 +16,7 @@ from app.core.time_utils import (
     operation_today as _hoy_operacion,
     operation_timezone as _zona_operacion,
 )
-from app.models.venta import Venta, DetalleVenta, EstadoVenta
+from app.models.venta import Venta, DetalleVenta, EstadoVenta, PagoVenta
 from app.models.empleado import RegistroNomina
 from app.models.inventario import MovimientoInventario, TipoMovimiento, Ingrediente
 from app.models.egreso import Egreso
@@ -98,13 +98,22 @@ def reporte_ventas_periodo(db: Session, fecha_inicio: date, fecha_fin: date) -> 
     fin_dt = _normalizar_fecha_db(
         datetime.combine(fecha_fin, datetime.max.time(), tzinfo=zona)
     )
-    ventas = db.query(Venta).filter(
+    # Una consulta para ventas y pagos; no cargar partidas ni payloads de terminales.
+    ventas = db.query(Venta).options(
+        load_only(
+            Venta.fecha, Venta.total, Venta.subtotal, Venta.iva_0,
+            Venta.iva_16, Venta.descuento, Venta.metodo_pago, Venta.terminal,
+        ),
+        joinedload(Venta.pagos).load_only(
+            PagoVenta.metodo_pago, PagoVenta.terminal, PagoVenta.monto,
+        ),
+    ).filter(
         and_(
             Venta.fecha >= inicio_dt,
             Venta.fecha <= fin_dt,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
-    ).all()
+    ).order_by(Venta.fecha, Venta.id).all()
 
     total_ventas = sum(v.total for v in ventas)
     total_subtotal = sum(v.subtotal for v in ventas)
@@ -172,6 +181,63 @@ def reporte_ventas_periodo(db: Session, fecha_inicio: date, fecha_fin: date) -> 
             k: {"cantidad": v["cantidad"], "total": float(v["total"])}
             for k, v in sorted(por_dia.items())
         },
+    }
+
+
+def reporte_egresos_periodo(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
+    """Gastos registrados, no presupuestos recurrentes ni retiros de caja."""
+    egresos = db.query(Egreso).filter(
+        Egreso.activo.is_(True),
+        Egreso.fecha >= fecha_inicio,
+        Egreso.fecha <= fecha_fin,
+    ).order_by(Egreso.fecha.desc(), Egreso.id.desc()).all()
+
+    total = Decimal("0")
+    por_categoria = {}
+    por_metodo = {}
+    por_dia = {}
+    detalle = []
+    for egreso in egresos:
+        monto = egreso.monto
+        total += monto
+        dia = egreso.fecha.isoformat()
+        for grupo, clave in (
+            (por_categoria, egreso.categoria),
+            (por_metodo, egreso.metodo_pago),
+            (por_dia, dia),
+        ):
+            agregado = grupo.setdefault(clave, {"cantidad": 0, "total": Decimal("0")})
+            agregado["cantidad"] += 1
+            agregado["total"] += monto
+        detalle.append({
+            "id": egreso.id,
+            "fecha": dia,
+            "concepto": egreso.concepto,
+            "monto": float(monto),
+            "categoria": egreso.categoria,
+            "metodo_pago": egreso.metodo_pago,
+            "proveedor": egreso.proveedor,
+            "notas": egreso.notas,
+            "origen": egreso.origen,
+        })
+
+    def convertir(grupo):
+        return {
+            clave: {"cantidad": valor["cantidad"], "total": float(valor["total"])}
+            for clave, valor in sorted(grupo.items())
+        }
+
+    return {
+        "periodo": {"inicio": fecha_inicio.isoformat(), "fin": fecha_fin.isoformat()},
+        "resumen": {
+            "total": float(total),
+            "numero_egresos": len(egresos),
+            "egreso_promedio": float(total / len(egresos)) if egresos else 0,
+        },
+        "por_categoria": convertir(por_categoria),
+        "por_metodo_pago": convertir(por_metodo),
+        "por_dia": convertir(por_dia),
+        "detalle": detalle,
     }
 
 
