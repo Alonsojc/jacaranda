@@ -1160,7 +1160,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <option value="28">Tarjeta d&eacute;bito</option>
 <option value="03">Transferencia</option>
 </select>
-<button class="cobrar" style="width:auto;padding:.3rem .7rem;font-size:.78rem;margin:0" onclick="cargarHistVentas()">Buscar</button>
+<button class="cobrar" id="hv-consultar" style="width:auto;padding:.3rem .7rem;font-size:.78rem;margin:0" onclick="cargarHistVentas()">Buscar</button>
 </div>
 <div id="hv-list" style="max-height:400px;overflow-y:auto">
 <p style="color:var(--mut);font-size:.83rem;text-align:center">Selecciona fechas y busca</p>
@@ -2943,7 +2943,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v106';
+var APP_BUILD = 'jacaranda-v107';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -3321,11 +3321,15 @@ function leerCacheLocalJson(key, maxAgeMs) {
 
 function leerRespuestaJson(r) {
   return r.text().then(function(texto) {
-    if (!texto) return {};
+    if (!texto && (!r.ok || r.status === 204 || r.status === 205)) return {};
     try {
       return JSON.parse(texto);
     } catch(e) {
-      return {};
+      if (!r.ok) return {};
+      var error = new Error('El servidor devolvi\u00f3 una respuesta incompleta');
+      error.status = 502;
+      error.code = 'INVALID_RESPONSE';
+      throw error;
     }
   });
 }
@@ -3401,7 +3405,7 @@ function api(method, path, body, _retry, extraHeaders, versionSesionEsperada, op
   var timeoutId = null;
   if (controller) {
     opts.signal = controller.signal;
-    timeoutId = setTimeout(function() { controller.abort(); }, API_TIMEOUT_MS);
+    timeoutId = setTimeout(function() { controller.abort(); }, (opciones && opciones.timeoutMs) || API_TIMEOUT_MS);
   }
   if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
   if (extraHeaders) {
@@ -3413,9 +3417,9 @@ function api(method, path, body, _retry, extraHeaders, versionSesionEsperada, op
   }
   if (body) opts.body = JSON.stringify(body);
   var request = fetch(API_URL + '/api/v1' + path, opts).then(function(r) {
-    if (timeoutId) clearTimeout(timeoutId);
     if (!sesionSolicitudSigueActiva()) return Promise.reject(errorSesionSolicitudCambiada());
     if (r.status === 401 && !_retry && REFRESH_TOKEN) {
+      if (timeoutId) clearTimeout(timeoutId);
       if (!sesionSolicitudSigueActiva()) return Promise.reject(errorSesionSolicitudCambiada());
       return refreshAccessToken().then(function() {
         if (!sesionSolicitudSigueActiva()) throw errorSesionSolicitudCambiada();
@@ -3423,6 +3427,7 @@ function api(method, path, body, _retry, extraHeaders, versionSesionEsperada, op
       });
     }
     if (r.status === 401) {
+      if (timeoutId) clearTimeout(timeoutId);
       if (!sesionSolicitudSigueActiva()) return Promise.reject(errorSesionSolicitudCambiada());
       expirarSesion();
       var authErr = new Error('Sesión expirada');
@@ -3448,8 +3453,12 @@ function api(method, path, body, _retry, extraHeaders, versionSesionEsperada, op
       marcarApiDisponible();
       return data;
     });
+  }).then(function(data) {
+    if (timeoutId) clearTimeout(timeoutId);
+    return data;
   }).catch(function(e) {
     if (timeoutId) clearTimeout(timeoutId);
+    if (!sesionSolicitudSigueActiva() && (!e || e.status !== 401)) throw errorSesionSolicitudCambiada();
     if (e && e.name === 'AbortError') {
       var timeoutErr = new Error('El servidor tardó demasiado en responder');
       timeoutErr.status = 504;
@@ -3477,6 +3486,19 @@ function api(method, path, body, _retry, extraHeaders, versionSesionEsperada, op
     return _apiGetInFlight[dedupeKey];
   }
   return request;
+}
+
+// Solo consultas: una falla transitoria nunca debe repetir un cobro o cancelacion.
+function apiLecturaRecuperable(path) {
+  var version = _versionSesion;
+  return api('GET', path, null, false, null, version, {silenciosa: true, timeoutMs: 8000}).catch(function(e) {
+    if (version !== _versionSesion) throw errorSesionSolicitudCambiada();
+    if (!e || [0, 502, 503, 504].indexOf(e.status) < 0) throw e;
+    return new Promise(function(resolve) { setTimeout(resolve, 600); }).then(function() {
+      if (version !== _versionSesion) throw errorSesionSolicitudCambiada();
+      return api('GET', path, null, false, null, version, {timeoutMs: 15000});
+    });
+  });
 }
 
 function apiPublic(method, path, body) {
@@ -6544,7 +6566,17 @@ window.addEventListener('offline', function() {
 
 var _mtVentaId = null, _mtFolio = '';
 
+function cargaTicketVigente(secuencia, version, ventaId) {
+  return secuencia === _ticketCargaSeq && version === _versionSesion && _ventaActualId === ventaId
+    && document.getElementById('modal-ticket').classList.contains('on');
+}
+
 function mostrarTicket(venta) {
+  var secuencia = ++_ticketCargaSeq;
+  var version = _versionSesion;
+  _ultimoTicket = null;
+  document.getElementById('mt-detalles').innerHTML = '';
+  document.getElementById('mt-productos').innerHTML = '';
   document.getElementById('mt-icon').innerHTML = '&#10003;';
   document.getElementById('mt-titulo').textContent = 'Venta Registrada';
   document.getElementById('mt-titulo').style.color = 'var(--grn)';
@@ -6566,9 +6598,11 @@ function mostrarTicket(venta) {
   }
   // Load full ticket from backend
   api('GET', '/punto-de-venta/ventas/' + venta.id + '/ticket').then(function(tk) {
+    if (!cargaTicketVigente(secuencia, version, venta.id)) return;
     _ultimoTicket = tk;
     renderTicket(tk);
   }).catch(function() {
+    if (!cargaTicketVigente(secuencia, version, venta.id)) return;
     // Fallback: show basic info from venta response
     var cambio = parseFloat(venta.cambio) || 0;
     var h = '';
@@ -6622,8 +6656,15 @@ function renderTicket(tk) {
 }
 
 var _ventaActualId = null;
+var _ticketCargaSeq = 0;
 
 function verTicket(ventaId, cancelada) {
+  var secuencia = ++_ticketCargaSeq;
+  var version = _versionSesion;
+  function cargaVigente() {
+    return cargaTicketVigente(secuencia, version, ventaId);
+  }
+  _ultimoTicket = null;
   _ventaActualId = ventaId;
   _mtVentaId = ventaId;
   _mtFolio = '';
@@ -6633,22 +6674,30 @@ function verTicket(ventaId, cancelada) {
   document.getElementById('mt-folio').textContent = 'Cargando...';
   document.getElementById('mt-detalles').innerHTML = '';
   document.getElementById('mt-productos').innerHTML = '';
-  document.getElementById('mt-cancel-wrap').style.display = cancelada ? 'none' : 'block';
-  document.getElementById('mt-facturar-wrap').style.display = cancelada ? 'none' : 'block';
+  document.getElementById('mt-cancel-wrap').style.display = 'none';
+  document.getElementById('mt-facturar-wrap').style.display = 'none';
   document.getElementById('modal-ticket').classList.add('on');
-  api('GET', '/punto-de-venta/ventas/' + ventaId + '/ticket').then(function(tk) {
+  return apiLecturaRecuperable('/punto-de-venta/ventas/' + ventaId + '/ticket').then(function(tk) {
+    if (!cargaVigente()) return;
+    if (!tk || !tk.folio || !Array.isArray(tk.productos)) throw new Error('No se pudo leer el ticket');
     _ultimoTicket = tk;
     _mtFolio = tk.folio;
     document.getElementById('mt-folio').textContent = tk.folio;
     renderTicket(tk);
-  }).catch(function() {
+    document.getElementById('mt-cancel-wrap').style.display = cancelada ? 'none' : 'block';
+    document.getElementById('mt-facturar-wrap').style.display = cancelada ? 'none' : 'block';
+  }).catch(function(e) {
+    if (!cargaVigente()) return;
     document.getElementById('mt-folio').textContent = 'Error al cargar ticket';
+    document.getElementById('mt-detalles').innerHTML = '<p role="status">' + escHtml(e.message || 'No se pudo consultar el servidor') + '</p>'
+      + actionBtn('Reintentar', '&#8635;', 'verTicket(' + Number(ventaId) + ',' + !!cancelada + ')');
     _ultimoTicket = null;
   });
 }
 
 async function cancelarVentaActual() {
-  if (!_ventaActualId) return;
+  if (!_ventaActualId || !_ultimoTicket) return;
+  var ventaId = _ventaActualId;
   var motivo = await solicitarEntrada({
     title: 'Cancelar venta',
     message: 'Escribe el motivo de cancelacion.',
@@ -6669,10 +6718,12 @@ async function cancelarVentaActual() {
     tone: 'danger'
   });
   if (!ok) return;
-  apiCritica('POST', '/punto-de-venta/ventas/' + _ventaActualId + '/cancelar', {motivo: motivo}, 'cancelar venta', motivo).then(function() {
+  if (_ventaActualId !== ventaId || !_ultimoTicket) return;
+  apiCritica('POST', '/punto-de-venta/ventas/' + ventaId + '/cancelar', {motivo: motivo}, 'cancelar venta', motivo).then(function() {
     toast('Venta cancelada');
     cerrarModal('modal-ticket');
     cargarCorte();
+    cargarHistVentas();
     cargarPOSProductos();
   }).catch(function(e) { toast(e.message || 'Error al cancelar', true); });
 }
@@ -8587,14 +8638,53 @@ function toggleNotifPanel() {
 }
 
 function cargarNotificaciones() {
-  dashGet('/reportes/alertas').then(function(alertas) {
-    _notifCache = alertas;
-    var badge = document.getElementById('notif-badge');
-    var altas = alertas.filter(function(a) { return a.prioridad === 'alta'; }).length;
-    if (altas > 0) { badge.textContent = altas; badge.style.display = 'inline-block'; }
-    else { badge.style.display = 'none'; }
-    renderNotificaciones(alertas);
-  }).catch(function() {});
+  if (!TOKEN || ['ver', 'editar'].indexOf((window._permisos || {}).dash) < 0) return Promise.resolve();
+  return dashGet('/reportes/alertas').then(function(data) {
+    actualizarNotificaciones(data, false);
+  }).catch(function() {
+    document.getElementById('notif-list').innerHTML = '<div class="notif-item" role="status">No se pudieron actualizar las alertas.</div>';
+  });
+}
+
+function normalizarNotificaciones(data) {
+  if (Array.isArray(data)) return data;
+  if (!data || !Array.isArray(data.stock_bajo) || !Array.isArray(data.pedidos_pendientes)) {
+    throw new Error('Respuesta de alertas no v\u00e1lida');
+  }
+  var alertas = [];
+  function agregar(item, tipo, titulo, mensaje) {
+    alertas.push({tipo: tipo, prioridad: item.severidad === 'critica' ? 'alta' : item.severidad || 'baja', titulo: titulo, mensaje: mensaje});
+  }
+  data.stock_bajo.forEach(function(a) {
+    agregar(a, 'stock_bajo', (a.stock_actual <= 0 ? 'Agotado: ' : 'Stock bajo: ') + a.nombre,
+      a.stock_actual + ' ' + (a.unidad || '') + ' (m\u00ednimo: ' + a.stock_minimo + ')');
+  });
+  ['productos_sin_receta', 'productos_sin_costo', 'recetas_sin_ingredientes'].forEach(function(tipo) {
+    (data[tipo] || []).forEach(function(a) { agregar(a, tipo, a.nombre, a.razon); });
+  });
+  (data.caducidades || []).forEach(function(a) {
+    agregar(a, 'caducidad', 'Caducidad: ' + a.ingrediente, 'Lote ' + a.lote + ' - ' + a.fecha_caducidad);
+  });
+  data.pedidos_pendientes.forEach(function(a) {
+    agregar(a, 'pedido', 'Pedido #' + a.pedido_id, a.razon + ' - ' + a.cliente);
+  });
+  if (data.merma_hoy && data.merma_hoy.total_movimientos > 0) {
+    agregar(data.merma_hoy, 'merma', 'Merma de hoy', data.merma_hoy.porcentaje_merma + '% de la producci\u00f3n');
+  }
+  return alertas;
+}
+
+function actualizarNotificaciones(data, avisar) {
+  var alertas = normalizarNotificaciones(data);
+  var altas = alertas.filter(function(a) { return a.prioridad === 'alta'; });
+  var badge = document.getElementById('notif-badge');
+  badge.textContent = altas.length;
+  badge.style.display = altas.length ? 'inline-block' : 'none';
+  if (avisar && altas.length > _notifCache.filter(function(a) { return a.prioridad === 'alta'; }).length) {
+    enviarNotifLocal('Jacaranda - Alerta', altas[0].titulo + ': ' + altas[0].mensaje);
+  }
+  _notifCache = alertas;
+  renderNotificaciones(alertas);
 }
 
 function renderNotificaciones(alertas) {
@@ -8605,9 +8695,9 @@ function renderNotificaciones(alertas) {
     for (var i = 0; i < alertas.length; i++) {
       var a = alertas[i];
       h += '<div class="notif-item notif-' + a.prioridad + '">';
-      h += '<div class="ni-icon">' + (a.icono || '📌') + '</div>';
-      h += '<div class="ni-body"><div class="ni-title">' + a.titulo + '</div>';
-      h += '<div class="ni-msg">' + a.mensaje + '</div></div></div>';
+      h += '<div class="ni-icon">' + escHtml(a.icono || '📌') + '</div>';
+      h += '<div class="ni-body"><div class="ni-title">' + escHtml(a.titulo) + '</div>';
+      h += '<div class="ni-msg">' + escHtml(a.mensaje) + '</div></div></div>';
     }
   }
   document.getElementById('notif-list').innerHTML = h;
@@ -8838,20 +8928,9 @@ var _notifInterval = null;
 function iniciarNotifPeriodicas() {
   if (_notifInterval) clearInterval(_notifInterval);
   _notifInterval = setInterval(function() {
-    api('GET', '/reportes/alertas').then(function(alertas) {
-      var altas = alertas.filter(function(a) { return a.prioridad === 'alta'; });
-      var badge = document.getElementById('notif-badge');
-      if (altas.length > 0) {
-        badge.textContent = altas.length;
-        badge.style.display = 'inline-block';
-        // Send push for new urgent alerts
-        if (altas.length > _notifCache.filter(function(a){ return a.prioridad === 'alta'; }).length) {
-          enviarNotifLocal('Jacaranda - Alerta', altas[0].titulo + ': ' + altas[0].mensaje);
-        }
-      } else {
-        badge.style.display = 'none';
-      }
-      _notifCache = alertas;
+    if (!TOKEN || document.hidden || ['ver', 'editar'].indexOf((window._permisos || {}).dash) < 0) return;
+    api('GET', '/reportes/alertas', null, false, null, null, {silenciosa: true}).then(function(data) {
+      actualizarNotificaciones(data, true);
     }).catch(function(e){ console.warn('Error cargando datos:', e); });
   }, 300000); // 5 min
 }
@@ -11342,6 +11421,8 @@ var _corteVistaLista = false;
 var _resumenCorteVista = null;
 var _totalVentasDia = 0;
 var _histVentas = [];
+var _histVentasCargaSeq = 0;
+var _histVentasCargando = false;
 var _corteYaCerrado = false;
 var _corteActual = null;
 var _cortesCache = {};
@@ -12598,15 +12679,35 @@ function cargarHistVentas() {
   var fi = document.getElementById('hv-fi').value;
   var ff = document.getElementById('hv-ff').value;
   if (!fi || !ff) { toast('Selecciona fecha inicio y fin', true); return; }
+  if (fi > ff) { toast('La fecha inicial debe ser anterior a la final', true); return; }
+  var secuencia = ++_histVentasCargaSeq;
+  var version = _versionSesion;
+  function cargaVigente() { return secuencia === _histVentasCargaSeq && version === _versionSesion; }
   var metodo = document.getElementById('hv-metodo').value;
-  api('GET', '/punto-de-venta/ventas?fecha_inicio=' + fi + '&fecha_fin=' + ff + '&limit=500').then(function(ventas) {
+  _histVentas = [];
+  _histVentasCargando = true;
+  document.getElementById('hv-consultar').disabled = true;
+  document.getElementById('hv-resumen').style.display = 'none';
+  document.getElementById('hv-list').innerHTML = '<p role="status" style="text-align:center;color:var(--mut)">Cargando ventas...</p>';
+  return apiLecturaRecuperable('/punto-de-venta/ventas?fecha_inicio=' + fi + '&fecha_fin=' + ff + '&limit=500').then(function(ventas) {
+    if (!cargaVigente()) return;
+    if (!Array.isArray(ventas)) throw new Error('No se pudo leer el historial de ventas');
     if (metodo) ventas = ventas.filter(function(v) { return v.metodo_pago === metodo; });
     _histVentas = ventas;
+    _histVentasCargando = false;
     renderHistVentas();
-  }).catch(function() { toast('Error al cargar ventas', true); });
+  }).catch(function(e) {
+    if (!cargaVigente()) return;
+    document.getElementById('hv-list').innerHTML = '<p role="status">' + escHtml(e.message || 'No se pudo cargar el historial') + '</p>'
+      + actionBtn('Reintentar', '&#8635;', 'cargarHistVentas()');
+  }).then(function() {
+    if (secuencia !== _histVentasCargaSeq) return;
+    _histVentasCargando = false;
+    document.getElementById('hv-consultar').disabled = false;
+  });
 }
 
-function filtrarHistVentas() { renderHistVentas(); }
+function filtrarHistVentas() { if (!_histVentasCargando && _histVentas.length) renderHistVentas(); }
 
 function renderHistVentas() {
   var q = (document.getElementById('hv-buscar').value || '').toLowerCase().trim();
@@ -13219,7 +13320,7 @@ function iniciarPollPedidos() {
     var minDelay = wsAbierto ? 60000 : Math.min(120000, 30000 + (_pedidoPollFailures * 15000));
     if (now - _pedidoPollLast < minDelay) return;
     _pedidoPollLast = now;
-    api('GET', '/pedidos/').then(function(peds) {
+    api('GET', '/pedidos/', null, false, null, null, {silenciosa: true}).then(function(peds) {
       _pedidoPollFailures = 0;
       registrarPedidosConocidos(peds, true);
       if (document.getElementById('ped') && document.getElementById('ped').classList.contains('on')) {

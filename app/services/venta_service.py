@@ -963,7 +963,7 @@ def generar_ticket(db: Session, venta_id: int) -> dict:
     venta = obtener_venta(db, venta_id)
     productos = []
     for d in venta.detalles:
-        prod = db.query(Producto).filter(Producto.id == d.producto_id).first()
+        prod = d.producto
         productos.append({
             "nombre": prod.nombre if prod else "Producto",
             "cantidad": float(d.cantidad),
