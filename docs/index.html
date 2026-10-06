@@ -5127,7 +5127,7 @@ function abrirWhatsAppConFallback(txt) {
   window.location.href = appUrl;
   setTimeout(function() {
     if (Date.now() - openedAt < 1800 && !document.hidden) {
-      window.open(webUrl, '_blank');
+      window.location.href = webUrl;
     }
   }, 1200);
 }

@@ -276,9 +276,9 @@ const assert = require('node:assert/strict');
 function fmt(n) { return Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
 function textoTicketTermico(v) { return String(v ?? '').replace(/[\r\n]+/g, ' ').trim(); }
 const APP_TIMEZONE='America/Mexico_City';
-const window = {location:{href:''}, open:(url)=>opened.push(url)};
+const window = {location:{href:''}, open:()=>{throw new Error('Popup blocked');}};
 const document = {hidden:false};
-const opened=[], timers=[];
+const timers=[];
 function setTimeout(fn) { timers.push(fn); }
 """ + section("function partesFechaOperacion", "function fechaHoraOperacionInput") + section(
         "function instanteUTC", "function formatearInstanteOperacion"
@@ -313,12 +313,12 @@ assert.equal(url.protocol, 'whatsapp:');
 assert.equal(url.searchParams.get('text'), text);
 assert.ok(window.location.href.includes('%F0%9F%8D%9E'));
 timers.shift()();
-url = new URL(opened[0]);
+url = new URL(window.location.href);
 assert.equal(url.hostname, 'web.whatsapp.com');
 assert.equal(url.searchParams.get('text'), text);
-assert.ok(!opened[0].includes('wa.me'));
+assert.ok(!window.location.href.includes('wa.me'));
 abrirWhatsAppConFallback(text); document.hidden=true; timers.shift()();
-assert.equal(opened.length,1);
+assert.equal(new URL(window.location.href).protocol, 'whatsapp:');
 cut.efectivo_real=null; cut.diferencia=null; delete cut.fondo_entregado;
 delete cut.id; cut.estado='provisional';
 const preview = textoCorteParaWhatsApp(cut);
