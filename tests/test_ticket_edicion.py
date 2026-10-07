@@ -44,6 +44,28 @@ def corregir(db, admin, venta, modo="productos", **change):
     return svc.editar_ticket(db, venta.id, VentaEdicion(**payload(venta, modo, **change)), admin.id)
 
 
+def test_contexto_buscador_incluye_presentacion_y_stock_sin_modificar_ticket(client, auth_headers, db, ticket):
+    venta, productos, _ = ticket
+    productos[1].presentacion = "Grande"
+    productos[1].stock_actual = Decimal("3.5")
+    db.add(Producto(codigo="EDIT-INACTIVO", nombre="No se ofrece", precio_unitario=100, activo=False))
+    db.commit()
+    movimientos = db.query(MovimientoInventario).count()
+    response = client.get(f"/api/v1/punto-de-venta/ventas/{venta.id}/edicion", headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    options = {p["id"]: p for p in data["productos"]}
+    assert set(options) == {p.id for p in productos}
+    assert options[productos[1].id]["nombre"] == productos[1].nombre
+    assert options[productos[1].id]["presentacion"] == "Grande"
+    assert Decimal(options[productos[1].id]["stock_actual"]) == Decimal("3.5")
+    assert options[productos[1].id]["unidad_medida"] == "pz"
+    assert Decimal(options[productos[0].id]["stock_actual"]) == Decimal("8")
+    assert data["venta"]["total"] == "190.00"
+    assert venta.edicion_revision == 0
+    assert db.query(MovimientoInventario).count() == movimientos
+
+
 def test_producto_conserva_importes_y_corrige_stock_y_empaque(db, admin_user, ticket):
     venta, productos, cajas = ticket
     old = (venta.total, venta.subtotal, venta.descuento, venta.monto_recibido, venta.cambio)

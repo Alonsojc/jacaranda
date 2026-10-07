@@ -59,7 +59,13 @@ def contexto_edicion(db: Session, venta_id: int) -> dict:
     productos = [] if bloqueo else db.query(Producto).filter(Producto.activo.is_(True)).order_by(Producto.nombre).all()
     return {
         "venta": VentaResponse.model_validate(venta).model_dump(mode="json"),
-        "productos": [{"id": p.id, "nombre": p.nombre} for p in productos],
+        "productos": [{
+            "id": p.id,
+            "nombre": p.nombre,
+            "presentacion": p.presentacion,
+            "stock_actual": str(p.stock_actual),
+            "unidad_medida": p.unidad_medida.value,
+        } for p in productos],
         "bloqueo": bloqueo,
         "bloqueo_precios": _bloqueo_precios(venta),
     }
