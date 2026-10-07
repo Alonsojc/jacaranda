@@ -483,6 +483,52 @@ h2{font-size:1.1rem}
 }
 /* Operational mobile ergonomics */
 .mobile-cart-bar,.mobile-ticket-close,.mobile-ticket-overlay{display:none}
+.ti.cart-item{display:grid;grid-template-columns:94px minmax(0,1fr) 34px 68px 34px;gap:4px;align-items:center;min-height:52px}
+.cart-quantity{display:grid;grid-template-columns:34px 22px 34px;gap:2px;align-items:center;text-align:center}
+.cart-item .qty-btn{flex:none;border-radius:8px;padding:0;font-family:inherit}
+.cart-name{min-width:0;overflow-wrap:break-word;line-height:1.3}
+.cart-name small{display:block;color:#b91c1c;font-size:.72rem}
+.cart-amount{white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums;font-size:.76rem}
+.corte-date-tools{display:flex;align-items:center;gap:.4rem}
+.day-arrow{width:44px;height:44px;flex:0 0 44px;padding:0;border:1px solid var(--brd);border-radius:8px;background:#fff;color:var(--dk);font-size:1.2rem;cursor:pointer}
+.corte-heading{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.8rem;flex-wrap:wrap}
+.ticket-edit-modes{display:flex;gap:0;border:1px solid var(--brd);border-radius:8px;overflow:hidden;margin:.8rem 0}
+.ticket-edit-modes label{flex:1;display:flex;align-items:center;justify-content:center;gap:.4rem;min-height:44px;padding:.5rem;font-weight:600;cursor:pointer}
+.ticket-edit-modes label:has(input:checked){background:#f5eeeb;color:var(--dk)}
+.ticket-edit-row{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:.6rem;padding:.6rem 0;border-bottom:1px solid var(--brd);align-items:center}
+.ticket-edit-row .fg{margin:0;min-width:0}
+.ticket-edit-row select{width:100%;text-overflow:ellipsis}
+.ticket-edit-fixed{overflow-wrap:anywhere;line-height:1.35}
+.ticket-edit-fixed small{display:block;color:var(--mut)}
+.ticket-edit-fixed-price{text-align:right;font-variant-numeric:tabular-nums}
+#met-error{color:#b91c1c;overflow-wrap:anywhere}
+#modal-ticket-editar .modal{max-width:680px;text-align:left}
+#modal-ticket-editar input:not([type="radio"]),#modal-ticket-editar select{min-height:44px}
+#pos-ticket-panel{container-type:inline-size}
+@media(max-width:900px),(pointer:coarse){
+.ti.cart-item{grid-template-columns:116px minmax(0,1fr) 44px 82px 44px;gap:4px}
+.cart-quantity{grid-template-columns:44px 24px 44px}
+.cart-item .qty-btn{width:44px;height:44px}
+.cart-item{--cart-control:44px;--cart-qty:116px}
+}
+@media(max-width:480px){
+.ti.cart-item{grid-template-columns:116px minmax(0,1fr) 44px 44px;grid-template-rows:minmax(24px,auto) 44px;gap:4px 6px}
+.cart-name{grid-column:1 / 3;grid-row:1}
+.cart-amount{grid-column:3 / 5;grid-row:1;font-size:.82rem;justify-self:end}
+.cart-quantity{grid-column:1;grid-row:2}
+.cart-discount{grid-column:3;grid-row:2}
+.cart-remove{grid-column:4;grid-row:2}
+.ticket-edit-row{grid-template-columns:minmax(0,1fr) 94px}
+.corte-date-tools{width:100%;justify-content:flex-end}
+}
+@container(max-width:360px){
+.ti.cart-item{grid-template-columns:var(--cart-qty,94px) minmax(0,1fr) var(--cart-control,34px) var(--cart-control,34px);grid-template-rows:minmax(24px,auto) var(--cart-control,34px);gap:4px 6px}
+.cart-name{grid-column:1 / 3;grid-row:1}
+.cart-amount{grid-column:3 / 5;grid-row:1;justify-self:end}
+.cart-quantity{grid-column:1;grid-row:2}
+.cart-discount{grid-column:3;grid-row:2}
+.cart-remove{grid-column:4;grid-row:2}
+}
 button:disabled{cursor:not-allowed;opacity:.55;box-shadow:none!important;transform:none!important}
 @media(pointer:coarse){
 button:not(.password-toggle),input:not([type="checkbox"]):not([type="radio"]),select,textarea{min-height:44px}
@@ -1075,10 +1121,12 @@ table.tbl th,table.tbl td{font-size:.8rem}
 
 <!-- CORTE DE CAJA -->
 <div class="page" id="corte">
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem">
+<div class="corte-heading">
 <h2 style="margin:0">Corte de Caja</h2>
-<div style="display:flex;align-items:center;gap:.5rem">
+<div class="corte-date-tools">
+<button type="button" class="day-arrow" onclick="cambiarDiaCorte(-1)" title="D&iacute;a anterior" aria-label="D&iacute;a anterior">&#8592;</button>
 <input type="date" id="c-fecha" style="padding:.4rem .6rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit" onchange="cargarCorte()">
+<button type="button" class="day-arrow" onclick="cambiarDiaCorte(1)" title="D&iacute;a siguiente" aria-label="D&iacute;a siguiente">&#8594;</button>
 <button onclick="corteFechaHoy()" style="padding:.4rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.78rem;background:#fff;cursor:pointer;font-weight:600;color:var(--v)">Hoy</button>
 </div>
 </div>
@@ -2483,7 +2531,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <button class="pbtn" id="md-pct-10" onclick="mdSet(10)" style="padding:.5rem .8rem;font-size:.9rem">10%</button>
 <button class="pbtn" id="md-pct-15" onclick="mdSet(15)" style="padding:.5rem .8rem;font-size:.9rem">15%</button>
 <button class="pbtn" id="md-pct-20" onclick="mdSet(20)" style="padding:.5rem .8rem;font-size:.9rem">20%</button>
-<button class="pbtn" id="md-pct-50" onclick="mdSet(50)" style="padding:.5rem .8rem;font-size:.9rem">50%</button>
+<button class="pbtn" id="md-pct-30" onclick="mdSet(30)" style="padding:.5rem .8rem;font-size:.9rem">30%</button>
 </div>
 <div class="fg"><label>O escribe monto $</label><input type="number" id="md-monto" step="1" min="0" placeholder="0" style="text-align:center;font-size:1.1rem;font-weight:700" oninput="document.getElementById('md-preview').textContent=(parseFloat(this.value)||0).toFixed(0)"></div>
 <div style="font-size:1.2rem;font-weight:700;color:var(--v);margin:.4rem 0">Descuento: $<span id="md-preview">0</span></div>
@@ -2833,6 +2881,9 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div id="mt-folio" style="font-size:1.3rem;font-weight:700;color:var(--v);margin:.5rem 0"></div>
 <div id="mt-detalles" style="text-align:left;margin:1rem 0"></div>
 <div id="mt-productos" style="text-align:left;margin:0 0 1rem"></div>
+<div id="mt-editar-wrap" style="display:none;margin-bottom:.7rem">
+<button type="button" class="limpiar" style="width:100%;min-height:44px" onclick="abrirEdicionTicket()">&#9998; Editar ticket</button>
+</div>
 <div id="mt-cancel-wrap" style="display:none;margin-bottom:.7rem">
 <button onclick="cancelarVentaActual()" style="width:100%;padding:.5rem;border:2px solid #ef4444;border-radius:10px;background:#fff;color:#b91c1c;font-weight:600;font-size:.82rem;cursor:pointer;transition:all .15s" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='#fff'">Cancelar esta venta</button>
 </div>
@@ -2844,6 +2895,31 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <button class="cobrar" style="flex:1;min-width:120px;background:linear-gradient(135deg,#25d366,#128c7e)" onclick="compartirWhatsApp()">&#128172; WhatsApp</button>
 <button class="cobrar" style="flex:1;min-width:120px;background:#991b1b" id="mt-pdf-btn" onclick="descargarTicketPDF(_mtVentaId, _mtFolio)">&#128196; Guardar PDF</button>
 <button class="limpiar" style="flex:1;min-width:120px;padding:.5rem 1.2rem" onclick="cerrarModal('modal-ticket')">Cerrar</button>
+</div>
+</div>
+</div>
+
+<!-- MODAL: Correccion de ticket -->
+<div class="modal-bg" id="modal-ticket-editar">
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="met-title">
+<h3 id="met-title">Editar ticket</h3>
+<div id="met-loading" role="status"></div>
+<fieldset id="met-fields" style="border:0;padding:0;margin:0" disabled>
+<div class="ticket-edit-modes">
+<label><input type="radio" name="ticket-edit-mode" id="met-productos" value="productos" checked onchange="cambiarModoEdicionTicket('productos')">Producto</label>
+<label><input type="radio" name="ticket-edit-mode" id="met-precios" value="precios" onchange="cambiarModoEdicionTicket('precios')">Precio</label>
+</div>
+<div id="met-lines"></div>
+<div class="srow"><span>Total original</span><strong id="met-original"></strong></div>
+<div class="srow"><span>Total corregido</span><strong id="met-total"></strong></div>
+<div class="fg" id="met-recibido-wrap" style="display:none"><label for="met-recibido">Efectivo recibido</label><input type="number" id="met-recibido" min="0" step=".01" inputmode="decimal"></div>
+<div class="fg" style="margin-top:.8rem"><label for="met-motivo">Motivo de la correcci&oacute;n</label><textarea id="met-motivo" maxlength="500" rows="2"></textarea></div>
+</fieldset>
+<p id="met-error" role="status"></p>
+<button type="button" class="limpiar" id="met-retry" style="display:none;min-height:44px" onclick="abrirEdicionTicket()">&#8635; Reintentar</button>
+<div style="display:flex;gap:.6rem;margin-top:.7rem">
+<button type="button" class="cobrar" id="met-save" style="flex:1" disabled onclick="guardarEdicionTicket()">Guardar correcci&oacute;n</button>
+<button type="button" class="limpiar" id="met-close" style="flex:1;min-height:44px" onclick="cerrarEdicionTicket()">Volver</button>
 </div>
 </div>
 </div>
@@ -2935,7 +3011,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v108';
+var APP_BUILD = 'jacaranda-v109';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -3076,6 +3152,11 @@ var _pedidoDatosCargados = false;
 
 function invalidarTareasSesion() {
   _versionSesion++;
+  if (_ticketEdicion) {
+    _ticketEdicion = null;
+    document.getElementById('modal-ticket-editar').classList.remove('on');
+    cancelarAdminAuth();
+  }
   _ventaEnProceso = false;
   _apiGetCache = {};
   _apiGetInFlight = {};
@@ -4807,18 +4888,16 @@ function ren() {
     s += l - d;
     iv += ivaFacturaPorLinea(l - d, _posFacturaIvaActiva);
     dsc += d;
-    h += '<div class="ti" style="align-items:center">';
-    h += '<span style="display:flex;align-items:center;gap:.4rem">';
-    h += '<span class="qty-btn" onclick="cartQty(' + i + ',-1)">-</span>';
+    h += '<div class="ti cart-item">';
+    h += '<span class="cart-quantity">';
+    h += '<button type="button" class="qty-btn" onclick="cartQty(' + i + ',-1)" title="Quitar una pieza" aria-label="Quitar una pieza">-</button>';
     h += '<strong>' + fmtQty(c.q) + '</strong>';
-    h += '<span class="qty-btn" onclick="cartQty(' + i + ',1)">+</span>';
-    h += ' ' + c.n;
-    if (d > 0) h += ' <span style="font-size:.65rem;color:#b91c1c">-$' + fmt(d) + '</span>';
-    h += '</span>';
-    h += '<span style="display:flex;align-items:center;gap:.4rem">';
-    h += '<span class="qty-btn" onclick="cartDesc(' + i + ')" title="Descuento" style="font-size:.65rem">%</span>';
-    h += '$' + fmt((l - d));
-    h += '<span class="qty-btn rm" onclick="cartRm(' + i + ')">&times;</span></span></div>';
+    h += '<button type="button" class="qty-btn" onclick="cartQty(' + i + ',1)" title="Agregar una pieza" aria-label="Agregar una pieza">+</button></span>';
+    h += '<span class="cart-name">' + escHtml(c.n);
+    if (d > 0) h += '<small>-$' + fmt(d) + '</small>';
+    h += '</span><button type="button" class="qty-btn cart-discount" onclick="cartDesc(' + i + ')" title="Descuento" aria-label="Descuento">%</button>';
+    h += '<span class="cart-amount">$' + fmt(l - d) + '</span>';
+    h += '<button type="button" class="qty-btn rm cart-remove" onclick="cartRm(' + i + ')" title="Quitar producto" aria-label="Quitar producto">&times;</button></div>';
   }
   document.getElementById('titems').innerHTML = h;
   document.getElementById('tsum').style.display = cart.length ? 'block' : 'none';
@@ -6570,6 +6649,7 @@ function mostrarTicket(venta) {
   document.getElementById('mt-folio').textContent = venta.folio;
   document.getElementById('mt-cancel-wrap').style.display = 'none';
   document.getElementById('mt-facturar-wrap').style.display = 'block';
+  document.getElementById('mt-editar-wrap').style.display = 'none';
   _ventaActualId = venta.id;
   _mtVentaId = venta.id;
   _mtFolio = venta.folio;
@@ -6588,6 +6668,7 @@ function mostrarTicket(venta) {
     if (!cargaTicketVigente(secuencia, version, venta.id)) return;
     _ultimoTicket = tk;
     renderTicket(tk);
+    actualizarBotonEditarTicket(false);
   }).catch(function() {
     if (!cargaTicketVigente(secuencia, version, venta.id)) return;
     // Fallback: show basic info from venta response
@@ -6663,6 +6744,7 @@ function verTicket(ventaId, cancelada) {
   document.getElementById('mt-productos').innerHTML = '';
   document.getElementById('mt-cancel-wrap').style.display = 'none';
   document.getElementById('mt-facturar-wrap').style.display = 'none';
+  document.getElementById('mt-editar-wrap').style.display = 'none';
   document.getElementById('modal-ticket').classList.add('on');
   return apiLecturaRecuperable('/punto-de-venta/ventas/' + ventaId + '/ticket').then(function(tk) {
     if (!cargaVigente()) return;
@@ -6673,6 +6755,7 @@ function verTicket(ventaId, cancelada) {
     renderTicket(tk);
     document.getElementById('mt-cancel-wrap').style.display = cancelada ? 'none' : 'block';
     document.getElementById('mt-facturar-wrap').style.display = cancelada ? 'none' : 'block';
+    actualizarBotonEditarTicket(cancelada);
   }).catch(function(e) {
     if (!cargaVigente()) return;
     document.getElementById('mt-folio').textContent = 'Error al cargar ticket';
@@ -6680,6 +6763,197 @@ function verTicket(ventaId, cancelada) {
       + actionBtn('Reintentar', '&#8635;', 'verTicket(' + Number(ventaId) + ',' + !!cancelada + ')');
     _ultimoTicket = null;
   });
+}
+
+var _ticketEdicion = null;
+
+function actualizarBotonEditarTicket(cancelada) {
+  document.getElementById('mt-editar-wrap').style.display = !cancelada && (window._permisos || {}).pos === 'editar' ? 'block' : 'none';
+}
+
+function edicionTicketVigente(estado) {
+  return _ticketEdicion === estado && estado.version === _versionSesion && estado.ventaId === _ventaActualId
+    && document.getElementById('modal-ticket-editar').classList.contains('on');
+}
+
+async function abrirEdicionTicket() {
+  if (!_ventaActualId || (_ticketEdicion && _ticketEdicion.enviando)) return;
+  var estado = {ventaId:_ventaActualId, version:_versionSesion, contexto:null, modo:'productos', ocupado:false, enviando:false};
+  _ticketEdicion = estado;
+  document.getElementById('modal-ticket').classList.remove('on');
+  document.getElementById('modal-ticket-editar').classList.add('on');
+  document.getElementById('met-title').textContent = 'Editar ticket';
+  document.getElementById('met-loading').textContent = 'Cargando ticket...';
+  document.getElementById('met-fields').disabled = true;
+  document.getElementById('met-fields').style.display = 'none';
+  document.getElementById('met-lines').innerHTML = '';
+  document.getElementById('met-motivo').value = '';
+  document.getElementById('met-error').textContent = '';
+  document.getElementById('met-retry').style.display = 'none';
+  document.getElementById('met-save').disabled = true;
+  document.getElementById('met-close').disabled = false;
+  try {
+    var contexto = await apiLecturaRecuperable('/punto-de-venta/ventas/' + estado.ventaId + '/edicion');
+    if (!edicionTicketVigente(estado)) return;
+    if (!contexto || !contexto.venta || !Array.isArray(contexto.venta.detalles) || !Array.isArray(contexto.productos)) throw new Error('No se pudo leer el ticket');
+    estado.contexto = contexto;
+    document.getElementById('met-title').textContent = 'Editar ' + contexto.venta.folio;
+    document.getElementById('met-loading').textContent = '';
+    if (contexto.bloqueo) { document.getElementById('met-error').textContent = contexto.bloqueo; return; }
+    document.getElementById('met-fields').disabled = false;
+    document.getElementById('met-fields').style.display = '';
+    document.getElementById('met-save').disabled = false;
+    document.getElementById('met-original').textContent = '$' + fmt(contexto.venta.total);
+    document.getElementById('met-recibido').value = contexto.venta.monto_recibido;
+    cambiarModoEdicionTicket('productos');
+  } catch(e) {
+    if (!edicionTicketVigente(estado)) return;
+    document.getElementById('met-loading').textContent = '';
+    document.getElementById('met-error').textContent = e.message || 'Error al cargar ticket';
+    document.getElementById('met-retry').style.display = '';
+  }
+}
+
+function cambiarModoEdicionTicket(modo) {
+  var estado = _ticketEdicion;
+  if (!estado || !estado.contexto || estado.ocupado) return;
+  estado.modo = modo;
+  var contexto = estado.contexto, venta = contexto.venta;
+  document.getElementById('met-productos').checked = modo === 'productos';
+  document.getElementById('met-precios').checked = modo === 'precios';
+  document.getElementById('met-error').textContent = modo === 'precios' ? (contexto.bloqueo_precios || '') : '';
+  document.getElementById('met-save').disabled = modo === 'precios' && !!contexto.bloqueo_precios;
+  document.getElementById('met-recibido-wrap').style.display = modo === 'precios' && venta.metodo_pago === '01' ? '' : 'none';
+  document.getElementById('met-recibido').value = venta.monto_recibido;
+  var h = '';
+  venta.detalles.forEach(function(d, i) {
+    h += '<div class="ticket-edit-row">';
+    if (modo === 'productos') {
+      h += '<div class="fg"><label for="met-item-' + i + '">' + fmtQty(d.cantidad) + 'x <span id="met-name-' + i + '">' + escHtml(d.producto_nombre || 'Producto') + '</span></label><select id="met-item-' + i + '" onchange="actualizarTotalEdicionTicket()">';
+      if (!contexto.productos.some(function(p) { return p.id === d.producto_id; })) h += '<option value="' + d.producto_id + '">' + escHtml(d.producto_nombre || 'Producto original') + '</option>';
+      contexto.productos.forEach(function(p) {
+        h += '<option value="' + p.id + '"' + (p.id === d.producto_id ? ' selected' : '') + '>' + escHtml(p.nombre) + '</option>';
+      });
+      h += '</select></div><div class="ticket-edit-fixed ticket-edit-fixed-price">$' + fmt(d.precio_unitario) + '<small>por unidad</small></div>';
+    } else {
+      h += '<div class="ticket-edit-fixed">' + fmtQty(d.cantidad) + 'x ' + escHtml(d.producto_nombre || 'Producto') + '</div>';
+      h += '<div class="fg"><label for="met-item-' + i + '">Precio unitario</label><input type="number" id="met-item-' + i + '" min="0" step=".01" inputmode="decimal" value="' + Number(d.precio_unitario).toFixed(2) + '" oninput="actualizarTotalEdicionTicket()"></div>';
+    }
+    h += '</div>';
+  });
+  document.getElementById('met-lines').innerHTML = h;
+  actualizarTotalEdicionTicket();
+}
+
+function centavosEdicionTicket(valor) {
+  var piso = Math.floor(valor), fraccion = valor - piso;
+  return Math.abs(fraccion - .5) < 1e-7 ? piso + (piso % 2) : Math.round(valor);
+}
+
+function datosEdicionTicket(estado) {
+  var venta = estado.contexto.venta;
+  var total = Number(venta.ieps || 0);
+  var detalles = venta.detalles.map(function(d, i) {
+    var value = document.getElementById('met-item-' + i).value;
+    if (estado.modo === 'productos') return {id:d.id, producto_id:Number(value)};
+    if (!/^\d{1,10}(\.\d{1,2})?$/.test(value)) throw new Error('Ingresa un precio valido con hasta dos decimales');
+    var base = centavosEdicionTicket(Number(value) * 100 * Number(d.cantidad) - Number(d.descuento) * 100);
+    if (base < 0) throw new Error('El precio no puede ser menor que el descuento registrado');
+    total += (base + centavosEdicionTicket(base * Number(d.tasa_iva))) / 100;
+    return {id:d.id, precio_unitario:value};
+  });
+  return {detalles:detalles, total:estado.modo === 'productos' ? Number(venta.total) : total};
+}
+
+function actualizarTotalEdicionTicket() {
+  if (!_ticketEdicion || !_ticketEdicion.contexto) return;
+  var estado = _ticketEdicion;
+  try {
+    var datos = datosEdicionTicket(estado);
+    document.getElementById('met-total').textContent = '$' + fmt(datos.total);
+    if (estado.modo === 'productos') datos.detalles.forEach(function(d, i) {
+      var producto = estado.contexto.productos.find(function(p) { return p.id === d.producto_id; });
+      document.getElementById('met-name-' + i).textContent = producto ? producto.nombre : estado.contexto.venta.detalles[i].producto_nombre;
+    });
+    var cambios = datos.detalles.some(function(d, i) {
+      var original = estado.contexto.venta.detalles[i];
+      return estado.modo === 'productos' ? d.producto_id !== original.producto_id : Number(d.precio_unitario) !== Number(original.precio_unitario);
+    });
+    document.getElementById('met-save').disabled = estado.ocupado || !cambios || !!estado.contexto.bloqueo
+      || (estado.modo === 'precios' && !!estado.contexto.bloqueo_precios);
+  } catch(e) {
+    document.getElementById('met-total').textContent = '--';
+    document.getElementById('met-save').disabled = true;
+  }
+}
+
+function cerrarEdicionTicket() {
+  var estado = _ticketEdicion;
+  if (estado && estado.enviando) return;
+  _ticketEdicion = null;
+  document.getElementById('modal-ticket-editar').classList.remove('on');
+  if (estado && estado.ocupado) cancelarAdminAuth();
+  if (estado && estado.version === _versionSesion && estado.ventaId === _ventaActualId) verTicket(estado.ventaId, false);
+}
+
+async function guardarEdicionTicket() {
+  var estado = _ticketEdicion;
+  if (!estado || !estado.contexto || estado.ocupado || !edicionTicketVigente(estado)) return;
+  var venta = estado.contexto.venta;
+  if (estado.contexto.bloqueo || (estado.modo === 'precios' && estado.contexto.bloqueo_precios)) return;
+  var motivo = document.getElementById('met-motivo').value.trim();
+  var body;
+  try {
+    if (motivo.length < 5) throw new Error('Escribe un motivo de al menos 5 caracteres');
+    body = {modo:estado.modo, revision:venta.edicion_revision, motivo:motivo, detalles:datosEdicionTicket(estado).detalles};
+    var cambios = body.detalles.some(function(d, i) {
+      return estado.modo === 'productos' ? d.producto_id !== venta.detalles[i].producto_id : Number(d.precio_unitario) !== Number(venta.detalles[i].precio_unitario);
+    });
+    if (!cambios) throw new Error('No hay cambios en el ticket');
+    if (estado.modo === 'precios' && venta.metodo_pago === '01') {
+      var recibido = document.getElementById('met-recibido').value;
+      if (!/^\d{1,12}(\.\d{1,2})?$/.test(recibido)) throw new Error('Ingresa el efectivo recibido');
+      body.monto_recibido = recibido;
+    }
+  } catch(e) { document.getElementById('met-error').textContent = e.message; return; }
+  estado.ocupado = true;
+  document.getElementById('met-fields').disabled = true;
+  document.getElementById('met-save').disabled = true;
+  document.getElementById('met-error').textContent = '';
+  try {
+    var autorizacion = pedirPasswordAdmin('editar ticket', true);
+    document.getElementById('maa-motivo').value = motivo;
+    var headers = await autorizacion;
+    if (!edicionTicketVigente(estado)) return;
+    estado.enviando = true;
+    document.getElementById('met-close').disabled = true;
+    document.getElementById('met-loading').textContent = 'Guardando correccion...';
+    await api('PATCH', '/punto-de-venta/ventas/' + estado.ventaId, body, false, headers, estado.version);
+    if (!edicionTicketVigente(estado)) return;
+    _ticketEdicion = null;
+    document.getElementById('modal-ticket-editar').classList.remove('on');
+    _dashGetCache = {}; _dashCacheAt = 0;
+    toast('Ticket corregido');
+    verTicket(estado.ventaId, false);
+    cargarCorte(); cargarHistVentas(); cargarPOSProductos();
+  } catch(e) {
+    if (!edicionTicketVigente(estado)) return;
+    document.getElementById('met-error').textContent = e.message || 'No se pudo confirmar la correccion. Vuelve a consultar el ticket';
+    if (estado.enviando) {
+      // A transport failure can hide a successful commit. Require a fresh read, never replay a correction.
+      estado.contexto = null;
+      document.getElementById('met-retry').style.display = '';
+    }
+  } finally {
+    estado.ocupado = false; estado.enviando = false;
+    if (edicionTicketVigente(estado)) {
+      document.getElementById('met-close').disabled = false;
+      document.getElementById('met-loading').textContent = '';
+      document.getElementById('met-fields').disabled = !estado.contexto;
+      document.getElementById('met-save').disabled = !estado.contexto;
+      if (estado.contexto) actualizarTotalEdicionTicket();
+    }
+  }
 }
 
 async function cancelarVentaActual() {
@@ -10490,6 +10764,7 @@ document.addEventListener('keydown', function(e) {
 });
 
 function cerrarModal(id) {
+  if (id === 'modal-ticket-editar') { cerrarEdicionTicket(); return; }
   if (id === 'modal-confirmacion') { resolverConfirmacion(false); return; }
   if (id === 'modal-entrada') { resolverEntrada(false); return; }
   if (id === 'modal-admin-auth') { cancelarAdminAuth(); return; }
@@ -10500,8 +10775,10 @@ function cerrarModal(id) {
 // ESC cierra cualquier modal abierto, click fuera del modal también
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
+    if (document.getElementById('modal-admin-auth').classList.contains('on')) { cancelarAdminAuth(); return; }
     document.querySelectorAll('.modal-bg.on').forEach(function(m) {
       if (m.id === 'modal-admin-auth') cancelarAdminAuth();
+      else if (m.id === 'modal-ticket-editar') cerrarEdicionTicket();
       else if (m.id === 'modal-scan-cliente') cerrarModal('modal-scan-cliente');
       else if (m.id === 'modal-confirmacion') resolverConfirmacion(false);
       else if (m.id === 'modal-entrada') resolverEntrada(false);
@@ -10512,6 +10789,7 @@ document.addEventListener('keydown', function(e) {
 document.addEventListener('click', function(e) {
   if (e.target.classList.contains('modal-bg')) {
     if (e.target.id === 'modal-admin-auth') cancelarAdminAuth();
+    else if (e.target.id === 'modal-ticket-editar') cerrarEdicionTicket();
     else if (e.target.id === 'modal-scan-cliente') cerrarModal('modal-scan-cliente');
     else if (e.target.id === 'modal-confirmacion') resolverConfirmacion(false);
     else if (e.target.id === 'modal-entrada') resolverEntrada(false);
@@ -11462,6 +11740,16 @@ function sumarPagoCorte(totales, metodo, monto, terminal) {
 function corteFechaHoy() {
   document.getElementById('c-fecha').value = fechaHoyISO();
   cargarCorte();
+}
+
+function cambiarDiaCorte(delta) {
+  var input = document.getElementById('c-fecha');
+  var fecha = input.value || fechaHoyISO();
+  var dia = new Date(fecha + 'T12:00:00Z');
+  if (!Number.isFinite(dia.getTime())) return;
+  dia.setUTCDate(dia.getUTCDate() + delta);
+  input.value = dia.toISOString().slice(0, 10);
+  return cargarCorte();
 }
 
 function cargarCorte() {

@@ -17,8 +17,10 @@ from app.services.auditoria_service import registrar_evento
 from app.schemas.venta import (
     VentaCreate, VentaResponse, TicketResponse, CorteCajaCreate, CorteCajaResponse,
     CorteCajaResumen, CorteCajaUpdate, CorteCajaAccion,
+    VentaEdicion,
 )
 from app.services import venta_service as svc
+from app.services import ticket_edicion_service
 
 router = APIRouter()
 
@@ -92,6 +94,33 @@ def obtener_ticket(
         return svc.generar_ticket(db, id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/ventas/{id}/edicion")
+def contexto_edicion_ticket(
+    id: int,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("pos", "editar")),
+):
+    try:
+        return ticket_edicion_service.contexto_edicion(db, id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.patch("/ventas/{id}", response_model=VentaResponse)
+def editar_ticket(
+    id: int,
+    data: VentaEdicion,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_admin_or_override("pos", "editar ticket", require_password=True)),
+):
+    try:
+        return ticket_edicion_service.editar_ticket(db, id, data, user.id)
+    except ticket_edicion_service.EdicionDesactualizada as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/ventas/{id}/ticket/pdf")

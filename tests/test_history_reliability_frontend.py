@@ -169,6 +169,7 @@ def test_read_recovery_stops_at_session_change_and_preserves_auth_refresh():
 UI_HARNESS = r"""
 const assert = require('node:assert/strict');
 const fields = {};
+const window = {_permisos:{pos:'editar'}};
 const document = {getElementById: id => fields[id] ||= {
   value:'', textContent:'old', innerHTML:'old', style:{}, disabled:false,
   classList:{on:false, add() {this.on=true;}, remove() {this.on=false;}, contains() {return this.on;}}

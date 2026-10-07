@@ -1,6 +1,6 @@
 """Schemas de punto de venta."""
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from decimal import Decimal
 from datetime import datetime
 from typing import Literal
@@ -123,11 +123,52 @@ class VentaResponse(BaseModel):
     pago_verificado_en: datetime | None = None
     estado: EstadoVenta
     facturada: bool
+    edicion_revision: int = 0
     fecha: datetime
     detalles: list[DetalleVentaResponse] = Field(default_factory=list)
     pagos: list[PagoVentaResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
+
+
+class DetalleVentaEdicion(BaseModel):
+    id: int = Field(..., gt=0)
+    producto_id: int | None = Field(default=None, gt=0)
+    precio_unitario: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
+
+    model_config = {"extra": "forbid"}
+
+
+class VentaEdicion(BaseModel):
+    modo: Literal["productos", "precios"]
+    revision: int = Field(..., ge=0)
+    motivo: str = Field(..., min_length=5, max_length=500)
+    detalles: list[DetalleVentaEdicion] = Field(..., min_length=1, max_length=500)
+    monto_recibido: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
+
+    model_config = {"extra": "forbid"}
+
+    @field_validator("motivo")
+    @classmethod
+    def validar_motivo(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 5:
+            raise ValueError("El motivo debe tener al menos 5 caracteres")
+        return value
+
+    @model_validator(mode="after")
+    def validar_modo(self):
+        if len({item.id for item in self.detalles}) != len(self.detalles):
+            raise ValueError("No repitas partidas del ticket")
+        for item in self.detalles:
+            if self.modo == "productos":
+                if item.producto_id is None or "precio_unitario" in item.model_fields_set:
+                    raise ValueError("Cambiar producto conserva el precio original")
+            elif item.precio_unitario is None or "producto_id" in item.model_fields_set:
+                raise ValueError("Cambiar precio conserva el producto original")
+        if self.modo == "productos" and "monto_recibido" in self.model_fields_set:
+            raise ValueError("Cambiar producto conserva el pago original")
+        return self
 
 
 class TicketResponse(BaseModel):

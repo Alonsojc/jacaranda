@@ -158,6 +158,7 @@ def ensure_runtime_schema(engine: Engine) -> None:
         if "ventas" in tables:
             venta_columns = {col["name"] for col in inspector.get_columns("ventas")}
             for column_name, column_type, default, nullable in (
+                ("edicion_revision", Integer(), "0", False),
                 ("recompensa_lealtad_canjeada", Boolean(), "false", False),
                 ("recompensa_lealtad_nombre", String(120), None, True),
                 ("recompensa_lealtad_monto", Numeric(14, 2), "0", False),

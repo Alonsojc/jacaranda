@@ -60,7 +60,9 @@ def generar_cfdi(db: Session, data: CFDIGenerarRequest) -> CFDIComprobante:
     Genera un CFDI 4.0 a partir de una venta.
     Construye el XML con todos los nodos requeridos por el SAT.
     """
-    venta = db.query(Venta).filter(Venta.id == data.venta_id).first()
+    from app.services.venta_service import bloquear_venta_y_caja
+
+    venta = bloquear_venta_y_caja(db, data.venta_id)
     if not venta:
         raise ValueError("Venta no encontrada")
     if venta.facturada:
@@ -117,12 +119,13 @@ def generar_cfdi(db: Session, data: CFDIGenerarRequest) -> CFDIComprobante:
             venta_id=venta.id,
             cliente_id=cliente.id,
         )
-        db.add(comprobante)
         try:
-            db.flush()
+            with db.begin_nested():
+                db.add(comprobante)
+                db.flush()
             break
         except IntegrityError:
-            db.rollback()
+            continue
     else:
         raise ValueError("No se pudo generar un folio único para el CFDI")
 
