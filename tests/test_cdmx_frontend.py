@@ -121,15 +121,15 @@ function cargarListaProductos(){}function cargarPOSProductos(){}
 
 def test_cdmx_save_does_not_write_after_session_change_or_retry_on_error():
     node(HARNESS + section("var _guardandoPrecioCdmx", "function guardarProducto") + r"""
-let _versionSesion=1,calls=0,approve;
+let _versionSesion=1,calls=0,authorizationReply;
 fields['mep-id']={value:'123'};fields['mep-precio-cdmx']={value:'400',checkValidity:()=>true};
 fields['modal-edit-prod']={classList:{contains:()=>true}};
-function pedirPasswordAdminSiHaceFalta(){return new Promise(resolve=>{approve=resolve;});}
+function pedirPasswordAdminSiHaceFalta(){return new Promise(resolve=>{authorizationReply=resolve;});}
 function api(){calls++;return Promise.reject(new Error('Servidor no disponible'));}
 function cargarListaProductos(){}function cargarPOSProductos(){}
 (async()=>{
-  let first=guardarPrecioCdmx();_versionSesion=2;approve({});await first;assert.equal(calls,0);
-  let next=guardarPrecioCdmx();approve({});await next;assert.equal(calls,1);
+  let first=guardarPrecioCdmx();_versionSesion=2;authorizationReply({});await first;assert.equal(calls,0);
+  let next=guardarPrecioCdmx();authorizationReply({});await next;assert.equal(calls,1);
   assert.equal(fields['mep-guardar-cdmx'].disabled,false);
 })();
 """)
