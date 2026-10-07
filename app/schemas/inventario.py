@@ -166,6 +166,7 @@ class ProductoCreate(BaseModel):
     precio_unitario: Decimal = Field(..., gt=0)
     precio_cafeteria: Decimal | None = Field(default=None, gt=0)
     precio_uber_eats: Decimal | None = Field(default=None, gt=0)
+    precio_cdmx: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
     costo_produccion: Decimal = Field(default=Decimal("0"), ge=0)
     unidad_medida: UnidadMedida = UnidadMedida.PIEZA
     stock_minimo: Decimal = Field(default=Decimal("0"), ge=0)
@@ -205,6 +206,7 @@ class ProductoUpdate(BaseModel):
     precio_unitario: Decimal | None = Field(default=None, gt=0)
     precio_cafeteria: Decimal | None = Field(default=None, gt=0)
     precio_uber_eats: Decimal | None = Field(default=None, gt=0)
+    precio_cdmx: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
     costo_produccion: Decimal | None = Field(default=None, ge=0)
     tasa_iva: TasaIVA | None = None
     activo: bool | None = None
@@ -226,6 +228,7 @@ class ProductoResponse(BaseModel):
     precio_unitario: Decimal
     precio_cafeteria: Decimal | None = None
     precio_uber_eats: Decimal | None = None
+    precio_cdmx: Decimal | None = None
     costo_produccion: Decimal
     unidad_medida: UnidadMedida
     stock_actual: Decimal

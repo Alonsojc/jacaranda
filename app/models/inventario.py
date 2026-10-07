@@ -148,6 +148,7 @@ class Producto(Base):
     precio_unitario: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     precio_cafeteria: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     precio_uber_eats: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    precio_cdmx: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     costo_produccion: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
 
     # Inventario

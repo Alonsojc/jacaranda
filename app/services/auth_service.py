@@ -1,5 +1,7 @@
 """Servicio de autenticación."""
 
+from fastapi import HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.usuario import Usuario, RolUsuario
@@ -11,6 +13,32 @@ from app.core.security import (
     create_refresh_token,
     needs_rehash,
 )
+
+
+def bloquear_gestion_usuarios(db: Session, actor: Usuario) -> None:
+    """Serialize admin changes and recheck the actor after taking the lock."""
+    connection = db.connection()
+    if connection.dialect.name == "postgresql":
+        db.execute(func.pg_advisory_xact_lock(674322, 1).select())
+    elif connection.dialect.name == "sqlite":
+        if not connection.connection.driver_connection.in_transaction:
+            connection.exec_driver_sql("BEGIN IMMEDIATE")
+    db.refresh(actor)
+    if not actor.activo or actor.rol != RolUsuario.ADMINISTRADOR:
+        raise HTTPException(status_code=403, detail="Se requiere un administrador activo")
+
+
+def validar_cambio_acceso(db: Session, usuario: Usuario, rol: RolUsuario, activo: bool, actor: Usuario) -> None:
+    if usuario.id == actor.id and not activo:
+        raise HTTPException(status_code=400, detail="No puedes desactivarte a ti mismo")
+    if usuario.rol == RolUsuario.ADMINISTRADOR and usuario.activo and not (rol == RolUsuario.ADMINISTRADOR and activo):
+        otro_admin = db.query(Usuario.id).filter(
+            Usuario.id != usuario.id,
+            Usuario.rol == RolUsuario.ADMINISTRADOR,
+            Usuario.activo.is_(True),
+        ).first()
+        if otro_admin is None:
+            raise HTTPException(status_code=400, detail="Debe quedar al menos un administrador activo")
 
 
 def crear_usuario(db: Session, data: UsuarioCreate) -> Usuario:

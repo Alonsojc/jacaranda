@@ -1,6 +1,6 @@
 """Schemas de usuarios y autenticación."""
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from datetime import datetime
 
 from app.models.usuario import RolUsuario
@@ -14,10 +14,20 @@ class UsuarioCreate(BaseModel):
 
 
 class UsuarioUpdate(BaseModel):
-    nombre: str | None = None
-    email: str | None = None
+    nombre: str | None = Field(default=None, min_length=2, max_length=100)
+    email: EmailStr | None = None
     rol: RolUsuario | None = None
     activo: bool | None = None
+    restablecer_permisos: bool = False
+
+    @field_validator("nombre", "email", "rol", "activo", mode="before")
+    @classmethod
+    def no_null(cls, value):
+        if value is None:
+            raise ValueError("El campo no puede ser nulo")
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
 
 class UsuarioResponse(BaseModel):

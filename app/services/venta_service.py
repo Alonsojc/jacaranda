@@ -264,6 +264,10 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
                     f"Producto '{producto.nombre}' no tiene precio de Uber Eats configurado"
                 )
             precio = producto.precio_uber_eats
+        elif data.canal == "cdmx":
+            if producto.precio_cdmx is None or producto.precio_cdmx <= 0:
+                raise ValueError(f"El producto {producto.nombre} no tiene precio CDMX configurado")
+            precio = producto.precio_cdmx
         else:
             precio = producto.precio_unitario
         subtotal_linea = (precio * item.cantidad) - item.descuento

@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "c4d5e6f7a8b9 (head)"
+ALEMBIC_HEAD = "7d91c0a64e28 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:
@@ -39,10 +39,13 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path):
         ingrediente_columns = {row[1] for row in conn.execute("PRAGMA table_info(ingredientes)")}
         venta_columns = {row[1] for row in conn.execute("PRAGMA table_info(ventas)")}
         corte_columns = {row[1] for row in conn.execute("PRAGMA table_info(cortes_caja)")}
+        security_columns = {row[1] for row in conn.execute("PRAGMA table_info(configuracion_seguridad)")}
     finally:
         conn.close()
 
     assert "precio_uber_eats" in producto_columns
+    assert "precio_cdmx" in producto_columns
+    assert {"clave", "valor", "actualizado_en"}.issubset(security_columns)
     assert {"familia_id", "presentacion"}.issubset(producto_columns)
     assert "es_empaque" in ingrediente_columns
     assert "canal" in venta_columns
@@ -82,6 +85,49 @@ def test_ticket_revision_migration_keeps_old_ticket_and_is_repeatable(tmp_path):
     _run([sys.executable, "-m", "alembic", "downgrade", "b2c3d4e5f6a7"], url)
     with sqlite3.connect(db_path) as conn:
         assert conn.execute("SELECT id, folio, total FROM ventas").fetchone() == (1, "T-TEST", 190)
+
+
+def test_cdmx_migration_preserves_prices_stock_and_tickets_and_is_repeatable(tmp_path):
+    db_path = tmp_path / "legacy_cdmx.db"
+    url = f"sqlite:///{db_path}"
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript("""
+            CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY);
+            INSERT INTO alembic_version VALUES ('c4d5e6f7a8b9');
+            CREATE TABLE productos (id INTEGER PRIMARY KEY, precio_unitario NUMERIC(12,2),
+                precio_cafeteria NUMERIC(12,2), precio_uber_eats NUMERIC(12,2), stock_actual NUMERIC(12,4));
+            INSERT INTO productos VALUES (1, 100, 80, 120, 10);
+            CREATE TABLE ventas (id INTEGER PRIMARY KEY, canal VARCHAR(20), total NUMERIC(14,2));
+            INSERT INTO ventas VALUES (1, 'mostrador', 100);
+        """)
+    for _ in range(2):
+        _run([sys.executable, "-m", "alembic", "upgrade", "head"], url)
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT * FROM productos").fetchone() == (1, 100, 80, 120, 10, None)
+        assert conn.execute("SELECT * FROM ventas").fetchone() == (1, "mostrador", 100)
+    _run([sys.executable, "-m", "alembic", "downgrade", "c4d5e6f7a8b9"], url)
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT * FROM productos").fetchone() == (1, 100, 80, 120, 10)
+
+
+def test_runtime_guard_adds_cdmx_price_without_setting_prices_or_stock(tmp_path):
+    from sqlalchemy import create_engine
+    from app.core.schema_guard import ensure_runtime_schema
+
+    db_path = tmp_path / "runtime_cdmx.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript("""
+            CREATE TABLE productos (id INTEGER PRIMARY KEY, precio_unitario NUMERIC(12,2), stock_actual NUMERIC(12,4));
+            INSERT INTO productos VALUES (1, 100, 10);
+        """)
+    engine = create_engine(f"sqlite:///{db_path}")
+    try:
+        ensure_runtime_schema(engine)
+        ensure_runtime_schema(engine)
+        with sqlite3.connect(db_path) as conn:
+            assert conn.execute("SELECT precio_unitario, stock_actual, precio_cdmx FROM productos").fetchone() == (100, 10, None)
+    finally:
+        engine.dispose()
 
 
 def test_cash_handover_migration_preserves_legacy_cut(tmp_path):

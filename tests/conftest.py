@@ -1,11 +1,15 @@
 """Fixtures de pytest para testing."""
 
+import os
 import pytest
 from unittest.mock import patch, MagicMock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
+
+# Even background sessions must never connect to an operational database.
+os.environ["DATABASE_URL"] = "sqlite://"
 
 from app.core.database import Base, get_db
 from app.core.security import get_password_hash
@@ -48,6 +52,8 @@ def client(db):
 
     with patch("main.engine", _engine), \
          patch("main.SessionLocal", _SessionLocal), \
+         patch("app.core.audit_middleware.SessionLocal", _SessionLocal), \
+         patch("main._seed_admin", MagicMock()), \
          patch("alembic.command.upgrade", MagicMock()):
         with TestClient(app) as c:
             yield c

@@ -11,7 +11,7 @@ def _segment(start: str, end: str) -> str:
 
 
 def test_ticket_modal_only_offers_easy_pos_print():
-    modal = _segment("<!-- MODAL: Ticket confirmación / ver ticket -->", "<!-- MODAL: Nuevo Usuario -->")
+    modal = _segment("<!-- MODAL: Ticket confirmación / ver ticket -->", "<!-- MODAL: Usuario -->")
     assert 'id="mt-easy-pos-print-btn"' in modal
     assert "Enviar a Easy POS" in modal
     assert 'onclick="enviarTicketAEasyPosPrint()"' in modal

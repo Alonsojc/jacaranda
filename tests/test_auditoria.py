@@ -34,14 +34,19 @@ def _seed_evento(db, **kwargs):
 class TestAuditoria:
 
     # ------------------------------------------------------------------
-    # 1. Listar eventos – tabla vacía
+    # 1. Listar eventos de un modulo sin operaciones
     # ------------------------------------------------------------------
-    def test_listar_eventos_vacio(self, client, auth_headers):
-        resp = client.get(f"{BASE}/", headers=auth_headers)
+    def test_listar_eventos_modulo_vacio(self, client, auth_headers):
+        resp = client.get(f"{BASE}/", params={"modulo": "ventas"}, headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data, list)
         assert data == []
+
+    def test_login_auditado_en_base_aislada(self, client, auth_headers):
+        resp = client.get(f"{BASE}/", headers=auth_headers)
+        assert resp.status_code == 200
+        assert [(ev["modulo"], ev["entidad"]) for ev in resp.json()] == [("auth", "login")]
 
     # ------------------------------------------------------------------
     # 2. Dashboard de auditoría
