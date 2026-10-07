@@ -2670,7 +2670,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 <div class="frow">
 <div class="fg"><label>Precio Uber Eats</label><input type="number" id="mep-precio-uber" step="0.01" min="0.01" placeholder="Opcional"></div>
-<div class="fg"><label>Precio CDMX</label><input type="number" id="mep-precio-cdmx" step="0.01" min="0.01" placeholder="Opcional"></div>
+<div class="fg"><label for="mep-precio-cdmx">Precio CDMX</label><div style="display:flex;gap:.4rem;align-items:center"><input type="number" id="mep-precio-cdmx" step="0.01" min="0.01" placeholder="Opcional" style="min-width:0;flex:1"><button type="button" id="mep-guardar-cdmx" class="catalog-icon-btn" style="flex:0 0 44px;height:44px" onclick="guardarPrecioCdmx()" aria-label="Guardar solo precio CDMX" title="Guardar solo precio CDMX">&#128190;</button></div></div>
 </div>
 <div class="frow">
 <div class="fg"><label>Costo producci&oacute;n</label><input type="number" id="mep-costo" step="0.01" min="0"></div>
@@ -10912,6 +10912,35 @@ function previewProductImage(input) {
     document.getElementById('mep-img-status').textContent = 'Se guardará al dar Guardar';
   };
   reader.readAsDataURL(file);
+}
+
+var _guardandoPrecioCdmx = false;
+function guardarPrecioCdmx() {
+  if (_guardandoPrecioCdmx) return Promise.resolve();
+  var id = document.getElementById('mep-id').value;
+  var input = document.getElementById('mep-precio-cdmx');
+  if (!id || !input.checkValidity()) { toast('Escribe un precio CDMX v\u00e1lido', true); return Promise.resolve(); }
+  var precio = input.value ? Number(input.value) : null;
+  if (precio !== null && (!isFinite(precio) || precio <= 0)) { toast('El precio CDMX debe ser mayor a cero', true); return Promise.resolve(); }
+  var version = _versionSesion;
+  var boton = document.getElementById('mep-guardar-cdmx');
+  _guardandoPrecioCdmx = true;
+  boton.disabled = true;
+  return pedirPasswordAdminSiHaceFalta('editar precio CDMX').then(function(headers) {
+    if (version !== _versionSesion || document.getElementById('mep-id').value !== id
+        || !document.getElementById('modal-edit-prod').classList.contains('on')) throw new Error('Edicion cancelada');
+    return api('PUT', '/inventario/productos/' + id, {precio_cdmx:precio}, false, headers, version);
+  }).then(function() {
+    if (version !== _versionSesion || document.getElementById('mep-id').value !== id) return;
+    toast('Precio CDMX guardado');
+    cargarListaProductos();
+    cargarPOSProductos();
+  }).catch(function(e) {
+    if (version === _versionSesion && document.getElementById('mep-id').value === id) toast(e.message || 'No se pudo guardar el precio CDMX', true);
+  }).finally(function() {
+    _guardandoPrecioCdmx = false;
+    boton.disabled = false;
+  });
 }
 
 function guardarProducto() {

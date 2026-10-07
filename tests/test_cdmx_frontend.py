@@ -96,3 +96,40 @@ def test_cdmx_price_fields_export_and_mobile_tabs_are_available():
     assert "Precio Uber Eats,Precio CDMX,Costo" in HTML
     assert ".sales-mode-tabs{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}" in HTML
     assert section("function nuevaPresentacion", "function actualizarEstadoCodigo").count("document.getElementById('mnp-precio-cdmx').value = '';") == 1
+
+
+def test_save_cdmx_only_sends_its_price_and_blocks_duplicate_writes():
+    node(HARNESS + section("var _guardandoPrecioCdmx", "function guardarProducto") + r"""
+let _versionSesion=1,calls=[],release;
+fields['mep-id']={value:'123'};
+fields['mep-precio-cdmx']={value:'400',checkValidity:()=>true};
+fields['modal-edit-prod']={classList:{contains:()=>true}};
+fields['mep-precio']={value:'350'};fields['mep-caja']={value:'99'};
+function pedirPasswordAdminSiHaceFalta(){return Promise.resolve({});}
+function api(...args){calls.push(args);return new Promise(resolve=>{release=resolve;});}
+function cargarListaProductos(){}function cargarPOSProductos(){}
+(async()=>{
+  let first=guardarPrecioCdmx();await Promise.resolve();await guardarPrecioCdmx();
+  assert.equal(calls.length,1);assert.equal(calls[0][0],'PUT');assert.equal(calls[0][1],'/inventario/productos/123');
+  assert.deepEqual(calls[0][2],{precio_cdmx:400});assert.equal(calls[0][5],1);
+  assert.equal(fields['mep-guardar-cdmx'].disabled,true);release({});await first;
+  assert.equal(fields['mep-guardar-cdmx'].disabled,false);
+  assert.equal(fields['mep-precio'].value,'350');assert.equal(fields['mep-caja'].value,'99');
+})();
+""")
+
+
+def test_cdmx_save_does_not_write_after_session_change_or_retry_on_error():
+    node(HARNESS + section("var _guardandoPrecioCdmx", "function guardarProducto") + r"""
+let _versionSesion=1,calls=0,approve;
+fields['mep-id']={value:'123'};fields['mep-precio-cdmx']={value:'400',checkValidity:()=>true};
+fields['modal-edit-prod']={classList:{contains:()=>true}};
+function pedirPasswordAdminSiHaceFalta(){return new Promise(resolve=>{approve=resolve;});}
+function api(){calls++;return Promise.reject(new Error('Servidor no disponible'));}
+function cargarListaProductos(){}function cargarPOSProductos(){}
+(async()=>{
+  let first=guardarPrecioCdmx();_versionSesion=2;approve({});await first;assert.equal(calls,0);
+  let next=guardarPrecioCdmx();approve({});await next;assert.equal(calls,1);
+  assert.equal(fields['mep-guardar-cdmx'].disabled,false);
+})();
+""")
