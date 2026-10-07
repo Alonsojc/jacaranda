@@ -90,9 +90,9 @@ nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1p
 .ai-chip .ac-name{font-size:.72rem;color:var(--dk);margin-top:.2rem;line-height:1.15;font-weight:500}
 .ai-hero .ah-empty{text-align:center;color:var(--grn);font-size:.85rem;padding:.4rem 0;font-weight:600}
 /* Row gap improvement */
-.row.r4.hero-grid{grid-template-columns:repeat(4,1fr);gap:.9rem}
-@media(max-width:900px){.row.r4.hero-grid{grid-template-columns:1fr 1fr}}
-@media(max-width:420px){.row.r4.hero-grid{grid-template-columns:1fr 1fr!important;gap:.6rem}.khero{padding:.8rem .7rem .6rem;min-height:110px}.khero .kh-value{font-size:1.3rem}.khero .kh-icon{width:26px;height:26px;font-size:.85rem}.ai-chip{min-width:82px;padding:.4rem .5rem}.ai-chip .ac-qty{font-size:1rem}}
+.row.r3.hero-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:.9rem}
+@media(max-width:900px){.row.r3.hero-grid{grid-template-columns:1fr 1fr}.hero-grid .khero:last-child{grid-column:1/-1}}
+@media(max-width:420px){.row.r3.hero-grid{grid-template-columns:1fr 1fr!important;gap:.6rem}.khero{padding:.8rem .7rem .6rem;min-height:110px}.khero .kh-value{font-size:1.3rem}.khero .kh-icon{width:26px;height:26px;font-size:.85rem}.ai-chip{min-width:82px;padding:.4rem .5rem}.ai-chip .ac-qty{font-size:1rem}}
 .srow{display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid #f0e8e5;font-size:.84rem;gap:.5rem}
 .srow:last-child{border:none}
 .green{color:var(--grn);font-weight:600}
@@ -648,8 +648,8 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <h2 style="margin-bottom:.3rem">Dashboard</h2>
 <p style="font-size:.82rem;color:var(--mut);margin-bottom:1rem" id="d-fecha-hoy"></p>
 
-<!-- HERO KPIs: 4 tarjetas con icono, delta, sparkline -->
-<div class="row r4 hero-grid">
+<!-- KPIs operativos -->
+<div class="row r3 hero-grid">
   <div class="khero g nav-card" role="button" tabindex="0" aria-label="Ver ventas de hoy en corte de caja" onclick="irKpiDashboard('ventas-hoy')" onkeydown="activarConTeclado(event, function(){irKpiDashboard('ventas-hoy')})">
     <div class="kh-top">
       <div class="kh-icon">&#128184;</div>
@@ -679,16 +679,6 @@ table.tbl th,table.tbl td{font-size:.8rem}
     <div class="kh-value" id="d-ticket-prom">$0</div>
     <div class="kh-sub">&uacute;ltimos 7 d&iacute;as</div>
     <div class="kh-spark"><canvas id="spark-ticket-prom"></canvas></div>
-  </div>
-  <div class="khero a nav-card" role="button" tabindex="0" aria-label="Ver reporte de ventas del mes" onclick="irKpiDashboard('ventas-mes')" onkeydown="activarConTeclado(event, function(){irKpiDashboard('ventas-mes')})">
-    <div class="kh-top">
-      <div class="kh-icon">&#128197;</div>
-      <span class="kh-delta flat" id="d-delta-mes">&mdash;</span>
-    </div>
-    <div class="kh-label">Ventas del mes</div>
-    <div class="kh-value" id="d-mes">$0</div>
-    <div class="kh-sub" id="d-sub-mes">proyecci&oacute;n &mdash;</div>
-    <div class="kh-spark"><canvas id="spark-mes"></canvas></div>
   </div>
 </div>
 
@@ -1437,14 +1427,16 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <button onclick="cargarReporteVentas()" class="cobrar" style="width:auto;padding:.35rem .8rem;font-size:.82rem;margin:0">Consultar</button>
 <button onclick="repSetRango(7)" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0">7 d&iacute;as</button>
 <button onclick="repSetRango(30)" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0">30 d&iacute;as</button>
+<button onclick="repMesActual()" class="limpiar">Mes actual</button>
 <button onclick="repMesAnterior('ventas')" class="limpiar">Mes anterior</button>
 <button onclick="descargarReporteVentasPDF()" class="limpiar" style="padding:.35rem .6rem;font-size:.78rem;margin:0;color:#b91c1c">&#128196; PDF</button>
 </div>
 <p id="rep-ventas-estado" role="status" class="report-status"></p>
-<div class="row r3" style="margin-bottom:.8rem">
+<div class="row r3" id="rep-ventas-kpis" style="margin-bottom:.8rem">
 <div class="card kpi g"><div class="n" id="rep-total">$0</div><div class="l">Total ventas</div></div>
 <div class="card kpi"><div class="n" id="rep-tickets">0</div><div class="l">Tickets</div></div>
 <div class="card kpi a"><div class="n" id="rep-promedio">$0</div><div class="l">Ticket promedio</div></div>
+<div class="card kpi p" id="rep-proyeccion-kpi" style="display:none"><div class="n" id="rep-proyeccion">--</div><div class="l">Proyecci&oacute;n al cierre del mes</div><div class="l" id="rep-proyeccion-base"></div></div>
 </div>
 <div class="card" style="margin-bottom:1rem">
 <h3>Tendencia de ventas diarias</h3>
@@ -2943,7 +2935,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v107';
+var APP_BUILD = 'jacaranda-v108';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -4375,11 +4367,6 @@ function irKpiDashboard(tipo) {
     seleccionarRepTab('rep-ventas');
     if (tipo === 'ticket-promedio') {
       repSetRango(7);
-    } else {
-      var inicioMes = hoy.slice(0, 7) + '-01';
-      document.getElementById('rep-fi').value = inicioMes;
-      document.getElementById('rep-ff').value = hoy;
-      cargarReporteVentas();
     }
     var rep = document.getElementById('rep-ventas');
     if (rep) rep.scrollIntoView({behavior:'smooth', block:'start'});
@@ -8956,24 +8943,6 @@ function canjearPuntosCliente() {
 var _chartMeses = null;
 function cargarDashAvanzado() {
   dashGet('/reportes/dashboard-avanzado').then(function(d) {
-    // Comparativo → hero KPIs (la fila duplicada se eliminó del HTML)
-    var c = d.comparativo;
-    // Hero KPI "Ventas del mes": delta vs mes anterior + subtitulo proyección
-    var deltaMesEl = document.getElementById('d-delta-mes');
-    if (deltaMesEl) {
-      var pct = c.cambio_pct || 0;
-      var cls = pct > 1 ? 'up' : pct < -1 ? 'down' : 'flat';
-      var arrow = pct > 1 ? '▲' : pct < -1 ? '▼' : '●';
-      deltaMesEl.textContent = arrow + ' ' + Math.abs(pct).toFixed(0) + '%';
-      deltaMesEl.className = 'kh-delta ' + cls;
-    }
-    var subMesEl = document.getElementById('d-sub-mes');
-    if (subMesEl && d.proyeccion) subMesEl.textContent = 'proyecci\u00f3n: $' + fmt(d.proyeccion.proyeccion_mes);
-    // Sparkline del mes: usa 12 meses
-    if (d.meses && d.meses.length) {
-      _renderSpark('spark-mes', d.meses.map(function(m){ return parseFloat(m.total) || 0; }), '#f59e0b');
-    }
-
     // Utilidad
     document.getElementById('da-u-ingresos').textContent = '$' + fmt(d.utilidad.ingresos);
     document.getElementById('da-u-costos').textContent = '-$' + fmt(d.utilidad.costo_ventas);
@@ -12869,19 +12838,11 @@ function cargarDashboard() {
   }
   _dashAlertas = '';
   actualizarFechaDashboard(fechaHoyISO());
-  // Dashboard endpoint returns {ventas_hoy: {total, numero_ventas}, ventas_mes: {total}}
   dashGet('/reportes/dashboard').then(function(d) {
     actualizarFechaDashboard(d.fecha || fechaHoyISO());
     var vh = d.ventas_hoy || {};
-    var vm = d.ventas_mes || {};
     document.getElementById('d-ventas').textContent = '$' + fmt(vh.total);
     document.getElementById('d-tickets').textContent = vh.numero_ventas || 0;
-    document.getElementById('d-mes').textContent = '$' + fmt(vm.total);
-    var proyeccion = d.proyeccion || {};
-    var subMesEl = document.getElementById('d-sub-mes');
-    if (subMesEl && proyeccion.proyeccion_mes != null) {
-      subMesEl.textContent = 'proyecci\u00f3n: $' + fmt(proyeccion.proyeccion_mes);
-    }
     // Ticket promedio del día
     var prom = (vh.numero_ventas > 0) ? (vh.total / vh.numero_ventas) : 0;
     document.getElementById('d-ticket-prom').textContent = '$' + fmt(d.ticket_promedio_7_dias != null ? d.ticket_promedio_7_dias : prom);
@@ -13393,6 +13354,11 @@ function repSetRango(dias, tipo) {
   return consultarRangoReporte(tipo, desde, hoy);
 }
 
+function repMesActual() {
+  var hoy = fechaHoyISO();
+  return consultarRangoReporte('ventas', hoy.slice(0, 7) + '-01', hoy);
+}
+
 function repMesAnterior(tipo) {
   var hoy = fechaHoyISO();
   var anio = Number(hoy.slice(0, 4)), mes = Number(hoy.slice(5, 7));
@@ -13422,7 +13388,10 @@ var _reporteEgresosData = null;
 
 function invalidarReporteVentas(mensaje) {
   ++_reporteVentasSeq;
-  ['rep-total','rep-tickets','rep-promedio'].forEach(function(id) { document.getElementById(id).textContent = '--'; });
+  ['rep-total','rep-tickets','rep-promedio','rep-proyeccion'].forEach(function(id) { document.getElementById(id).textContent = '--'; });
+  document.getElementById('rep-proyeccion-kpi').style.display = 'none';
+  document.getElementById('rep-proyeccion-base').textContent = '';
+  document.getElementById('rep-ventas-kpis').className = 'row r3';
   document.getElementById('rep-metodo').textContent = '';
   document.getElementById('rep-dia').textContent = '';
   document.getElementById('rep-ventas-estado').textContent = mensaje || 'Periodo pendiente de consulta';
@@ -13460,6 +13429,15 @@ function cargarReporteVentas() {
     document.getElementById('rep-total').textContent = '$' + fmt(res.total);
     document.getElementById('rep-tickets').textContent = res.numero_ventas;
     document.getElementById('rep-promedio').textContent = '$' + fmt(res.ticket_promedio);
+    if (r.proyeccion) {
+      var p = r.proyeccion;
+      document.getElementById('rep-proyeccion-kpi').style.display = '';
+      document.getElementById('rep-ventas-kpis').className = 'row r4';
+      document.getElementById('rep-proyeccion').textContent = p.proyeccion_mes != null ? '$' + fmt(p.proyeccion_mes) : '--';
+      document.getElementById('rep-proyeccion-base').textContent = p.dias_transcurridos
+        ? 'Hasta ' + p.fecha_fin + ' \u00b7 ' + p.dias_transcurridos + ' d\u00edas completos'
+        : 'Sin d\u00edas completos en este mes';
+    }
     var hm = '';
     Object.keys(r.por_metodo_pago).forEach(function(k) {
       var m = r.por_metodo_pago[k];

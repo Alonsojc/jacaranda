@@ -7,7 +7,7 @@ from decimal import Decimal
 from datetime import date, datetime, timedelta, timezone
 import calendar
 from sqlalchemy.orm import Session, joinedload, load_only
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, case
 
 from app.core.time_utils import (
     normalize_database_datetime as _normalizar_fecha_db,
@@ -89,6 +89,21 @@ def gastos_hoy(db: Session, fecha: date | None = None) -> dict:
     }
 
 
+def _proyeccion_mes_dias_completos(hoy: date, ventas_base: Decimal) -> dict:
+    inicio = hoy.replace(day=1)
+    dias_completos = (hoy - inicio).days
+    dias_del_mes = calendar.monthrange(hoy.year, hoy.month)[1]
+    promedio = ventas_base / dias_completos if dias_completos else None
+    return {
+        "proyeccion_mes": float(round(promedio * dias_del_mes, 2)) if promedio is not None else None,
+        "ventas_base": float(ventas_base),
+        "dias_transcurridos": dias_completos,
+        "dias_del_mes": dias_del_mes,
+        "fecha_inicio": inicio.isoformat(),
+        "fecha_fin": (hoy - timedelta(days=1)).isoformat() if dias_completos else None,
+    }
+
+
 def reporte_ventas_periodo(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
     """Reporte de ventas por periodo con desglose fiscal."""
     zona = _zona_operacion()
@@ -158,8 +173,22 @@ def reporte_ventas_periodo(db: Session, fecha_inicio: date, fecha_fin: date) -> 
         por_dia[dia]["cantidad"] += 1
         por_dia[dia]["total"] += v.total
 
+    proyeccion = None
+    hoy = _hoy_operacion()
+    inicio_mes = hoy.replace(day=1)
+    fin_mes = hoy.replace(day=calendar.monthrange(hoy.year, hoy.month)[1])
+    ultimo_dia_base = max(inicio_mes, hoy - timedelta(days=1))
+    if fecha_inicio == inicio_mes and ultimo_dia_base <= fecha_fin <= fin_mes:
+        # Se reutiliza el desglose: hoy no entra en la base ni en el divisor.
+        ventas_base = sum(
+            (datos["total"] for dia, datos in por_dia.items() if dia < hoy.isoformat()),
+            Decimal("0"),
+        )
+        proyeccion = _proyeccion_mes_dias_completos(hoy, ventas_base)
+
     return {
         "periodo": {"inicio": fecha_inicio.isoformat(), "fin": fecha_fin.isoformat()},
+        "proyeccion": proyeccion,
         "resumen": {
             "numero_ventas": len(ventas),
             "subtotal": float(total_subtotal),
@@ -455,9 +484,7 @@ def reporte_productos_mas_vendidos(
 def dashboard_resumen(db: Session) -> dict:
     """Resumen ejecutivo para el dashboard principal."""
     hoy = _hoy_operacion()
-    inicio_mes = date(hoy.year, hoy.month, 1)
     inicio_hoy, fin_hoy = operation_period_bounds(hoy, hoy)
-    inicio_mes_dt, fin_mes_dt = operation_period_bounds(inicio_mes, hoy)
     inicio_7_dias, fin_7_dias = operation_period_bounds(hoy - timedelta(days=6), hoy)
 
     # Ventas del día
@@ -476,22 +503,6 @@ def dashboard_resumen(db: Session) -> dict:
             Venta.estado == EstadoVenta.COMPLETADA,
         )
     ).scalar() or 0
-
-    # Ventas del mes
-    ventas_mes = db.query(func.sum(Venta.total)).filter(
-        and_(
-            Venta.fecha >= inicio_mes_dt,
-            Venta.fecha <= fin_mes_dt,
-            Venta.estado == EstadoVenta.COMPLETADA,
-        )
-    ).scalar() or Decimal("0")
-
-    dias_transcurridos = (hoy - inicio_mes).days + 1
-    dias_del_mes = calendar.monthrange(hoy.year, hoy.month)[1]
-    proyeccion_mes = round(
-        float(ventas_mes) / dias_transcurridos * dias_del_mes,
-        2,
-    ) if dias_transcurridos else 0
 
     # El KPI visible del dashboard no debe depender de una consulta diferida:
     # en un día sin ventas, el promedio de hoy es cero aunque haya ventas en
@@ -518,14 +529,6 @@ def dashboard_resumen(db: Session) -> dict:
         "ticket_promedio_7_dias": round(
             float(total_7_dias / cantidad_7_dias), 2
         ) if cantidad_7_dias else 0,
-        "proyeccion": {
-            "proyeccion_mes": proyeccion_mes,
-            "dias_transcurridos": dias_transcurridos,
-            "dias_del_mes": dias_del_mes,
-        },
-        "ventas_mes": {
-            "total": float(ventas_mes),
-        },
     }
 
 
@@ -1114,10 +1117,12 @@ def dashboard_avanzado(db: Session) -> dict:
         fin_mes_ant = inicio_mes - timedelta(days=1)
 
     inicio_este_mes, fin_este_mes = operation_period_bounds(inicio_mes, hoy)
+    inicio_hoy, _ = operation_period_bounds(hoy, hoy)
     inicio_anterior, fin_anterior = operation_period_bounds(inicio_mes_ant, fin_mes_ant)
 
     ventas_este_mes = db.query(
-        func.sum(Venta.total), func.count(Venta.id)
+        func.sum(Venta.total), func.count(Venta.id),
+        func.sum(case((Venta.fecha < inicio_hoy, Venta.total), else_=0)),
     ).filter(
         and_(
             Venta.fecha >= inicio_este_mes,
@@ -1145,11 +1150,7 @@ def dashboard_avanzado(db: Session) -> dict:
     if total_mes_ant > 0:
         cambio_pct = round((total_este_mes - total_mes_ant) / total_mes_ant * 100, 1)
 
-    # --- Proyección mensual ---
-    dias_transcurridos = (hoy - inicio_mes).days + 1
-    import calendar
-    dias_del_mes = calendar.monthrange(hoy.year, hoy.month)[1]
-    proyeccion_mes = round(total_este_mes / dias_transcurridos * dias_del_mes, 2) if dias_transcurridos > 0 else 0
+    proyeccion = _proyeccion_mes_dias_completos(hoy, ventas_este_mes[2] or Decimal("0"))
 
     # --- Ventas últimos 12 meses para gráfica ---
     meses = []
@@ -1244,11 +1245,7 @@ def dashboard_avanzado(db: Session) -> dict:
             "tickets_este_mes": tickets_este_mes,
             "tickets_mes_ant": tickets_mes_ant,
         },
-        "proyeccion": {
-            "proyeccion_mes": proyeccion_mes,
-            "dias_transcurridos": dias_transcurridos,
-            "dias_del_mes": dias_del_mes,
-        },
+        "proyeccion": proyeccion,
         "utilidad": {
             "ingresos": total_este_mes,
             "costo_ventas": float(costo_ventas),

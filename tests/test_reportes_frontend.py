@@ -52,10 +52,14 @@ function response(fi,ff,total=100) { return {periodo:{inicio:fi,fin:ff}, resumen
 def test_month_buttons_and_initial_load():
     js = PREAMBLE + _section("function initReportes", "function cargarReporteProductos") + r"""
 async function run() {
+  repMesActual();
+  assert.equal(fields['rep-fi'].value, '2026-10-01');
+  assert.equal(fields['rep-ff'].value, '2026-10-06');
+  assert.ok(requests[0].path.includes('fecha_inicio=2026-10-01&fecha_fin=2026-10-06'));
   repMesAnterior('ventas');
   assert.equal(fields['rep-fi'].value, '2026-09-01');
   assert.equal(fields['rep-ff'].value, '2026-09-30');
-  assert.ok(requests[0].path.includes('fecha_inicio=2026-09-01&fecha_fin=2026-09-30'));
+  assert.ok(requests[1].path.includes('fecha_inicio=2026-09-01&fecha_fin=2026-09-30'));
   hoy = '2026-01-04'; repMesAnterior('ventas');
   assert.equal(fields['rep-fi'].value, '2025-12-01');
   assert.equal(fields['rep-ff'].value, '2025-12-31');
@@ -142,3 +146,71 @@ def test_reports_toolbar_permissions_and_empty_chart_contract():
     assert "permiso === 'ver' || permiso === 'editar'" in HTML
     assert "exportarEgresosCSV();" in HTML
     assert "ctx.parentElement.innerHTML" not in _section("function renderChartVentas", "function invTab")
+
+
+def test_monthly_kpi_only_in_reports_and_dashboard_keeps_three_cards():
+    assert 'class="row r3 hero-grid"' in HTML
+    assert 'id="d-mes"' not in HTML
+    assert "d-sub-mes" not in HTML
+    assert "spark-mes" not in HTML
+    assert "ventas-mes" not in HTML
+    assert 'onclick="repMesActual()"' in HTML
+    assert 'id="rep-proyeccion-kpi"' in HTML
+    assert 'id="rep-proyeccion-base"' in HTML
+
+
+def test_projection_follows_latest_period_and_clears_on_change_or_failure():
+    js = PREAMBLE + _section("function initReportes", "function cargarReporteProductos") + r"""
+async function run() {
+  hoy = '2026-10-07';
+  fields['rep-fi'] = {value:'2026-09-01'}; fields['rep-ff'] = {value:'2026-09-30'};
+  const old = cargarReporteVentas();
+  const latest = repMesActual();
+  const current = response('2026-10-01','2026-10-07',1500);
+  current.proyeccion = {proyeccion_mes:3100,dias_transcurridos:6,fecha_fin:'2026-10-06'};
+  requests[1].resolve(current); await latest;
+  assert.equal(fields['rep-total'].textContent,'$1500.00');
+  assert.equal(fields['rep-proyeccion'].textContent,'$3100.00');
+  assert.equal(fields['rep-proyeccion-kpi'].style.display,'');
+  assert.equal(fields['rep-ventas-kpis'].className,'row r4');
+  assert.ok(fields['rep-proyeccion-base'].textContent.includes('2026-10-06'));
+  requests[0].resolve(response('2026-09-01','2026-09-30',9000)); await old;
+  assert.equal(fields['rep-proyeccion'].textContent,'$3100.00');
+  const previous = repMesAnterior('ventas');
+  assert.equal(fields['rep-proyeccion-kpi'].style.display,'none');
+  assert.equal(fields['rep-proyeccion-base'].textContent,'');
+  requests[2].resolve(response('2026-09-01','2026-09-30',9000)); await previous;
+  assert.equal(fields['rep-proyeccion-kpi'].style.display,'none');
+  assert.equal(fields['rep-ventas-kpis'].className,'row r3');
+  const failed = repMesActual(); requests[3].reject(new Error('offline')); await failed;
+  assert.equal(fields['rep-proyeccion'].textContent,'--');
+  assert.equal(fields['rep-proyeccion-kpi'].style.display,'none');
+}
+run().catch(e=>{console.error(e);process.exit(1)});
+"""
+    _node(js)
+
+
+def test_projection_distinguishes_first_day_from_completed_days_without_sales():
+    js = PREAMBLE + _section("function initReportes", "function cargarReporteProductos") + r"""
+async function run() {
+  hoy = '2026-11-01';
+  let pending = repMesActual();
+  const first = response('2026-11-01','2026-11-01',900);
+  first.proyeccion = {proyeccion_mes:null,dias_transcurridos:0,fecha_fin:null};
+  requests[0].resolve(first); await pending;
+  assert.equal(fields['rep-proyeccion-kpi'].style.display,'');
+  assert.equal(fields['rep-proyeccion'].textContent,'--');
+  assert.ok(fields['rep-proyeccion-base'].textContent.includes('Sin d'));
+  hoy = '2026-11-02'; pending = repMesActual();
+  const empty = response('2026-11-01','2026-11-02',0);
+  empty.proyeccion = {proyeccion_mes:0,dias_transcurridos:1,fecha_fin:'2026-11-01'};
+  requests[1].resolve(empty); await pending;
+  assert.equal(fields['rep-proyeccion'].textContent,'$0.00');
+  assert.ok(fields['rep-proyeccion-base'].textContent.includes('2026-11-01'));
+  invalidarReporteVentas();
+  assert.equal(fields['rep-proyeccion-kpi'].style.display,'none');
+}
+run().catch(e=>{console.error(e);process.exit(1)});
+"""
+    _node(js)
