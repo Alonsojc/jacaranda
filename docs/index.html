@@ -497,7 +497,21 @@ h2{font-size:1.1rem}
 .ticket-edit-modes label:has(input:checked){background:#f5eeeb;color:var(--dk)}
 .ticket-edit-row{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:.6rem;padding:.6rem 0;border-bottom:1px solid var(--brd);align-items:center}
 .ticket-edit-row .fg{margin:0;min-width:0}
-.ticket-edit-row select{width:100%;text-overflow:ellipsis}
+.ticket-product-picker{min-width:0}
+.ticket-product-input{position:relative}
+.ticket-product-input input{padding-right:46px}
+.ticket-product-toggle{position:absolute;right:1px;top:1px;width:42px;height:42px;border:0;border-radius:6px;background:transparent;color:var(--dk);font-size:1rem;cursor:pointer}
+.ticket-product-toggle:hover{background:#f5eeeb}
+.ticket-product-menu{margin-top:4px;border:1px solid var(--brd);border-radius:6px;background:#fff;overflow:hidden}
+.ticket-product-options{max-height:224px;overflow-y:auto;overscroll-behavior:contain}
+.ticket-product-option{display:block;width:100%;min-height:52px;padding:.55rem .7rem;border:0;border-bottom:1px solid var(--brd);background:#fff;color:var(--dk);text-align:left;font-family:inherit;cursor:pointer;overflow-wrap:anywhere}
+.ticket-product-option:last-child{border-bottom:0}
+.ticket-product-option strong{display:block;font-size:.85rem;line-height:1.35;font-weight:600}
+.ticket-product-option small{display:block;font-size:.75rem;line-height:1.4;color:var(--mut);margin-top:2px}
+.ticket-product-option:hover,.ticket-product-option[aria-selected="true"]{background:#f5eeeb}
+.ticket-product-status{padding:.4rem .7rem;border-top:1px solid var(--brd);font-size:.75rem;color:var(--mut)}
+.ticket-edit-row:has(.ticket-product-picker){align-items:start}
+.ticket-edit-row:has(.ticket-product-picker) .ticket-edit-fixed-price{padding-top:1.45rem}
 .ticket-edit-fixed{overflow-wrap:anywhere;line-height:1.35}
 .ticket-edit-fixed small{display:block;color:var(--mut)}
 .ticket-edit-fixed-price{text-align:right;font-variant-numeric:tabular-nums}
@@ -519,6 +533,10 @@ h2{font-size:1.1rem}
 .cart-discount{grid-column:3;grid-row:2}
 .cart-remove{grid-column:4;grid-row:2}
 .ticket-edit-row{grid-template-columns:minmax(0,1fr) 94px}
+#modal-ticket-editar .modal{width:100%;padding:1rem;max-height:calc(100dvh - 2rem)}
+.ticket-edit-row:has(.ticket-product-picker){grid-template-columns:minmax(0,1fr)}
+.ticket-edit-row:has(.ticket-product-picker) .ticket-edit-fixed-price{padding-top:0;text-align:left;font-size:.85rem}
+.ticket-edit-row:has(.ticket-product-picker) .ticket-edit-fixed-price small{display:inline;margin-left:.4rem}
 .corte-date-tools{width:100%;justify-content:flex-end}
 }
 @container(max-width:360px){
@@ -3038,7 +3056,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v110';
+var APP_BUILD = 'jacaranda-v111';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -6820,6 +6838,136 @@ function verTicket(ventaId, cancelada) {
 
 var _ticketEdicion = null;
 
+function normalizarBusquedaProductoTicket(valor) {
+  return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+function nombreProductoEdicionTicket(producto) {
+  var nombre = producto.nombre || 'Producto';
+  var presentacion = producto.presentacion || '';
+  return presentacion && !normalizarBusquedaProductoTicket(nombre).includes(normalizarBusquedaProductoTicket(presentacion))
+    ? nombre + ' - ' + presentacion : nombre;
+}
+
+function coincidenciasProductoTicket(productos, consulta) {
+  var palabras = normalizarBusquedaProductoTicket(consulta).split(/\s+/).filter(Boolean);
+  return productos.filter(function(p) {
+    var texto = normalizarBusquedaProductoTicket(p.nombre + ' ' + (p.presentacion || ''));
+    return palabras.every(function(palabra) { return texto.includes(palabra); });
+  });
+}
+
+function selectorProductoTicket(indice) {
+  var estado = _ticketEdicion;
+  if (!estado || !estado.contexto || estado.modo !== 'productos' || estado.ocupado || !edicionTicketVigente(estado)) return null;
+  return (estado.selectores || [])[indice] || null;
+}
+
+function renderOpcionesProductoTicket(indice) {
+  var selector = selectorProductoTicket(indice);
+  if (!selector) return;
+  var input = document.getElementById('met-search-' + indice);
+  var lista = document.getElementById('met-options-' + indice);
+  var h = '';
+  selector.coincidencias.forEach(function(p, posicion) {
+    var datos = [];
+    if (p.presentacion) datos.push(escHtml(p.presentacion));
+    if (p.original) datos.push('Producto original fuera del cat&aacute;logo');
+    else if (p.stock_actual != null) datos.push('Existencias: ' + fmtQty(p.stock_actual) + ' ' + escHtml(p.unidad_medida === 'pz' ? 'pzas' : (p.unidad_medida || 'pzas')));
+    else datos.push('Existencias no disponibles');
+    h += '<button type="button" role="option" tabindex="-1" class="ticket-product-option" id="met-option-' + indice + '-' + posicion
+      + '" aria-selected="' + (posicion === selector.activo) + '" onmousedown="event.preventDefault()" onclick="elegirProductoTicket(' + indice + ',' + Number(p.id) + ')">'
+      + '<strong>' + escHtml(p.nombre) + '</strong><small>' + datos.join(' &#183; ') + '</small></button>';
+  });
+  lista.innerHTML = h;
+  document.getElementById('met-status-' + indice).textContent = selector.coincidencias.length
+    ? selector.coincidencias.length + (selector.coincidencias.length === 1 ? ' producto' : ' productos') : 'Sin coincidencias';
+  document.getElementById('met-menu-' + indice).hidden = !selector.abierto;
+  input.setAttribute('aria-expanded', String(selector.abierto));
+  if (selector.abierto && selector.activo >= 0) input.setAttribute('aria-activedescendant', 'met-option-' + indice + '-' + selector.activo);
+  else input.removeAttribute('aria-activedescendant');
+}
+
+function cerrarProductosTicket(indice) {
+  var selector = selectorProductoTicket(indice);
+  if (!selector) return;
+  selector.abierto = false;
+  selector.activo = -1;
+  document.getElementById('met-item-' + indice).value = String(selector.id);
+  var input = document.getElementById('met-search-' + indice);
+  input.value = nombreProductoEdicionTicket(selector.productos.find(function(p) { return p.id === selector.id; }));
+  input.removeAttribute('aria-invalid');
+  renderOpcionesProductoTicket(indice);
+  actualizarTotalEdicionTicket();
+}
+
+function abrirProductosTicket(indice) {
+  var selector = selectorProductoTicket(indice);
+  if (!selector || selector.abierto) return;
+  _ticketEdicion.selectores.forEach(function(s, i) { if (i !== indice && s.abierto) cerrarProductosTicket(i); });
+  selector.abierto = true;
+  selector.activo = -1;
+  selector.coincidencias = selector.productos;
+  renderOpcionesProductoTicket(indice);
+  document.getElementById('met-search-' + indice).select();
+}
+
+function alternarProductosTicket(indice) {
+  var selector = selectorProductoTicket(indice);
+  if (!selector) return;
+  if (selector.abierto) { cerrarProductosTicket(indice); return; }
+  document.getElementById('met-search-' + indice).focus();
+  abrirProductosTicket(indice);
+}
+
+function buscarProductosTicket(indice) {
+  var selector = selectorProductoTicket(indice);
+  if (!selector) return;
+  selector.abierto = true;
+  var input = document.getElementById('met-search-' + indice);
+  selector.coincidencias = coincidenciasProductoTicket(selector.productos, input.value);
+  selector.activo = selector.coincidencias.length ? 0 : -1;
+  document.getElementById('met-item-' + indice).value = '';
+  input.setAttribute('aria-invalid', 'true');
+  renderOpcionesProductoTicket(indice);
+  actualizarTotalEdicionTicket();
+}
+
+function elegirProductoTicket(indice, productoId) {
+  var selector = selectorProductoTicket(indice);
+  if (!selector || !selector.productos.some(function(p) { return p.id === productoId; })) return;
+  selector.id = productoId;
+  document.getElementById('met-search-' + indice).focus();
+  cerrarProductosTicket(indice);
+}
+
+function salirProductosTicket(indice, evento) {
+  if (evento.relatedTarget && evento.currentTarget.contains(evento.relatedTarget)) return;
+  cerrarProductosTicket(indice);
+}
+
+function teclasProductosTicket(indice, evento) {
+  var selector = selectorProductoTicket(indice);
+  if (!selector || evento.isComposing) return;
+  if (evento.key === 'ArrowDown' || evento.key === 'ArrowUp') {
+    evento.preventDefault();
+    abrirProductosTicket(indice);
+    var cantidad = selector.coincidencias.length;
+    if (cantidad) {
+      selector.activo = evento.key === 'ArrowDown' ? Math.min(cantidad - 1, selector.activo + 1)
+        : (selector.activo < 0 ? cantidad - 1 : Math.max(0, selector.activo - 1));
+      renderOpcionesProductoTicket(indice);
+      document.getElementById('met-option-' + indice + '-' + selector.activo).scrollIntoView({block:'nearest'});
+    }
+  } else if (evento.key === 'Enter' && selector.abierto) {
+    evento.preventDefault(); evento.stopPropagation();
+    if (selector.activo >= 0) elegirProductoTicket(indice, selector.coincidencias[selector.activo].id);
+  } else if (evento.key === 'Escape' && selector.abierto) {
+    evento.preventDefault(); evento.stopPropagation();
+    cerrarProductosTicket(indice);
+  } else if (evento.key === 'Tab') cerrarProductosTicket(indice);
+}
+
 function actualizarBotonEditarTicket(cancelada) {
   document.getElementById('mt-editar-wrap').style.display = !cancelada && (window._permisos || {}).pos === 'editar' ? 'block' : 'none';
 }
@@ -6878,16 +7026,20 @@ function cambiarModoEdicionTicket(modo) {
   document.getElementById('met-save').disabled = modo === 'precios' && !!contexto.bloqueo_precios;
   document.getElementById('met-recibido-wrap').style.display = modo === 'precios' && venta.metodo_pago === '01' ? '' : 'none';
   document.getElementById('met-recibido').value = venta.monto_recibido;
+  estado.selectores = [];
   var h = '';
   venta.detalles.forEach(function(d, i) {
     h += '<div class="ticket-edit-row">';
     if (modo === 'productos') {
-      h += '<div class="fg"><label for="met-item-' + i + '">' + fmtQty(d.cantidad) + 'x <span id="met-name-' + i + '">' + escHtml(d.producto_nombre || 'Producto') + '</span></label><select id="met-item-' + i + '" onchange="actualizarTotalEdicionTicket()">';
-      if (!contexto.productos.some(function(p) { return p.id === d.producto_id; })) h += '<option value="' + d.producto_id + '">' + escHtml(d.producto_nombre || 'Producto original') + '</option>';
-      contexto.productos.forEach(function(p) {
-        h += '<option value="' + p.id + '"' + (p.id === d.producto_id ? ' selected' : '') + '>' + escHtml(p.nombre) + '</option>';
-      });
-      h += '</select></div><div class="ticket-edit-fixed ticket-edit-fixed-price">$' + fmt(d.precio_unitario) + '<small>por unidad</small></div>';
+      var productos = contexto.productos.slice();
+      if (!productos.some(function(p) { return p.id === d.producto_id; })) productos.unshift({id:d.producto_id, nombre:d.producto_nombre || 'Producto original', original:true});
+      estado.selectores.push({id:d.producto_id, productos:productos, coincidencias:[], abierto:false, activo:-1});
+      h += '<div class="fg ticket-product-picker" onfocusout="salirProductosTicket(' + i + ',event)"><label id="met-label-' + i + '" for="met-search-' + i + '">' + fmtQty(d.cantidad) + 'x <span id="met-name-' + i + '">' + escHtml(d.producto_nombre || 'Producto') + '</span></label>';
+      h += '<input type="hidden" id="met-item-' + i + '" value="' + Number(d.producto_id) + '">';
+      h += '<div class="ticket-product-input"><input type="text" role="combobox" id="met-search-' + i + '" autocomplete="off" spellcheck="false" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="met-options-' + i + '" placeholder="Buscar producto..." onfocus="abrirProductosTicket(' + i + ')" onclick="abrirProductosTicket(' + i + ')" oninput="buscarProductosTicket(' + i + ')" onkeydown="teclasProductosTicket(' + i + ',event)">';
+      h += '<button type="button" class="ticket-product-toggle" tabindex="-1" aria-label="Mostrar productos" title="Mostrar productos" onmousedown="event.preventDefault()" onclick="alternarProductosTicket(' + i + ')">&#9662;</button></div>';
+      h += '<div class="ticket-product-menu" id="met-menu-' + i + '" hidden><div class="ticket-product-options" id="met-options-' + i + '" role="listbox" aria-labelledby="met-label-' + i + '"></div><div class="ticket-product-status" id="met-status-' + i + '" role="status"></div></div>';
+      h += '</div><div class="ticket-edit-fixed ticket-edit-fixed-price">$' + fmt(d.precio_unitario) + '<small>por unidad</small></div>';
     } else {
       h += '<div class="ticket-edit-fixed">' + fmtQty(d.cantidad) + 'x ' + escHtml(d.producto_nombre || 'Producto') + '</div>';
       h += '<div class="fg"><label for="met-item-' + i + '">Precio unitario</label><input type="number" id="met-item-' + i + '" min="0" step=".01" inputmode="decimal" value="' + Number(d.precio_unitario).toFixed(2) + '" oninput="actualizarTotalEdicionTicket()"></div>';
@@ -6895,6 +7047,10 @@ function cambiarModoEdicionTicket(modo) {
     h += '</div>';
   });
   document.getElementById('met-lines').innerHTML = h;
+  estado.selectores.forEach(function(selector, i) {
+    document.getElementById('met-item-' + i).value = String(selector.id);
+    document.getElementById('met-search-' + i).value = nombreProductoEdicionTicket(selector.productos.find(function(p) { return p.id === selector.id; }));
+  });
   actualizarTotalEdicionTicket();
 }
 
@@ -6908,7 +7064,10 @@ function datosEdicionTicket(estado) {
   var total = Number(venta.ieps || 0);
   var detalles = venta.detalles.map(function(d, i) {
     var value = document.getElementById('met-item-' + i).value;
-    if (estado.modo === 'productos') return {id:d.id, producto_id:Number(value)};
+    if (estado.modo === 'productos') {
+      if (!/^\d+$/.test(value) || (Number(value) !== d.producto_id && !estado.contexto.productos.some(function(p) { return p.id === Number(value); }))) throw new Error('Elige un producto de la lista');
+      return {id:d.id, producto_id:Number(value)};
+    }
     if (!/^\d{1,10}(\.\d{1,2})?$/.test(value)) throw new Error('Ingresa un precio valido con hasta dos decimales');
     var base = centavosEdicionTicket(Number(value) * 100 * Number(d.cantidad) - Number(d.descuento) * 100);
     if (base < 0) throw new Error('El precio no puede ser menor que el descuento registrado');
@@ -6935,7 +7094,7 @@ function actualizarTotalEdicionTicket() {
     document.getElementById('met-save').disabled = estado.ocupado || !cambios || !!estado.contexto.bloqueo
       || (estado.modo === 'precios' && !!estado.contexto.bloqueo_precios);
   } catch(e) {
-    document.getElementById('met-total').textContent = '--';
+    document.getElementById('met-total').textContent = estado.modo === 'productos' ? '$' + fmt(estado.contexto.venta.total) : '--';
     document.getElementById('met-save').disabled = true;
   }
 }

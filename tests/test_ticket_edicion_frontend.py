@@ -26,7 +26,9 @@ HARNESS = r"""
 const assert = require('node:assert/strict');
 const fields = {};
 const document = {getElementById: id => fields[id] ||= {
-  value:'', textContent:'', innerHTML:'', style:{}, disabled:false,
+  value:'', textContent:'', innerHTML:'', style:{}, disabled:false, hidden:false, attributes:{},
+  setAttribute(key,value){this.attributes[key]=value;},removeAttribute(key){delete this.attributes[key];},
+  focus(){},select(){},scrollIntoView(){},
   classList:{on:true, add(){this.on=true;},remove(){this.on=false;},contains(){return this.on;}}
 }};
 let _versionSesion=1, _ventaActualId=10, _dashGetCache={}, _dashCacheAt=0;
@@ -38,7 +40,6 @@ function pedirPasswordAdmin(action, forced){assert.equal(forced,true);return new
 function cancelarAdminAuth(){}
 function fmt(v){return Number(v).toFixed(2);}
 function fmtQty(v){return Number(v);}
-function escHtml(v){return String(v).replace(/</g,'&lt;');}
 function toast(){}
 function verTicket(){}
 function cargarCorte(){}
@@ -48,7 +49,7 @@ async function flush(){for(let i=0;i<12;i++)await Promise.resolve();}
 const context={venta:{id:10,folio:'T-TEST',edicion_revision:0,metodo_pago:'01',total:'190',monto_recibido:'500',
   detalles:[{id:1,producto_id:1,producto_nombre:'Original',cantidad:'2',precio_unitario:'100',descuento:'10',tasa_iva:'0'}]},
   productos:[{id:1,nombre:'Original'},{id:2,nombre:'Otro'}],bloqueo:null,bloqueo_precios:null};
-""" + section("var _ticketEdicion = null", "async function cancelarVentaActual")
+""" + section("function escHtml(", "function jsArg(") + section("var _ticketEdicion = null", "async function cancelarVentaActual")
 
 
 def test_cart_controls_use_stable_grid_and_discount_is_30_percent():
@@ -102,6 +103,124 @@ def test_editor_requires_admin_and_separates_product_from_price_payload():
   assert.equal(datosEdicionTicket(_ticketEdicion).total,290);
   assert.deepEqual(datosEdicionTicket(_ticketEdicion).detalles,[{id:1,precio_unitario:'150.00'}]);
   fields['met-item-0'].value='-1';assert.throws(()=>datosEdicionTicket(_ticketEdicion));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+""")
+
+
+def test_searchable_product_picker_filters_accents_words_and_presentations():
+    node(HARNESS + r"""
+const products=[{id:1,nombre:'Panqu\u00e9 de Calabaza',presentacion:'Grande',stock_actual:'4.5000',unidad_medida:'pz'},
+  {id:2,nombre:'Panqu\u00e9 de Pl\u00e1tano con Chocolate',presentacion:'Individual'},
+  {id:3,nombre:'Rosca de Chocolate grande',presentacion:'Grande'}];
+assert.deepEqual(coincidenciasProductoTicket(products,'CALABAZA panque').map(p=>p.id),[1]);
+assert.deepEqual(coincidenciasProductoTicket(products,'grande').map(p=>p.id),[1,3]);
+assert.deepEqual(coincidenciasProductoTicket(products,'  panque   platano ').map(p=>p.id),[2]);
+assert.equal(coincidenciasProductoTicket(products,'sin coincidencia').length,0);
+assert.equal(coincidenciasProductoTicket(products,'').length,3);
+assert.equal(nombreProductoEdicionTicket(products[0]),'Panqu\u00e9 de Calabaza - Grande');
+assert.equal(nombreProductoEdicionTicket(products[2]),'Rosca de Chocolate grande');
+""")
+
+
+def test_product_picker_requires_an_explicit_choice_before_saving():
+    node(HARNESS + r"""
+(async()=>{
+  const opening=abrirEdicionTicket();reads[0].resolve(context);await opening;
+  assert.match(fields['met-lines'].innerHTML,/role="combobox"/);
+  assert.match(fields['met-lines'].innerHTML,/aria-controls="met-options-0"/);
+  assert.match(fields['met-lines'].innerHTML,/role="listbox"/);
+  assert.equal(fields['met-search-0'].value,'Original');
+  abrirProductosTicket(0);
+  fields['met-search-0'].value='Otro';buscarProductosTicket(0);
+  assert.equal(fields['met-save'].disabled,true);
+  assert.equal(fields['met-total'].textContent,'$190.00');
+  assert.equal(fields['met-item-0'].value,'');
+  assert.equal(fields['met-search-0'].attributes['aria-expanded'],'true');
+  assert.throws(()=>datosEdicionTicket(_ticketEdicion),/Elige un producto/);
+  fields['met-motivo'].value='Correccion de prueba';await guardarEdicionTicket();
+  assert.equal(calls.length,0);assert.equal(authorize,undefined);
+  elegirProductoTicket(0,2);
+  assert.equal(fields['met-search-0'].value,'Otro');
+  assert.equal(fields['met-name-0'].textContent,'Otro');
+  assert.equal(fields['met-save'].disabled,false);
+  assert.equal(fields['met-menu-0'].hidden,true);
+  assert.equal(fields['met-search-0'].attributes['aria-expanded'],'false');
+  assert.equal(fields['met-search-0'].attributes['aria-activedescendant'],undefined);
+  assert.deepEqual(datosEdicionTicket(_ticketEdicion),{detalles:[{id:1,producto_id:2}],total:190});
+  elegirProductoTicket(0,999);assert.equal(fields['met-item-0'].value,'2');
+  fields['met-item-0'].value='999';assert.throws(()=>datosEdicionTicket(_ticketEdicion));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+""")
+
+
+def test_product_picker_keyboard_and_blur_never_commit_a_search():
+    node(HARNESS + r"""
+(async()=>{
+  const opening=abrirEdicionTicket();reads[0].resolve(context);await opening;
+  const key=(name,extra={})=>{
+    const event={key:name,prevented:false,stopped:false,
+      preventDefault(){this.prevented=true;},stopPropagation(){this.stopped=true;},...extra};
+    teclasProductosTicket(0,event);return event;
+  };
+  key('ArrowDown');assert.equal(_ticketEdicion.selectores[0].activo,0);
+  key('ArrowDown');assert.equal(_ticketEdicion.selectores[0].activo,1);
+  key('ArrowDown');assert.equal(_ticketEdicion.selectores[0].activo,1);
+  assert.equal(fields['met-search-0'].attributes['aria-activedescendant'],'met-option-0-1');
+  assert.equal(key('Enter').prevented,true);assert.equal(fields['met-item-0'].value,'2');
+  abrirProductosTicket(0);fields['met-search-0'].value='no existe';buscarProductosTicket(0);
+  assert.equal(fields['met-status-0'].textContent,'Sin coincidencias');
+  assert.equal(fields['met-options-0'].innerHTML,'');
+  key('Enter');assert.equal(fields['met-item-0'].value,'');
+  assert.equal(key('Escape').stopped,true);assert.equal(fields['met-item-0'].value,'2');
+  assert.equal(_ticketEdicion!==null,true);assert.equal(fields['met-search-0'].value,'Otro');
+  abrirProductosTicket(0);fields['met-search-0'].value='Original';buscarProductosTicket(0);
+  key('Enter',{isComposing:true});assert.equal(fields['met-item-0'].value,'');
+  key('Tab');assert.equal(fields['met-item-0'].value,'2');
+  abrirProductosTicket(0);key('ArrowUp');assert.equal(_ticketEdicion.selectores[0].activo,1);
+  key('ArrowUp');assert.equal(_ticketEdicion.selectores[0].activo,0);
+  key('ArrowUp');assert.equal(_ticketEdicion.selectores[0].activo,0);
+  fields['met-search-0'].value='Original';buscarProductosTicket(0);
+  salirProductosTicket(0,{relatedTarget:{},currentTarget:{contains(){return true;}}});
+  assert.equal(_ticketEdicion.selectores[0].abierto,true);
+  salirProductosTicket(0,{relatedTarget:null,currentTarget:{contains(){return false;}}});
+  assert.equal(fields['met-item-0'].value,'2');assert.equal(fields['met-menu-0'].hidden,true);
+})().catch(e=>{console.error(e);process.exitCode=1;});
+""")
+
+
+def test_product_picker_keeps_unlisted_original_and_shows_stock_without_disabling_swaps():
+    node(HARNESS + r"""
+(async()=>{
+  const opening=abrirEdicionTicket();reads[0].resolve({...context,productos:[
+    {id:2,nombre:'Nuevo <producto>',presentacion:'Grande',stock_actual:'0.0000',unidad_medida:'pz'}]});await opening;
+  assert.equal(fields['met-search-0'].value,'Original');
+  assert.equal(datosEdicionTicket(_ticketEdicion).detalles[0].producto_id,1);
+  abrirProductosTicket(0);
+  assert.match(fields['met-options-0'].innerHTML,/Producto original fuera del cat&aacute;logo/);
+  assert.match(fields['met-options-0'].innerHTML,/Existencias: 0 pzas/);
+  assert.match(fields['met-options-0'].innerHTML,/Nuevo &lt;producto&gt;/);
+  elegirProductoTicket(0,2);assert.equal(fields['met-search-0'].value,'Nuevo <producto> - Grande');
+  assert.equal(fields['met-save'].disabled,false);
+  elegirProductoTicket(0,1);assert.equal(fields['met-save'].disabled,true);
+})().catch(e=>{console.error(e);process.exitCode=1;});
+""")
+
+
+def test_product_picker_isolates_multiple_lines_and_resets_when_switching_modes():
+    node(HARNESS + r"""
+(async()=>{
+  const opening=abrirEdicionTicket();reads[0].resolve({...context,venta:{...context.venta,
+    detalles:[...context.venta.detalles,{...context.venta.detalles[0],id:2}]}});await opening;
+  elegirProductoTicket(0,2);abrirProductosTicket(1);
+  fields['met-search-1'].value='Original';buscarProductosTicket(1);
+  assert.equal(fields['met-save'].disabled,true);
+  abrirProductosTicket(0);assert.equal(fields['met-item-1'].value,'1');
+  assert.deepEqual(datosEdicionTicket(_ticketEdicion).detalles,[{id:1,producto_id:2},{id:2,producto_id:1}]);
+  cambiarModoEdicionTicket('precios');assert.equal(_ticketEdicion.selectores.length,0);
+  elegirProductoTicket(0,2);assert.equal(_ticketEdicion.modo,'precios');
+  cambiarModoEdicionTicket('productos');assert.equal(fields['met-item-0'].value,'1');
+  assert.equal(fields['met-search-0'].value,'Original');
+  _versionSesion++;buscarProductosTicket(0);assert.equal(fields['met-item-0'].value,'1');
 })().catch(e=>{console.error(e);process.exitCode=1;});
 """)
 
