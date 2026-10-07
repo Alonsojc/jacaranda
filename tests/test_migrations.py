@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "b2c3d4e5f6a7 (head)"
+ALEMBIC_HEAD = "c4d5e6f7a8b9 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:
@@ -46,6 +46,7 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path):
     assert {"familia_id", "presentacion"}.issubset(producto_columns)
     assert "es_empaque" in ingrediente_columns
     assert "canal" in venta_columns
+    assert "edicion_revision" in venta_columns
     assert {"estado", "motivo_estado", "turno", "periodo_inicio", "periodo_fin"}.issubset(corte_columns)
     assert {"retiros", "fondo_entregado", "recibido_por"}.issubset(corte_columns)
 
@@ -62,6 +63,25 @@ def test_alembic_upgrade_head_on_precreated_schema(tmp_path):
     current = _run([sys.executable, "-m", "alembic", "current"], database_url)
 
     assert ALEMBIC_HEAD in current.stdout
+
+
+def test_ticket_revision_migration_keeps_old_ticket_and_is_repeatable(tmp_path):
+    db_path = tmp_path / "legacy_ticket.db"
+    url = f"sqlite:///{db_path}"
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript("""
+            CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY);
+            INSERT INTO alembic_version VALUES ('b2c3d4e5f6a7');
+            CREATE TABLE ventas (id INTEGER PRIMARY KEY, folio VARCHAR(30), total NUMERIC(14,2));
+            INSERT INTO ventas VALUES (1, 'T-TEST', 190);
+        """)
+    for _ in range(2):
+        _run([sys.executable, "-m", "alembic", "upgrade", "head"], url)
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT id, folio, total, edicion_revision FROM ventas").fetchone() == (1, "T-TEST", 190, 0)
+    _run([sys.executable, "-m", "alembic", "downgrade", "b2c3d4e5f6a7"], url)
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT id, folio, total FROM ventas").fetchone() == (1, "T-TEST", 190)
 
 
 def test_cash_handover_migration_preserves_legacy_cut(tmp_path):

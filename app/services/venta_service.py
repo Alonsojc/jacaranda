@@ -735,12 +735,7 @@ def cancelar_venta(
     motivo_limpio = (motivo or "").strip()
     if len(motivo_limpio) < 5:
         raise ValueError("El motivo de cancelación es obligatorio")
-    venta = (
-        db.query(Venta)
-        .filter(Venta.id == venta_id)
-        .with_for_update()
-        .first()
-    )
+    venta = bloquear_venta_y_caja(db, venta_id)
     if not venta:
         raise ValueError("Venta no encontrada")
     if venta.estado == EstadoVenta.CANCELADA:
@@ -1020,6 +1015,24 @@ def generar_ticket(db: Session, venta_id: int) -> dict:
 
 # --- Corte de caja ---
 
+def bloquear_dia_caja(db: Session, fecha: date) -> None:
+    """Serialize corrections and shift snapshots, including days without a cut row."""
+    connection = db.connection()
+    if connection.dialect.name == "postgresql":
+        db.execute(func.pg_advisory_xact_lock(674321, fecha.toordinal()).select())
+    elif connection.dialect.name == "sqlite":
+        if not connection.connection.driver_connection.in_transaction:
+            connection.exec_driver_sql("BEGIN IMMEDIATE")
+
+
+def bloquear_venta_y_caja(db: Session, venta_id: int) -> Venta:
+    fecha = db.query(Venta.fecha).filter(Venta.id == venta_id).scalar()
+    if fecha is None:
+        raise ValueError("Venta no encontrada")
+    bloquear_dia_caja(db, _fecha_hora_operacion(fecha).date())
+    return db.query(Venta).filter(Venta.id == venta_id).populate_existing().with_for_update().one()
+
+
 def _rango_dia_corte(fecha: date) -> tuple[datetime, datetime]:
     zona = _zona_operacion()
     return (
@@ -1231,6 +1244,8 @@ def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> 
     """Realiza el corte del turno actual y deja listo el siguiente."""
     corte_momento = datetime.now(timezone.utc)
     dia = _fecha_hora_operacion(corte_momento).date()
+    bloquear_dia_caja(db, dia)
+    corte_momento = datetime.now(timezone.utc)
     totales = _totales_corte(db, dia, hasta=corte_momento)
 
     efectivo_esperado, diferencia = _validar_diferencia_corte(

@@ -98,6 +98,7 @@ class Venta(Base):
         SAEnum(EstadoVenta), default=EstadoVenta.COMPLETADA, index=True
     )
     facturada: Mapped[bool] = mapped_column(Boolean, default=False)
+    edicion_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     notas: Mapped[str | None] = mapped_column(Text)
     fecha: Mapped[datetime] = mapped_column(
