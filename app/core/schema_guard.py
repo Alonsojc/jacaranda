@@ -302,6 +302,14 @@ def ensure_runtime_schema(engine: Engine) -> None:
                 engine,
                 "productos",
                 producto_columns,
+                "precio_cdmx",
+                Numeric(12, 2),
+            )
+            _add_column_if_missing(
+                conn,
+                engine,
+                "productos",
+                producto_columns,
                 "caja_ingrediente_id",
                 Integer(),
             )

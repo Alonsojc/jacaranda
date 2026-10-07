@@ -27,8 +27,8 @@ def _bloqueo_edicion(db: Session, venta: Venta) -> str | None:
         return "Este ticket tiene un comprobante fiscal; no se puede editar"
     if venta.pago_integrado or venta.pago_externo_id or any(p.pago_externo_id for p in venta.pagos):
         return "Este ticket tiene un pago integrado; corrige el pago desde su flujo original"
-    if venta.canal != "mostrador":
-        return "Solo se pueden corregir tickets de mostrador"
+    if venta.canal not in ("mostrador", "cdmx"):
+        return "Solo se pueden corregir tickets de mostrador o CDMX"
     if venta.recompensa_lealtad_canjeada:
         return "Este ticket canjeo una recompensa; requiere cancelar y registrar la venta correcta"
     fecha = _fecha_hora_operacion(venta.fecha).date()

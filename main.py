@@ -11,6 +11,8 @@ import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -187,6 +189,14 @@ app.add_middleware(
 
 # Rutas API
 app.include_router(api_router, prefix="/api/v1")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    if request.url.path.rstrip("/") == "/api/v1/auth/clave-autorizacion":
+        # Validation errors can otherwise echo the credential request body.
+        return JSONResponse(status_code=422, content={"detail": "Completa los tres campos de la clave correctamente"})
+    return await request_validation_exception_handler(request, exc)
 
 
 # ─── Request logging middleware ─────────────────────────────────────

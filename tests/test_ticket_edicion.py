@@ -61,6 +61,25 @@ def test_producto_conserva_importes_y_corrige_stock_y_empaque(db, admin_user, ti
     assert json.loads(audit.datos_nuevos)["detalles"][0]["producto_id"] == productos[1].id
 
 
+def test_api_ticket_acepta_clave_separada_y_rechaza_login_admin(client, auth_headers, ticket, db):
+    venta, productos, _ = ticket
+    response = client.put("/api/v1/auth/clave-autorizacion", headers=auth_headers, json={
+        "password_actual": "test1234", "nueva_clave": "approval-test-only", "confirmacion": "approval-test-only",
+    })
+    assert response.status_code == 200
+    url = f"/api/v1/punto-de-venta/ventas/{venta.id}"
+    data = payload(venta, producto_id=productos[1].id)
+    protected = {**auth_headers, "X-Admin-Override-Motivo": "Prueba de clave separada"}
+    wrong = client.patch(url, json=data, headers={**protected, "X-Admin-Override-Password": "test1234"})
+    assert wrong.status_code == 403
+    changed = client.patch(url, json=data, headers={**protected, "X-Admin-Override-Password": "approval-test-only"})
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["edicion_revision"] == 1
+    assert changed.json()["detalles"][0]["producto_id"] == productos[1].id
+    audit = db.query(LogAuditoria).filter_by(accion="autorizar").one()
+    assert json.loads(audit.datos_nuevos)["metodo"] == "clave_autorizacion"
+
+
 def test_precio_corrige_totales_y_cambio_sin_mover_stock(db, admin_user, ticket):
     venta, productos, cajas = ticket
     count = db.query(MovimientoInventario).count()
@@ -76,6 +95,17 @@ def test_precio_corrige_totales_y_cambio_sin_mover_stock(db, admin_user, ticket)
     assert resumen["total_ventas"] == Decimal("290")
     assert resumen["total_ventas_efectivo"] == Decimal("290")
     assert generar_ticket(db, venta.id)["total"] == "$290.00"
+
+
+def test_ticket_cdmx_se_corrige_con_las_mismas_protecciones(db, admin_user, ticket):
+    venta, productos, _ = ticket
+    venta.canal = "cdmx"
+    db.commit()
+    changed = corregir(db, admin_user, venta, producto_id=productos[1].id)
+    assert changed.canal == "cdmx"
+    assert changed.total == Decimal("190.00")
+    assert productos[0].stock_actual == Decimal("10")
+    assert productos[1].stock_actual == Decimal("8")
 
 
 def test_precio_respeta_iva_y_pago_bbva(db, admin_user, ticket):

@@ -110,7 +110,7 @@ def test_hidden_ingredient_purchase_has_no_dead_egresos_action():
     assert "invTab('compras')" not in egresos
 
 
-def test_sales_are_one_touch_first_module_with_three_clear_menus():
+def test_sales_are_one_touch_first_module_with_four_clear_menus():
     html = read_text("docs/index.html")
     nav = segment_between(html, '<div class="nav-links">', '</nav>')
     operation = segment_between(nav, '<a>Operaci&oacute;n</a>', '<div class="nav-group" data-roles-group="ADMINISTRADOR,GERENTE,CONTADOR,CONSULTA">')
@@ -127,6 +127,9 @@ def test_sales_are_one_touch_first_module_with_three_clear_menus():
     assert html.count('data-sales-mode="mostrador"') == 2
     assert html.count('data-sales-mode="cafeterias"') == 2
     assert html.count('data-sales-mode="uber_eats"') == 2
+    assert html.count('data-sales-mode="cdmx"') == 2
+    assert 'id="mnp-precio-cdmx"' in html
+    assert 'id="mep-precio-cdmx"' in html
     assert '<div class="page-actions">' not in cafeteria_header
     assert '</div>\n<div class="cafeteria-tools"' in cafeteria_header
     assert "async function cambiarModoVenta" in html

@@ -5,11 +5,14 @@ Limita peticiones por IP sin dependencias externas.
 
 import time
 from collections import defaultdict
+from threading import Lock
 from fastapi import Request, Response
+from fastapi import HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # {ip: [timestamp1, timestamp2, ...]}
 _requests: dict[str, list[float]] = defaultdict(list)
+_authorization_lock = Lock()
 
 # Config
 RATE_LIMIT = 900  # requests per window; dashboard opens several reads per device
@@ -34,6 +37,20 @@ def _get_client_ip(request: Request) -> str:
 def _cleanup_old(entries: list[float], window: float) -> list[float]:
     cutoff = time.time() - window
     return [t for t in entries if t > cutoff]
+
+
+def check_authorization_rate_limit(user_id: int) -> None:
+    """Limit credential checks across all sensitive actions for this user."""
+    key = f"authorization:{user_id}"
+    with _authorization_lock:
+        _requests[key] = _cleanup_old(_requests[key], AUTH_RATE_WINDOW)
+        if len(_requests[key]) >= AUTH_RATE_LIMIT:
+            raise HTTPException(
+                status_code=429,
+                detail="Demasiados intentos de autorizacion. Espera un minuto.",
+                headers={"Retry-After": str(AUTH_RATE_WINDOW)},
+            )
+        _requests[key].append(time.time())
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

@@ -217,7 +217,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .action-label{white-space:nowrap}
 .product-actions-table{min-width:1480px}
 .product-actions-table .col-code{width:105px}
-.product-actions-table .col-price,.product-actions-table .col-caf-price,.product-actions-table .col-uber-price,.product-actions-table .col-cost{width:105px}
+.product-actions-table .col-price,.product-actions-table .col-caf-price,.product-actions-table .col-uber-price,.product-actions-table .col-cdmx-price,.product-actions-table .col-cost{width:105px}
 .product-actions-table .col-stock{width:120px}
 .product-actions-table .col-min{width:72px}
 .product-actions-table .col-status{width:118px}
@@ -540,7 +540,7 @@ input:not([type="checkbox"]):not([type="radio"]),select,textarea{font-size:16px!
 @media(max-width:900px){
 input:not([type="checkbox"]):not([type="radio"]),select,textarea{min-height:44px;font-size:16px!important}
 .cobrar,.limpiar,.wa-btn,.pbtn,.tab,.mm-link,.catalog-icon-btn,.pos-tax-toggle{min-height:48px}
-.sales-header{align-items:stretch}.sales-mode-tabs{width:100%}.sales-mode-btn{flex:1 0 auto;min-height:50px;font-size:.85rem}
+.sales-header{align-items:stretch}.sales-mode-tabs{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.sales-mode-btn{min-width:0;min-height:50px;font-size:.85rem}
 #pos .tkt{position:static;bottom:auto;z-index:auto}
 #pos .tkt.mobile-open{display:block;position:fixed;left:50%;bottom:0;transform:translateX(-50%);z-index:82;width:min(100%,560px);max-height:88vh;max-height:88dvh;overflow-y:auto;border-radius:16px 16px 0 0;padding:1rem 1rem calc(1rem + env(safe-area-inset-bottom,0px));box-shadow:0 -12px 35px rgba(74,53,48,.24)}
 .pmt{grid-template-columns:repeat(2,minmax(0,1fr))!important}
@@ -603,10 +603,12 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div style="background:#fff;border-radius:16px;padding:2rem;width:90%;max-width:360px;box-shadow:0 8px 30px rgba(0,0,0,.1);text-align:center">
 <div style="font-family:'DM Serif Display',serif;font-size:1.6rem;color:var(--v);margin-bottom:.2rem">Jacaranda</div>
 <div style="font-size:.75rem;color:var(--mut);letter-spacing:.15em;margin-bottom:1.5rem">sharing flavors</div>
-<div class="fg"><label>Email</label><input type="email" id="login-email" placeholder="tu@email.com" value=""></div>
-<div class="fg"><label>Contrase&ntilde;a</label><div class="password-wrap"><input type="password" id="login-pass" placeholder="********" onkeydown="if(event.key==='Enter')hacerLogin()"><button type="button" class="password-toggle" onclick="togglePassword('login-pass', this)" aria-label="Mostrar contrase&ntilde;a" title="Mostrar contrase&ntilde;a">&#128065;</button></div></div>
-<button class="cobrar" style="width:100%;margin-top:.5rem" onclick="hacerLogin()">Entrar</button>
+<form id="login-form" method="post" autocomplete="on" onsubmit="event.preventDefault();hacerLogin()">
+<div class="fg"><label for="login-email">Email</label><input type="email" id="login-email" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="tu@email.com"></div>
+<div class="fg"><label for="login-pass">Contrase&ntilde;a</label><div class="password-wrap"><input type="password" id="login-pass" name="password" autocomplete="current-password" required placeholder="********"><button type="button" class="password-toggle" onclick="togglePassword('login-pass', this)" aria-label="Mostrar contrase&ntilde;a" title="Mostrar contrase&ntilde;a">&#128065;</button></div></div>
+<button type="submit" id="login-submit" class="cobrar" style="width:100%;margin-top:.5rem">Entrar</button>
 <p id="login-error" style="color:#b91c1c;font-size:.82rem;margin-top:.5rem;display:none"></p>
+</form>
 </div>
 </div>
 <nav role="navigation" aria-label="Navegaci&oacute;n principal">
@@ -817,6 +819,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <button type="button" class="sales-mode-btn active" data-sales-mode="mostrador" data-module="pos" onclick="cambiarModoVenta('mostrador')" role="tab" aria-label="Men&uacute; de punto de venta" aria-selected="true">Punto de venta</button>
 <button type="button" class="sales-mode-btn" data-sales-mode="cafeterias" data-module="cafeteria" onclick="cambiarModoVenta('cafeterias')" role="tab" aria-label="Men&uacute; de cafeter&iacute;as" aria-selected="false">Cafeter&iacute;as</button>
 <button type="button" class="sales-mode-btn" data-sales-mode="uber_eats" data-module="pos" onclick="cambiarModoVenta('uber_eats')" role="tab" aria-label="Men&uacute; de Uber Eats" aria-selected="false">Uber Eats</button>
+<button type="button" class="sales-mode-btn" data-sales-mode="cdmx" data-module="pos" onclick="cambiarModoVenta('cdmx')" role="tab" aria-label="Men&uacute; de CDMX" aria-selected="false">CDMX</button>
 </div>
 </div>
 <div class="pos-grid">
@@ -899,6 +902,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <button type="button" class="sales-mode-btn" data-sales-mode="mostrador" data-module="pos" onclick="cambiarModoVenta('mostrador')" role="tab" aria-label="Men&uacute; de punto de venta" aria-selected="false">Punto de venta</button>
 <button type="button" class="sales-mode-btn active" data-sales-mode="cafeterias" data-module="cafeteria" onclick="cambiarModoVenta('cafeterias')" role="tab" aria-label="Men&uacute; de cafeter&iacute;as" aria-selected="true">Cafeter&iacute;as</button>
 <button type="button" class="sales-mode-btn" data-sales-mode="uber_eats" data-module="pos" onclick="cambiarModoVenta('uber_eats')" role="tab" aria-label="Men&uacute; de Uber Eats" aria-selected="false">Uber Eats</button>
+<button type="button" class="sales-mode-btn" data-sales-mode="cdmx" data-module="pos" onclick="cambiarModoVenta('cdmx')" role="tab" aria-label="Men&uacute; de CDMX" aria-selected="false">CDMX</button>
 </div>
 </div>
 <div class="cafeteria-tools" aria-label="Acciones de cafeter&iacute;as">
@@ -1715,6 +1719,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 <div class="page-actions">
 <button class="limpiar" style="padding:.4rem .8rem;font-size:.78rem;margin:0" onclick="descargarBackup()">&#128190; Backup BD</button>
+<button type="button" class="limpiar" style="width:auto;min-height:44px;margin:0" onclick="abrirClaveAutorizacion()">&#128273; Clave de autorizaci&oacute;n</button>
 <button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="abrirNuevoUsuario()">+ Nuevo Usuario</button>
 </div>
 </div>
@@ -2560,10 +2565,13 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 <div class="frow">
 <div class="fg"><label>Precio Uber Eats</label><input type="number" id="mnp-precio-uber" step="0.01" min="0.01" placeholder="Opcional"></div>
-<div class="fg"><label>Costo producci&oacute;n</label><input type="number" id="mnp-costo" step="0.01" min="0" placeholder="35"></div>
+<div class="fg"><label>Precio CDMX</label><input type="number" id="mnp-precio-cdmx" step="0.01" min="0.01" placeholder="Opcional"></div>
 </div>
 <div class="frow">
+<div class="fg"><label>Costo producci&oacute;n</label><input type="number" id="mnp-costo" step="0.01" min="0" placeholder="35"></div>
 <div class="fg"><label>Stock m&iacute;nimo</label><input type="number" id="mnp-minimo" step="1" value="0"></div>
+</div>
+<div class="frow">
 <div class="fg"><label>Caja/empaque</label><select id="mnp-caja"><option value="">Sin caja asignada</option></select></div>
 </div>
 <div class="frow">
@@ -2662,10 +2670,13 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 <div class="frow">
 <div class="fg"><label>Precio Uber Eats</label><input type="number" id="mep-precio-uber" step="0.01" min="0.01" placeholder="Opcional"></div>
-<div class="fg"><label>Costo producci&oacute;n</label><input type="number" id="mep-costo" step="0.01" min="0"></div>
+<div class="fg"><label for="mep-precio-cdmx">Precio CDMX</label><div style="display:flex;gap:.4rem;align-items:center"><input type="number" id="mep-precio-cdmx" step="0.01" min="0.01" placeholder="Opcional" style="min-width:0;flex:1"><button type="button" id="mep-guardar-cdmx" class="catalog-icon-btn" style="flex:0 0 44px;height:44px" onclick="guardarPrecioCdmx()" aria-label="Guardar solo precio CDMX" title="Guardar solo precio CDMX">&#128190;</button></div></div>
 </div>
 <div class="frow">
+<div class="fg"><label>Costo producci&oacute;n</label><input type="number" id="mep-costo" step="0.01" min="0"></div>
 <div class="fg"><label>Stock m&iacute;nimo (alerta)</label><input type="number" id="mep-minimo" step="1"></div>
+</div>
+<div class="frow">
 <div class="fg"><label>Caja/empaque</label><select id="mep-caja"><option value="">Sin caja asignada</option></select></div>
 </div>
 <div class="frow">
@@ -2938,14 +2949,14 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 </div>
 
-<!-- MODAL: Nuevo Usuario -->
+<!-- MODAL: Usuario -->
 <div class="modal-bg" id="modal-usuario">
 <div class="modal" style="max-width:400px">
-<h3>Nuevo usuario</h3>
-<div class="fg"><label>Nombre</label><input id="mu-nombre" placeholder="Mar&iacute;a L&oacute;pez"></div>
-<div class="fg"><label>Email</label><input type="email" id="mu-email" placeholder="maria@jacaranda.mx"></div>
-<div class="fg"><label>Contrase&ntilde;a</label><div class="password-wrap"><input type="password" id="mu-pass" placeholder="M&iacute;nimo 8 caracteres"><button type="button" class="password-toggle" onclick="togglePassword('mu-pass', this)" aria-label="Mostrar contrase&ntilde;a" title="Mostrar contrase&ntilde;a">&#128065;</button></div></div>
-<div class="fg"><label>Rol</label><select id="mu-rol">
+<h3 id="mu-title">Nuevo usuario</h3>
+<div class="fg"><label for="mu-nombre">Nombre</label><input id="mu-nombre" maxlength="100" placeholder="Mar&iacute;a L&oacute;pez"></div>
+<div class="fg"><label for="mu-email">Email</label><input type="email" id="mu-email" placeholder="maria@jacaranda.mx"></div>
+<div class="fg" id="mu-pass-wrap"><label for="mu-pass">Contrase&ntilde;a</label><div class="password-wrap"><input type="password" id="mu-pass" placeholder="M&iacute;nimo 8 caracteres" autocomplete="new-password"><button type="button" class="password-toggle" onclick="togglePassword('mu-pass', this)" aria-label="Mostrar contrase&ntilde;a" title="Mostrar contrase&ntilde;a">&#128065;</button></div></div>
+<div class="fg"><label for="mu-rol">Rol</label><select id="mu-rol" onchange="actualizarOpcionesRol()">
 <option value="cajero">Cajero(a)</option>
 <option value="produccion">Producci&oacute;n</option>
 <option value="consulta">Consulta</option>
@@ -2955,9 +2966,25 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <option value="contador">Contador(a)</option>
 <option value="administrador">Administrador</option>
 </select></div>
+<div class="fg" id="mu-permisos-wrap" style="display:none"><label style="display:flex;align-items:center;gap:.5rem"><input type="checkbox" id="mu-restablecer" style="width:auto" checked> Aplicar permisos del nuevo rol</label></div>
 <div style="display:flex;gap:.5rem;margin-top:1rem">
-<button class="cobrar" style="flex:1" onclick="guardarNuevoUsuario()">Crear usuario</button>
+<button class="cobrar" id="mu-guardar" style="flex:1;min-height:44px" onclick="guardarNuevoUsuario()">Crear usuario</button>
 <button class="limpiar" style="flex:1" onclick="cerrarModal('modal-usuario')">Cancelar</button>
+</div>
+</div>
+</div>
+
+<div class="modal-bg" id="modal-clave-autorizacion">
+<div class="modal" style="max-width:400px">
+<h3>Clave de autorizaci&oacute;n</h3>
+<p id="mca-estado" role="status" style="color:var(--mut);font-size:.83rem"></p>
+<button type="button" class="limpiar" id="mca-reintentar" style="display:none;min-height:44px" onclick="abrirClaveAutorizacion()">Reintentar</button>
+<div class="fg"><label for="mca-actual">Tu contrase&ntilde;a de inicio de sesi&oacute;n</label><input type="password" id="mca-actual" autocomplete="current-password"></div>
+<div class="fg"><label for="mca-nueva">Nueva clave de autorizaci&oacute;n</label><input type="password" id="mca-nueva" autocomplete="new-password" placeholder="M&iacute;nimo 8 caracteres"></div>
+<div class="fg"><label for="mca-confirmacion">Confirmar nueva clave</label><input type="password" id="mca-confirmacion" autocomplete="new-password"></div>
+<div style="display:flex;gap:.5rem;margin-top:1rem">
+<button type="button" class="cobrar" id="mca-guardar" style="flex:1;min-height:44px" onclick="guardarClaveAutorizacion()">Guardar clave</button>
+<button type="button" class="limpiar" style="flex:1;min-height:44px" onclick="cerrarModal('modal-clave-autorizacion')">Cancelar</button>
 </div>
 </div>
 </div>
@@ -2967,10 +2994,10 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="modal" style="max-width:360px">
 <h3>Autorizaci&oacute;n requerida</h3>
 <p id="maa-msg" style="font-size:.83rem;color:var(--mut);line-height:1.4;margin-bottom:.8rem"></p>
-<div class="fg"><label>Contrase&ntilde;a de administrador</label><div class="password-wrap"><input type="password" id="maa-pass" placeholder="Contrase&ntilde;a" onkeydown="if(event.key==='Enter')confirmarAdminAuth()"><button type="button" class="password-toggle" onclick="togglePassword('maa-pass', this)" aria-label="Mostrar contrase&ntilde;a" title="Mostrar contrase&ntilde;a">&#128065;</button></div></div>
+<div class="fg"><label id="maa-label" for="maa-pass">Clave de autorizaci&oacute;n</label><div class="password-wrap"><input type="password" id="maa-pass" placeholder="Clave" autocomplete="off" onkeydown="if(event.key==='Enter')confirmarAdminAuth()"><button type="button" class="password-toggle" onclick="togglePassword('maa-pass', this)" aria-label="Mostrar clave" title="Mostrar clave">&#128065;</button></div></div>
 <div class="fg"><label>Motivo</label><textarea id="maa-motivo" rows="3" placeholder="Error de captura, correcci&oacute;n autorizada..."></textarea></div>
 <div style="display:flex;gap:.5rem;margin-top:1rem">
-<button class="cobrar" style="flex:1" onclick="confirmarAdminAuth()">Autorizar</button>
+<button class="cobrar" id="maa-autorizar" style="flex:1;min-height:44px" onclick="confirmarAdminAuth()">Autorizar</button>
 <button class="limpiar" style="flex:1" onclick="cancelarAdminAuth()">Cancelar</button>
 </div>
 </div>
@@ -3011,7 +3038,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v109';
+var APP_BUILD = 'jacaranda-v110';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -3152,6 +3179,9 @@ var _pedidoDatosCargados = false;
 
 function invalidarTareasSesion() {
   _versionSesion++;
+  cancelarAdminAuth();
+  cerrarClaveAutorizacion(true);
+  cerrarUsuario();
   if (_ticketEdicion) {
     _ticketEdicion = null;
     document.getElementById('modal-ticket-editar').classList.remove('on');
@@ -3958,18 +3988,35 @@ function actualizarVisibilidadFinanzasCorte() {
 var _adminAuthPending = null;
 
 function pedirPasswordAdmin(accion, forzada) {
+  cancelarAdminAuth();
   return new Promise(function(resolve, reject) {
-    _adminAuthPending = {resolve: resolve, reject: reject};
-    document.getElementById('maa-msg').textContent = forzada
-      ? 'Escribe la contraseña del administrador para confirmar esta acción.'
-      : 'Para ' + accion + ', pide a un administrador que autorice esta acción.';
+    var pending = {resolve:resolve, reject:reject, version:_versionSesion, lista:false};
+    _adminAuthPending = pending;
+    document.getElementById('maa-msg').textContent = 'Cargando autorizaci\u00f3n...';
     var passInput = document.getElementById('maa-pass');
     var motivoInput = document.getElementById('maa-motivo');
     passInput.value = '';
     passInput.type = 'password';
+    passInput.disabled = true;
+    document.getElementById('maa-autorizar').disabled = true;
     motivoInput.value = '';
     document.getElementById('modal-admin-auth').classList.add('on');
-    setTimeout(function() { passInput.focus(); }, 50);
+    apiLecturaRecuperable('/auth/clave-autorizacion').then(function(estado) {
+      if (_adminAuthPending !== pending || pending.version !== _versionSesion) return;
+      var label = estado.configurada ? 'Clave de autorizaci\u00f3n' : 'Contrase\u00f1a de administrador';
+      document.getElementById('maa-label').textContent = label;
+      document.getElementById('maa-msg').textContent = 'Para ' + accion + ', escribe la ' + label.toLowerCase() + '.';
+      passInput.placeholder = estado.configurada ? 'Clave de autorizaci\u00f3n' : 'Contrase\u00f1a';
+      passInput.disabled = false;
+      document.getElementById('maa-autorizar').disabled = false;
+      pending.lista = true;
+      passInput.focus();
+    }).catch(function(e) {
+      if (_adminAuthPending !== pending) return;
+      _adminAuthPending = null;
+      limpiarAdminAuth();
+      reject(e);
+    });
   });
 }
 
@@ -3979,14 +4026,15 @@ function pedirPasswordAdminSiHaceFalta(accion) {
 }
 
 function confirmarAdminAuth() {
-  if (!_adminAuthPending) return;
+  if (!_adminAuthPending || !_adminAuthPending.lista) return;
+  if (_adminAuthPending.version !== _versionSesion) { cancelarAdminAuth(); return; }
   var pass = document.getElementById('maa-pass').value;
   var motivo = document.getElementById('maa-motivo').value.trim();
-  if (!pass) { toast('Ingresa la contraseña de administrador', true); return; }
+  if (!pass) { toast('Ingresa la clave de autorizaci\u00f3n', true); return; }
   if (!motivo) { toast('Escribe el motivo de la autorización', true); return; }
   var pending = _adminAuthPending;
   _adminAuthPending = null;
-  document.getElementById('modal-admin-auth').classList.remove('on');
+  limpiarAdminAuth();
   pending.resolve({
     'X-Admin-Override-Password': pass,
     'X-Admin-Override-Motivo': encodeURIComponent(motivo)
@@ -3994,14 +4042,17 @@ function confirmarAdminAuth() {
 }
 
 function cancelarAdminAuth() {
-  if (!_adminAuthPending) {
-    document.getElementById('modal-admin-auth').classList.remove('on');
-    return;
-  }
   var pending = _adminAuthPending;
   _adminAuthPending = null;
+  limpiarAdminAuth();
+  if (pending) pending.reject(new Error('Autorización cancelada'));
+}
+
+function limpiarAdminAuth() {
+  document.getElementById('maa-pass').value = '';
+  document.getElementById('maa-pass').type = 'password';
+  document.getElementById('maa-motivo').value = '';
   document.getElementById('modal-admin-auth').classList.remove('on');
-  pending.reject(new Error('Autorización cancelada'));
 }
 
 function apiProtegida(method, path, body, accion) {
@@ -4456,7 +4507,7 @@ function irKpiDashboard(tipo) {
 
 // ─── POS ──────────────────────────────────────────────────────────
 function actualizarModoVentaUI(modo) {
-  modo = modo === 'cafeterias' ? 'cafeterias' : (modo === 'uber_eats' ? 'uber_eats' : 'mostrador');
+  modo = ['cafeterias', 'uber_eats', 'cdmx'].indexOf(modo) >= 0 ? modo : 'mostrador';
   document.querySelectorAll('.sales-mode-btn').forEach(function(button) {
     var active = button.getAttribute('data-sales-mode') === modo;
     button.classList.toggle('active', active);
@@ -4466,14 +4517,15 @@ function actualizarModoVentaUI(modo) {
   var title = document.getElementById('pos-ticket-title');
   var badge = document.getElementById('pos-mode-badge');
   var search = document.getElementById('pos-search');
-  if (copy) copy.textContent = modo === 'uber_eats'
-    ? 'Venta con precios configurados para Uber Eats.'
-    : 'Venta directa en mostrador.';
-  if (title) title.textContent = modo === 'uber_eats' ? 'Ticket Uber Eats' : 'Ticket mostrador';
-  if (badge) badge.classList.toggle('on', modo === 'uber_eats');
+  if (copy) copy.textContent = modo === 'uber_eats' ? 'Uber Eats' : (modo === 'cdmx' ? 'CDMX' : 'Venta directa en mostrador.');
+  if (title) title.textContent = modo === 'uber_eats' ? 'Ticket Uber Eats' : (modo === 'cdmx' ? 'Ticket CDMX' : 'Ticket mostrador');
+  if (badge) {
+    badge.classList.toggle('on', modo === 'uber_eats' || modo === 'cdmx');
+    badge.textContent = modo === 'cdmx' ? 'CDMX' : 'Precios y venta de Uber Eats';
+  }
   var uberPreparacion = document.getElementById('uber-preparacion-btn');
   if (uberPreparacion) uberPreparacion.style.display = modo === 'uber_eats' && esAdminActual() ? 'inline-flex' : 'none';
-  if (search) search.placeholder = modo === 'uber_eats' ? 'Buscar en menú Uber Eats...' : 'Buscar producto...';
+  if (search) search.placeholder = modo === 'uber_eats' ? 'Buscar en menú Uber Eats...' : (modo === 'cdmx' ? 'Buscar en CDMX...' : 'Buscar producto...');
 }
 
 async function abrirPreparacionUber() {
@@ -4549,12 +4601,12 @@ async function cambiarModoVenta(modo) {
     toast('No tienes permiso para punto de venta', true);
     return;
   }
-  modo = modo === 'uber_eats' ? 'uber_eats' : 'mostrador';
+  modo = ['uber_eats', 'cdmx'].indexOf(modo) >= 0 ? modo : 'mostrador';
   if (_posCanal !== modo && cart.length) {
     var ok = await confirmarAccion({
       title: 'Cambiar menú de venta',
       message: '¿Cambiar de menú y limpiar el ticket actual?',
-      detail: 'Los precios de mostrador y Uber Eats son diferentes.',
+      detail: 'Se conservará una sola lista de precios en cada ticket.',
       acceptText: 'Cambiar menú',
       tone: 'danger'
     });
@@ -4571,6 +4623,7 @@ async function cambiarModoVenta(modo) {
 
 function precioProductoPOS(producto) {
   if (_posCanal === 'uber_eats') return parseFloat(producto.precio_uber_eats) || 0;
+  if (_posCanal === 'cdmx') return parseFloat(producto.precio_cdmx) || 0;
   return parseFloat(producto.precio_unitario) || 0;
 }
 
@@ -4639,7 +4692,7 @@ function restorePosDraft(u) {
     _posRestoringDraft = true;
     cart = items;
     _posDraftNeedsReconcile = true;
-    _posCanal = draft.channel === 'uber_eats' ? 'uber_eats' : 'mostrador';
+    _posCanal = ['uber_eats', 'cdmx'].indexOf(draft.channel) >= 0 ? draft.channel : 'mostrador';
     _posFacturaIvaActiva = !!draft.invoiceTax;
     pm = ['ef','clip','trans','bbva'].indexOf(draft.paymentMethod) >= 0 ? draft.paymentMethod : 'ef';
     var savedSaleKey = String(draft.idempotencyKey || '').trim();
@@ -4673,7 +4726,7 @@ function reconcilePosDraftWithProducts(products) {
       return null;
     }
     var price = Math.max(0, precioProductoPOS(product));
-    if (_posCanal === 'uber_eats' && price <= 0) {
+    if (_posCanal !== 'mostrador' && price <= 0) {
       removed++;
       return null;
     }
@@ -7132,7 +7185,7 @@ function renderPOSFromData(prods) {
     var activos = [];
     for (var i = 0; i < prods.length; i++) {
       if (!prods[i].activo) continue;
-      if (_posCanal === 'uber_eats' && precioProductoPOS(prods[i]) <= 0) continue;
+      if (_posCanal !== 'mostrador' && precioProductoPOS(prods[i]) <= 0) continue;
       activos.push(prods[i]);
     }
 
@@ -7207,6 +7260,9 @@ function renderPOSFromData(prods) {
     h += '</div>';
     if (!activos.length && _posCanal === 'uber_eats') {
       h = '<div class="empty-state"><div class="es-text">No hay productos con precio Uber Eats. Agr&eacute;galos en Listas &gt; Productos.</div></div>';
+    }
+    if (!activos.length && _posCanal === 'cdmx') {
+      h = '<div class="empty-state"><div class="es-text">Sin productos con precio CDMX.</div></div>';
     }
     document.getElementById('pos-products').innerHTML = h;
 }
@@ -10453,7 +10509,7 @@ function renderInvProductos() {
   var start = _invProdPage * _invProdPerPage;
   var page = filtered.slice(start, start + _invProdPerPage);
 
-  var h = '<table class="tbl product-actions-table"><colgroup><col class="col-code"><col><col class="col-price"><col class="col-caf-price"><col class="col-uber-price"><col class="col-stock"><col class="col-min"><col class="col-status"><col class="col-actions"></colgroup><tr><th>C&oacute;digo</th><th>Producto</th><th>Mostrador</th><th>Cafeter&iacute;a</th><th>Uber Eats</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
+  var h = '<table class="tbl product-actions-table"><colgroup><col class="col-code"><col><col class="col-price"><col class="col-caf-price"><col class="col-uber-price"><col class="col-cdmx-price"><col class="col-stock"><col class="col-min"><col class="col-status"><col class="col-actions"></colgroup><tr><th>C&oacute;digo</th><th>Producto</th><th>Mostrador</th><th>Cafeter&iacute;a</th><th>Uber Eats</th><th>CDMX</th><th>Stock</th><th>M&iacute;n</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
   for (var i = 0; i < page.length; i++) {
     var p = page[i];
     var stock = parseFloat(p.stock_actual) || 0;
@@ -10461,6 +10517,7 @@ function renderInvProductos() {
     var precio = parseFloat(p.precio_unitario) || 0;
     var precioCafe = parseFloat(p.precio_cafeteria) || 0;
     var precioUber = parseFloat(p.precio_uber_eats) || 0;
+    var precioCdmx = parseFloat(p.precio_cdmx) || 0;
     var cls = stock <= 0 ? 'bout' : stock <= min ? 'blow' : 'bok';
     var txt = stock <= 0 ? 'Agotado' : stock <= min ? 'Bajo' : 'OK';
     var esc = p.nombre.replace(/'/g,"\\'");
@@ -10470,6 +10527,7 @@ function renderInvProductos() {
     h += '<td>$' + fmt(precio) + '</td>';
     h += '<td>' + (precioCafe > 0 ? '$' + fmt(precioCafe) : '<span style="color:var(--mut)">&mdash;</span>') + '</td>';
     h += '<td>' + (precioUber > 0 ? '$' + fmt(precioUber) : '<span style="color:var(--mut)">&mdash;</span>') + '</td>';
+    h += '<td>' + (precioCdmx > 0 ? '$' + fmt(precioCdmx) : '<span style="color:var(--mut)">&mdash;</span>') + '</td>';
     h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline;cursor:pointer">' + Math.round(stock) + ' pzas</a></td>';
     h += '<td>' + Math.round(min) + '</td>';
     h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
@@ -10764,6 +10822,8 @@ document.addEventListener('keydown', function(e) {
 });
 
 function cerrarModal(id) {
+  if (id === 'modal-clave-autorizacion') { cerrarClaveAutorizacion(); return; }
+  if (id === 'modal-usuario') { cerrarUsuario(); return; }
   if (id === 'modal-ticket-editar') { cerrarEdicionTicket(); return; }
   if (id === 'modal-confirmacion') { resolverConfirmacion(false); return; }
   if (id === 'modal-entrada') { resolverEntrada(false); return; }
@@ -10778,6 +10838,7 @@ document.addEventListener('keydown', function(e) {
     if (document.getElementById('modal-admin-auth').classList.contains('on')) { cancelarAdminAuth(); return; }
     document.querySelectorAll('.modal-bg.on').forEach(function(m) {
       if (m.id === 'modal-admin-auth') cancelarAdminAuth();
+      else if (m.id === 'modal-clave-autorizacion' || m.id === 'modal-usuario') cerrarModal(m.id);
       else if (m.id === 'modal-ticket-editar') cerrarEdicionTicket();
       else if (m.id === 'modal-scan-cliente') cerrarModal('modal-scan-cliente');
       else if (m.id === 'modal-confirmacion') resolverConfirmacion(false);
@@ -10789,6 +10850,7 @@ document.addEventListener('keydown', function(e) {
 document.addEventListener('click', function(e) {
   if (e.target.classList.contains('modal-bg')) {
     if (e.target.id === 'modal-admin-auth') cancelarAdminAuth();
+    else if (e.target.id === 'modal-clave-autorizacion' || e.target.id === 'modal-usuario') cerrarModal(e.target.id);
     else if (e.target.id === 'modal-ticket-editar') cerrarEdicionTicket();
     else if (e.target.id === 'modal-scan-cliente') cerrarModal('modal-scan-cliente');
     else if (e.target.id === 'modal-confirmacion') resolverConfirmacion(false);
@@ -10812,6 +10874,7 @@ function editarProducto(id) {
     document.getElementById('mep-precio').value = parseFloat(p.precio_unitario);
     document.getElementById('mep-precio-caf').value = p.precio_cafeteria ? parseFloat(p.precio_cafeteria) : '';
     document.getElementById('mep-precio-uber').value = p.precio_uber_eats ? parseFloat(p.precio_uber_eats) : '';
+    document.getElementById('mep-precio-cdmx').value = p.precio_cdmx ? parseFloat(p.precio_cdmx) : '';
     document.getElementById('mep-costo').value = parseFloat(p.costo_produccion);
     document.getElementById('mep-minimo').value = parseFloat(p.stock_minimo);
     document.getElementById('mep-caja-cant').value = parseFloat(p.caja_cantidad || 1) || 1;
@@ -10851,10 +10914,44 @@ function previewProductImage(input) {
   reader.readAsDataURL(file);
 }
 
+var _guardandoPrecioCdmx = false;
+function guardarPrecioCdmx() {
+  if (_guardandoPrecioCdmx) return Promise.resolve();
+  var id = document.getElementById('mep-id').value;
+  var input = document.getElementById('mep-precio-cdmx');
+  if (!id || !input.checkValidity()) { toast('Escribe un precio CDMX v\u00e1lido', true); return Promise.resolve(); }
+  var precio = input.value ? Number(input.value) : null;
+  if (precio !== null && (!isFinite(precio) || precio <= 0)) { toast('El precio CDMX debe ser mayor a cero', true); return Promise.resolve(); }
+  var version = _versionSesion;
+  var boton = document.getElementById('mep-guardar-cdmx');
+  _guardandoPrecioCdmx = true;
+  boton.disabled = true;
+  return pedirPasswordAdminSiHaceFalta('editar precio CDMX').then(function(headers) {
+    if (version !== _versionSesion || document.getElementById('mep-id').value !== id
+        || !document.getElementById('modal-edit-prod').classList.contains('on')) throw new Error('Edicion cancelada');
+    return api('PUT', '/inventario/productos/' + id, {precio_cdmx:precio}, false, headers, version);
+  }).then(function() {
+    if (version !== _versionSesion || document.getElementById('mep-id').value !== id) return;
+    toast('Precio CDMX guardado');
+    cargarListaProductos();
+    cargarPOSProductos();
+  }).catch(function(e) {
+    if (version === _versionSesion && document.getElementById('mep-id').value === id) toast(e.message || 'No se pudo guardar el precio CDMX', true);
+  }).finally(function() {
+    _guardandoPrecioCdmx = false;
+    boton.disabled = false;
+  });
+}
+
 function guardarProducto() {
   var id = document.getElementById('mep-id').value;
   var precioCafeRaw = document.getElementById('mep-precio-caf').value;
   var precioUberRaw = document.getElementById('mep-precio-uber').value;
+  var precioCdmxRaw = document.getElementById('mep-precio-cdmx').value;
+  if (precioCdmxRaw && (!isFinite(Number(precioCdmxRaw)) || Number(precioCdmxRaw) <= 0)) {
+    toast('El precio CDMX debe ser mayor a cero', true);
+    return;
+  }
   var precioMostrador = parseFloat(document.getElementById('mep-precio').value);
   if (!isFinite(precioMostrador) || precioMostrador <= 0) {
     toast('El precio de mostrador debe ser mayor a cero', true);
@@ -10872,6 +10969,7 @@ function guardarProducto() {
     precio_unitario: precioMostrador,
     precio_cafeteria: precioCafeRaw ? parseFloat(precioCafeRaw) : null,
     precio_uber_eats: precioUberRaw ? parseFloat(precioUberRaw) : null,
+    precio_cdmx: precioCdmxRaw ? Number(precioCdmxRaw) : null,
     costo_produccion: parseFloat(document.getElementById('mep-costo').value),
     stock_minimo: parseFloat(document.getElementById('mep-minimo').value),
     caja_ingrediente_id: cajaPayload.caja_ingrediente_id,
@@ -11165,7 +11263,7 @@ function cargarListaProductos() {
       _cajasProductoFetchIntentado = true;
       cargarIngredientesParaCajas().then(cargarListaProductos).catch(function() {});
     }
-    var h = '<table class="tbl product-actions-table"><colgroup><col class="col-code"><col><col class="col-price"><col class="col-caf-price"><col class="col-uber-price"><col class="col-cost"><col class="col-stock"><col class="col-min"><col class="col-actions"></colgroup><tr><th>C&oacute;digo</th><th>Producto</th><th>Mostrador</th><th>Cafeter&iacute;a</th><th>Uber Eats</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th class="actions-th">Acciones</th></tr>';
+    var h = '<table class="tbl product-actions-table"><colgroup><col class="col-code"><col><col class="col-price"><col class="col-caf-price"><col class="col-uber-price"><col class="col-cdmx-price"><col class="col-cost"><col class="col-stock"><col class="col-min"><col class="col-actions"></colgroup><tr><th>C&oacute;digo</th><th>Producto</th><th>Mostrador</th><th>Cafeter&iacute;a</th><th>Uber Eats</th><th>CDMX</th><th>Costo</th><th>Stock</th><th>M&iacute;n</th><th class="actions-th">Acciones</th></tr>';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
       var stock = parseFloat(p.stock_actual) || 0;
@@ -11173,6 +11271,7 @@ function cargarListaProductos() {
       var precio = parseFloat(p.precio_unitario) || 0;
       var precioCafe = parseFloat(p.precio_cafeteria) || 0;
       var precioUber = parseFloat(p.precio_uber_eats) || 0;
+      var precioCdmx = parseFloat(p.precio_cdmx) || 0;
       var costo = parseFloat(p.costo_produccion) || 0;
       var esc = p.nombre.replace(/'/g,"\\'");
       var nombreArg = jsArg(p.nombre);
@@ -11184,6 +11283,7 @@ function cargarListaProductos() {
       h += '<td>$' + fmt(precio) + '</td>';
       h += '<td>' + (precioCafe > 0 ? '$' + fmt(precioCafe) : '<span style="color:var(--mut)">&mdash;</span>') + '</td>';
       h += '<td>' + (precioUber > 0 ? '$' + fmt(precioUber) : '<span style="color:var(--mut)">&mdash;</span>') + '</td>';
+      h += '<td>' + (precioCdmx > 0 ? '$' + fmt(precioCdmx) : '<span style="color:var(--mut)">&mdash;</span>') + '</td>';
       h += '<td style="color:var(--mut)">$' + fmt(costo) + '</td>';
       h += '<td><a href="#" onclick="ajustarStock(' + p.id + ',\'' + esc + '\',' + Math.round(stock) + ');return false" style="color:var(--v);text-decoration:underline">' + Math.round(stock) + '</a></td>';
       h += '<td>' + Math.round(min) + '</td>';
@@ -11385,10 +11485,10 @@ function cargarListaIngredientes() {
 
 function exportarListaProductosCSV() {
   api('GET', '/inventario/productos').then(function(prods) {
-    var csv = 'Codigo,Producto,Precio Mostrador,Precio Cafeteria,Precio Uber Eats,Costo,Stock,Minimo,Unidad\n';
+    var csv = 'Codigo,Producto,Precio Mostrador,Precio Cafeteria,Precio Uber Eats,Precio CDMX,Costo,Stock,Minimo,Unidad\n';
     for (var i = 0; i < prods.length; i++) {
       var p = prods[i];
-      csv += '"' + (p.codigo||'') + '","' + (p.nombre||'').replace(/"/g,'""') + '",' + (p.precio_unitario||0) + ',' + (p.precio_cafeteria||'') + ',' + (p.precio_uber_eats||'') + ',' + (p.costo_produccion||0) + ',' + (p.stock_actual||0) + ',' + (p.stock_minimo||0) + ',' + (p.unidad_medida||'') + '\n';
+      csv += '"' + (p.codigo||'') + '","' + (p.nombre||'').replace(/"/g,'""') + '",' + (p.precio_unitario||0) + ',' + (p.precio_cafeteria||'') + ',' + (p.precio_uber_eats||'') + ',' + (p.precio_cdmx||'') + ',' + (p.costo_produccion||0) + ',' + (p.stock_actual||0) + ',' + (p.stock_minimo||0) + ',' + (p.unidad_medida||'') + '\n';
     }
     _descargarCSV('productos_' + fechaHoyISO() + '.csv', csv);
   }).catch(function() { toast('Error al exportar', true); });
@@ -11469,6 +11569,7 @@ function nuevoProducto() {
   document.getElementById('mnp-precio').value = '';
   document.getElementById('mnp-precio-caf').value = '';
   document.getElementById('mnp-precio-uber').value = '';
+  document.getElementById('mnp-precio-cdmx').value = '';
   document.getElementById('mnp-costo').value = '';
   document.getElementById('mnp-minimo').value = '0';
   document.getElementById('mnp-caja-cant').value = '1';
@@ -11493,6 +11594,7 @@ function nuevaPresentacion(id) {
     document.getElementById('mnp-precio').value = parseFloat(producto.precio_unitario) || '';
     document.getElementById('mnp-precio-caf').value = producto.precio_cafeteria ? parseFloat(producto.precio_cafeteria) : '';
     document.getElementById('mnp-precio-uber').value = producto.precio_uber_eats ? parseFloat(producto.precio_uber_eats) : '';
+    document.getElementById('mnp-precio-cdmx').value = '';
     document.getElementById('mnp-costo').value = parseFloat(producto.costo_produccion) || 0;
     document.getElementById('mnp-minimo').value = Math.round(parseFloat(producto.stock_minimo) || 0);
     document.getElementById('mnp-caja-cant').value = parseFloat(producto.caja_cantidad || 1) || 1;
@@ -11604,6 +11706,12 @@ async function crearProducto() {
   if (precioCafe > 0) data.precio_cafeteria = precioCafe;
   var precioUber = parseFloat(document.getElementById('mnp-precio-uber').value);
   if (precioUber > 0) data.precio_uber_eats = precioUber;
+  var precioCdmxRaw = document.getElementById('mnp-precio-cdmx').value;
+  if (precioCdmxRaw && (!isFinite(Number(precioCdmxRaw)) || Number(precioCdmxRaw) <= 0)) {
+    toast('El precio CDMX debe ser mayor a cero', true);
+    return;
+  }
+  if (precioCdmxRaw) data.precio_cdmx = Number(precioCdmxRaw);
   api('POST', '/inventario/productos', data).then(function() {
     toast('Producto creado: ' + nombre);
     cerrarModal('modal-new-prod');
@@ -15715,8 +15823,10 @@ function descargarReciboNominaPDF(nominaId) {
 
 // ─── Login / Logout / Sesión ──────────────────────────────────────
 var _currentUser = null;
+var _loginEnCurso = false;
 
 function hacerLogin() {
+  if (_loginEnCurso) return Promise.resolve();
   var email = document.getElementById('login-email').value.trim();
   var pass = document.getElementById('login-pass').value;
   var errEl = document.getElementById('login-error');
@@ -15724,7 +15834,9 @@ function hacerLogin() {
   if (!email || !pass) { errEl.textContent = 'Ingresa email y contraseña'; errEl.style.display = 'block'; return; }
   errEl.style.display = 'none';
   if (!API_URL) { errEl.textContent = 'Servidor no disponible'; errEl.style.display = 'block'; return; }
-  login(email, pass).then(function() {
+  _loginEnCurso = true;
+  document.getElementById('login-submit').disabled = true;
+  return login(email, pass).then(function() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('btn-logout').style.display = '';
     mostrarBotonActualizarApp(true);
@@ -15739,6 +15851,9 @@ function hacerLogin() {
         : 'Email o contraseña incorrectos';
     }
     errEl.style.display = 'block';
+  }).finally(function() {
+    _loginEnCurso = false;
+    document.getElementById('login-submit').disabled = false;
   });
 }
 
@@ -16120,19 +16235,96 @@ async function eliminarBackup(encodedFilename) {
   });
 }
 
+var _claveAuthEstado = null;
+var _usuarioEdicion = null;
+var _usuariosActuales = [];
+var _usuariosCargaSeq = 0;
+
+function cerrarClaveAutorizacion(forzada) {
+  if (_claveAuthEstado && _claveAuthEstado.ocupado && !forzada) return;
+  _claveAuthEstado = null;
+  ['mca-actual', 'mca-nueva', 'mca-confirmacion'].forEach(function(id) {
+    var el = document.getElementById(id);
+    el.value = '';
+    el.disabled = false;
+  });
+  document.getElementById('modal-clave-autorizacion').classList.remove('on');
+}
+
+function abrirClaveAutorizacion() {
+  if (!esAdminActual() || (_claveAuthEstado && _claveAuthEstado.ocupado)) return Promise.resolve();
+  cerrarClaveAutorizacion();
+  var estado = {version:_versionSesion, ocupado:false, lista:false};
+  _claveAuthEstado = estado;
+  document.getElementById('mca-estado').textContent = 'Cargando...';
+  document.getElementById('mca-reintentar').style.display = 'none';
+  document.getElementById('mca-guardar').disabled = true;
+  document.getElementById('modal-clave-autorizacion').classList.add('on');
+  return apiLecturaRecuperable('/auth/clave-autorizacion').then(function(data) {
+    if (_claveAuthEstado !== estado || estado.version !== _versionSesion) return;
+    document.getElementById('mca-estado').textContent = data.configurada ? 'Clave configurada' : 'Sin configurar';
+    estado.lista = true;
+    document.getElementById('mca-guardar').disabled = false;
+  }).catch(function(e) {
+    if (_claveAuthEstado !== estado || estado.version !== _versionSesion) return;
+    document.getElementById('mca-estado').textContent = e.message || 'No se pudo cargar la configuraci\u00f3n';
+    document.getElementById('mca-reintentar').style.display = '';
+  });
+}
+
+function guardarClaveAutorizacion() {
+  var estado = _claveAuthEstado;
+  if (!estado || !estado.lista || estado.ocupado || estado.version !== _versionSesion) return Promise.resolve();
+  var actual = document.getElementById('mca-actual').value;
+  var nueva = document.getElementById('mca-nueva').value;
+  var confirmacion = document.getElementById('mca-confirmacion').value;
+  if (!actual) { toast('Escribe tu contrase\u00f1a actual', true); return Promise.resolve(); }
+  if (nueva.length < 8 || new TextEncoder().encode(nueva).length > 72) {
+    toast('La clave debe tener al menos 8 caracteres y como m\u00e1ximo 72 bytes', true); return Promise.resolve();
+  }
+  if (nueva !== confirmacion) { toast('Las claves no coinciden', true); return Promise.resolve(); }
+  if (nueva === actual) { toast('Usa una clave distinta de tu contrase\u00f1a de inicio de sesi\u00f3n', true); return Promise.resolve(); }
+  estado.ocupado = true;
+  document.getElementById('mca-guardar').disabled = true;
+  document.getElementById('mca-estado').textContent = 'Guardando...';
+  ['mca-actual', 'mca-nueva', 'mca-confirmacion'].forEach(function(id) {
+    document.getElementById(id).value = '';
+    document.getElementById(id).disabled = true;
+  });
+  return api('PUT', '/auth/clave-autorizacion', {
+    password_actual:actual, nueva_clave:nueva, confirmacion:confirmacion
+  }, false, null, estado.version).then(function() {
+    if (_claveAuthEstado !== estado || estado.version !== _versionSesion) return;
+    estado.ocupado = false;
+    cerrarClaveAutorizacion();
+    toast('Clave de autorizaci\u00f3n guardada');
+  }).catch(function(e) {
+    if (_claveAuthEstado !== estado || estado.version !== _versionSesion) return;
+    estado.ocupado = false;
+    document.getElementById('mca-guardar').disabled = false;
+    ['mca-actual', 'mca-nueva', 'mca-confirmacion'].forEach(function(id) { document.getElementById(id).disabled = false; });
+    document.getElementById('mca-estado').textContent = e.message || 'No se pudo guardar la clave';
+  });
+}
+
 function cargarUsuarios() {
-  api('GET', '/auth/usuarios').then(function(users) {
+  if (!esAdminActual()) return Promise.resolve();
+  var version = _versionSesion, secuencia = ++_usuariosCargaSeq;
+  return apiLecturaRecuperable('/auth/usuarios').then(function(users) {
+    if (version !== _versionSesion || secuencia !== _usuariosCargaSeq || !esAdminActual()) return;
+    _usuariosActuales = users;
     var h = '<table class="tbl"><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th class="actions-th">Acciones</th></tr>';
     for (var i = 0; i < users.length; i++) {
       var u = users[i];
       var rolNombres = {administrador:'Admin',gerente:'Gerente',cajero:'Cajero',produccion:'Producci\u00f3n',consulta:'Consulta',panadero:'Panadero',almacenista:'Almacenista',contador:'Contador'};
       var cls = u.activo ? 'bok' : 'bout';
       var txt = u.activo ? 'Activo' : 'Inactivo';
-      h += '<tr><td><strong>' + u.nombre + '</strong></td>';
-      h += '<td style="font-size:.78rem;color:var(--mut)">' + u.email + '</td>';
-      h += '<td>' + (rolNombres[u.rol]||u.rol) + '</td>';
+      h += '<tr><td><strong>' + escHtml(u.nombre) + '</strong></td>';
+      h += '<td style="font-size:.78rem;color:var(--mut)">' + escHtml(u.email) + '</td>';
+      h += '<td>' + escHtml(rolNombres[u.rol]||u.rol) + '</td>';
       h += '<td><span class="badge ' + cls + '">' + txt + '</span></td>';
       h += '<td class="actions-cell"><div class="action-buttons">';
+      h += actionBtn('Editar', '&#9998;', 'editarUsuario(' + u.id + ')');
       h += actionBtn('Permisos', '&#128274;', 'editarPermisos(' + u.id + ',' + jsArg(u.nombre) + ',' + jsArg(u.rol) + ')');
       h += actionBtn(u.activo ? 'Desactivar' : 'Activar', '&#9940;', 'toggleUsuario(' + u.id + ')', u.activo ? 'danger' : '');
       h += actionBtn('Contraseña', '&#128273;', 'resetPassword(' + u.id + ',' + jsArg(u.nombre) + ')');
@@ -16141,11 +16333,15 @@ function cargarUsuarios() {
     h += '</table>';
     document.getElementById('usuarios-list').innerHTML = h;
   }).catch(function() {
-    document.getElementById('usuarios-list').innerHTML = '<p style="color:var(--mut);padding:.5rem">Error al cargar usuarios</p>';
+    if (version !== _versionSesion || secuencia !== _usuariosCargaSeq) return;
+    document.getElementById('usuarios-list').innerHTML = '<p style="color:var(--mut);padding:.5rem">Error al cargar usuarios</p><button type="button" class="limpiar" style="min-height:44px" onclick="cargarUsuarios()">Reintentar</button>';
   });
 }
 
 function abrirNuevoUsuario() {
+  if (!esAdminActual()) return;
+  _usuarioEdicion = {id:null, rol:'cajero', version:_versionSesion, ocupado:false};
+  prepararModalUsuario(false);
   document.getElementById('mu-nombre').value = '';
   document.getElementById('mu-email').value = '';
   document.getElementById('mu-pass').value = '';
@@ -16153,18 +16349,75 @@ function abrirNuevoUsuario() {
   document.getElementById('modal-usuario').classList.add('on');
 }
 
+function editarUsuario(id) {
+  if (!esAdminActual()) return;
+  var usuario = _usuariosActuales.find(function(u) { return u.id === id; });
+  if (!usuario) { toast('Vuelve a cargar los usuarios', true); return; }
+  _usuarioEdicion = {id:id, rol:usuario.rol, version:_versionSesion, ocupado:false};
+  prepararModalUsuario(true);
+  document.getElementById('mu-nombre').value = usuario.nombre;
+  document.getElementById('mu-email').value = usuario.email;
+  document.getElementById('mu-rol').value = usuario.rol;
+  document.getElementById('modal-usuario').classList.add('on');
+}
+
+function prepararModalUsuario(editando) {
+  document.getElementById('mu-title').textContent = editando ? 'Editar usuario' : 'Nuevo usuario';
+  document.getElementById('mu-pass').value = '';
+  document.getElementById('mu-pass-wrap').style.display = editando ? 'none' : '';
+  document.getElementById('mu-permisos-wrap').style.display = 'none';
+  document.getElementById('mu-restablecer').checked = true;
+  document.getElementById('mu-guardar').textContent = editando ? 'Guardar cambios' : 'Crear usuario';
+  document.getElementById('mu-guardar').disabled = false;
+}
+
+function actualizarOpcionesRol() {
+  var cambio = _usuarioEdicion && _usuarioEdicion.id != null && _usuarioEdicion.rol !== document.getElementById('mu-rol').value;
+  document.getElementById('mu-permisos-wrap').style.display = cambio ? '' : 'none';
+}
+
+function cerrarUsuario() {
+  _usuarioEdicion = null;
+  document.getElementById('mu-pass').value = '';
+  document.getElementById('modal-usuario').classList.remove('on');
+}
+
 function guardarNuevoUsuario() {
+  var estado = _usuarioEdicion;
+  if (!estado || estado.ocupado || estado.version !== _versionSesion || !esAdminActual()) return Promise.resolve();
   var nombre = document.getElementById('mu-nombre').value.trim();
   var email = document.getElementById('mu-email').value.trim();
   var pass = document.getElementById('mu-pass').value;
   var rol = document.getElementById('mu-rol').value;
-  if (!nombre || !email || !pass) { toast('Todos los campos son obligatorios', true); return; }
-  if (pass.length < 8) { toast('La contraseña debe tener al menos 8 caracteres', true); return; }
-  api('POST', '/auth/usuarios', {nombre:nombre, email:email, password:pass, rol:rol}).then(function() {
-    toast('Usuario creado');
-    cerrarModal('modal-usuario');
-    cargarUsuarios();
-  }).catch(function(e) { toast(e.message || 'Error al crear usuario', true); });
+  if (nombre.length < 2 || !email || !document.getElementById('mu-email').checkValidity()) {
+    toast('Escribe un nombre y correo v\u00e1lidos', true); return Promise.resolve();
+  }
+  var editando = estado.id != null;
+  if (!editando && pass.length < 8) { toast('La contraseña debe tener al menos 8 caracteres', true); return Promise.resolve(); }
+  var datos = {nombre:nombre, email:email, rol:rol};
+  if (editando) datos.restablecer_permisos = estado.rol !== rol && document.getElementById('mu-restablecer').checked;
+  else datos.password = pass;
+  estado.ocupado = true;
+  document.getElementById('mu-guardar').disabled = true;
+  document.getElementById('mu-pass').value = '';
+  return api(editando ? 'PUT' : 'POST', '/auth/usuarios' + (editando ? '/' + estado.id : ''), datos, false, null, estado.version).then(function(usuario) {
+    if (_usuarioEdicion !== estado || estado.version !== _versionSesion) return;
+    cerrarUsuario();
+    if (_currentUser && _currentUser.id === usuario.id) {
+      _currentUser = usuario;
+      _userRole = usuario.rol;
+      guardarUsuarioCache(usuario);
+      aplicarPermisosModulos(usuario.permisos_modulos || {});
+      if (!esAdminActual()) go(moduloInicioUsuario(usuario));
+    }
+    toast(editando ? 'Usuario actualizado' : 'Usuario creado');
+    if (esAdminActual()) cargarUsuarios();
+  }).catch(function(e) {
+    if (_usuarioEdicion !== estado || estado.version !== _versionSesion) return;
+    estado.ocupado = false;
+    document.getElementById('mu-guardar').disabled = false;
+    toast(e.message || 'No se pudo guardar el usuario', true);
+  });
 }
 
 function editarPermisos(userId, nombre, rol) {

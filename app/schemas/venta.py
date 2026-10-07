@@ -38,7 +38,7 @@ class PagoVentaCreate(BaseModel):
 
 class VentaCreate(BaseModel):
     idempotency_key: str | None = Field(default=None, max_length=80)
-    canal: Literal["mostrador", "uber_eats"] = "mostrador"
+    canal: Literal["mostrador", "uber_eats", "cdmx"] = "mostrador"
     cliente_id: int | None = None
     metodo_pago: MetodoPago = MetodoPago.EFECTIVO
     terminal: TerminalPago = TerminalPago.EFECTIVO

@@ -594,6 +594,19 @@ def actualizar_producto(db: Session, id: int, data: ProductoUpdate, usuario_id: 
             },
             commit=False,
         )
+    if "precio_cdmx" in updates and updates["precio_cdmx"] != producto.precio_cdmx:
+        registrar_evento(
+            db,
+            usuario_id=usuario_id,
+            usuario_nombre=None,
+            accion="actualizar_precio_cdmx",
+            modulo="inventario",
+            entidad="producto",
+            entidad_id=producto.id,
+            datos_anteriores={"precio_cdmx": producto.precio_cdmx},
+            datos_nuevos={"precio_cdmx": updates["precio_cdmx"], "producto": producto.nombre},
+            commit=False,
+        )
     if "familia_id" in updates or "presentacion" in updates:
         familia_anterior = producto.familia.nombre if producto.familia else None
         familia_nueva = None

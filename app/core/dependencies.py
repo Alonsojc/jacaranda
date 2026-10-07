@@ -8,9 +8,11 @@ from urllib.parse import unquote
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.rate_limit import check_authorization_rate_limit
 from app.core.security import decode_access_token, verify_password
 from app.models.usuario import Usuario, RolUsuario
 from app.services.auditoria_service import registrar_evento
+from app.services.autorizacion_service import obtener_clave, verificar_clave
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -115,7 +117,7 @@ def require_permission(module: str, level: str = "ver"):
 
 
 def _admin_from_override_password(db: Session, password: str | None) -> Usuario | None:
-    if not password:
+    if not password or len(password.encode("utf-8")) > 72:
         return None
     admins = (
         db.query(Usuario)
@@ -149,8 +151,17 @@ def require_admin_or_override(module: str, action: str, *, require_password: boo
         if current_user.rol == RolUsuario.ADMINISTRADOR and not require_password:
             return current_user
 
-        authorizing_admin = _admin_from_override_password(db, admin_password)
-        if not authorizing_admin:
+        check_authorization_rate_limit(current_user.id)
+        config = obtener_clave(db)
+        authorizing_admin = None
+        # Keep existing approvals working until an admin configures the separate key.
+        if config is None:
+            authorizing_admin = _admin_from_override_password(db, admin_password)
+            authorized = authorizing_admin is not None
+        else:
+            authorized = verificar_clave(config, admin_password)
+        metodo = "clave_autorizacion" if config is not None else "password_admin"
+        if not authorized:
             registrar_evento(
                 db,
                 usuario_id=current_user.id,
@@ -159,14 +170,14 @@ def require_admin_or_override(module: str, action: str, *, require_password: boo
                 modulo=module,
                 entidad="admin_override",
                 motivo=unquote(motivo or "").strip() or None,
-                datos_nuevos={"accion": action, "motivo": unquote(motivo or "").strip()},
+                datos_nuevos={"accion": action, "metodo": metodo},
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
-                    "Esta acción requiere la contraseña de un administrador"
-                    if require_password
-                    else "Esta acción requiere administrador o contraseña de administrador"
+                    "Clave de autorizacion incorrecta o faltante"
+                    if config is not None
+                    else "Esta acción requiere la contraseña de un administrador"
                 ),
             )
 
@@ -177,6 +188,9 @@ def require_admin_or_override(module: str, action: str, *, require_password: boo
                 detail="El motivo es obligatorio para autorizar esta acción",
             )
 
+        datos = {"accion": action, "metodo": metodo, "motivo": motivo_limpio}
+        if authorizing_admin is not None:
+            datos.update({"admin_id": authorizing_admin.id, "admin_nombre": authorizing_admin.nombre})
         registrar_evento(
             db,
             usuario_id=current_user.id,
@@ -185,12 +199,7 @@ def require_admin_or_override(module: str, action: str, *, require_password: boo
             modulo=module,
             entidad="admin_override",
             motivo=motivo_limpio,
-            datos_nuevos={
-                "accion": action,
-                "admin_id": authorizing_admin.id,
-                "admin_nombre": authorizing_admin.nombre,
-                "motivo": motivo_limpio,
-            },
+            datos_nuevos=datos,
         )
         return current_user
 

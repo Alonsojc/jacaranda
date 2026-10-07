@@ -1,6 +1,13 @@
 """Regresiones del catálogo de venta, precios por canal y empaques."""
 
 from decimal import Decimal
+import json
+
+import pytest
+
+from app.models.auditoria import LogAuditoria
+from app.models.inventario import Producto
+from app.core.time_utils import operation_today
 
 
 def _crear_producto(client, auth_headers, codigo, **extra):
@@ -169,6 +176,84 @@ def test_venta_uber_eats_usa_solo_su_precio_configurado(client, auth_headers):
     )
     assert rechazada.status_code == 400
     assert "no tiene precio de Uber Eats" in rechazada.json()["detail"]
+
+
+def test_cdmx_cobra_su_precio_y_comparte_stock_sin_cambiar_otras_listas(client, auth_headers, db):
+    product = _crear_producto(client, auth_headers, "MX-001", precio_cafeteria="80.00",
+                             precio_uber_eats="145.00", precio_cdmx="180.00")
+    stored = db.get(Producto, product["id"])
+    stored.stock_actual = Decimal("10")
+    db.commit()
+    sale = client.post("/api/v1/punto-de-venta/ventas", headers=auth_headers, json={
+        "canal": "cdmx", "monto_recibido": "360.00",
+        "detalles": [{"producto_id": product["id"], "cantidad": 2, "precio_unitario": "1.00"}],
+    })
+    assert sale.status_code == 201, sale.text
+    assert sale.json()["canal"] == "cdmx"
+    assert Decimal(sale.json()["total"]) == Decimal("360.00")
+    assert Decimal(sale.json()["detalles"][0]["precio_unitario"]) == Decimal("180.00")
+    db.refresh(stored)
+    assert stored.stock_actual == Decimal("8")
+    assert (stored.precio_unitario, stored.precio_cafeteria, stored.precio_uber_eats) == (
+        Decimal("100.00"), Decimal("80.00"), Decimal("145.00"),
+    )
+    second = client.post("/api/v1/punto-de-venta/ventas", headers=auth_headers, json={
+        "monto_recibido": "100.00", "detalles": [{"producto_id": product["id"], "cantidad": 1}],
+    })
+    assert second.status_code == 201
+    assert Decimal(second.json()["total"]) == Decimal("100.00")
+    db.refresh(stored)
+    assert stored.stock_actual == Decimal("7")
+    from app.services.venta_service import resumen_corte_caja
+    summary = resumen_corte_caja(db, operation_today())
+    assert summary["total_ventas"] == Decimal("460.00")
+    assert summary["total_ventas_efectivo"] == Decimal("460.00")
+    assert summary["numero_ventas"] == 2
+
+
+def test_cdmx_sin_precio_no_cobra_precio_de_mostrador_ni_mueve_stock(client, auth_headers, db):
+    product = _crear_producto(client, auth_headers, "MX-002")
+    stored = db.get(Producto, product["id"])
+    stored.stock_actual = Decimal("10")
+    db.commit()
+    response = client.post("/api/v1/punto-de-venta/ventas", headers=auth_headers, json={
+        "canal": "cdmx", "monto_recibido": "100.00",
+        "detalles": [{"producto_id": product["id"], "cantidad": 1}],
+    })
+    assert response.status_code == 400
+    assert "no tiene precio CDMX" in response.json()["detail"]
+    db.refresh(stored)
+    assert stored.stock_actual == Decimal("10")
+
+
+def test_precio_cdmx_es_editable_nullable_y_auditado_sin_reescribir_tickets(client, auth_headers, db):
+    product = _crear_producto(client, auth_headers, "MX-003", precio_cdmx="180.00")
+    sale = client.post("/api/v1/punto-de-venta/ventas", headers=auth_headers, json={
+        "canal": "cdmx", "monto_recibido": "180.00",
+        "detalles": [{"producto_id": product["id"], "cantidad": 1}],
+    })
+    assert sale.status_code == 201
+    url = f"/api/v1/inventario/productos/{product['id']}"
+    for price in ("200.00", None):
+        updated = client.put(url, json={"precio_cdmx": price}, headers=auth_headers)
+        assert updated.status_code == 200, updated.text
+        assert updated.json()["precio_unitario"] == "100.00"
+        assert updated.json()["precio_cdmx"] == price
+    events = db.query(LogAuditoria).filter_by(accion="actualizar_precio_cdmx").order_by(LogAuditoria.id).all()
+    assert len(events) == 2
+    assert json.loads(events[0].datos_anteriores)["precio_cdmx"] == "180.00"
+    assert json.loads(events[1].datos_nuevos)["precio_cdmx"] is None
+    old = client.get(f"/api/v1/punto-de-venta/ventas/{sale.json()['id']}", headers=auth_headers)
+    assert old.status_code == 200
+    assert Decimal(old.json()["total"]) == Decimal("180.00")
+
+
+@pytest.mark.parametrize("price", ["0", "-1", "NaN", "Infinity", "1.001", "10000000000.00"])
+def test_precio_cdmx_rechaza_importes_invalidos(client, auth_headers, price):
+    response = client.post("/api/v1/inventario/productos", headers=auth_headers, json={
+        "codigo": "MX-INVALID", "nombre": "Producto de prueba", "precio_unitario": "100.00", "precio_cdmx": price,
+    })
+    assert response.status_code == 422
 
 
 def test_catalogo_empaques_no_mezcla_ingredientes_y_ajusta_enteros(client, auth_headers):

@@ -4,17 +4,22 @@ import json
 import time
 from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_role
-from app.core.security import get_password_hash, decode_access_token, JWTError, create_access_token
+from app.core.rate_limit import check_authorization_rate_limit
+from app.core.security import get_password_hash, decode_access_token, JWTError, create_access_token, verify_password
 from app.models.usuario import Usuario, RolUsuario
 from app.schemas.usuario import (
     UsuarioCreate, UsuarioUpdate, UsuarioResponse, Token, LoginRequest,
 )
-from app.services.auth_service import crear_usuario, autenticar_usuario, generar_tokens
+from app.services.auth_service import (
+    crear_usuario, autenticar_usuario, generar_tokens, bloquear_gestion_usuarios, validar_cambio_acceso,
+)
+from app.services.auditoria_service import registrar_evento
+from app.services.autorizacion_service import estado_clave, guardar_clave
 
 router = APIRouter()
 
@@ -92,6 +97,46 @@ def perfil(current_user: Usuario = Depends(get_current_user)):
 
 # ── Admin: gestión de usuarios ──────────────────────────────────
 
+@router.get("/clave-autorizacion")
+def consultar_clave_autorizacion(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(get_current_user),
+):
+    return estado_clave(db)
+
+
+class ClaveAutorizacionRequest(BaseModel):
+    password_actual: SecretStr
+    nueva_clave: SecretStr
+    confirmacion: SecretStr
+
+
+@router.put("/clave-autorizacion")
+def configurar_clave_autorizacion(
+    data: ClaveAutorizacionRequest,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
+):
+    check_authorization_rate_limit(user.id)
+    bloquear_gestion_usuarios(db, user)
+    password = data.password_actual.get_secret_value()
+    if len(password.encode("utf-8")) > 72 or not verify_password(password, user.hashed_password):
+        registrar_evento(
+            db, usuario_id=user.id, usuario_nombre=user.nombre,
+            accion="autorizar_fallida", modulo="usuarios", entidad="clave_autorizacion",
+            motivo="Configurar clave de autorizacion",
+        )
+        raise HTTPException(status_code=403, detail="Contraseña actual incorrecta")
+    nueva_clave = data.nueva_clave.get_secret_value()
+    if len(nueva_clave) < 8 or len(nueva_clave.encode("utf-8")) > 72:
+        raise HTTPException(status_code=400, detail="La clave debe tener al menos 8 caracteres y como maximo 72 bytes")
+    if nueva_clave != data.confirmacion.get_secret_value():
+        raise HTTPException(status_code=400, detail="La confirmacion de la clave no coincide")
+    if nueva_clave == password:
+        raise HTTPException(status_code=400, detail="Usa una clave distinta de tu contraseña de inicio de sesion")
+    return guardar_clave(db, nueva_clave, user)
+
+
 @router.get("/usuarios", response_model=list[UsuarioResponse])
 def listar_usuarios(
     skip: int = Query(default=0, ge=0),
@@ -108,6 +153,7 @@ def crear_usuario_admin(
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
 ):
+    bloquear_gestion_usuarios(db, _user)
     try:
         return crear_usuario(db, data)
     except ValueError as e:
@@ -121,9 +167,14 @@ def actualizar_usuario(
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
 ):
-    usuario = db.query(Usuario).filter(Usuario.id == id).first()
+    bloquear_gestion_usuarios(db, _user)
+    usuario = db.query(Usuario).filter(Usuario.id == id).populate_existing().first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    validar_cambio_acceso(db, usuario, data.rol or usuario.rol,
+                         usuario.activo if data.activo is None else data.activo, _user)
+    if data.restablecer_permisos and data.rol is None:
+        raise HTTPException(status_code=400, detail="Selecciona el rol para restablecer sus permisos")
     if data.email and data.email != usuario.email:
         existente = db.query(Usuario).filter(
             Usuario.email == data.email, Usuario.id != id
@@ -131,13 +182,27 @@ def actualizar_usuario(
         if existente:
             raise HTTPException(status_code=400, detail="Ese email ya está en uso")
     _ALLOWED_FIELDS = {"nombre", "email", "rol", "activo"}
+    anteriores = _datos_usuario(usuario)
     for key, value in data.model_dump(exclude_unset=True).items():
         if key not in _ALLOWED_FIELDS:
             continue
         setattr(usuario, key, value)
+    if data.restablecer_permisos:
+        usuario._permisos_modulos = None
+    registrar_evento(
+        db, usuario_id=_user.id, usuario_nombre=_user.nombre,
+        accion="actualizar", modulo="usuarios", entidad="usuario", entidad_id=usuario.id,
+        datos_anteriores=anteriores, datos_nuevos=_datos_usuario(usuario),
+        motivo="Editar usuario", commit=False,
+    )
     db.commit()
     db.refresh(usuario)
     return usuario
+
+
+def _datos_usuario(usuario: Usuario) -> dict:
+    return {"nombre": usuario.nombre, "email": usuario.email, "rol": usuario.rol.value,
+            "activo": usuario.activo, "permisos_modulos": usuario.permisos_modulos}
 
 
 class CambiarPasswordRequest(BaseModel):
@@ -151,6 +216,7 @@ def cambiar_password(
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
 ):
+    bloquear_gestion_usuarios(db, _user)
     usuario = db.query(Usuario).filter(Usuario.id == id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -172,6 +238,7 @@ def actualizar_permisos(
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
 ):
+    bloquear_gestion_usuarios(db, _user)
     usuario = db.query(Usuario).filter(Usuario.id == id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -187,11 +254,20 @@ def desactivar_usuario(
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_role(RolUsuario.ADMINISTRADOR)),
 ):
-    usuario = db.query(Usuario).filter(Usuario.id == id).first()
+    bloquear_gestion_usuarios(db, _user)
+    usuario = db.query(Usuario).filter(Usuario.id == id).populate_existing().first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     if usuario.id == _user.id:
         raise HTTPException(status_code=400, detail="No puedes desactivarte a ti mismo")
+    validar_cambio_acceso(db, usuario, usuario.rol, not usuario.activo, _user)
+    anteriores = _datos_usuario(usuario)
     usuario.activo = not usuario.activo
+    registrar_evento(
+        db, usuario_id=_user.id, usuario_nombre=_user.nombre,
+        accion="actualizar", modulo="usuarios", entidad="usuario", entidad_id=usuario.id,
+        datos_anteriores=anteriores, datos_nuevos=_datos_usuario(usuario),
+        motivo="Cambiar estado de usuario", commit=False,
+    )
     db.commit()
     return {"ok": True, "activo": usuario.activo}
