@@ -35,7 +35,8 @@ class TestReportes:
         assert resp.status_code == 200
         data = resp.json()
         assert "ventas_hoy" in data
-        assert "ventas_mes" in data
+        assert "ventas_mes" not in data
+        assert "proyeccion" not in data
 
     def test_reporte_ventas_periodo(self, client, auth_headers):
         self._crear_venta(client, auth_headers)
@@ -108,8 +109,7 @@ class TestReportes:
         data = resp.json()
         assert "ticket_promedio_7_dias" in data
         assert data["ticket_promedio_7_dias"] >= 0
-        assert "proyeccion" in data
-        assert data["proyeccion"]["proyeccion_mes"] >= 0
+        assert "proyeccion" not in data
 
     def test_reporte_pdf_ventas(self, client, auth_headers):
         self._crear_venta(client, auth_headers)

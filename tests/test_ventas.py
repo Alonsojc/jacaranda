@@ -1750,7 +1750,7 @@ class TestReportes:
         assert resp.status_code == 200
         data = resp.json()
         assert "ventas_hoy" in data
-        assert "ventas_mes" in data
+        assert "ventas_mes" not in data
 
     def test_ventas_por_dia(self, client, auth_headers):
         resp = client.get("/api/v1/reportes/ventas-por-dia?dias=7", headers=auth_headers)
