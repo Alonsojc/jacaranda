@@ -839,22 +839,8 @@ async def ocr_ticket(
 ):
     """Extrae datos de una foto de ticket/factura de compra usando IA."""
     from app.services.ocr_service import extraer_datos_ticket
+    from app.core.ocr_upload import leer_archivo_ocr
+    from starlette.concurrency import run_in_threadpool
 
-    from app.core.security_validation import detect_mime
-
-    allowed = archivo.content_type and (
-        archivo.content_type.startswith("image/") or archivo.content_type == "application/pdf"
-    )
-    if not allowed:
-        raise HTTPException(status_code=400, detail="El archivo debe ser una imagen (JPG, PNG) o PDF")
-
-    image_bytes = await archivo.read()
-    if len(image_bytes) > 20_000_000:  # 20MB limit
-        raise HTTPException(status_code=400, detail="El archivo es muy grande (máximo 20MB)")
-
-    real_mime = detect_mime(image_bytes)
-    if not real_mime or (not real_mime.startswith("image/") and real_mime != "application/pdf"):
-        raise HTTPException(status_code=400, detail="Contenido no corresponde a imagen o PDF válido")
-
-    resultado = extraer_datos_ticket(image_bytes, real_mime)
-    return resultado
+    image_bytes, real_mime = await leer_archivo_ocr(archivo)
+    return await run_in_threadpool(extraer_datos_ticket, image_bytes, real_mime)

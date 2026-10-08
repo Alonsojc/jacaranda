@@ -91,7 +91,7 @@ run().catch(e=>{console.error(e);process.exit(1)});
 
 def test_expense_double_click_and_unknown_response_keep_same_retry_key():
     code = PREAMBLE + r"""
-let _egresoGuardando=false,_egresoCapturaPendiente=null,_egresoOrigen='manual',_egresoOcrPayload=null;
+let _egresoGuardando=false,_egresoCapturaPendiente=null,_egresoOrigen='manual',_egresoOcrPayload=null,_egOcrProcesando=false;
 function datosFormularioEgreso(){return {concepto:'Prueba',monto:40,fecha:'2026-10-08',proveedor:'Proveedor',metodo_pago:'resguardo'};}
 let keys=0;function nuevaClaveIdempotencia(){return 'egreso-prueba-'+(++keys);}
 function limpiarEgresoForm(){_egresoCapturaPendiente=null;}
@@ -118,7 +118,7 @@ const stream={getTracks:()=>[{stop(){stopped++;}}]};
 const navigator={mediaDevices:{getUserMedia(opts){assert.equal(opts.audio,false);return new Promise(resolve=>resolveCamera=resolve);}}};
 fields['eg-camera-video']={play(){return Promise.resolve();}};
 function procesarFotosEgreso(){}
-""" + _section("function cerrarCamaraEgreso()", "function procesarFotosEgreso(files)") + r"""
+""" + _section("function cerrarCamaraEgreso()", "function _firmaFormularioEgresoOCR()") + r"""
 async function run(){
   let p=abrirCamaraEgreso();cerrarCamaraEgreso();resolveCamera(stream);await p;
   assert.equal(stopped,1);assert.equal(fields['eg-camera-video'].srcObject,null);

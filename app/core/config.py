@@ -100,6 +100,7 @@ class Settings(BaseSettings):
 
     # Anthropic API (OCR de tickets)
     ANTHROPIC_API_KEY: str = ""
+    OCR_MODEL: str = "claude-haiku-4-5-20251001"
 
     # Conekta (pagos online)
     CONEKTA_API_KEY: str = ""
