@@ -16,6 +16,7 @@ from pypdf import PdfWriter
 import pytest
 
 from app.core import ocr_upload
+from app.models.inventario import UnidadMedida
 from app.services import ocr_service as ocr
 
 
@@ -166,6 +167,17 @@ def test_precio_calculado_se_identifica_y_no_se_alteran_totales():
     assert result["total"] == 300
     assert result["cuadre"] == "diferencia"
     assert any("no coincide" in warning for warning in result["advertencias"])
+
+
+@pytest.mark.parametrize("unidad", list(UnidadMedida))
+def test_conserva_todas_las_unidades_de_inventario(unidad):
+    assert unidad.value in ocr.OCR_SCHEMA["properties"]["items"]["items"]["properties"]["unidad"]["enum"]
+    result = ocr.validar_resultado_ocr(ticket(items=[{
+        "nombre": "Compra prueba", "cantidad": 2, "unidad": unidad.value, "total": 125.5,
+    }]))
+    assert result["items"][0]["unidad"] == unidad.value
+    assert result["items"][0]["cantidad"] == 2
+    assert not result["items"][0]["advertencias"]
 
 
 def test_impuestos_y_descuento_explicitos_pueden_cuadrar():

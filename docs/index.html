@@ -10178,7 +10178,7 @@ function _renderOCRItem(item, idx) {
   h += _advertenciasOCR(item);
   h += '<div class="ocr-line-fields"><label>Cantidad<input type="number" id="ocr-cantidad-' + idx + '" min="0.0001" step="0.0001" value="' + escHtml(item.cantidad == null ? '' : item.cantidad) + '"></label>';
   h += '<label>Unidad<select id="ocr-unidad-' + idx + '"><option value="">Selecciona...</option>';
-  ['kg','g','l','ml','pz'].forEach(function(u) { h += '<option value="' + u + '"' + (item.unidad === u ? ' selected' : '') + '>' + u + '</option>'; });
+  ['kg','g','l','ml','pz','caja','bolsa','saco'].forEach(function(u) { h += '<option value="' + u + '"' + (item.unidad === u ? ' selected' : '') + '>' + u + '</option>'; });
   h += '</select></label><label>Importe de la partida<input type="number" id="ocr-total-' + idx + '" min="0" step="0.01" value="' + escHtml(item.total == null ? '' : item.total) + '"></label>';
   h += '<label>Ingrediente<select id="ocr-ing-' + idx + '"><option value="">Selecciona...</option>';
   for (var j = 0; j < _allIngs.length; j++) {
@@ -10270,7 +10270,8 @@ async function crearIngDesdeOCR(idx) {
 }
 
 function _cantidadInventarioOCR(cantidad, origen, destino) {
-  var unidades = {g:{grupo:'peso',factor:1},kg:{grupo:'peso',factor:1000},ml:{grupo:'volumen',factor:1},l:{grupo:'volumen',factor:1000},pz:{grupo:'piezas',factor:1}};
+  // Los empaques solo se convierten a su misma unidad; no se supone su contenido.
+  var unidades = {g:{grupo:'peso',factor:1},kg:{grupo:'peso',factor:1000},ml:{grupo:'volumen',factor:1},l:{grupo:'volumen',factor:1000},pz:{grupo:'piezas',factor:1},caja:{grupo:'caja',factor:1},bolsa:{grupo:'bolsa',factor:1},saco:{grupo:'saco',factor:1}};
   if (!unidades[origen] || !unidades[destino] || unidades[origen].grupo !== unidades[destino].grupo) return null;
   return cantidad * unidades[origen].factor / unidades[destino].factor;
 }

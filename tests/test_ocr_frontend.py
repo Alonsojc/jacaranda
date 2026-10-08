@@ -240,6 +240,39 @@ assert.ok(fields['ocr-items'].innerHTML.includes('Total general (2 tickets)</spa
     node(code)
 
 
+def test_inventory_package_units_are_selectable_and_register_without_assumed_contents():
+    code = PREAMBLE + COMMON + "let _ocrItems=[],_ocrSeq=0,_ocrGuardando=false,_allIngs=[];\n"
+    code += section("function _renderOCRItem", "function _renderOCRTotales")
+    code += section("function matchIngrediente", "async function crearIngDesdeOCR")
+    code += section("function _cantidadInventarioOCR", "function hornear()")
+    code += r"""
+async function run(){
+  const unidades=['kg','g','l','ml','pz','caja','bolsa','saco'];
+  const row=_renderOCRItem({nombre:'Compra',cantidad:3,unidad:'saco',total:300},0);
+  unidades.forEach(u=>{
+    assert.ok(row.includes('<option value="'+u+'"'));
+    assert.equal(_cantidadInventarioOCR(3,u,u),3);
+  });
+  assert.ok(row.includes('<option value="saco" selected>'));
+  const empaques=['caja','bolsa','saco'];
+  for(let i=0;i<empaques.length;i++){
+    const u=empaques[i];
+    unidades.filter(v=>v!==u).forEach(v=>assert.equal(_cantidadInventarioOCR(3,u,v),null));
+    _ocrItems=[{_proveedor:'Proveedor prueba',_moneda:'MXN'}];
+    _allIngs=[{id:1,nombre:'Compra',unidad_medida:u}];
+    fields['ocr-chk-0']={checked:true};fields['ocr-ing-0']={value:'1'};
+    fields['ocr-cantidad-0']={value:'3'};fields['ocr-unidad-0']={value:u};fields['ocr-total-0']={value:'300'};
+    const p=registrarTodoOCR();await Promise.resolve();assert.equal(requests.length,i+1);
+    assert.ok(requests[i].path.includes('cantidad=3&costo=100.0000'));
+    requests[i].resolve({});await p;
+    assert.equal(_ocrItems[0]._registrado,true);
+  }
+}
+run().catch(e=>{console.error(e);process.exit(1)});
+"""
+    node(code)
+
+
 def test_inventory_labels_are_escaped_no_loose_matching_or_default_quantity():
     code = PREAMBLE + COMMON + "let _allIngs=[{id:1,nombre:'Harina',unidad_medida:'kg'}];\n"
     code += section("function _renderOCRItem", "function _renderOCRTotales")

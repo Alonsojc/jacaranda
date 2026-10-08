@@ -24,6 +24,7 @@ from app.core.time_utils import operation_today
 CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
 CLAUDE_MODEL = "claude-haiku-4-5-20251001"
 MAX_OCR_ITEMS = 100
+UNIDADES_OCR = ("kg", "g", "l", "ml", "pz", "caja", "bolsa", "saco")
 _OCR_SLOTS = threading.BoundedSemaphore(2)
 logger = logging.getLogger("jacaranda.ocr")
 
@@ -35,8 +36,10 @@ no dupliques partidas del solapamiento, pero conserva las compras repetidas que 
 Extrae TODAS las partidas, hasta 100. Si hay mas, hay partes cortadas o no puedes leer
 partidas completas, lectura_completa=false y explica el problema en advertencias.
 Usa null cuando no se lea un campo; NO supongas cantidad 1, unidad pz, efectivo o impuestos cero.
-cantidad y unidad son las COMPRADAS, no el contenido del envase: 2 bolsas de 1 kg son 2 pz,
-no 1 kg; incluye el contenido del envase en nombre. Peso vendido a granel si es kg/g.
+cantidad y unidad son las COMPRADAS, no el contenido del envase: 2 bolsas de 1 kg son 2 bolsa,
+no 2 kg; conserva la unidad de venta impresa, incluyendo caja, bolsa o saco.
+Si la unidad no esta impresa, usa null. Incluye el contenido del envase en nombre.
+Peso vendido a granel si es kg/g.
 Los importes son numeros decimales, sin simbolos ni separadores de miles.
 total es el TOTAL FINAL a pagar, no subtotal, efectivo recibido, cambio, saldo o ahorro.
 subtotal, iva, ieps y descuento solo si estan impresos; NO infieras tasas ni impuestos por producto.
@@ -66,7 +69,7 @@ OCR_SCHEMA = _objeto({
     "items": {"type": "array", "items": _objeto({
         "nombre": {"type": "string"},
         "cantidad": {"type": ["number", "null"]},
-        "unidad": {"type": ["string", "null"], "enum": ["kg", "g", "l", "ml", "pz", None]},
+        "unidad": {"type": ["string", "null"], "enum": [*UNIDADES_OCR, None]},
         "precio_unitario": {"type": ["number", "null"]},
         "total": {"type": ["number", "null"]},
     })},
@@ -206,7 +209,7 @@ def validar_resultado_ocr(data: dict, avisos: list[str] | None = None) -> dict:
         cantidad = _numero(raw.get("cantidad"), cantidad=True)
         total = _numero(raw.get("total"))
         precio = _numero(raw.get("precio_unitario"))
-        unidad = raw.get("unidad") if raw.get("unidad") in ("kg", "g", "l", "ml", "pz") else None
+        unidad = raw.get("unidad") if raw.get("unidad") in UNIDADES_OCR else None
         item_avisos = []
         if cantidad is None or unidad is None:
             item_avisos.append("Cantidad o unidad no legible")
