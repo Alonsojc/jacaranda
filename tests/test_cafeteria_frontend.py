@@ -54,9 +54,11 @@ FUNCTIONS = (section("function metodoPagoCafeteria", "function registrarCafeteri
 SESSION_RESET = section("function invalidarTareasSesion()", "function moduloDesactivado")
 SESSION_HARNESS = r"""
 let _ticketEdicion=null,_ventaEnProceso=false,_apiGetCache={},_apiGetInFlight={},_migracionVentasTx=null;
+let _resguardoSeq=0,_egresosResumenSeq=0,_egOcrSeq=0;
 function cancelarAdminAuth(){}
 function cerrarClaveAutorizacion(){}
 function cerrarUsuario(){}
+function cerrarCamaraEgreso(){}
 """
 
 
