@@ -3295,6 +3295,7 @@ function invalidarTareasSesion() {
   _ocrSeq++;
   _ocrItems = [];
   _ocrGuardando = false;
+  document.getElementById('ocr-registrar').disabled = false;
   document.getElementById('ocr-result').style.display = 'none';
   document.getElementById('ocr-items').innerHTML = '';
   document.getElementById('ocr-status').textContent = '';

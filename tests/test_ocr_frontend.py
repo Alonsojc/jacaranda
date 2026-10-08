@@ -143,11 +143,13 @@ function cerrarCamaraEgreso(){}
 _egresoOrigen='ocr';_egresoOcrPayload=[{proveedor:'Anterior'}];_egOcrResultados=[expense('Anterior',100)];
 ['eg-concepto','eg-monto','eg-proveedor','eg-notas'].forEach(id=>document.getElementById(id).value='Anterior');
 fields['eg-ocr-result']={innerHTML:'Anterior',style:{display:'block'}};
+fields['ocr-registrar']={disabled:true};
 invalidarTareasSesion();
 assert.equal(_egresoOrigen,'manual');assert.equal(_egresoOcrPayload,null);assert.deepEqual(_egOcrResultados,[]);
 ['eg-concepto','eg-monto','eg-proveedor','eg-notas'].forEach(id=>assert.equal(fields[id].value,''));
 assert.equal(fields['eg-ocr-result'].innerHTML,'');assert.equal(fields['eg-ocr-result'].style.display,'none');
 assert.deepEqual(_ocrItems,[]);assert.equal(fields['ocr-result'].style.display,'none');
+assert.equal(fields['ocr-registrar'].disabled,false);assert.equal(_ocrGuardando,false);
 """
     node(code)
 
