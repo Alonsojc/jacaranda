@@ -13,6 +13,7 @@ from app.models.lealtad import LealtadConfiguracion
 from app.models.notificacion import FCMToken
 from app.models.pago_online import ConektaWebhookEvent, ClipWebhookEvent
 from app.models.pedido import DetallePedido
+from app.models.resguardo import ResguardoControl
 from app.models.whatsapp import WhatsAppWebhookEvent
 
 
@@ -352,6 +353,16 @@ def ensure_runtime_schema(engine: Engine) -> None:
     WhatsAppWebhookEvent.__table__.create(bind=engine, checkfirst=True)
     FCMToken.__table__.create(bind=engine, checkfirst=True)
     LealtadConfiguracion.__table__.create(bind=engine, checkfirst=True)
+    ResguardoControl.__table__.create(bind=engine, checkfirst=True)
+    with engine.begin() as conn:
+        inspector = inspect(conn)
+        if "egresos" in inspector.get_table_names():
+            columns = {c["name"] for c in inspector.get_columns("egresos")}
+            for name, size in (("idempotency_key", 80), ("request_fingerprint", 64)):
+                _add_column_if_missing(conn, engine, "egresos", columns, name, String(size), nullable=True)
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_egresos_idempotency_key ON egresos (idempotency_key)"
+            ))
     with engine.begin() as conn:
         conn.execute(text(
             """

@@ -2,6 +2,7 @@
 
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
+import hashlib
 import json
 import re
 from typing import Any
@@ -16,11 +17,16 @@ from app.core.dependencies import require_admin_or_override, require_permission
 from app.core.security_validation import detect_mime
 from app.core.time_utils import operation_today
 from app.models.egreso import Egreso
+from app.models.resguardo import ResguardoControl
+from app.models.venta import CorteCaja
 from app.models.gasto_fijo import GastoFijo
 from app.models.inventario import Proveedor
 from app.models.usuario import Usuario
 from app.services.auditoria_service import registrar_evento
 from app.services.ocr_service import extraer_datos_ticket
+from app.services.resguardo_service import (
+    bloquear_resguardo, resumen_resguardo, validar_salida_resguardo,
+)
 
 router = APIRouter()
 
@@ -46,6 +52,7 @@ METODOS_PAGO = {
     "credito",
     "debito",
     "mixto",
+    "resguardo",
 }
 ORIGENES_EGRESO = {"manual", "ocr", "recurrente"}
 PERIODICIDADES = {"mensual", "quincenal", "semanal"}
@@ -89,7 +96,7 @@ def _money(value: Decimal) -> float:
 
 class EgresoBase(BaseModel):
     concepto: str = Field(..., min_length=2, max_length=200)
-    monto: Decimal = Field(..., gt=0, le=MAX_MONTO)
+    monto: Decimal = Field(..., gt=0, le=MAX_MONTO, decimal_places=2)
     categoria: str = Field(default="operativo", max_length=60)
     metodo_pago: str = Field(default="efectivo", max_length=30)
     fecha: date | None = None
@@ -114,6 +121,7 @@ class EgresoBase(BaseModel):
 
 
 class EgresoCreate(EgresoBase):
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=80)
     guardar_proveedor: bool = True
     origen: str = Field(default="manual", max_length=30)
     ocr_payload: dict[str, Any] | None = None
@@ -127,12 +135,16 @@ class EgresoCreate(EgresoBase):
     def validar_proveedor(self):
         if not self.proveedor_id and not self.proveedor:
             raise ValueError("Proveedor o persona es obligatorio")
+        if self.idempotency_key and not self.fecha:
+            raise ValueError("Una captura con identificador requiere fecha explicita")
+        if self.metodo_pago == "resguardo" and not self.idempotency_key:
+            raise ValueError("El pago desde resguardo requiere identificador de captura")
         return self
 
 
 class EgresoUpdate(BaseModel):
     concepto: str | None = Field(default=None, min_length=2, max_length=200)
-    monto: Decimal | None = Field(default=None, gt=0, le=MAX_MONTO)
+    monto: Decimal | None = Field(default=None, gt=0, le=MAX_MONTO, decimal_places=2)
     categoria: str | None = Field(default=None, max_length=60)
     metodo_pago: str | None = Field(default=None, max_length=30)
     fecha: date | None = None
@@ -160,6 +172,17 @@ class EgresoUpdate(BaseModel):
         if value is None:
             return None
         return _normalizar_catalogo(value, "efectivo", METODOS_PAGO, "Forma de pago")
+
+    @model_validator(mode="after")
+    def validar_no_nulos(self):
+        for campo in ("concepto", "monto", "categoria", "metodo_pago"):
+            if campo in self.model_fields_set and getattr(self, campo) is None:
+                raise ValueError(f"{campo} no puede ser nulo")
+        return self
+
+
+class ResguardoInicio(BaseModel):
+    saldo_inicial: Decimal = Field(..., ge=0, le=MAX_MONTO, decimal_places=2)
 
 
 class EgresoAnular(BaseModel):
@@ -791,13 +814,66 @@ def listar_egresos(
     return query.order_by(Egreso.fecha.desc(), Egreso.id.desc()).offset(skip).limit(limit).all()
 
 
+@router.get("/resguardo")
+def obtener_resguardo(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("egresos", "ver")),
+):
+    return resumen_resguardo(db)
+
+
+@router.post("/resguardo/iniciar")
+def iniciar_resguardo(
+    data: ResguardoInicio,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_admin_or_override("egresos", "iniciar resguardo")),
+):
+    control = bloquear_resguardo(db)
+    if control:
+        if control.saldo_inicial != data.saldo_inicial:
+            raise HTTPException(status_code=409, detail="El resguardo ya esta iniciado; no se puede reemplazar")
+        return resumen_resguardo(db)
+    control = ResguardoControl(
+        id=1, saldo_inicial=data.saldo_inicial, creado_por_id=user.id,
+        ultimo_corte_id=db.query(func.coalesce(func.max(CorteCaja.id), 0)).scalar(),
+        ultimo_egreso_id=db.query(func.coalesce(func.max(Egreso.id), 0)).scalar(),
+    )
+    db.add(control)
+    db.flush()
+    registrar_evento(
+        db, usuario_id=user.id, usuario_nombre=user.nombre, accion="crear", modulo="egresos",
+        entidad="resguardo_control", entidad_id=1, commit=False,
+        datos_nuevos={"saldo_inicial": str(control.saldo_inicial),
+                      "ultimo_corte_id": control.ultimo_corte_id,
+                      "ultimo_egreso_id": control.ultimo_egreso_id},
+    )
+    db.commit()
+    return resumen_resguardo(db)
+
+
 @router.post("/", response_model=EgresoResponse, status_code=201)
 def crear_egreso(
     data: EgresoCreate,
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_permission("egresos", "editar")),
 ):
+    control = bloquear_resguardo(db)
+    fingerprint = hashlib.sha256(json.dumps(
+        data.model_dump(mode="json", exclude={"idempotency_key"}),
+        sort_keys=True, ensure_ascii=True, separators=(",", ":"),
+    ).encode()).hexdigest()
+    if data.idempotency_key:
+        anterior = db.query(Egreso).filter_by(idempotency_key=data.idempotency_key).first()
+        if anterior:
+            if anterior.request_fingerprint != fingerprint or anterior.creado_por_id != user.id:
+                raise HTTPException(status_code=409, detail="Identificador de captura usado con otros datos")
+            return anterior
     fecha = _validar_fecha_operativa(data.fecha)
+    if data.metodo_pago == "resguardo":
+        try:
+            validar_salida_resguardo(db, control, data.monto, fecha)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     proveedor_id, proveedor_nombre = _resolver_proveedor(
         db,
         proveedor_id=data.proveedor_id,
@@ -806,6 +882,8 @@ def crear_egreso(
         user=user,
     )
     egreso = Egreso(
+        idempotency_key=data.idempotency_key,
+        request_fingerprint=fingerprint if data.idempotency_key else None,
         concepto=data.concepto,
         monto=data.monto,
         categoria=data.categoria,
@@ -855,7 +933,8 @@ def actualizar_egreso(
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_admin_or_override("egresos", "editar egreso")),
 ):
-    egreso = db.query(Egreso).filter(Egreso.id == id).first()
+    control = bloquear_resguardo(db)
+    egreso = db.query(Egreso).filter(Egreso.id == id).populate_existing().with_for_update().first()
     if not egreso:
         raise HTTPException(status_code=404, detail="Egreso no encontrado")
     if not egreso.activo:
@@ -865,6 +944,14 @@ def actualizar_egreso(
     valores = data.model_dump(exclude_unset=True, exclude={"motivo", "guardar_proveedor"})
     if "fecha" in valores:
         valores["fecha"] = _validar_fecha_operativa(valores["fecha"])
+    if valores.get("metodo_pago", egreso.metodo_pago) == "resguardo":
+        try:
+            validar_salida_resguardo(
+                db, control, valores.get("monto", egreso.monto),
+                valores.get("fecha", egreso.fecha), egreso,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     if "proveedor_id" in valores or "proveedor" in valores:
         proveedor_id, proveedor_nombre = _resolver_proveedor(
             db,
@@ -916,7 +1003,8 @@ def anular_egreso(
     db: Session = Depends(get_db),
     user: Usuario = Depends(require_admin_or_override("egresos", "anular egreso")),
 ):
-    egreso = db.query(Egreso).filter(Egreso.id == id).first()
+    bloquear_resguardo(db)
+    egreso = db.query(Egreso).filter(Egreso.id == id).populate_existing().with_for_update().first()
     if not egreso:
         raise HTTPException(status_code=404, detail="Egreso no encontrado")
     if not egreso.activo:

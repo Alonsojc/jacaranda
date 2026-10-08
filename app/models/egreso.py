@@ -14,6 +14,8 @@ class Egreso(Base):
     __tablename__ = "egresos"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(80), unique=True, index=True)
+    request_fingerprint: Mapped[str | None] = mapped_column(String(64))
     concepto: Mapped[str] = mapped_column(String(200), index=True)
     monto: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     categoria: Mapped[str] = mapped_column(String(60), default="operativo", index=True)

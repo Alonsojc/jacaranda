@@ -5,15 +5,15 @@ balance general, estado de resultados y conciliación bancaria.
 
 from decimal import Decimal
 from datetime import date, datetime, timezone
-from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import func, and_, or_, case
 
 from app.models.contabilidad import (
     CuentaContable, AsientoContable, LineaAsiento, MovimientoBancario,
     TipoCuenta, NaturalezaCuenta, TipoAsiento,
 )
 from app.models.venta import Venta, DetalleVenta, EstadoVenta
-from app.models.cafeteria import CafeteriaVenta, EstadoCuentaCafeteria
+from app.models.cafeteria import CafeteriaVenta, DetalleCafeteriaVenta, EstadoCuentaCafeteria
 from app.models.inventario import (
     Ingrediente, Producto, MovimientoInventario, TipoMovimiento,
 )
@@ -231,7 +231,9 @@ def crear_asiento(
 
 def libro_diario(db: Session, fecha_inicio: date, fecha_fin: date) -> list[dict]:
     """Libro diario: asientos con líneas en un periodo."""
-    asientos = db.query(AsientoContable).filter(
+    asientos = db.query(AsientoContable).options(
+        selectinload(AsientoContable.lineas).joinedload(LineaAsiento.cuenta),
+    ).filter(
         and_(
             AsientoContable.fecha >= fecha_inicio,
             AsientoContable.fecha <= fecha_fin,
@@ -278,7 +280,7 @@ def balance_general(db: Session, fecha_corte: date | None = None) -> dict:
 
     # 2. Estimaciones directas de datos operativos
     # Caja: solo la porción en efectivo, incluso cuando la venta fue dividida.
-    ventas_corte = db.query(Venta).filter(
+    ventas_corte = db.query(Venta).options(selectinload(Venta.pagos)).filter(
         and_(Venta.estado == EstadoVenta.COMPLETADA, Venta.fecha <= corte_dt)
     ).all()
     efectivo = sum(
@@ -312,11 +314,11 @@ def balance_general(db: Session, fecha_corte: date | None = None) -> dict:
         {"cuenta": "1104 - Inventario materia prima", "saldo": float(inv_mp)},
         {"cuenta": "1105 - Inventario producto terminado", "saldo": float(inv_pt)},
     ]
+    nombres_cuentas = dict(db.query(CuentaContable.codigo, CuentaContable.nombre).all())
     # Add any poliza-based activo accounts not already listed
     for codigo, saldo in saldos_polizas.items():
         if codigo.startswith("1") and codigo not in ("1101", "1102", "1104", "1105") and saldo != ZERO:
-            cuenta = db.query(CuentaContable).filter(CuentaContable.codigo == codigo).first()
-            nombre = cuenta.nombre if cuenta else codigo
+            nombre = nombres_cuentas.get(codigo, codigo)
             activos.append({"cuenta": f"{codigo} - {nombre}", "saldo": float(saldo)})
 
     pasivos = [
@@ -324,15 +326,13 @@ def balance_general(db: Session, fecha_corte: date | None = None) -> dict:
     ]
     for codigo, saldo in saldos_polizas.items():
         if codigo.startswith("2") and codigo != "2103" and saldo != ZERO:
-            cuenta = db.query(CuentaContable).filter(CuentaContable.codigo == codigo).first()
-            nombre = cuenta.nombre if cuenta else codigo
+            nombre = nombres_cuentas.get(codigo, codigo)
             pasivos.append({"cuenta": f"{codigo} - {nombre}", "saldo": float(saldo)})
 
     capital_items = []
     for codigo, saldo in saldos_polizas.items():
         if codigo.startswith("3") and saldo != ZERO:
-            cuenta = db.query(CuentaContable).filter(CuentaContable.codigo == codigo).first()
-            nombre = cuenta.nombre if cuenta else codigo
+            nombre = nombres_cuentas.get(codigo, codigo)
             capital_items.append({"cuenta": f"{codigo} - {nombre}", "saldo": float(saldo)})
 
     total_activos = sum(a["saldo"] for a in activos)
@@ -395,39 +395,39 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
     fin_dt = _normalizar_fecha_db(datetime.combine(fecha_fin, datetime.max.time(), tzinfo=zona))
 
     # Ingresos: mostrador + entregas B2B de cafetería no canceladas.
-    ventas = db.query(Venta).filter(
-        and_(Venta.estado == EstadoVenta.COMPLETADA,
-             Venta.fecha >= inicio_dt, Venta.fecha <= fin_dt)
-    ).all()
-    entregas_cafeteria = db.query(CafeteriaVenta).filter(
-        and_(
-            CafeteriaVenta.estado != EstadoCuentaCafeteria.CANCELADA,
-            CafeteriaVenta.fecha >= inicio_dt,
-            CafeteriaVenta.fecha <= fin_dt,
-        )
-    ).all()
-    ingresos_mostrador = sum((v.total or ZERO) for v in ventas)
-    ingresos_cafeteria = sum((v.total or ZERO) for v in entregas_cafeteria)
-    cobrado_cafeteria = sum((v.monto_pagado or ZERO) for v in entregas_cafeteria)
-    saldo_cafeteria = sum((v.saldo_pendiente or ZERO) for v in entregas_cafeteria)
+    filtro_ventas = and_(Venta.estado == EstadoVenta.COMPLETADA,
+                         Venta.fecha >= inicio_dt, Venta.fecha <= fin_dt)
+    filtro_cafe = and_(CafeteriaVenta.estado != EstadoCuentaCafeteria.CANCELADA,
+                      CafeteriaVenta.fecha >= inicio_dt, CafeteriaVenta.fecha <= fin_dt)
+    numero_ventas, ingresos_mostrador, iva_mostrador = db.query(
+        func.count(Venta.id), func.coalesce(func.sum(Venta.total), 0),
+        func.coalesce(func.sum(Venta.iva_16), 0),
+    ).filter(filtro_ventas).one()
+    numero_entregas, ingresos_cafeteria, iva_cafe, cobrado_cafeteria, saldo_cafeteria = db.query(
+        func.count(CafeteriaVenta.id), func.coalesce(func.sum(CafeteriaVenta.total), 0),
+        func.coalesce(func.sum(CafeteriaVenta.iva_16), 0),
+        func.coalesce(func.sum(CafeteriaVenta.monto_pagado), 0),
+        func.coalesce(func.sum(case(
+            (CafeteriaVenta.total > CafeteriaVenta.monto_pagado,
+             CafeteriaVenta.total - CafeteriaVenta.monto_pagado), else_=0,
+        )), 0),
+    ).filter(filtro_cafe).one()
     ingresos_brutos = ingresos_mostrador + ingresos_cafeteria
-    iva_cobrado = sum((v.iva_16 or ZERO) for v in ventas) + sum(
-        (v.iva_16 or ZERO) for v in entregas_cafeteria
-    )
+    iva_cobrado = iva_mostrador + iva_cafe
     ingresos_netos = ingresos_brutos - iva_cobrado
 
-    # Costo de ventas: sum(cantidad * costo_produccion) de los detalles
-    costo_ventas = ZERO
-    for v in ventas:
-        for d in v.detalles:
-            producto = db.query(Producto).filter(Producto.id == d.producto_id).first()
-            if producto and producto.costo_produccion:
-                costo_ventas += d.cantidad * producto.costo_produccion
-    for entrega in entregas_cafeteria:
-        for d in entrega.detalles:
-            producto = db.query(Producto).filter(Producto.id == d.producto_id).first()
-            if producto and producto.costo_produccion:
-                costo_ventas += d.cantidad * producto.costo_produccion
+    # Aggregate in SQL: report latency must not grow by one round trip per line.
+    costo_mostrador = db.query(func.coalesce(func.sum(
+        DetalleVenta.cantidad * Producto.costo_produccion,
+    ), 0)).select_from(DetalleVenta).join(Venta, Venta.id == DetalleVenta.venta_id).join(
+        Producto, Producto.id == DetalleVenta.producto_id,
+    ).filter(filtro_ventas).scalar()
+    costo_cafe = db.query(func.coalesce(func.sum(
+        DetalleCafeteriaVenta.cantidad * Producto.costo_produccion,
+    ), 0)).select_from(DetalleCafeteriaVenta).join(
+        CafeteriaVenta, CafeteriaVenta.id == DetalleCafeteriaVenta.venta_id,
+    ).join(Producto, Producto.id == DetalleCafeteriaVenta.producto_id).filter(filtro_cafe).scalar()
+    costo_ventas = costo_mostrador + costo_cafe
 
     utilidad_bruta = ingresos_netos - costo_ventas
 
@@ -516,7 +516,7 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
         "ingresos_mostrador": float(ingresos_mostrador),
         "ingresos_cafeteria": float(ingresos_cafeteria),
         "cafeteria_b2b": {
-            "entregas": len(entregas_cafeteria),
+            "entregas": numero_entregas,
             "llevado": float(ingresos_cafeteria),
             "cobrado": float(cobrado_cafeteria),
             "cuentas_por_cobrar": float(saldo_cafeteria),
@@ -533,8 +533,8 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
         "utilidad_operacion": float(utilidad_operacion),
         "utilidad_neta": float(utilidad_neta),
         "margen_neto_pct": round(float(utilidad_neta / ingresos_netos * 100), 1) if ingresos_netos else 0,
-        "numero_ventas": len(ventas),
-        "numero_entregas_cafeteria": len(entregas_cafeteria),
+        "numero_ventas": numero_ventas,
+        "numero_entregas_cafeteria": numero_entregas,
     }
 
 
@@ -611,7 +611,7 @@ def conciliacion_bancaria(db: Session, mes: int, anio: int) -> dict:
 
     # Ventas con tarjeta/transferencia del mes (depósitos esperados).
     # Se calcula por pago para no mezclar efectivo en ventas divididas.
-    ventas_mes = db.query(Venta).filter(
+    ventas_mes = db.query(Venta).options(selectinload(Venta.pagos)).filter(
         and_(Venta.estado == EstadoVenta.COMPLETADA,
              Venta.fecha >= inicio_dt, Venta.fecha < fin_dt)
     ).all()

@@ -1281,10 +1281,18 @@ table.tbl th,table.tbl td{font-size:.8rem}
     <button class="limpiar" style="width:auto;margin:0;padding:.45rem .8rem" onclick="abrirNuevoGasto()">Gasto mensual</button>
   </div>
 </div>
-<div class="row r3">
-<div class="card kpi"><div class="n" id="eg-kpi-hoy">$0</div><div class="l">Hoy</div></div>
-<div class="card kpi a"><div class="n" id="eg-kpi-mes">$0</div><div class="l">Mes actual</div></div>
-<div class="card kpi p"><div class="n" id="eg-kpi-rec">$0</div><div class="l">Recurrentes / mes</div></div>
+<div class="row r4">
+<div class="card kpi"><div class="n" id="eg-kpi-hoy">--</div><div class="l">Hoy</div></div>
+<div class="card kpi a"><div class="n" id="eg-kpi-mes">--</div><div class="l">Mes actual</div></div>
+<div class="card kpi p"><div class="n" id="eg-kpi-rec">--</div><div class="l">Recurrentes / mes</div></div>
+<div class="card kpi g"><div class="n" id="eg-kpi-resguardo">--</div><div class="l">Disponible en resguardo</div></div>
+</div>
+<div style="margin-bottom:1rem;border-bottom:1px solid var(--brd);padding:.7rem 0">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+<h3 style="margin:0">Resguardo</h3><button type="button" class="limpiar" style="width:44px;height:44px;margin:0" onclick="cargarResguardo()" aria-label="Actualizar resguardo" title="Actualizar resguardo">&#8635;</button>
+</div>
+<div id="eg-resguardo" aria-live="polite">Cargando...</div>
+<details id="eg-resguardo-historial" hidden><summary>Movimientos de resguardo</summary><div id="eg-resguardo-movimientos" style="overflow:auto;margin-top:.5rem"></div></details>
 </div>
 <div class="row r2">
 <div class="card">
@@ -1309,6 +1317,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </select></div>
 <div class="fg"><label>Forma de pago</label><select id="eg-metodo">
 <option value="efectivo">Efectivo</option>
+<option value="resguardo" disabled>Resguardo</option>
 <option value="transferencia">Transferencia</option>
 <option value="bbva">BBVA</option>
 <option value="clip">CLIP</option>
@@ -1327,7 +1336,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <label style="display:flex;align-items:center;gap:.45rem;margin:.15rem 0 .8rem;color:var(--txt);font-size:.82rem;font-weight:600">
 <input type="checkbox" id="eg-guardar-proveedor" checked style="width:18px;height:18px;accent-color:var(--v)"> Guardar proveedor si es nuevo
 </label>
-<button class="cobrar" onclick="guardarEgreso()">Guardar egreso</button>
+<button class="cobrar" id="eg-guardar" onclick="guardarEgreso()">Guardar egreso</button>
 </div>
 <div class="card">
 <h3>Resumen</h3>
@@ -1338,6 +1347,8 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="card">
 <h3>Escanear ticket</h3>
 <p style="color:var(--mut);font-size:.83rem;margin-bottom:.6rem">Lee una foto o PDF y llena el egreso autom&aacute;ticamente.</p>
+<button type="button" class="limpiar" style="width:auto;min-height:44px;margin:0 0 .6rem" onclick="abrirCamaraEgreso()">&#128247; Tomar foto</button>
+<input type="file" id="eg-camera-file" accept="image/*" capture="environment" hidden onchange="escanearTicketEgreso(this)">
 <input type="file" id="eg-ocr-file" accept="image/*,application/pdf" multiple onchange="escanearTicketEgreso()" style="font-size:.82rem;width:100%">
 <p id="eg-ocr-status" style="font-size:.78rem;color:var(--mut);margin-top:.45rem"></p>
 <div id="eg-ocr-result" style="display:none;margin-top:.6rem;border-top:1px solid #f0e8e5;padding-top:.6rem;font-size:.82rem"></div>
@@ -1354,6 +1365,19 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="card">
 <h3>Egresos recientes</h3>
 <div id="eg-list"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+</div>
+</div>
+
+<div class="modal-bg" id="modal-egreso-camara" role="dialog" aria-modal="true" aria-labelledby="eg-camera-title">
+<div class="modal" style="width:min(520px,calc(100vw - 24px))">
+<h3 id="eg-camera-title">Foto del ticket</h3>
+<video id="eg-camera-video" autoplay muted playsinline style="width:100%;aspect-ratio:4/3;object-fit:contain;background:#111;border-radius:6px"></video>
+<p id="eg-camera-status" role="status" style="font-size:.82rem;margin:.7rem 0"></p>
+<div style="display:flex;gap:.5rem;flex-wrap:wrap">
+<button type="button" class="cobrar" id="eg-camera-capture" disabled style="flex:1;min-height:44px" onclick="tomarFotoEgreso()">&#128247; Capturar</button>
+<button type="button" class="limpiar" style="flex:1;min-height:44px" onclick="cerrarCamaraEgreso()">Cancelar</button>
+</div>
+<button type="button" class="limpiar" onclick="cerrarCamaraEgreso();document.getElementById('eg-camera-file').click()">Elegir foto</button>
 </div>
 </div>
 
@@ -1854,16 +1878,16 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="page" id="conta">
 <h2>Contabilidad</h2>
 <div class="section-tabs" style="margin-bottom:1rem">
-<span class="tab active" onclick="contaTab('conta-edores')">Estado de Resultados</span>
-<span class="tab" onclick="contaTab('conta-balance')">Balance General</span>
-<span class="tab" onclick="contaTab('conta-banco')">Conciliaci&oacute;n Bancaria</span>
-<span class="tab" onclick="contaTab('conta-polizas')">P&oacute;lizas</span>
-<span class="tab" onclick="contaTab('conta-catalogo')">Cat&aacute;logo</span>
+<span class="tab active" data-conta-tab="conta-edores" onclick="contaTab('conta-edores',this)">Estado de Resultados</span>
+<span class="tab" data-conta-tab="conta-balance" onclick="contaTab('conta-balance',this)">Balance General</span>
+<span class="tab" data-conta-tab="conta-banco" onclick="contaTab('conta-banco',this)">Conciliaci&oacute;n Bancaria</span>
+<span class="tab" data-conta-tab="conta-polizas" onclick="contaTab('conta-polizas',this)">P&oacute;lizas</span>
+<span class="tab" data-conta-tab="conta-catalogo" onclick="contaTab('conta-catalogo',this)">Cat&aacute;logo</span>
 </div>
 
 <!-- Estado de resultados -->
 <div id="conta-edores">
-<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap">
+<div class="report-period">
 <span style="font-size:.83rem;color:var(--mut)">Periodo:</span>
 <input type="date" id="conta-er-fi" style="padding:.35rem .5rem;border:1px solid var(--brd);border-radius:8px;font-size:.82rem;font-family:inherit">
 <span style="font-size:.83rem;color:var(--mut)">a</span>
@@ -2467,6 +2491,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </select></div>
 <div class="fg"><label>Forma de pago</label><select id="mee-metodo">
 <option value="efectivo">Efectivo</option>
+<option value="resguardo" disabled>Resguardo</option>
 <option value="transferencia">Transferencia</option>
 <option value="bbva">BBVA</option>
 <option value="clip">CLIP</option>
@@ -3107,7 +3132,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v112';
+var APP_BUILD = 'jacaranda-v113';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -3250,6 +3275,15 @@ var _pedidoDatosCargados = false;
 
 function invalidarTareasSesion() {
   _versionSesion++;
+  cerrarCamaraEgreso();
+  _egresoCapturaPendiente = null;
+  _egresoGuardando = false;
+  _resguardoData = null;
+  _resguardoIniciando = false;
+  _resguardoSeq++;
+  _egresosResumenSeq++;
+  _egOcrSeq++;
+  _contaCuentas = [];
   cancelarAdminAuth();
   cerrarClaveAutorizacion(true);
   cerrarUsuario();
@@ -11251,6 +11285,7 @@ document.addEventListener('keydown', function(e) {
 });
 
 function cerrarModal(id) {
+  if (id === 'modal-egreso-camara') { cerrarCamaraEgreso(); return; }
   if (id === 'modal-clave-autorizacion') { cerrarClaveAutorizacion(); return; }
   if (id === 'modal-usuario') { cerrarUsuario(); return; }
   if (id === 'modal-ticket-editar') { cerrarEdicionTicket(); return; }
@@ -11267,6 +11302,7 @@ document.addEventListener('keydown', function(e) {
     if (document.getElementById('modal-admin-auth').classList.contains('on')) { cancelarAdminAuth(); return; }
     document.querySelectorAll('.modal-bg.on').forEach(function(m) {
       if (m.id === 'modal-admin-auth') cancelarAdminAuth();
+      else if (m.id === 'modal-egreso-camara') cerrarCamaraEgreso();
       else if (m.id === 'modal-clave-autorizacion' || m.id === 'modal-usuario') cerrarModal(m.id);
       else if (m.id === 'modal-ticket-editar') cerrarEdicionTicket();
       else if (m.id === 'modal-scan-cliente') cerrarModal('modal-scan-cliente');
@@ -11279,6 +11315,7 @@ document.addEventListener('keydown', function(e) {
 document.addEventListener('click', function(e) {
   if (e.target.classList.contains('modal-bg')) {
     if (e.target.id === 'modal-admin-auth') cancelarAdminAuth();
+    else if (e.target.id === 'modal-egreso-camara') cerrarCamaraEgreso();
     else if (e.target.id === 'modal-clave-autorizacion' || e.target.id === 'modal-usuario') cerrarModal(e.target.id);
     else if (e.target.id === 'modal-ticket-editar') cerrarEdicionTicket();
     else if (e.target.id === 'modal-scan-cliente') cerrarModal('modal-scan-cliente');
@@ -12482,11 +12519,64 @@ function cargarGastos(fecha) {
 var _egresoOrigen = 'manual';
 var _egresoOcrPayload = null;
 var _egresosCache = {};
+var _egresoGuardando = false, _egresoCapturaPendiente = null;
+var _resguardoData = null, _resguardoSeq = 0, _resguardoIniciando = false;
+var _egresosResumenSeq = 0, _egOcrSeq = 0, _egCameraState = null;
 
 function initEgresos() {
   var fecha = document.getElementById('eg-fecha');
   if (fecha && !fecha.value) fecha.value = fechaHoyISO();
-  return Promise.all([cargarResumenEgresosApi(), cargarEgresos(), cargarProveedoresEgresos(), cargarGastosFijosEgresos()]);
+  document.getElementById('eg-guardar').disabled = _egresoGuardando;
+  return Promise.all([cargarResumenEgresosApi(), cargarResguardo(), cargarEgresos(), cargarProveedoresEgresos(), cargarGastosFijosEgresos()]);
+}
+
+function cargarResguardo() {
+  var seq = ++_resguardoSeq, version = _versionSesion;
+  _resguardoData = null;
+  document.getElementById('eg-kpi-resguardo').textContent = '--';
+  document.getElementById('eg-resguardo').textContent = 'Cargando...';
+  document.getElementById('eg-resguardo-historial').hidden = true;
+  document.querySelectorAll('#eg-metodo option[value="resguardo"],#mee-metodo option[value="resguardo"]').forEach(function(o) { o.disabled = true; });
+  return api('GET', '/egresos/resguardo').then(function(data) {
+    if (seq !== _resguardoSeq || version !== _versionSesion) return;
+    _resguardoData = data;
+    var el = document.getElementById('eg-resguardo');
+    if (!data.configurado) {
+      el.innerHTML = '<div style="display:flex;align-items:end;gap:.6rem;flex-wrap:wrap"><div class="fg" style="margin:0"><label for="eg-resguardo-inicial">Efectivo resguardado al inicio</label><input type="number" min="0" step="0.01" id="eg-resguardo-inicial" value="0"></div><button type="button" class="cobrar" style="width:auto;margin:0;min-height:44px" onclick="iniciarResguardo()">Iniciar control</button></div><p style="font-size:.78rem;color:var(--mut);margin-top:.4rem">Retiros anteriores excluidos del saldo inicial.</p>';
+      return;
+    }
+    document.querySelectorAll('#eg-metodo option[value="resguardo"],#mee-metodo option[value="resguardo"]').forEach(function(o) { o.disabled = false; });
+    document.getElementById('eg-kpi-resguardo').textContent = '$' + fmt(data.saldo);
+    el.innerHTML = '<div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:.83rem"><span>Inicial: <strong>$' + fmt(data.saldo_inicial) + '</strong></span><span>Retiros recibidos: <strong>$' + fmt(data.entradas) + '</strong></span><span>Egresos desde resguardo: <strong>$' + fmt(data.salidas) + '</strong></span><span>Inicio: ' + escHtml(data.iniciado_en.slice(0,10)) + '</span></div>';
+    document.getElementById('eg-resguardo-historial').hidden = false;
+    var movimientos = data.movimientos || [];
+    document.getElementById('eg-resguardo-movimientos').innerHTML = movimientos.length ?
+      '<table class="tbl"><tr><th>Fecha</th><th>Concepto</th><th>Entrada</th><th>Salida</th></tr>' + movimientos.map(function(m) {
+        return '<tr><td>' + escHtml((m.fecha_egreso || m.fecha).slice(0,10)) + '</td><td>' + escHtml(m.concepto) + '</td><td>' + (m.tipo === 'entrada' ? '$' + fmt(m.monto) : '') + '</td><td>' + (m.tipo === 'salida' ? '$' + fmt(m.monto) : '') + '</td></tr>';
+      }).join('') + '</table>' : '<p style="font-size:.83rem;color:var(--mut)">Sin movimientos posteriores al inicio.</p>';
+  }).catch(function(e) {
+    if (seq !== _resguardoSeq || version !== _versionSesion) return;
+    document.getElementById('eg-resguardo').innerHTML = '<p style="color:#b91c1c">' + escHtml(e.message || 'No se pudo cargar resguardo') + '</p>';
+  });
+}
+
+async function iniciarResguardo() {
+  if (_resguardoIniciando || !_resguardoData || _resguardoData.configurado) return;
+  var monto = Number(document.getElementById('eg-resguardo-inicial').value);
+  if (!Number.isFinite(monto) || monto < 0) { toast('Saldo inicial invalido', true); return; }
+  var version = _versionSesion;
+  _resguardoIniciando = true;
+  try {
+    var ok = await confirmarAccion({title:'Iniciar resguardo', message:'Saldo inicial: $' + fmt(monto),
+      detail:'Se excluyen todos los retiros anteriores. Este inicio no reemplaza el historial.', acceptText:'Iniciar control'});
+    if (!ok || version !== _versionSesion) return;
+    await apiProtegida('POST', '/egresos/resguardo/iniciar', {saldo_inicial:monto}, 'iniciar resguardo');
+    if (version !== _versionSesion) return;
+    toast('Control de resguardo iniciado');
+    return cargarResguardo();
+  } catch (e) {
+    if (version === _versionSesion && e.message !== 'Autorizacion cancelada') toast(e.message || 'No se pudo iniciar resguardo', true);
+  } finally { if (version === _versionSesion) _resguardoIniciando = false; }
 }
 
 function validarFechaEgreso(fechaStr) {
@@ -12499,6 +12589,8 @@ function validarFechaEgreso(fechaStr) {
 }
 
 function limpiarEgresoForm() {
+  _egresoCapturaPendiente = null;
+  _egOcrSeq++;
   document.getElementById('eg-concepto').value = '';
   document.getElementById('eg-monto').value = '';
   document.getElementById('eg-categoria').value = 'operativo';
@@ -12534,20 +12626,39 @@ function datosFormularioEgreso(prefix) {
 }
 
 function guardarEgreso() {
+  if (_egresoGuardando) return;
   var data = datosFormularioEgreso('eg');
   if (!data) return;
   var guardar = document.getElementById('eg-guardar-proveedor');
   data.guardar_proveedor = !guardar || guardar.checked;
   data.origen = _egresoOrigen || 'manual';
   if (_egresoOcrPayload) data.ocr_payload = {tickets: _egresoOcrPayload};
-  api('POST', '/egresos/', data).then(function() {
+  var firma = JSON.stringify(data), version = _versionSesion;
+  if (_egresoCapturaPendiente && _egresoCapturaPendiente.firma !== firma) {
+    toast('Hay una captura sin confirmar. Reintenta con los mismos datos antes de cambiarlos.', true); return;
+  }
+  if (!_egresoCapturaPendiente) _egresoCapturaPendiente = {firma:firma, clave:nuevaClaveIdempotencia('egreso')};
+  data.idempotency_key = _egresoCapturaPendiente.clave;
+  _egresoGuardando = true;
+  document.getElementById('eg-guardar').disabled = true;
+  return api('POST', '/egresos/', data, false, null, version).then(function() {
+    if (version !== _versionSesion) return;
     toast('Egreso guardado');
     limpiarEgresoForm();
     cargarEgresos();
     cargarResumenEgresosApi();
+    cargarResguardo();
     cargarProveedoresEgresos();
     cargarGastos(document.getElementById('c-fecha') ? document.getElementById('c-fecha').value : null);
-  }).catch(function(e) { toast(e.message || 'Error al guardar egreso', true); });
+  }).catch(function(e) {
+    if (version !== _versionSesion) return;
+    if (e.status >= 400 && e.status < 500) _egresoCapturaPendiente = null;
+    toast(e.message || 'No se confirmo el egreso. Reintenta con los mismos datos.', true);
+  }).finally(function() {
+    if (version !== _versionSesion) return;
+    _egresoGuardando = false;
+    document.getElementById('eg-guardar').disabled = false;
+  });
 }
 
 function cargarEgresos() {
@@ -12559,9 +12670,13 @@ function cargarEgresos() {
 }
 
 function cargarResumenEgresosApi() {
+  var seq = ++_egresosResumenSeq, version = _versionSesion;
+  ['eg-kpi-hoy','eg-kpi-mes','eg-kpi-rec'].forEach(function(id) { document.getElementById(id).textContent = '--'; });
   return api('GET', '/egresos/resumen').then(function(data) {
-    renderResumenEgresos(data || {});
+    if (seq !== _egresosResumenSeq || version !== _versionSesion) return;
+    renderResumenEgresosOperativos(data || {});
   }).catch(function(e) {
+    if (seq !== _egresosResumenSeq || version !== _versionSesion) return;
     document.getElementById('eg-resumen').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">' + escHtml(e.message || 'No se pudo cargar resumen') + '</p>';
   });
 }
@@ -12655,10 +12770,80 @@ function _llenarEgresoDesdeSugerencias(respuestas) {
   _egresoOcrPayload = tickets;
 }
 
-function escanearTicketEgreso() {
-  var fileInput = document.getElementById('eg-ocr-file');
+function escanearTicketEgreso(input) {
+  var fileInput = input || document.getElementById('eg-ocr-file');
   var files = fileInput && fileInput.files;
   if (!files || !files.length) return;
+  procesarFotosEgreso(Array.from(files));
+  fileInput.value = '';
+}
+
+function cerrarCamaraEgreso() {
+  var estado = _egCameraState;
+  _egCameraState = null;
+  if (estado && estado.stream) estado.stream.getTracks().forEach(function(t) { t.stop(); });
+  var video = document.getElementById('eg-camera-video');
+  if (video) { video.srcObject = null; video.onloadedmetadata = null; }
+  var modal = document.getElementById('modal-egreso-camara');
+  if (modal) modal.classList.remove('on');
+}
+
+function abrirCamaraEgreso() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    document.getElementById('eg-camera-file').click(); return;
+  }
+  cerrarCamaraEgreso();
+  var estado = {version:_versionSesion, stream:null};
+  _egCameraState = estado;
+  var video = document.getElementById('eg-camera-video');
+  var status = document.getElementById('eg-camera-status');
+  var boton = document.getElementById('eg-camera-capture');
+  boton.disabled = true;
+  status.textContent = 'Abriendo camara...';
+  document.getElementById('modal-egreso-camara').classList.add('on');
+  return navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:1600}, height:{ideal:1200}}}).then(function(stream) {
+    if (_egCameraState !== estado || estado.version !== _versionSesion) {
+      stream.getTracks().forEach(function(t) { t.stop(); }); return;
+    }
+    estado.stream = stream;
+    video.onloadedmetadata = function() {
+      if (_egCameraState !== estado) return;
+      boton.disabled = false;
+      status.textContent = '';
+    };
+    video.srcObject = stream;
+    return video.play();
+  }).catch(function(e) {
+    if (_egCameraState !== estado || estado.version !== _versionSesion) return;
+    if (estado.stream) estado.stream.getTracks().forEach(function(t) { t.stop(); });
+    boton.disabled = true;
+    status.textContent = e.name === 'NotAllowedError' ? 'Permiso de camara denegado.' : 'No se pudo abrir la camara.';
+  });
+}
+
+function tomarFotoEgreso() {
+  var estado = _egCameraState, video = document.getElementById('eg-camera-video');
+  if (!estado || estado.version !== _versionSesion || !video.videoWidth || !video.videoHeight) return;
+  document.getElementById('eg-camera-capture').disabled = true;
+  var canvas = document.createElement('canvas');
+  var escala = Math.min(1, 1800 / Math.max(video.videoWidth, video.videoHeight));
+  canvas.width = Math.round(video.videoWidth * escala);
+  canvas.height = Math.round(video.videoHeight * escala);
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.toBlob(function(blob) {
+    if (_egCameraState !== estado || estado.version !== _versionSesion) return;
+    cerrarCamaraEgreso();
+    if (!blob) { toast('No se pudo capturar la foto', true); return; }
+    procesarFotosEgreso([new File([blob], 'ticket-' + Date.now() + '.jpg', {type:'image/jpeg'})]);
+  }, 'image/jpeg', 0.9);
+}
+
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) cerrarCamaraEgreso();
+});
+
+function procesarFotosEgreso(files) {
+  var seq = ++_egOcrSeq, version = _versionSesion;
   var status = document.getElementById('eg-ocr-status');
   var result = document.getElementById('eg-ocr-result');
   status.textContent = 'Procesando ' + files.length + ' ticket' + (files.length === 1 ? '' : 's') + '...';
@@ -12666,7 +12851,8 @@ function escanearTicketEgreso() {
   result.style.display = 'none';
   var promesas = [];
   for (var i = 0; i < files.length; i++) promesas.push(_enviarOCREgreso(files[i]).catch(function(e) { return {error:e.message || 'No se pudo leer'}; }));
-  Promise.all(promesas).then(function(res) {
+  return Promise.all(promesas).then(function(res) {
+    if (seq !== _egOcrSeq || version !== _versionSesion) return;
     var leidos = res.filter(function(r) { return r && !r.error && r.suggested_egreso; });
     if (!leidos.length) {
       status.textContent = 'No se pudo leer el ticket';
@@ -12686,13 +12872,13 @@ function escanearTicketEgreso() {
     result.style.display = 'block';
     cargarProveedoresEgresos();
   }).catch(function() {
+    if (seq !== _egOcrSeq || version !== _versionSesion) return;
     status.textContent = 'Error al procesar el ticket';
     status.style.color = '#b91c1c';
   });
-  fileInput.value = '';
 }
 
-function renderResumenEgresos(data) {
+function renderResumenEgresosOperativos(data) {
   var hoy = data.hoy || {};
   var mes = data.mes_actual || {};
   var rec = data.recurrentes || {};
@@ -12769,6 +12955,7 @@ function guardarEdicionEgreso() {
     cerrarModal('modal-egreso-editar');
     cargarEgresos();
     cargarResumenEgresosApi();
+    cargarResguardo();
     cargarProveedoresEgresos();
     cargarGastos(document.getElementById('c-fecha') ? document.getElementById('c-fecha').value : null);
   }).catch(function(e) { if (e.message !== 'Autorizacion cancelada') toast(e.message || 'Error al editar egreso', true); });
@@ -12799,6 +12986,7 @@ async function anularEgreso(id) {
     toast('Egreso anulado');
     cargarEgresos();
     cargarResumenEgresosApi();
+    cargarResguardo();
     cargarGastos(document.getElementById('c-fecha') ? document.getElementById('c-fecha').value : null);
   }).catch(function(e) { if (e.message !== 'Autorizacion cancelada') toast(e.message || 'Error al anular egreso', true); });
 }
@@ -15756,14 +15944,19 @@ function cargarPrecisionIA() {
 
 // ─── Contabilidad ─────────────────────────────────────────────────
 var _contaCuentas = [];
+var _contaSeq = {};
 
-function contaTab(tab) {
+function contaTab(tab, target) {
   ['conta-edores','conta-balance','conta-banco','conta-polizas','conta-catalogo'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('#conta .tab').forEach(function(t) { t.classList.remove('active'); });
-  event.target.classList.add('active');
+  if (target) target.classList.add('active');
+  if (tab === 'conta-edores') cargarEdoResultados();
+  if (tab === 'conta-balance') cargarBalanceGeneral();
+  if (tab === 'conta-banco') cargarConciliacion();
+  if (tab === 'conta-polizas') cargarLibroDiario();
   if (tab === 'conta-catalogo') cargarCatalogoCuentas();
 }
 
@@ -15777,8 +15970,13 @@ function initContabilidad() {
   document.getElementById('conta-ld-ff').value = hoy;
   var mes = parseInt(hoy.slice(5, 7), 10);
   document.getElementById('conta-bk-mes').value = mes;
+  var anio = hoy.slice(0,4), selectorAnio = document.getElementById('conta-bk-anio');
+  if (!Array.from(selectorAnio.options).some(function(o) { return o.value === anio; })) selectorAnio.add(new Option(anio, anio));
+  selectorAnio.value = anio;
+  var version = _versionSesion;
   // Load cuentas for asiento modal
   api('GET', '/contabilidad/cuentas').then(function(cat) {
+    if (version !== _versionSesion) return;
     _contaCuentas = [];
     for (var tipo in cat) {
       for (var i = 0; i < cat[tipo].length; i++) {
@@ -15786,6 +15984,31 @@ function initContabilidad() {
       }
     }
   }).catch(function(e){ console.warn('Error cargando datos:', e); });
+  var activa = document.querySelector('#conta .tab.active');
+  contaTab(activa ? activa.dataset.contaTab : 'conta-edores', activa);
+}
+
+function iniciarConsultaContable(id, campos, reintentar) {
+  var seq = (_contaSeq[id] || 0) + 1, version = _versionSesion;
+  _contaSeq[id] = seq;
+  var valores = campos.map(function(c) { return document.getElementById(c).value; });
+  var el = document.getElementById(id);
+  el.innerHTML = '<p role="status" style="color:var(--mut);padding:.75rem">Cargando...</p>';
+  campos.forEach(function(c) {
+    document.getElementById(c).onchange = function() {
+      _contaSeq[id]++;
+      el.innerHTML = '<p style="color:var(--mut);padding:.75rem">Periodo modificado.</p>';
+    };
+  });
+  function vigente() {
+    return seq === _contaSeq[id] && version === _versionSesion && campos.every(function(c, i) {
+      return document.getElementById(c).value === valores[i];
+    });
+  }
+  return {vigente:vigente, error:function(e) {
+    if (!vigente()) return;
+    el.innerHTML = '<p role="alert" style="color:#b91c1c;padding:.75rem">' + escHtml(e.message || 'No se pudo cargar la consulta') + '</p><button type="button" class="limpiar" style="width:auto;min-height:44px" onclick="' + reintentar + '()">&#8635; Reintentar</button>';
+  }};
 }
 
 function contaSetRango(dias) {
@@ -15818,7 +16041,9 @@ function cargarEdoResultados() {
   var fi = document.getElementById('conta-er-fi').value;
   var ff = document.getElementById('conta-er-ff').value;
   if (!validarFechas(fi, ff)) return;
-  api('GET', '/contabilidad/estado-resultados?fecha_inicio=' + fi + '&fecha_fin=' + ff).then(function(r) {
+  var consulta = iniciarConsultaContable('conta-er-content', ['conta-er-fi','conta-er-ff'], 'cargarEdoResultados');
+  return api('GET', '/contabilidad/estado-resultados?fecha_inicio=' + fi + '&fecha_fin=' + ff).then(function(r) {
+    if (!consulta.vigente()) return;
     var h = '<div class="row r4" style="margin-bottom:1rem">';
     h += '<div class="card kpi g"><div class="n">$' + fmt(r.ingresos_netos) + '</div><div class="l">Ingresos netos</div></div>';
     h += '<div class="card kpi a"><div class="n">$' + fmt(r.costo_ventas) + '</div><div class="l">Costo de ventas</div></div>';
@@ -15841,19 +16066,21 @@ function cargarEdoResultados() {
     // Right: gastos desglose
     h += '<div class="card"><h3>Desglose de gastos</h3>';
     for (var k in r.gastos_operacion) {
-      h += '<div class="conta-row"><span class="cr-label">' + k + '</span><span class="cr-val">$' + fmt(r.gastos_operacion[k]) + '</span></div>';
+      h += '<div class="conta-row"><span class="cr-label">' + escHtml(k) + '</span><span class="cr-val">$' + fmt(r.gastos_operacion[k]) + '</span></div>';
     }
     if (Object.keys(r.gastos_operacion).length === 0) h += '<p style="color:var(--mut);font-size:.82rem">Sin gastos registrados</p>';
     h += '<div class="conta-row total"><span class="cr-label">Total gastos</span><span class="cr-val">$' + fmt(r.total_gastos_operacion) + '</span></div>';
     h += '</div></div>';
     document.getElementById('conta-er-content').innerHTML = h;
-  }).catch(function() { toast('Error al cargar estado de resultados', true); });
+  }).catch(consulta.error);
 }
 
 function cargarBalanceGeneral() {
   var fecha = document.getElementById('conta-bg-fecha').value;
   var qs = fecha ? '?fecha_corte=' + fecha : '';
-  api('GET', '/contabilidad/balance-general' + qs).then(function(r) {
+  var consulta = iniciarConsultaContable('conta-bg-content', ['conta-bg-fecha'], 'cargarBalanceGeneral');
+  return api('GET', '/contabilidad/balance-general' + qs).then(function(r) {
+    if (!consulta.vigente()) return;
     var h = '<div class="row r3" style="margin-bottom:1rem">';
     h += '<div class="card kpi g"><div class="n">$' + fmt(r.total_activos) + '</div><div class="l">Total activos</div></div>';
     h += '<div class="card kpi"><div class="n">$' + fmt(r.total_pasivos) + '</div><div class="l">Total pasivos</div></div>';
@@ -15863,32 +16090,34 @@ function cargarBalanceGeneral() {
     // Activos
     h += '<div class="card"><h3>Activos</h3>';
     for (var i = 0; i < r.activos.length; i++) {
-      h += '<div class="conta-row"><span class="cr-label">' + r.activos[i].cuenta + '</span><span class="cr-val">$' + fmt(r.activos[i].saldo) + '</span></div>';
+      h += '<div class="conta-row"><span class="cr-label">' + escHtml(r.activos[i].cuenta) + '</span><span class="cr-val">$' + fmt(r.activos[i].saldo) + '</span></div>';
     }
     h += '<div class="conta-row total"><span class="cr-label">Total</span><span class="cr-val pos">$' + fmt(r.total_activos) + '</span></div></div>';
     // Pasivos
     h += '<div class="card"><h3>Pasivos</h3>';
     for (var j = 0; j < r.pasivos.length; j++) {
-      h += '<div class="conta-row"><span class="cr-label">' + r.pasivos[j].cuenta + '</span><span class="cr-val">$' + fmt(r.pasivos[j].saldo) + '</span></div>';
+      h += '<div class="conta-row"><span class="cr-label">' + escHtml(r.pasivos[j].cuenta) + '</span><span class="cr-val">$' + fmt(r.pasivos[j].saldo) + '</span></div>';
     }
     h += '<div class="conta-row total"><span class="cr-label">Total</span><span class="cr-val">$' + fmt(r.total_pasivos) + '</span></div></div>';
     // Capital
     h += '<div class="card"><h3>Capital</h3>';
     for (var k = 0; k < r.capital.length; k++) {
-      h += '<div class="conta-row"><span class="cr-label">' + r.capital[k].cuenta + '</span><span class="cr-val">$' + fmt(r.capital[k].saldo) + '</span></div>';
+      h += '<div class="conta-row"><span class="cr-label">' + escHtml(r.capital[k].cuenta) + '</span><span class="cr-val">$' + fmt(r.capital[k].saldo) + '</span></div>';
     }
     h += '<div class="conta-row total"><span class="cr-label">Total</span><span class="cr-val">$' + fmt(r.total_capital) + '</span></div></div>';
     h += '</div>';
     var badge = r.cuadra ? '<span class="badge bok">Cuadra \u2713</span>' : '<span class="badge bout">Descuadrado \u2717</span>';
-    h += '<div class="card" style="text-align:center;padding:.6rem"><span style="font-size:.85rem;font-weight:600">A = P + C &bull; ' + badge + ' &bull; Corte: ' + r.fecha_corte + '</span></div>';
+    h += '<div class="card" style="text-align:center;padding:.6rem"><span style="font-size:.85rem;font-weight:600">A = P + C &bull; ' + badge + ' &bull; Corte: ' + escHtml(r.fecha_corte) + '</span></div>';
     document.getElementById('conta-bg-content').innerHTML = h;
-  }).catch(function() { toast('Error al cargar balance', true); });
+  }).catch(consulta.error);
 }
 
 function cargarConciliacion() {
   var mes = document.getElementById('conta-bk-mes').value;
   var anio = document.getElementById('conta-bk-anio').value;
-  api('GET', '/contabilidad/banco/conciliacion?mes=' + mes + '&anio=' + anio).then(function(r) {
+  var consulta = iniciarConsultaContable('conta-bk-content', ['conta-bk-mes','conta-bk-anio'], 'cargarConciliacion');
+  return api('GET', '/contabilidad/banco/conciliacion?mes=' + mes + '&anio=' + anio).then(function(r) {
+    if (!consulta.vigente()) return;
     var h = '<div class="row r4" style="margin-bottom:1rem">';
     h += '<div class="card kpi g"><div class="n">$' + fmt(r.saldo_banco) + '</div><div class="l">Saldo banco</div></div>';
     h += '<div class="card kpi"><div class="n">$' + fmt(r.saldo_sistema) + '</div><div class="l">Saldo sistema</div></div>';
@@ -15904,7 +16133,7 @@ function cargarConciliacion() {
       h += '<table class="tbl"><tr><th>Fecha</th><th>Concepto</th><th>Dep\u00f3sito</th><th>Retiro</th><th>Estado</th><th></th></tr>';
       for (var i = 0; i < r.movimientos_banco.length; i++) {
         var m = r.movimientos_banco[i];
-        h += '<tr><td>' + m.fecha + '</td><td>' + m.concepto + '</td>';
+        h += '<tr><td>' + escHtml(m.fecha) + '</td><td>' + escHtml(m.concepto) + '</td>';
         h += '<td class="green">$' + fmt(m.deposito) + '</td>';
         h += '<td style="color:#b91c1c">$' + fmt(m.retiro) + '</td>';
         h += '<td><span class="badge ' + (m.conciliado ? 'bok' : 'blow') + '">' + (m.conciliado ? '\u2713' : 'Pendiente') + '</span></td>';
@@ -15920,13 +16149,13 @@ function cargarConciliacion() {
       h += '<table class="tbl"><tr><th>Folio</th><th>Fecha</th><th>Total</th><th>M\u00e9todo</th></tr>';
       for (var j = 0; j < r.ventas_no_conciliadas.length; j++) {
         var v = r.ventas_no_conciliadas[j];
-        h += '<tr><td>' + v.folio + '</td><td>' + (v.fecha ? v.fecha.split('T')[0] : '') + '</td>';
-        h += '<td class="green">$' + fmt(v.total) + '</td><td>' + v.metodo + '</td></tr>';
+        h += '<tr><td>' + escHtml(v.folio) + '</td><td>' + escHtml(v.fecha ? v.fecha.split('T')[0] : '') + '</td>';
+        h += '<td class="green">$' + fmt(v.total) + '</td><td>' + escHtml(v.metodo) + '</td></tr>';
       }
       h += '</table></div>';
     }
     document.getElementById('conta-bk-content').innerHTML = h;
-  }).catch(function() { toast('Error al cargar conciliaci\u00f3n', true); });
+  }).catch(consulta.error);
 }
 
 function conciliarMov(id) {
@@ -15940,19 +16169,21 @@ function cargarLibroDiario() {
   var fi = document.getElementById('conta-ld-fi').value;
   var ff = document.getElementById('conta-ld-ff').value;
   if (!validarFechas(fi, ff)) return;
-  api('GET', '/contabilidad/libro-diario?fecha_inicio=' + fi + '&fecha_fin=' + ff).then(function(asientos) {
+  var consulta = iniciarConsultaContable('conta-ld-content', ['conta-ld-fi','conta-ld-ff'], 'cargarLibroDiario');
+  return api('GET', '/contabilidad/libro-diario?fecha_inicio=' + fi + '&fecha_fin=' + ff).then(function(asientos) {
+    if (!consulta.vigente()) return;
     if (!asientos.length) { document.getElementById('conta-ld-content').innerHTML = '<div class="card"><p style="color:var(--mut);font-size:.83rem">Sin p\u00f3lizas en este periodo</p></div>'; return; }
     var h = '';
     for (var i = 0; i < asientos.length; i++) {
       var a = asientos[i];
       h += '<div class="card" style="margin-bottom:.7rem"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">';
-      h += '<span style="font-weight:700;font-size:.88rem;color:var(--dk)">' + a.numero + '</span>';
-      h += '<span style="font-size:.78rem;color:var(--mut)">' + a.fecha + ' \u2022 ' + a.tipo + '</span></div>';
-      h += '<p style="font-size:.82rem;color:var(--mut);margin-bottom:.4rem">' + a.concepto + '</p>';
+      h += '<span style="font-weight:700;font-size:.88rem;color:var(--dk)">' + escHtml(a.numero) + '</span>';
+      h += '<span style="font-size:.78rem;color:var(--mut)">' + escHtml(a.fecha) + ' \u2022 ' + escHtml(a.tipo) + '</span></div>';
+      h += '<p style="font-size:.82rem;color:var(--mut);margin-bottom:.4rem">' + escHtml(a.concepto) + '</p>';
       h += '<table class="tbl"><tr><th>Cuenta</th><th>Debe</th><th>Haber</th></tr>';
       for (var j = 0; j < a.lineas.length; j++) {
         var l = a.lineas[j];
-        h += '<tr><td>' + l.cuenta_codigo + ' ' + l.cuenta_nombre + '</td>';
+        h += '<tr><td>' + escHtml(l.cuenta_codigo) + ' ' + escHtml(l.cuenta_nombre) + '</td>';
         h += '<td style="color:var(--grn)">' + (l.debe > 0 ? '$' + fmt(l.debe) : '') + '</td>';
         h += '<td style="color:#b91c1c">' + (l.haber > 0 ? '$' + fmt(l.haber) : '') + '</td></tr>';
       }
@@ -15962,11 +16193,13 @@ function cargarLibroDiario() {
       h += '</table></div>';
     }
     document.getElementById('conta-ld-content').innerHTML = h;
-  }).catch(function() { toast('Error al cargar libro diario', true); });
+  }).catch(consulta.error);
 }
 
 function cargarCatalogoCuentas() {
-  api('GET', '/contabilidad/cuentas').then(function(cat) {
+  var consulta = iniciarConsultaContable('conta-cat-content', [], 'cargarCatalogoCuentas');
+  return api('GET', '/contabilidad/cuentas').then(function(cat) {
+    if (!consulta.vigente()) return;
     var tipos = ['activo','pasivo','capital','ingreso','costo','gasto'];
     var nombres = {activo:'Activo',pasivo:'Pasivo',capital:'Capital',ingreso:'Ingresos',costo:'Costos',gasto:'Gastos'};
     var h = '';
@@ -15976,12 +16209,12 @@ function cargarCatalogoCuentas() {
       for (var i = 0; i < cuentas.length; i++) {
         var c = cuentas[i];
         var cls = c.nivel === 1 ? 'conta-cat-lvl1' : c.nivel === 2 ? 'conta-cat-lvl2' : 'conta-cat-lvl3';
-        h += '<div class="' + cls + '"><span>' + c.codigo + '</span> &mdash; <span>' + c.nombre + '</span></div>';
+        h += '<div class="' + cls + '"><span>' + escHtml(c.codigo) + '</span> &mdash; <span>' + escHtml(c.nombre) + '</span></div>';
       }
     }
     if (!h) h = '<p style="color:var(--mut);font-size:.83rem">Cat\u00e1logo vac\u00edo. Haz click en "Sembrar default" para crear el cat\u00e1logo est\u00e1ndar SAT.</p>';
     document.getElementById('conta-cat-content').innerHTML = '<div class="card">' + h + '</div>';
-  }).catch(function() { toast('Error al cargar cat\u00e1logo', true); });
+  }).catch(consulta.error);
 }
 
 function seedearCatalogo() {
@@ -16009,7 +16242,7 @@ function agregarLineaAsiento() {
   var idx = _maLineas++;
   var opts = '<option value="">Selecciona cuenta...</option>';
   for (var i = 0; i < _contaCuentas.length; i++) {
-    opts += '<option value="' + _contaCuentas[i].codigo + '">' + _contaCuentas[i].codigo + ' - ' + _contaCuentas[i].nombre + '</option>';
+    opts += '<option value="' + escHtml(_contaCuentas[i].codigo) + '">' + escHtml(_contaCuentas[i].codigo) + ' - ' + escHtml(_contaCuentas[i].nombre) + '</option>';
   }
   var h = '<div class="frow" style="margin-bottom:.3rem;align-items:end" id="ma-ln-' + idx + '">';
   h += '<div class="fg" style="flex:2;margin-bottom:0"><select class="ma-cuenta" style="width:100%;padding:.35rem;border:1px solid var(--brd);border-radius:6px;font-size:.78rem">' + opts + '</select></div>';

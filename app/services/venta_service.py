@@ -20,6 +20,7 @@ from app.schemas.venta import VentaCreate, CorteCajaCreate, CorteCajaUpdate
 from app.schemas.inventario import MovimientoCreate
 from app.services.inventario_service import registrar_empaque_producto, registrar_movimiento
 from app.services.auditoria_service import registrar_evento
+from app.services.resguardo_service import bloquear_resguardo, validar_cambio_retiro
 from app.services.pago_metodos import (
     canal_pago,
     etiqueta_canal_pago,
@@ -1246,6 +1247,7 @@ def _validar_entrega_corte(
 
 def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> CorteCaja:
     """Realiza el corte del turno actual y deja listo el siguiente."""
+    bloquear_resguardo(db)
     corte_momento = datetime.now(timezone.utc)
     dia = _fecha_hora_operacion(corte_momento).date()
     bloquear_dia_caja(db, dia)
@@ -1327,7 +1329,8 @@ def actualizar_corte_caja(
     usuario_id: int,
 ) -> CorteCaja:
     """Corrige el conteo de un corte cerrado sin alterar su fotografía de ventas."""
-    corte = db.get(CorteCaja, corte_id)
+    control = bloquear_resguardo(db)
+    corte = db.query(CorteCaja).filter_by(id=corte_id).populate_existing().with_for_update().first()
     if not corte:
         raise ValueError("Corte de caja no encontrado")
     if corte.estado != "cerrado":
@@ -1351,6 +1354,7 @@ def actualizar_corte_caja(
         corte.total_ventas_efectivo,
         data.notas,
     )
+    validar_cambio_retiro(db, control, corte, retiros or Decimal("0"))
     corte.fondo_inicial = data.fondo_inicial
     corte.retiros = retiros
     corte.fondo_entregado = fondo_entregado
@@ -1388,13 +1392,15 @@ def cambiar_estado_corte_caja(
     """Reabre o cancela un corte manteniéndolo disponible para auditoría."""
     if estado not in {"reabierto", "cancelado"}:
         raise ValueError("Estado de corte inválido")
-    corte = db.get(CorteCaja, corte_id)
+    control = bloquear_resguardo(db)
+    corte = db.query(CorteCaja).filter_by(id=corte_id).populate_existing().with_for_update().first()
     if not corte:
         raise ValueError("Corte de caja no encontrado")
     if corte.estado != "cerrado":
         raise ValueError("Este corte ya no está cerrado")
 
     motivo_limpio = _motivo_corte(motivo)
+    validar_cambio_retiro(db, control, corte, Decimal("0"))
     anterior = _datos_corte(corte)
     corte.estado = estado
     corte.motivo_estado = motivo_limpio

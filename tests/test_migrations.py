@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "83d9a71bc502 (head)"
+ALEMBIC_HEAD = "94c2a8e1d605 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:
@@ -70,6 +70,27 @@ def test_alembic_upgrade_head_on_precreated_schema(tmp_path):
     current = _run([sys.executable, "-m", "alembic", "current"], database_url)
 
     assert ALEMBIC_HEAD in current.stdout
+
+
+def test_resguardo_migration_preserves_expenses_and_does_not_initialize_cash(tmp_path):
+    db_path = tmp_path / "legacy_resguardo.db"
+    url = f"sqlite:///{db_path}"
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript("""
+            CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY);
+            INSERT INTO alembic_version VALUES ('83d9a71bc502');
+            CREATE TABLE usuarios (id INTEGER PRIMARY KEY);
+            CREATE TABLE egresos (id INTEGER PRIMARY KEY, concepto VARCHAR(200), monto NUMERIC(14,2));
+            INSERT INTO egresos VALUES (1, 'Gas anterior', 1300);
+        """)
+    for _ in range(2):
+        _run([sys.executable, "-m", "alembic", "upgrade", "head"], url)
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT id, concepto, monto FROM egresos").fetchone() == (1, "Gas anterior", 1300)
+        assert conn.execute("SELECT COUNT(*) FROM resguardo_control").fetchone()[0] == 0
+        assert conn.execute("SELECT idempotency_key, request_fingerprint FROM egresos").fetchone() == (None, None)
+    _run([sys.executable, "-m", "alembic", "downgrade", "83d9a71bc502"], url)
+    _run([sys.executable, "-m", "alembic", "upgrade", "head"], url)
 
 
 def test_ticket_revision_migration_keeps_old_ticket_and_is_repeatable(tmp_path):
