@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "7d91c0a64e28 (head)"
+ALEMBIC_HEAD = "83d9a71bc502 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:
@@ -40,6 +40,8 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path):
         venta_columns = {row[1] for row in conn.execute("PRAGMA table_info(ventas)")}
         corte_columns = {row[1] for row in conn.execute("PRAGMA table_info(cortes_caja)")}
         security_columns = {row[1] for row in conn.execute("PRAGMA table_info(configuracion_seguridad)")}
+        cafeteria_columns = {row[1] for row in conn.execute("PRAGMA table_info(cafeteria_ventas)")}
+        pago_cafeteria_columns = {row[1] for row in conn.execute("PRAGMA table_info(pagos_cafeteria_venta)")}
     finally:
         conn.close()
 
@@ -52,6 +54,8 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path):
     assert "edicion_revision" in venta_columns
     assert {"estado", "motivo_estado", "turno", "periodo_inicio", "periodo_fin"}.issubset(corte_columns)
     assert {"retiros", "fondo_entregado", "recibido_por"}.issubset(corte_columns)
+    assert "fecha_entrega" in cafeteria_columns
+    assert "idempotency_key" in pago_cafeteria_columns
 
 
 def test_alembic_upgrade_head_on_precreated_schema(tmp_path):
@@ -126,6 +130,61 @@ def test_runtime_guard_adds_cdmx_price_without_setting_prices_or_stock(tmp_path)
         ensure_runtime_schema(engine)
         with sqlite3.connect(db_path) as conn:
             assert conn.execute("SELECT precio_unitario, stock_actual, precio_cdmx FROM productos").fetchone() == (100, 10, None)
+    finally:
+        engine.dispose()
+
+
+def _legacy_cafeteria_schema(db_path):
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript("""
+            CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY);
+            INSERT INTO alembic_version VALUES ('7d91c0a64e28');
+            CREATE TABLE cafeteria_ventas (id INTEGER PRIMARY KEY, folio VARCHAR(30),
+                total NUMERIC(14,2), monto_pagado NUMERIC(14,2), fecha DATETIME);
+            INSERT INTO cafeteria_ventas VALUES (1, 'CAF-ANTERIOR', 100, 25, '2026-08-01 12:00:00');
+            CREATE TABLE pagos_cafeteria_venta (id INTEGER PRIMARY KEY, venta_id INTEGER,
+                monto NUMERIC(14,2), fecha DATETIME);
+            INSERT INTO pagos_cafeteria_venta VALUES (1, 1, 25, '2026-08-05 15:00:00');
+        """)
+
+
+def _assert_cafeteria_history_unchanged(db_path, *, upgraded):
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT id, folio, total, monto_pagado, fecha FROM cafeteria_ventas").fetchone() == (
+            1, "CAF-ANTERIOR", 100, 25, "2026-08-01 12:00:00",
+        )
+        assert conn.execute("SELECT id, venta_id, monto, fecha FROM pagos_cafeteria_venta").fetchone() == (
+            1, 1, 25, "2026-08-05 15:00:00",
+        )
+        if upgraded:
+            assert conn.execute("SELECT fecha_entrega FROM cafeteria_ventas").fetchone() == (None,)
+            assert conn.execute("SELECT idempotency_key FROM pagos_cafeteria_venta").fetchone() == (None,)
+            indexes = {r[1]: r[2] for r in conn.execute("PRAGMA index_list(pagos_cafeteria_venta)")}
+            assert indexes["ix_pagos_cafeteria_venta_idempotency_key"] == 1
+
+
+def test_cafeteria_dates_migration_keeps_legacy_history_repeatable_and_reversible(tmp_path):
+    db_path = tmp_path / "legacy_cafeteria.db"
+    url = f"sqlite:///{db_path}"
+    _legacy_cafeteria_schema(db_path)
+    for _ in range(2):
+        _run([sys.executable, "-m", "alembic", "upgrade", "head"], url)
+        _assert_cafeteria_history_unchanged(db_path, upgraded=True)
+    _run([sys.executable, "-m", "alembic", "downgrade", "7d91c0a64e28"], url)
+    _assert_cafeteria_history_unchanged(db_path, upgraded=False)
+
+
+def test_runtime_guard_adds_cafeteria_dates_and_retry_keys_without_backfill(tmp_path):
+    from sqlalchemy import create_engine
+    from app.core.schema_guard import ensure_runtime_schema
+
+    db_path = tmp_path / "runtime_cafeteria.db"
+    _legacy_cafeteria_schema(db_path)
+    engine = create_engine(f"sqlite:///{db_path}")
+    try:
+        for _ in range(2):
+            ensure_runtime_schema(engine)
+            _assert_cafeteria_history_unchanged(db_path, upgraded=True)
     finally:
         engine.dispose()
 

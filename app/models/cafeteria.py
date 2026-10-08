@@ -78,6 +78,7 @@ class CafeteriaVenta(Base):
         default=lambda: datetime.now(timezone.utc),
         index=True,
     )
+    fecha_entrega: Mapped[date | None] = mapped_column(Date)
     dias_credito: Mapped[int] = mapped_column(Integer, default=7)
     fecha_credito: Mapped[date | None] = mapped_column(Date)
     actualizado_en: Mapped[datetime] = mapped_column(
@@ -128,6 +129,7 @@ class PagoCafeteriaVenta(Base):
     __tablename__ = "pagos_cafeteria_venta"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(80), unique=True, index=True)
     venta_id: Mapped[int] = mapped_column(ForeignKey("cafeteria_ventas.id"), index=True)
     monto: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     metodo_pago: Mapped[MetodoPago] = mapped_column(SAEnum(MetodoPago))

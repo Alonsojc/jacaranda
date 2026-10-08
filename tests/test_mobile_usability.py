@@ -28,7 +28,7 @@ def test_mobile_form_controls_are_large_enough_for_ios():
     assert ".catalog-icon-btn,.pos-tax-toggle{min-height:48px}" in html
     assert ".qty-btn{width:44px;height:44px}" in html
     assert ".pmt{grid-template-columns:repeat(2,minmax(0,1fr))!important}" in html
-    assert "#cafeteria>.row.r4{grid-template-columns:repeat(2,minmax(0,1fr))!important" in html
+    assert ".caf-cobranza-toolbar .fg{min-width:0;max-width:none;flex-basis:100%}" in html
     assert "#ped>.row.r3{grid-template-columns:repeat(3,minmax(0,1fr))!important" in html
 
 
@@ -117,7 +117,7 @@ def test_sales_are_one_touch_first_module_with_four_clear_menus():
     cafeteria_header = segment_between(
         html,
         '<div class="page" id="cafeteria">',
-        '<div class="row r4" style="margin-bottom:1rem">',
+        '<div class="pos-grid">',
     )
 
     assert nav.index('class="sales-nav-link"') < nav.index('data-pg="dash"')
@@ -131,7 +131,8 @@ def test_sales_are_one_touch_first_module_with_four_clear_menus():
     assert 'id="mnp-precio-cdmx"' in html
     assert 'id="mep-precio-cdmx"' in html
     assert '<div class="page-actions">' not in cafeteria_header
-    assert '</div>\n<div class="cafeteria-tools"' in cafeteria_header
+    assert 'class="cafeteria-tools"' not in cafeteria_header
+    assert 'caf-k-llevado' not in cafeteria_header
     assert "async function cambiarModoVenta" in html
     assert "canal: _posCanal" in html
     assert ".nav-dd a{display:flex;align-items:center;min-height:48px" in html

@@ -6,8 +6,9 @@ from decimal import Decimal
 
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app.core.time_utils import operation_datetime, operation_today
 from app.models.cafeteria import (
     CafeteriaCliente,
     CafeteriaVenta,
@@ -20,6 +21,7 @@ from app.schemas.cafeteria import (
     CafeteriaClienteCreate,
     CafeteriaClienteUpdate,
     CafeteriaVentaCreate,
+    FechaEntregaCafeteriaUpdate,
     PagoCafeteriaCreate,
 )
 from app.schemas.inventario import MovimientoCreate
@@ -280,6 +282,8 @@ def crear_venta(db: Session, data: CafeteriaVentaCreate, usuario_id: int) -> Caf
         if existente:
             return obtener_venta(db, existente.id)
 
+    fecha_entrega = _validar_fecha(data.fecha_entrega or operation_today(), "entrega")
+    fecha_pago = _validar_fecha(data.fecha_pago_inicial or operation_today(), "pago")
     cafeteria = _resolver_cafeteria(db, data, usuario_id)
     subtotal_total = Decimal("0")
     iva_0_total = Decimal("0")
@@ -338,7 +342,7 @@ def crear_venta(db: Session, data: CafeteriaVentaCreate, usuario_id: int) -> Caf
     ahora_local = datetime.now(_zona_operacion())
     fecha = _normalizar_fecha_db(ahora_local)
     dias_credito = data.dias_credito
-    fecha_credito = ahora_local.date() + timedelta(days=dias_credito)
+    fecha_credito = fecha_entrega + timedelta(days=dias_credito)
 
     for _attempt in range(3):
         venta = CafeteriaVenta(
@@ -357,6 +361,7 @@ def crear_venta(db: Session, data: CafeteriaVentaCreate, usuario_id: int) -> Caf
             monto_pagado=pago_inicial,
             estado=_estado_por_montos(total, pago_inicial),
             fecha=fecha,
+            fecha_entrega=fecha_entrega,
             dias_credito=dias_credito,
             fecha_credito=fecha_credito,
             notas=data.notas,
@@ -415,7 +420,7 @@ def crear_venta(db: Session, data: CafeteriaVentaCreate, usuario_id: int) -> Caf
                 terminal=data.terminal,
                 referencia=data.referencia_pago,
                 usuario_id=usuario_id,
-                fecha=fecha,
+                fecha=_instante_pago(fecha_pago) if data.fecha_pago_inicial else fecha,
             )
         )
 
@@ -437,6 +442,8 @@ def crear_venta(db: Session, data: CafeteriaVentaCreate, usuario_id: int) -> Caf
             "iva_factura_tasa": str(tasa_factura),
             "dias_credito": dias_credito,
             "fecha_credito": fecha_credito.isoformat(),
+            "fecha_entrega": fecha_entrega.isoformat(),
+            "fecha_pago_inicial": fecha_pago.isoformat() if pago_inicial else None,
         },
         commit=False,
     )
@@ -449,13 +456,18 @@ def listar_ventas(
     fecha_inicio: date | None = None,
     fecha_fin: date | None = None,
     estado: EstadoCuentaCafeteria | None = None,
-    limit: int = 100,
+    limit: int | None = 100,
+    *,
+    cafeteria_id: int | None = None,
+    cafeteria_nombre: str | None = None,
+    pendientes: bool = False,
+    offset: int = 0,
 ) -> list[CafeteriaVenta]:
     query = (
-        db.query(CafeteriaVenta)
+        _consulta_ventas(db, cafeteria_id, cafeteria_nombre, pendientes)
         .options(
-            joinedload(CafeteriaVenta.detalles).joinedload(DetalleCafeteriaVenta.producto),
-            joinedload(CafeteriaVenta.pagos),
+            selectinload(CafeteriaVenta.detalles).joinedload(DetalleCafeteriaVenta.producto),
+            selectinload(CafeteriaVenta.pagos),
         )
         .order_by(CafeteriaVenta.fecha.desc(), CafeteriaVenta.id.desc())
     )
@@ -467,7 +479,105 @@ def listar_ventas(
         query = query.filter(CafeteriaVenta.fecha <= fin)
     if estado:
         query = query.filter(CafeteriaVenta.estado == estado)
-    return query.limit(limit).all()
+    if offset:
+        query = query.offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
+    return query.all()
+
+
+def _consulta_ventas(db, cafeteria_id=None, cafeteria_nombre=None, pendientes=False):
+    if cafeteria_id is not None and cafeteria_nombre is not None:
+        raise ValueError("Selecciona una sola cafetería")
+    query = db.query(CafeteriaVenta)
+    if cafeteria_id is not None:
+        query = query.filter(CafeteriaVenta.cafeteria_id == cafeteria_id)
+    elif cafeteria_nombre is not None:
+        query = query.filter(
+            CafeteriaVenta.cafeteria_id.is_(None),
+            func.lower(CafeteriaVenta.cafeteria_nombre) == cafeteria_nombre.strip().lower(),
+        )
+    if pendientes:
+        query = query.filter(
+            CafeteriaVenta.estado != EstadoCuentaCafeteria.CANCELADA,
+            CafeteriaVenta.total > CafeteriaVenta.monto_pagado,
+        )
+    return query
+
+
+def clientes_cobranza(db: Session) -> list[dict]:
+    clientes = [{"id": c.id, "nombre": c.nombre} for c in db.query(CafeteriaCliente).all()]
+    antiguos = (
+        db.query(CafeteriaVenta.cafeteria_nombre)
+        .filter(CafeteriaVenta.cafeteria_id.is_(None))
+        .distinct().all()
+    )
+    nombres = {nombre.strip().casefold(): nombre for (nombre,) in antiguos}
+    clientes.extend({"id": None, "nombre": nombre} for nombre in nombres.values())
+    return sorted(clientes, key=lambda c: c["nombre"].casefold())
+
+
+def resumen_cobranza(db: Session, cafeteria_id=None, cafeteria_nombre=None) -> dict:
+    query = _consulta_ventas(db, cafeteria_id, cafeteria_nombre, pendientes=True)
+    cantidad, total, pagado = query.with_entities(
+        func.count(CafeteriaVenta.id),
+        func.coalesce(func.sum(CafeteriaVenta.total), 0),
+        func.coalesce(func.sum(CafeteriaVenta.monto_pagado), 0),
+    ).one()
+    vencidas = query.filter(CafeteriaVenta.fecha_credito < operation_today()).count()
+    return {"cuentas": cantidad, "total": _q(total), "pagado": _q(pagado),
+            "saldo": _q(total - pagado), "vencidas": vencidas}
+
+
+def _validar_fecha(fecha: date, concepto: str) -> date:
+    if fecha > operation_today():
+        raise ValueError(f"La fecha de {concepto} no puede ser futura")
+    return fecha
+
+
+def _instante_pago(fecha: date) -> datetime:
+    return _normalizar_fecha_db(datetime.combine(fecha, time.min, _zona_operacion()))
+
+
+def actualizar_fecha_entrega(
+    db: Session, venta_id: int, data: FechaEntregaCafeteriaUpdate, usuario_id: int,
+) -> CafeteriaVenta:
+    fecha = _validar_fecha(data.fecha_entrega, "entrega")
+    venta = db.query(CafeteriaVenta).filter(CafeteriaVenta.id == venta_id).with_for_update().first()
+    if not venta:
+        raise ValueError("Venta de cafetería no encontrada")
+    if venta.estado == EstadoCuentaCafeteria.CANCELADA:
+        raise ValueError("No se puede cambiar una entrega cancelada")
+    antes = {"fecha_entrega": venta.fecha_entrega, "fecha_credito": venta.fecha_credito}
+    venta.fecha_entrega = fecha
+    venta.fecha_credito = fecha + timedelta(days=venta.dias_credito)
+    registrar_evento(
+        db, usuario_id=usuario_id, usuario_nombre=None, accion="actualizar", modulo="cafeteria",
+        entidad="cafeteria_venta", entidad_id=venta.id, datos_anteriores=antes,
+        datos_nuevos={"fecha_entrega": fecha, "fecha_credito": venta.fecha_credito}, commit=False,
+    )
+    db.commit()
+    return obtener_venta(db, venta.id)
+
+
+def _pago_repetido(db: Session, venta_id: int, data: PagoCafeteriaCreate):
+    if not data.idempotency_key:
+        return None
+    pago = db.query(PagoCafeteriaVenta).filter(
+        PagoCafeteriaVenta.idempotency_key == data.idempotency_key,
+    ).first()
+    if not pago:
+        return None
+    if (
+        pago.venta_id != venta_id
+        or _q(data.monto) != pago.monto
+        or pago.metodo_pago != _normalizar_metodo_terminal(data.metodo_pago, data.terminal)
+        or pago.terminal != data.terminal
+        or _limpiar_texto(pago.referencia) != _limpiar_texto(data.referencia)
+        or operation_datetime(pago.fecha).date() != data.fecha_pago
+    ):
+        raise ValueError("La clave de este pago ya se usó con otros datos")
+    return obtener_venta(db, venta_id)
 
 
 def registrar_pago(db: Session, venta_id: int, data: PagoCafeteriaCreate, usuario_id: int) -> CafeteriaVenta:
@@ -479,6 +589,10 @@ def registrar_pago(db: Session, venta_id: int, data: PagoCafeteriaCreate, usuari
     )
     if not venta:
         raise ValueError("Venta de cafetería no encontrada")
+    repetido = _pago_repetido(db, venta_id, data)
+    if repetido:
+        return repetido
+    fecha_pago = _validar_fecha(data.fecha_pago or operation_today(), "pago")
     if venta.estado == EstadoCuentaCafeteria.CANCELADA:
         raise ValueError("No se puede pagar una venta cancelada")
 
@@ -504,34 +618,43 @@ def registrar_pago(db: Session, venta_id: int, data: PagoCafeteriaCreate, usuari
     metodo_pago = _normalizar_metodo_terminal(data.metodo_pago, data.terminal)
     db.add(
         PagoCafeteriaVenta(
+            idempotency_key=data.idempotency_key,
             venta_id=venta.id,
             monto=monto,
             metodo_pago=metodo_pago,
             terminal=data.terminal,
-            referencia=data.referencia,
+            referencia=_limpiar_texto(data.referencia),
             usuario_id=usuario_id,
-            fecha=_normalizar_fecha_db(datetime.now(_zona_operacion())),
+            fecha=_instante_pago(fecha_pago) if data.fecha_pago else _normalizar_fecha_db(datetime.now(_zona_operacion())),
         )
     )
-    registrar_evento(
-        db,
-        usuario_id=usuario_id,
-        usuario_nombre=None,
-        accion="pago",
-        modulo="cafeteria",
-        entidad="cafeteria_venta",
-        entidad_id=venta.id,
-        datos_anteriores=antes,
-        datos_nuevos={
-            "monto_pagado": str(venta.monto_pagado),
-            "estado": venta.estado.value,
-            "pago": str(monto),
-            "referencia": data.referencia,
-            "motivo": data.motivo or "Registro de pago cafetería",
-        },
-        commit=False,
-    )
-    db.commit()
+    try:
+        registrar_evento(
+            db,
+            usuario_id=usuario_id,
+            usuario_nombre=None,
+            accion="pago",
+            modulo="cafeteria",
+            entidad="cafeteria_venta",
+            entidad_id=venta.id,
+            datos_anteriores=antes,
+            datos_nuevos={
+                "monto_pagado": str(venta.monto_pagado),
+                "estado": venta.estado.value,
+                "pago": str(monto),
+                "fecha_pago": fecha_pago.isoformat(),
+                "referencia": data.referencia,
+                "motivo": data.motivo or "Registro de pago cafetería",
+            },
+            commit=False,
+        )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        repetido = _pago_repetido(db, venta_id, data)
+        if repetido:
+            return repetido
+        raise
     return obtener_venta(db, venta.id)
 
 

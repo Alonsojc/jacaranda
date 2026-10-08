@@ -138,9 +138,6 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .sales-mode-btn:hover{background:#faf3f0;color:var(--v)}
 .sales-mode-btn.active{background:var(--v);color:#fff;box-shadow:0 2px 7px rgba(196,152,138,.25)}
 .sales-mode-btn:focus-visible{outline:3px solid rgba(196,152,138,.25);outline-offset:1px}
-.cafeteria-tools{display:flex;justify-content:flex-end;gap:.4rem;margin:-.35rem 0 1rem;flex-wrap:wrap}
-.sales-mode-badge{display:none;margin-bottom:.55rem;padding:.38rem .55rem;border-radius:7px;background:#fff7ed;color:#9a3412;font-size:.75rem;font-weight:800;border:1px solid #fed7aa;text-align:center}
-.sales-mode-badge.on{display:block}
 .variant-option{display:flex;align-items:center;justify-content:space-between;min-height:56px;padding:.7rem .8rem;border:1px solid var(--brd);border-radius:10px;cursor:pointer;transition:all .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .variant-option:hover,.variant-option:focus{border-color:var(--v);background:#faf3f0;outline:none}
 .field-assist{display:flex;align-items:center;gap:.35rem;margin-top:.3rem;min-height:24px}
@@ -171,6 +168,29 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .caf-sale{border:1px solid var(--brd);border-radius:10px;padding:.75rem .85rem;margin-bottom:.55rem;background:#fff}
 .caf-sale-head{display:flex;justify-content:space-between;gap:.6rem;align-items:flex-start;flex-wrap:wrap}
 .caf-sale-lines{font-size:.78rem;color:var(--mut);margin:.35rem 0;line-height:1.35}
+.caf-cobranza{margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--brd)}
+.caf-cobranza-header,.caf-cobranza-toolbar,.caf-pagination{display:flex;align-items:center;justify-content:space-between;gap:.7rem;flex-wrap:wrap;margin-bottom:.8rem}
+.caf-cobranza-header h3{margin:0;font-size:1rem}
+.caf-cobranza-actions{display:flex;gap:.4rem;flex-wrap:wrap}
+.caf-cobranza-actions button,.caf-pagination button{width:auto;margin:0;min-height:44px;padding:.5rem .8rem}
+.caf-cobranza-toolbar .fg{flex:1;min-width:200px;max-width:400px;margin:0}
+.caf-cobranza-toolbar select{width:100%;min-height:44px}
+.caf-cobranza-total{font-size:.9rem;color:var(--txt);text-align:right}
+.caf-cobranza-total strong{display:block;color:#b45309;font-size:1.2rem}
+.caf-cobranza .caf-sale{border:0;border-bottom:1px solid var(--brd);border-radius:0;margin:0;padding:1rem 0;background:transparent}
+.caf-cobranza .caf-sale-head{display:grid;grid-template-columns:minmax(0,1fr) auto}
+.caf-cobranza .caf-sale-head strong,.caf-cobranza .caf-sale-lines{overflow-wrap:anywhere}
+.caf-cobranza .tab{border:0;background:transparent;white-space:nowrap;min-width:100px}
+.caf-cobranza .tab.active{background:var(--v);color:#fff}
+.caf-cobranza-estado:empty{display:none}
+.caf-payment-history{font-size:.8rem;margin-top:.5rem}
+.caf-payment-history summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--mut)}
+.caf-payment-history .caf-summary-row span{overflow-wrap:anywhere}
+.caf-pagination{justify-content:flex-end;margin-top:.8rem;font-size:.8rem;color:var(--mut)}
+.caf-pagination[hidden]{display:none}
+.caf-sale-dates{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;font-size:.78rem;color:var(--mut);margin-top:.3rem}
+.caf-sale-dates .catalog-icon-btn{width:36px;height:36px;font-size:1rem}
+@media(max-width:600px){.caf-cobranza-toolbar .fg{min-width:0;max-width:none;flex-basis:100%}.caf-cobranza-total{text-align:left}.caf-cobranza-actions{width:100%}.caf-cobranza-actions .limpiar{flex:1}.caf-cobranza .caf-summary-row{flex-wrap:wrap}.caf-cobranza .caf-sale-head>div{min-width:0}}
 .caf-report-list{max-height:280px;overflow:auto}
 .caf-summary-row{display:flex;justify-content:space-between;gap:.5rem;border-bottom:1px solid #f0e8e5;padding:.35rem 0;font-size:.82rem}
 .caf-summary-row:last-child{border-bottom:0}
@@ -589,8 +609,6 @@ body.pos-ticket-open{overflow:hidden}
 .ti{font-size:.9rem!important;line-height:1.35}
 .fg label{font-size:.9rem}
 .empty-state .es-text{font-size:.88rem}
-#cafeteria>.row.r4{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:.6rem}
-#cafeteria>.row.r4 .card{margin-bottom:0;padding:.75rem .55rem}
 #ped>.row.r3{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:.45rem}
 #ped>.row.r3 .card{margin-bottom:0;padding:.7rem .35rem}
 }
@@ -831,7 +849,6 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="sales-header">
 <div class="sales-header-copy">
 <h2>Punto de venta</h2>
-<p id="pos-mode-copy">Venta directa en mostrador.</p>
 </div>
 <div class="sales-mode-tabs" role="tablist" aria-label="Seleccionar men&uacute; de venta">
 <button type="button" class="sales-mode-btn active" data-sales-mode="mostrador" data-module="pos" onclick="cambiarModoVenta('mostrador')" role="tab" aria-label="Men&uacute; de punto de venta" aria-selected="true">Punto de venta</button>
@@ -843,8 +860,6 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="pos-grid">
 <div class="pos-prods">
 <input type="text" id="pos-search" placeholder="Buscar producto..." oninput="filtrarPOS()" style="width:100%;padding:.55rem .8rem;border:1px solid var(--brd);border-radius:10px;font-size:.85rem;margin-bottom:.7rem;font-family:inherit;transition:border-color .2s;outline:none" onfocus="this.style.borderColor='var(--v)'" onblur="this.style.borderColor=''">
-<div id="pos-mode-badge" class="sales-mode-badge">Precios y venta de Uber Eats</div>
-<button type="button" id="uber-preparacion-btn" class="limpiar" style="display:none;min-height:44px;margin-bottom:.7rem" onclick="abrirPreparacionUber()">Conexi&oacute;n Uber Eats</button>
 <div id="pos-products">
 <p style="color:var(--mut);text-align:center;padding:2rem">Cargando productos...</p>
 </div>
@@ -914,7 +929,6 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="sales-header">
 <div class="sales-header-copy">
 <h2>Punto de venta</h2>
-<p>Entrega a cafeter&iacute;as con precio especial, cr&eacute;dito y pagos posteriores.</p>
 </div>
 <div class="sales-mode-tabs" role="tablist" aria-label="Seleccionar men&uacute; de venta">
 <button type="button" class="sales-mode-btn" data-sales-mode="mostrador" data-module="pos" onclick="cambiarModoVenta('mostrador')" role="tab" aria-label="Men&uacute; de punto de venta" aria-selected="false">Punto de venta</button>
@@ -922,16 +936,6 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <button type="button" class="sales-mode-btn" data-sales-mode="uber_eats" data-module="pos" onclick="cambiarModoVenta('uber_eats')" role="tab" aria-label="Men&uacute; de Uber Eats" aria-selected="false">Uber Eats</button>
 <button type="button" class="sales-mode-btn" data-sales-mode="cdmx" data-module="pos" onclick="cambiarModoVenta('cdmx')" role="tab" aria-label="Men&uacute; de CDMX" aria-selected="false">CDMX</button>
 </div>
-</div>
-<div class="cafeteria-tools" aria-label="Acciones de cafeter&iacute;as">
-<button class="limpiar" style="width:auto;margin:0;padding:.45rem .8rem" onclick="irEditarPreciosCafeteria()">Precios caf&eacute;</button>
-<button class="limpiar" style="width:auto;margin:0;padding:.45rem .8rem" onclick="cargarCafeteria()">Actualizar</button>
-</div>
-<div class="row r4" style="margin-bottom:1rem">
-<div class="card kpi"><div class="n" id="caf-k-llevado">$0</div><div class="l">Llevado semana</div></div>
-<div class="card kpi g"><div class="n" id="caf-k-pagado">$0</div><div class="l">Pagado semana</div></div>
-<div class="card kpi y"><div class="n" id="caf-k-debe">$0</div><div class="l">Por cobrar</div></div>
-<div class="card kpi"><div class="n" id="caf-k-entregas">0</div><div class="l">Entregas semana</div></div>
 </div>
 <div class="pos-grid">
 <div class="pos-prods">
@@ -962,7 +966,11 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 <div class="frow">
 <div class="fg"><label>D&iacute;as de cr&eacute;dito</label><input id="caf-dias" type="number" min="0" max="60" step="1" value="7" oninput="actualizarCreditoCafeteria()"></div>
-<div class="fg"><label>Pago inicial</label><input id="caf-pago-inicial" type="number" step="0.01" min="0" value="0"></div>
+<div class="fg"><label>Pago inicial</label><input id="caf-pago-inicial" type="number" step="0.01" min="0" value="0" oninput="actualizarFechasCafeteria()"></div>
+</div>
+<div class="frow">
+<div class="fg"><label for="caf-fecha-entrega">Fecha entregado</label><input id="caf-fecha-entrega" type="date" required onchange="actualizarCreditoCafeteria()"></div>
+<div class="fg"><label for="caf-fecha-pago-inicial">Fecha pago inicial</label><input id="caf-fecha-pago-inicial" type="date" disabled></div>
 </div>
 <div class="fg"><label>Notas</label><input id="caf-notas" placeholder="Orden, referencia, condiciones..."></div>
 <div class="caf-account-strip">
@@ -980,14 +988,36 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <button class="limpiar" onclick="cafClear()">Limpiar</button>
 </div>
 </div>
-<div class="row r2" style="margin-top:1rem">
-<div class="card"><h3>Reporte semanal</h3><div id="caf-semana" class="caf-report-list"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
-<div class="card"><h3>Resumen mensual</h3><div id="caf-mes" class="caf-report-list"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<section class="caf-cobranza" aria-labelledby="caf-cobranza-title">
+<div class="caf-cobranza-header">
+<h3 id="caf-cobranza-title">Cuentas por cobrar</h3>
+<div class="caf-cobranza-actions">
+<button type="button" class="catalog-icon-btn" onclick="actualizarCobranzaCafeteria()" aria-label="Actualizar cuentas" title="Actualizar cuentas">&#8635;</button>
+<button type="button" class="limpiar" id="caf-pdf-cliente" onclick="descargarEstadoCuentaCafeteria()" disabled>PDF del cliente</button>
+<button type="button" class="limpiar" onclick="descargarHistorialCafeteriaExcel()">Excel completo</button>
 </div>
-<div class="card" style="margin-top:1rem">
-<h3>Entregas / cr&eacute;dito</h3>
-<div id="caf-ventas"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
 </div>
+<div class="caf-cobranza-toolbar">
+<div class="section-tabs" role="tablist" aria-label="Cuentas de cafeter&iacute;as">
+<button type="button" class="tab active" id="caf-vista-pendientes" role="tab" aria-selected="true" onclick="cambiarVistaCobranza('pendientes')">Pendientes</button>
+<button type="button" class="tab" id="caf-vista-historial" role="tab" aria-selected="false" onclick="cambiarVistaCobranza('historial')">Historial</button>
+</div>
+<div class="fg"><label for="caf-filtro-cliente">Cliente</label><select id="caf-filtro-cliente" onchange="cargarCafeteriaVentas()"><option value="">Todos los clientes</option></select></div>
+<div class="caf-cobranza-total"><strong id="caf-cobranza-saldo">--</strong><span id="caf-cobranza-cuentas">Por cobrar</span></div>
+</div>
+<p id="caf-cobranza-estado" role="status" class="report-status caf-cobranza-estado"></p>
+<div id="caf-ventas" aria-live="polite"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
+<div class="caf-pagination" id="caf-pagination" hidden>
+<button type="button" class="catalog-icon-btn" id="caf-pagina-anterior" onclick="cambiarPaginaCafeteria(-1)" title="P&aacute;gina anterior" aria-label="P&aacute;gina anterior">&#8592;</button>
+<span id="caf-pagina-label"></span>
+<button type="button" class="catalog-icon-btn" id="caf-pagina-siguiente" onclick="cambiarPaginaCafeteria(1)" title="P&aacute;gina siguiente" aria-label="P&aacute;gina siguiente">&#8594;</button>
+</div>
+</section>
+<details style="margin-top:1.2rem"><summary style="min-height:44px;cursor:pointer;font-weight:600">Reportes de Cafeter&iacute;as</summary>
+<div class="row r2" style="margin-top:.6rem">
+<div><h3>Reporte semanal</h3><div id="caf-semana" class="caf-report-list"></div></div>
+<div><h3>Resumen mensual</h3><div id="caf-mes" class="caf-report-list"></div></div>
+</div></details>
 </div><!-- /cafeteria -->
 
 <!-- PEDIDOS -->
@@ -1345,6 +1375,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
 <p style="font-size:.83rem;color:var(--mut);margin:0">Todos los productos. Edita precios, m&iacute;nimos, stock.</p>
 <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+<button type="button" id="uber-preparacion-btn" class="limpiar" style="display:none;width:auto;margin:0" onclick="abrirPreparacionUber()">Conexi&oacute;n Uber Eats</button>
 <button class="limpiar" style="padding:.4rem .8rem;font-size:.78rem;margin:0" onclick="exportarListaProductosCSV()">&#128229; CSV</button>
 <button class="limpiar" style="padding:.4rem .8rem;font-size:.78rem;margin:0" onclick="subirFotosMasivo()">&#128247; Subir fotos</button>
 <button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="nuevoProducto()">+ Nuevo Producto</button>
@@ -2472,6 +2503,26 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 
 <!-- MODAL: Catálogo de Cafeterías -->
+<div class="modal-bg" id="modal-caf-pago">
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="caf-pago-title">
+<form id="caf-pago-form" onsubmit="guardarPagoCafeteria();return false">
+<h3 id="caf-pago-title">Registrar pago</h3>
+<p id="caf-pago-cuenta" style="font-size:.85rem;margin:.5rem 0"></p>
+<p id="caf-pago-saldo" style="font-weight:700;margin-bottom:.8rem"></p>
+<div class="frow">
+<div class="fg"><label for="caf-pago-monto">Monto pagado</label><input type="number" id="caf-pago-monto" min="0.01" step="0.01" required></div>
+<div class="fg"><label for="caf-pago-fecha">Fecha pago</label><input type="date" id="caf-pago-fecha" required></div>
+</div>
+<div class="fg"><label for="caf-pago-metodo">M&eacute;todo</label><select id="caf-pago-metodo" required><option value="trans">Transferencia</option><option value="ef">Efectivo</option><option value="clip">CLIP</option><option value="bbva">BBVA</option></select></div>
+<div class="fg"><label for="caf-pago-referencia">Referencia</label><input id="caf-pago-referencia" maxlength="120"></div>
+<p id="caf-pago-error" role="status" class="report-status"></p>
+<div style="display:flex;gap:.5rem">
+<button type="submit" class="cobrar" id="caf-pago-guardar" style="flex:1">Registrar pago</button>
+<button type="button" class="limpiar" style="flex:1" onclick="cerrarModal('modal-caf-pago')">Volver</button>
+</div>
+</form>
+</div>
+</div>
 <div class="modal-bg" id="modal-cafeteria-cliente">
 <div class="modal" style="max-width:430px" role="dialog" aria-modal="true" aria-labelledby="mcc-title">
 <form onsubmit="guardarCafeteriaCatalogo();return false">
@@ -3056,7 +3107,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v111';
+var APP_BUILD = 'jacaranda-v112';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -3075,6 +3126,8 @@ var cart = [], pm = 'ef', _posCanal = 'mostrador';
 var POS_FACTURA_IVA_TASA = 0.08, _posFacturaIvaActiva = false;
 var _clienteRecompensaActual = null, _canjearRecompensaLealtad = false;
 var cafCart = [], cafPm = 'trans', _cafFacturaIvaActiva = false, _cafGroups = {}, _cafGroupOrder = [], _cafProductById = {}, _cafVentas = [], _cafClientes = [], _cafEnProceso = false, _cafIdempotencyKey = null, _cafClienteGuardando = false;
+var _cafCobranzaVista = 'pendientes', _cafCobranzaOffset = 0, _cafCobranzaSeq = 0, _cafCobranzaMas = false;
+var _cafPagoContext = null, _cafPagosPendientes = {}, _cafPagoGuardando = false, _cafFechaGuardando = {};
 var _ventaEnProceso = false, _ventaIdempotencyKey = null;
 var _nuevoProductoBase = null, _codigoProductoTimer = null, _codigoProductoEditado = false, _familiasProducto = [];
 var _pedidoEnProceso = false, _pedidoIdempotencyKey = null;
@@ -3205,6 +3258,15 @@ function invalidarTareasSesion() {
     document.getElementById('modal-ticket-editar').classList.remove('on');
     cancelarAdminAuth();
   }
+  _cafPagoContext = null;
+  _cafPagosPendientes = {};
+  _cafPagoGuardando = false;
+  _cafFechaGuardando = {};
+  _cafVentas = [];
+  _cafCobranzaOffset = 0;
+  _cafCobranzaMas = false;
+  _cafCobranzaSeq++;
+  cerrarModal('modal-caf-pago');
   _ventaEnProceso = false;
   _apiGetCache = {};
   _apiGetInFlight = {};
@@ -4531,19 +4593,12 @@ function actualizarModoVentaUI(modo) {
     button.classList.toggle('active', active);
     button.setAttribute('aria-selected', active ? 'true' : 'false');
   });
-  var copy = document.getElementById('pos-mode-copy');
   var title = document.getElementById('pos-ticket-title');
-  var badge = document.getElementById('pos-mode-badge');
   var search = document.getElementById('pos-search');
-  if (copy) copy.textContent = modo === 'uber_eats' ? 'Uber Eats' : (modo === 'cdmx' ? 'CDMX' : 'Venta directa en mostrador.');
   if (title) title.textContent = modo === 'uber_eats' ? 'Ticket Uber Eats' : (modo === 'cdmx' ? 'Ticket CDMX' : 'Ticket mostrador');
-  if (badge) {
-    badge.classList.toggle('on', modo === 'uber_eats' || modo === 'cdmx');
-    badge.textContent = modo === 'cdmx' ? 'CDMX' : 'Precios y venta de Uber Eats';
-  }
   var uberPreparacion = document.getElementById('uber-preparacion-btn');
-  if (uberPreparacion) uberPreparacion.style.display = modo === 'uber_eats' && esAdminActual() ? 'inline-flex' : 'none';
-  if (search) search.placeholder = modo === 'uber_eats' ? 'Buscar en menú Uber Eats...' : (modo === 'cdmx' ? 'Buscar en CDMX...' : 'Buscar producto...');
+  if (uberPreparacion) uberPreparacion.style.display = esAdminActual() ? 'inline-flex' : 'none';
+  if (search) search.placeholder = 'Buscar producto...';
 }
 
 async function abrirPreparacionUber() {
@@ -4635,6 +4690,7 @@ async function cambiarModoVenta(modo) {
     limpiar();
   }
   _posCanal = modo;
+  refrescarCatalogoCanalPOS();
   actualizarModoVentaUI(modo);
   go('pos');
 }
@@ -4643,6 +4699,19 @@ function precioProductoPOS(producto) {
   if (_posCanal === 'uber_eats') return parseFloat(producto.precio_uber_eats) || 0;
   if (_posCanal === 'cdmx') return parseFloat(producto.precio_cdmx) || 0;
   return parseFloat(producto.precio_unitario) || 0;
+}
+
+var _posProductsData = null, _posProductLoadSeq = 0;
+
+function refrescarCatalogoCanalPOS() {
+  if (_posProductsData) renderPOSFromData(_posProductsData);
+  else document.getElementById('pos-products').innerHTML = '<p class="report-status">Cargando productos...</p>';
+}
+
+function agregarProductoPOS(id) {
+  var p = (_posProductsData || []).find(function(producto) { return Number(producto.id) === Number(id); });
+  if (!p || !p.activo || (_posCanal !== 'mostrador' && precioProductoPOS(p) <= 0)) return;
+  add(p.id, p.nombre, precioProductoPOS(p));
 }
 
 var POS_DRAFT_KEY = 'jacaranda_pos_draft';
@@ -7340,6 +7409,7 @@ function grupoFormalProducto(producto) {
 var _posGroups = {}; // cache for variant picker
 
 function renderPOSFromData(prods) {
+    _posProductsData = prods;
     // Filtrar activos
     var activos = [];
     for (var i = 0; i < prods.length; i++) {
@@ -7390,7 +7460,7 @@ function renderPOSFromData(prods) {
       var clickAttr;
       if (single) {
         var p = items[0];
-        var clickCode = 'add(' + p.id + ',' + jsArg(p.nombre) + ',' + precioProductoPOS(p) + ')';
+        var clickCode = 'agregarProductoPOS(' + p.id + ')';
         clickAttr = 'onclick="' + escHtml(clickCode) + '"';
       } else {
         clickAttr = 'onclick="' + escHtml('abrirVariantes(' + jsArg(orden[gi]) + ')') + '"';
@@ -7424,16 +7494,20 @@ function renderPOSFromData(prods) {
       h = '<div class="empty-state"><div class="es-text">Sin productos con precio CDMX.</div></div>';
     }
     document.getElementById('pos-products').innerHTML = h;
+    filtrarPOS();
 }
 
 function cargarPOSProductos() {
-  api('GET', '/inventario/productos').then(function(prods) {
+  var seq = ++_posProductLoadSeq, version = _versionSesion;
+  return api('GET', '/inventario/productos').then(function(prods) {
+    if (seq !== _posProductLoadSeq || version !== _versionSesion) return;
     guardarCacheLocalJson('jacaranda_prods_cache', prods, 86400000);
     _offline = false;
     actualizarBannerOffline();
     renderPOSFromData(prods);
     reconcilePosDraftWithProducts(prods);
   }).catch(function() {
+    if (seq !== _posProductLoadSeq || version !== _versionSesion) return;
     // Offline: use cached products
     var cached = leerCacheLocalJson('jacaranda_prods_cache', 86400000);
     if (cached) {
@@ -7462,7 +7536,7 @@ function abrirVariantes(key) {
     var agotado = stock <= 0;
     var stkCls = agotado ? 'pi-stk-out' : (stock <= min ? 'pi-stk-low' : 'pi-stk-ok');
     var stkTxt = agotado ? 'Agotado' : Math.round(stock) + ' pzas';
-    var variantClick = 'add(' + p.id + ',' + jsArg(p.nombre) + ',' + precio + ');cerrarModal(\'modal-variante\')';
+    var variantClick = 'agregarProductoPOS(' + p.id + ');cerrarModal(\'modal-variante\')';
     h += '<div class="variant-option" role="button" tabindex="0" style="' + (agotado ? 'opacity:.72' : '') + '" '
       + 'onclick="' + escHtml(variantClick) + '" onkeydown="activarConTeclado(event,function(){' + escHtml(variantClick) + '})">';
     h += '<div><strong style="font-size:.9rem">' + escHtml(label) + '</strong>';
@@ -7484,11 +7558,13 @@ function cargarCafeteria() { return initCafeteria(); }
 
 function initCafeteria() {
   setCafPm(cafPm || 'trans');
+  actualizarFechasCafeteria();
   actualizarCreditoCafeteria();
   cafRen();
   return Promise.all([
     cargarCafeteriaClientes(),
     cargarCafeteriaProductos(),
+    cargarClientesCobranzaCafeteria(),
     cargarCafeteriaVentas(),
     cargarCafeteriaReportes()
   ]);
@@ -7508,7 +7584,11 @@ function renderCafeteriaProductos(prods) {
     if (p.imagen && !grupos[key].imagen) grupos[key].imagen = p.imagen;
     grupos[key].items.push(p);
   }
-  orden.sort(function(a, b) { return a.localeCompare(b); });
+  orden.sort(function(a, b) {
+    var stockA = grupos[a].items.some(function(p) { return Number(p.stock_actual) > 0; });
+    var stockB = grupos[b].items.some(function(p) { return Number(p.stock_actual) > 0; });
+    return stockA === stockB ? a.localeCompare(b) : (stockA ? -1 : 1);
+  });
   _cafGroups = grupos;
   _cafGroupOrder = orden.slice();
 
@@ -7516,14 +7596,11 @@ function renderCafeteriaProductos(prods) {
   for (var gi = 0; gi < orden.length; gi++) {
     var g = grupos[orden[gi]];
     var items = g.items;
-    var pMin = Infinity, pMax = 0, regularMin = Infinity, regularMax = 0, stockTotal = 0, minTotal = 0, allOut = true;
+    var pMin = Infinity, pMax = 0, stockTotal = 0, minTotal = 0, allOut = true;
     for (var k = 0; k < items.length; k++) {
       var pr = precioCafeteriaProducto(items[k]);
-      var reg = parseFloat(items[k].precio_unitario) || 0;
       if (pr < pMin) pMin = pr;
       if (pr > pMax) pMax = pr;
-      if (reg < regularMin) regularMin = reg;
-      if (reg > regularMax) regularMax = reg;
       var st = parseFloat(items[k].stock_actual) || 0;
       stockTotal += st;
       minTotal += parseFloat(items[k].stock_minimo) || 0;
@@ -7548,9 +7625,6 @@ function renderCafeteriaProductos(prods) {
       var sv = grupoFormalProducto(items[0]).presentacion;
       if (sv) h += '<span class="pi-var">' + escHtml(sv) + '</span>';
       h += '<span class="pp">$' + fmt(pMin) + '</span>';
-    }
-    if (regularMin !== Infinity && (regularMin !== pMin || regularMax !== pMax)) {
-      h += '<span class="caf-price-note">Normal $' + fmt(regularMin) + (regularMin !== regularMax ? ' - $' + fmt(regularMax) : '') + '</span>';
     }
     var stkCls = allOut ? 'pi-stk-out' : (stockTotal <= minTotal ? 'pi-stk-low' : 'pi-stk-ok');
     var stkTxt = allOut ? 'Agotado' : Math.round(stockTotal) + ' pzas';
@@ -7701,10 +7775,21 @@ function actualizarCreditoCafeteria() {
   if (diasEl && String(diasEl.value) !== String(dias)) diasEl.value = dias;
   if (creditoEl) creditoEl.textContent = dias === 1 ? 'Cr\u00e9dito 1 d\u00eda' : 'Cr\u00e9dito ' + dias + ' d\u00edas';
   if (vencEl) {
-    var d = new Date();
+    var entrega = document.getElementById('caf-fecha-entrega');
+    var d = new Date(((entrega && entrega.value) || fechaHoyISO()) + 'T12:00:00');
     d.setDate(d.getDate() + dias);
     vencEl.textContent = 'Vence ' + d.toLocaleDateString('es-MX', {day:'2-digit', month:'short'});
   }
+}
+
+function actualizarFechasCafeteria() {
+  var hoy = fechaHoyISO();
+  ['caf-fecha-entrega', 'caf-fecha-pago-inicial'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el.value) el.value = hoy;
+    el.max = hoy;
+  });
+  document.getElementById('caf-fecha-pago-inicial').disabled = !(Number(document.getElementById('caf-pago-inicial').value) > 0);
 }
 
 function filtrarCafeteriaPOS() {
@@ -7848,6 +7933,9 @@ function cafClear() {
   var cid = document.getElementById('caf-cliente-id'); if (cid) cid.value = '';
   seleccionarCafeteriaCatalogo();
   var pago = document.getElementById('caf-pago-inicial'); if (pago) pago.value = '0';
+  document.getElementById('caf-fecha-entrega').value = fechaHoyISO();
+  document.getElementById('caf-fecha-pago-inicial').value = fechaHoyISO();
+  actualizarFechasCafeteria();
   setCafPm('trans');
   actualizarCreditoCafeteria();
   cafRen();
@@ -7873,13 +7961,17 @@ function irEditarPreciosCafeteria() {
 }
 
 function mapPagoCafeteria() {
+  return metodoPagoCafeteria(cafPm);
+}
+
+function metodoPagoCafeteria(metodo) {
   var map = {
     ef: {metodo_pago:'01', terminal:'efectivo'},
     clip: {metodo_pago:'04', terminal:'clip'},
     trans: {metodo_pago:'03', terminal:'efectivo'},
     bbva: {metodo_pago:'28', terminal:'bbva'}
   };
-  return map[cafPm] || map.trans;
+  return map[metodo] || map.trans;
 }
 
 function registrarCafeteria() {
@@ -7893,6 +7985,11 @@ function registrarCafeteria() {
   var totalCuenta = cafTotals().total;
   var pagoInicial = parseFloat(document.getElementById('caf-pago-inicial').value) || 0;
   if (pagoInicial < 0 || pagoInicial > totalCuenta) { toast('Pago inicial inv\u00e1lido', true); return; }
+  var fechaEntrega = document.getElementById('caf-fecha-entrega').value;
+  var fechaPago = document.getElementById('caf-fecha-pago-inicial').value;
+  if (!fechaEntrega || fechaEntrega > fechaHoyISO() || (pagoInicial > 0 && (!fechaPago || fechaPago > fechaHoyISO()))) {
+    toast('Revisa las fechas de entrega y pago', true); return;
+  }
   _cafEnProceso = true;
   if (!_cafIdempotencyKey) _cafIdempotencyKey = nuevaClaveIdempotencia('cafeteria');
   var pago = mapPagoCafeteria();
@@ -7905,6 +8002,8 @@ function registrarCafeteria() {
     dias_credito: diasCredito,
     notas: (document.getElementById('caf-notas').value || '').trim() || null,
     pago_inicial: pagoInicial,
+    fecha_entrega: fechaEntrega,
+    fecha_pago_inicial: pagoInicial > 0 ? fechaPago : null,
     metodo_pago: pago.metodo_pago,
     terminal: pago.terminal,
     iva_factura_tasa: _cafFacturaIvaActiva ? POS_FACTURA_IVA_TASA : 0,
@@ -7915,6 +8014,7 @@ function registrarCafeteria() {
     cafClear();
     cargarCafeteriaProductos();
     cargarCafeteriaClientes();
+    cargarClientesCobranzaCafeteria();
     cargarCafeteriaVentas();
     cargarCafeteriaReportes();
     _cafEnProceso = false;
@@ -7925,12 +8025,136 @@ function registrarCafeteria() {
 }
 
 function cargarCafeteriaVentas() {
-  return api('GET', '/cafeteria/ventas?limit=120').then(function(items) {
-    _cafVentas = items || [];
-    renderCafeteriaVentas(_cafVentas);
+  return cargarPaginaCobranzaCafeteria(false);
+}
+
+function filtroClienteCobranzaCafeteria() {
+  var value = document.getElementById('caf-filtro-cliente').value;
+  if (value.indexOf('id:') === 0) return 'cafeteria_id=' + encodeURIComponent(value.slice(3));
+  if (value.indexOf('nombre:') === 0) return 'cafeteria_nombre=' + encodeURIComponent(value.slice(7));
+  return '';
+}
+
+function cargarClientesCobranzaCafeteria() {
+  var version = _versionSesion;
+  return api('GET', '/cafeteria/cobranza/clientes').then(function(items) {
+    if (version !== _versionSesion) return;
+    var select = document.getElementById('caf-filtro-cliente'), value = select.value;
+    var html = '<option value="">Todos los clientes</option>';
+    (items || []).forEach(function(c) {
+      var key = c.id == null ? 'nombre:' + c.nombre : 'id:' + c.id;
+      html += '<option value="' + escHtml(key) + '">' + escHtml(c.nombre) + (c.id == null ? ' (histórico)' : '') + '</option>';
+    });
+    select.innerHTML = html;
+    select.value = value;
   }).catch(function(e) {
-    document.getElementById('caf-ventas').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">' + escHtml(e.message || 'Error al cargar cuentas') + '</p>';
+    if (version === _versionSesion) toast(e.message || 'No se pudieron cargar los clientes', true);
   });
+}
+
+function cambiarVistaCobranza(vista) {
+  _cafCobranzaVista = vista === 'historial' ? 'historial' : 'pendientes';
+  ['pendientes', 'historial'].forEach(function(v) {
+    var button = document.getElementById('caf-vista-' + v), active = v === _cafCobranzaVista;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  document.getElementById('caf-cobranza-title').textContent = _cafCobranzaVista === 'historial' ? 'Historial de entregas y pagos' : 'Cuentas por cobrar';
+  return cargarCafeteriaVentas();
+}
+
+function cambiarPaginaCafeteria(delta) {
+  if (delta > 0 && !_cafCobranzaMas) return;
+  _cafCobranzaOffset = Math.max(0, _cafCobranzaOffset + delta * 50);
+  return cargarPaginaCobranzaCafeteria(true);
+}
+
+function cargarPaginaCobranzaCafeteria(conservarPagina) {
+  if (!conservarPagina) _cafCobranzaOffset = 0;
+  var seq = ++_cafCobranzaSeq, version = _versionSesion;
+  var filter = filtroClienteCobranzaCafeteria();
+  var query = 'limit=51&offset=' + _cafCobranzaOffset + '&pendientes=' + (_cafCobranzaVista === 'pendientes');
+  if (filter) query += '&' + filter;
+  document.getElementById('caf-pdf-cliente').disabled = !filter;
+  document.getElementById('caf-ventas').innerHTML = '';
+  document.getElementById('caf-pagination').hidden = true;
+  document.getElementById('caf-cobranza-estado').textContent = 'Cargando cuentas...';
+  document.getElementById('caf-cobranza-saldo').textContent = '--';
+  document.getElementById('caf-cobranza-cuentas').textContent = 'Por cobrar';
+  function vigente() { return seq === _cafCobranzaSeq && version === _versionSesion; }
+  return Promise.all([
+    api('GET', '/cafeteria/ventas?' + query).then(function(items) {
+      if (!vigente()) return;
+      _cafCobranzaMas = items.length > 50;
+      _cafVentas = items.slice(0, 50);
+      renderCafeteriaVentas(_cafVentas);
+      var pagination = document.getElementById('caf-pagination');
+      pagination.hidden = !_cafCobranzaOffset && !_cafCobranzaMas;
+      document.getElementById('caf-pagina-anterior').disabled = !_cafCobranzaOffset;
+      document.getElementById('caf-pagina-siguiente').disabled = !_cafCobranzaMas;
+      document.getElementById('caf-pagina-label').textContent = 'Página ' + (Math.floor(_cafCobranzaOffset / 50) + 1);
+      document.getElementById('caf-cobranza-estado').textContent = '';
+    }).catch(function(e) {
+      if (!vigente()) return;
+      _cafVentas = [];
+      document.getElementById('caf-cobranza-estado').textContent = e.message || 'No se pudieron cargar las cuentas';
+      document.getElementById('caf-ventas').innerHTML = '<button type="button" class="limpiar" onclick="cargarCafeteriaVentas()">Reintentar</button>';
+    }),
+    api('GET', '/cafeteria/cobranza/resumen' + (filter ? '?' + filter : '')).then(function(data) {
+      if (!vigente()) return;
+      document.getElementById('caf-cobranza-saldo').textContent = '$' + fmt(data.saldo);
+      document.getElementById('caf-cobranza-cuentas').textContent = data.cuentas + (data.cuentas === 1 ? ' pendiente' : ' pendientes') + (data.vencidas ? ' · ' + data.vencidas + (data.vencidas === 1 ? ' vencida' : ' vencidas') : '');
+    }).catch(function() {
+      if (vigente()) document.getElementById('caf-cobranza-cuentas').textContent = 'Saldo no disponible';
+    })
+  ]);
+}
+
+function actualizarCobranzaCafeteria() {
+  apiCacheInvalidate('/cafeteria/');
+  cargarClientesCobranzaCafeteria();
+  cargarCafeteriaReportes();
+  return cargarCafeteriaVentas();
+}
+
+function descargarEstadoCuentaCafeteria() {
+  var filter = filtroClienteCobranzaCafeteria();
+  if (!filter) { toast('Selecciona un cliente', true); return; }
+  return descargarArchivoAutenticado('/api/v1/cafeteria/estado-cuenta/pdf?' + filter,
+    'estado_cuenta_cafeteria.pdf', 'PDF descargado', 'No se pudo descargar el estado de cuenta');
+}
+
+function descargarHistorialCafeteriaExcel() {
+  return descargarArchivoAutenticado('/api/v1/cafeteria/historial/excel',
+    'cafeterias_historial_completo.xlsx', 'Excel completo descargado', 'No se pudo descargar el historial');
+}
+
+function fechaCortaCafeteria(fecha) {
+  if (!fecha) return 'No registrada';
+  return new Date(fecha + 'T12:00:00').toLocaleDateString('es-MX', {day:'2-digit', month:'short', year:'numeric'});
+}
+
+async function editarFechaEntregaCafeteria(id) {
+  if (_cafFechaGuardando[id]) return;
+  var venta = _cafVentas.find(function(v) { return Number(v.id) === Number(id); });
+  if (!venta) return;
+  var version = _versionSesion;
+  var fecha = await solicitarEntrada({title:'Fecha entregado', message:venta.folio + ' · ' + venta.cafeteria_nombre,
+    label:'Fecha entregado', type:'date', value:venta.fecha_entrega || '', max:fechaHoyISO(), acceptText:'Guardar fecha'});
+  if (fecha == null || version !== _versionSesion) return;
+  if (!fecha || fecha > fechaHoyISO()) { toast('Revisa la fecha de entrega', true); return; }
+  _cafFechaGuardando[id] = true;
+  try {
+    await api('PUT', '/cafeteria/ventas/' + id + '/entrega', {fecha_entrega:fecha}, false, null, version);
+    if (version !== _versionSesion) return;
+    toast('Fecha de entrega actualizada');
+    cargarCafeteriaVentas();
+    cargarCafeteriaReportes();
+  } catch (e) {
+    if (version === _versionSesion) toast(e.message || 'No se pudo guardar la fecha', true);
+  } finally {
+    if (version === _versionSesion) delete _cafFechaGuardando[id];
+  }
 }
 
 function etiquetaEstadoCafeteria(v) {
@@ -7956,19 +8180,27 @@ function etiquetaPagoCafeteria(p) {
 function renderCafeteriaVentas(items) {
   var el = document.getElementById('caf-ventas');
   if (!el) return;
+  if (_cafCobranzaVista === 'pendientes') {
+    items = items.filter(function(v) { return v.estado !== 'cancelada' && Number(v.saldo_pendiente) > 0; });
+  }
   if (!items.length) {
-    el.innerHTML = '<p style="color:var(--mut);font-size:.83rem">Sin entregas de cafeter\u00eda todav\u00eda.</p>';
+    el.innerHTML = '<p class="report-status">' + (_cafCobranzaVista === 'pendientes' ? 'Sin cuentas pendientes de pago.' : 'Sin entregas para este cliente.') + '</p>';
     return;
   }
   var h = '';
   for (var i = 0; i < items.length; i++) {
     var v = items[i];
-    var saldo = parseFloat(v.saldo_pendiente) || 0;
-    var fecha = v.fecha ? formatearInstanteOperacion(v.fecha, {day:'2-digit', month:'short'}) : '';
+    var saldo = v.estado === 'cancelada' ? 0 : (parseFloat(v.saldo_pendiente) || 0);
+    var fecha = v.fecha ? formatearInstanteOperacion(v.fecha, {day:'2-digit', month:'short', year:'numeric'}) : '';
     var venc = v.fecha_credito ? new Date(v.fecha_credito + 'T00:00:00').toLocaleDateString('es-MX', {day:'2-digit', month:'short'}) : '';
     h += '<div class="caf-sale">';
     h += '<div class="caf-sale-head"><div><strong>' + escHtml(v.folio) + ' &bull; ' + escHtml(v.cafeteria_nombre) + '</strong><br>';
-    h += '<span style="font-size:.78rem;color:var(--mut)">' + fecha + (venc ? ' &bull; vence ' + venc : '') + '</span></div>';
+    h += '<span style="font-size:.78rem;color:var(--mut)">Registrado ' + fecha + (venc ? ' &bull; vence ' + venc : '') + '</span>';
+    h += '<div class="caf-sale-dates"><span>Entregado: ' + escHtml(fechaCortaCafeteria(v.fecha_entrega)) + '</span>';
+    if (v.estado !== 'cancelada' && (window._permisos || {}).cafeteria === 'editar') {
+      h += '<button type="button" class="catalog-icon-btn" onclick="editarFechaEntregaCafeteria(' + v.id + ')" title="Editar fecha de entrega" aria-label="Editar fecha de entrega ' + escHtml(v.folio) + '">&#9998;</button>';
+    }
+    h += '</div></div>';
     h += '<div style="text-align:right">' + etiquetaEstadoCafeteria(v) + '<br><strong style="color:var(--v)">$' + fmt(v.total) + '</strong></div></div>';
     if (v.detalles && v.detalles.length) {
       h += '<div class="caf-sale-lines">';
@@ -7980,12 +8212,20 @@ function renderCafeteriaVentas(items) {
     }
     h += '<div class="caf-summary-row"><span>Pagado</span><strong>$' + fmt(v.monto_pagado) + ' de $' + fmt(v.total) + '</strong></div>';
     h += '<div class="caf-summary-row"><span>Saldo</span><strong style="color:' + (saldo > 0 ? '#b45309' : 'var(--grn)') + '">$' + fmt(saldo) + '</strong></div>';
+    if (v.pagos && v.pagos.length) {
+      h += '<details class="caf-payment-history"><summary>Pagos (' + v.pagos.length + ')</summary>';
+      v.pagos.slice().sort(function(a, b) { return String(a.fecha).localeCompare(String(b.fecha)) || a.id - b.id; }).forEach(function(p) {
+        var fechaPago = p.fecha_pago ? fechaCortaCafeteria(p.fecha_pago) : formatearInstanteOperacion(p.fecha, {day:'2-digit',month:'short',year:'numeric'});
+        h += '<div class="caf-summary-row"><span>' + escHtml(fechaPago) + ' · ' + escHtml(etiquetaPagoCafeteria(p)) + (p.referencia ? ' · ' + escHtml(p.referencia) : '') + '</span><strong>$' + fmt(p.monto) + '</strong></div>';
+      });
+      h += '</details>';
+    }
     h += '<div class="caf-mini-actions">';
-    if (saldo > 0 && String(v.estado).toLowerCase() !== 'cancelada') {
+    if (saldo > 0 && (window._permisos || {}).cafeteria === 'editar') {
       h += '<button class="limpiar" onclick="pagarCafeteria(' + v.id + ',false)">Pago parcial</button>';
       h += '<button class="cobrar" onclick="pagarCafeteria(' + v.id + ',true)">Liquidar</button>';
     }
-    if (String(v.estado).toLowerCase() !== 'cancelada') {
+    if (String(v.estado).toLowerCase() !== 'cancelada' && (window._permisos || {}).cafeteria === 'editar') {
       h += '<button class="limpiar" onclick="cancelarCafeteria(' + v.id + ',' + jsArg(v.folio) + ')">Cancelar</button>';
     }
     h += '</div></div>';
@@ -7993,49 +8233,89 @@ function renderCafeteriaVentas(items) {
   el.innerHTML = h;
 }
 
-async function pagarCafeteria(id, liquidar) {
+function pagarCafeteria(id, liquidar) {
+  if (_cafPagoGuardando) return;
   var venta = _cafVentas.find(function(v) { return v.id === id; });
   if (!venta) return;
   var saldo = parseFloat(venta.saldo_pendiente) || 0;
-  var monto = saldo;
-  var motivo = liquidar ? 'Liquidaci\u00f3n de entrega cafeter\u00eda' : 'Pago parcial de entrega cafeter\u00eda';
-  if (liquidar) {
-    var ok = await confirmarAccion({
-      title: 'Liquidar entrega',
-      message: venta.folio + ' · ' + venta.cafeteria_nombre,
-      detail: 'Se registrará un pago por $' + fmt(saldo) + '.',
-      acceptText: 'Liquidar',
-      tone: 'default'
-    });
-    if (!ok) return;
-  } else {
-    var txt = await solicitarEntrada({
-      title: 'Registrar pago parcial',
-      message: venta.folio + ' · ' + venta.cafeteria_nombre,
-      detail: 'Saldo pendiente: $' + fmt(saldo),
-      label: 'Monto pagado',
-      value: '',
-      type: 'number',
-      min: '0.01',
-      step: '0.01',
-      acceptText: 'Registrar pago'
-    });
-    if (txt === null) return;
-    monto = parseFloat(String(txt).replace(/,/g, ''));
+  if (saldo <= 0 || venta.estado === 'cancelada') return;
+  var pendiente = _cafPagosPendientes[id];
+  if (pendiente && pendiente.version !== _versionSesion) pendiente = null;
+  _cafPagoContext = pendiente || {id:id, saldo:saldo, liquidar:liquidar, version:_versionSesion,
+    key:nuevaClaveIdempotencia('caf-pago'), body:null};
+  document.getElementById('caf-pago-title').textContent = liquidar ? 'Liquidar entrega' : 'Registrar pago parcial';
+  document.getElementById('caf-pago-cuenta').textContent = venta.folio + ' · ' + venta.cafeteria_nombre;
+  document.getElementById('caf-pago-saldo').textContent = 'Saldo pendiente: $' + fmt(saldo);
+  var body = _cafPagoContext.body;
+  var amount = document.getElementById('caf-pago-monto');
+  amount.value = body ? body.monto : (liquidar ? saldo.toFixed(2) : '');
+  amount.max = String(saldo);
+  amount.readOnly = liquidar;
+  var date = document.getElementById('caf-pago-fecha');
+  date.value = body ? body.fecha_pago : fechaHoyISO();
+  date.max = fechaHoyISO();
+  document.getElementById('caf-pago-metodo').value = body ? (body.terminal === 'clip' ? 'clip' : body.terminal === 'bbva' ? 'bbva' : body.metodo_pago === '01' ? 'ef' : 'trans') : 'trans';
+  document.getElementById('caf-pago-referencia').value = body ? body.referencia || '' : '';
+  document.getElementById('caf-pago-error').textContent = body ? 'El pago anterior aún no está confirmado. Reintenta el mismo pago.' : '';
+  bloquearFormularioPagoCafeteria(!!body);
+  document.getElementById('caf-pago-guardar').disabled = false;
+  document.getElementById('caf-pago-guardar').textContent = body ? 'Reintentar el mismo pago' : 'Registrar pago';
+  document.getElementById('modal-caf-pago').classList.add('on');
+  amount.focus();
+}
+
+function bloquearFormularioPagoCafeteria(bloquear) {
+  ['caf-pago-monto', 'caf-pago-fecha', 'caf-pago-metodo', 'caf-pago-referencia'].forEach(function(id) {
+    document.getElementById(id).disabled = bloquear;
+  });
+}
+
+async function guardarPagoCafeteria() {
+  var context = _cafPagoContext;
+  if (!context || _cafPagoGuardando || context.version !== _versionSesion) return;
+  if (!context.body) {
+    var monto = Number(document.getElementById('caf-pago-monto').value);
+    var fecha = document.getElementById('caf-pago-fecha').value;
+    if (!isFinite(monto) || monto <= 0 || monto > context.saldo) { toast('El monto debe ser mayor a cero y no exceder el saldo', true); return; }
+    if (!fecha || fecha > fechaHoyISO()) { toast('Revisa la fecha de pago', true); return; }
+    var metodo = metodoPagoCafeteria(document.getElementById('caf-pago-metodo').value);
+    context.body = {idempotency_key:context.key, monto:monto, fecha_pago:fecha,
+      metodo_pago:metodo.metodo_pago, terminal:metodo.terminal,
+      referencia:document.getElementById('caf-pago-referencia').value.trim() || null,
+      motivo:context.liquidar ? 'Liquidación de entrega cafetería' : 'Pago parcial de entrega cafetería'};
   }
-  if (!monto || monto <= 0) { toast('Monto inválido', true); return; }
-  if (monto > saldo) { toast('El pago excede el saldo', true); return; }
-  var pago = mapPagoCafeteria();
-  api('POST', '/cafeteria/ventas/' + id + '/pagos', {
-    monto: monto,
-    metodo_pago: pago.metodo_pago,
-    terminal: pago.terminal,
-    motivo: motivo
-  }).then(function() {
+  _cafPagoGuardando = true;
+  _cafPagosPendientes[context.id] = context;
+  bloquearFormularioPagoCafeteria(true);
+  var button = document.getElementById('caf-pago-guardar');
+  button.disabled = true;
+  button.textContent = 'Registrando...';
+  try {
+    await api('POST', '/cafeteria/ventas/' + context.id + '/pagos', context.body, false, null, context.version);
+    if (context.version !== _versionSesion) return;
+    delete _cafPagosPendientes[context.id];
+    cerrarModal('modal-caf-pago');
+    _cafPagoContext = null;
     toast('Pago registrado');
     cargarCafeteriaVentas();
     cargarCafeteriaReportes();
-  }).catch(function(e) { toast(e.message || 'Error al registrar pago', true); });
+  } catch (e) {
+    if (context.version !== _versionSesion) return;
+    var noRegistrado = e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429;
+    if (noRegistrado) {
+      delete _cafPagosPendientes[context.id];
+      context.body = null;
+      context.key = nuevaClaveIdempotencia('caf-pago');
+      bloquearFormularioPagoCafeteria(false);
+    }
+    document.getElementById('caf-pago-error').textContent = e.message || 'No se pudo confirmar el pago';
+    button.textContent = noRegistrado ? 'Registrar pago' : 'Reintentar el mismo pago';
+  } finally {
+    if (context.version === _versionSesion) {
+      _cafPagoGuardando = false;
+      button.disabled = false;
+    }
+  }
 }
 
 async function cancelarCafeteria(id, folio) {
@@ -8081,16 +8361,6 @@ function cargarCafeteriaReportes() {
 function renderCafReport(data, elId) {
   var el = document.getElementById(elId);
   if (!el) return;
-  if (elId === 'caf-semana') {
-    var kL = document.getElementById('caf-k-llevado');
-    var kP = document.getElementById('caf-k-pagado');
-    var kD = document.getElementById('caf-k-debe');
-    var kE = document.getElementById('caf-k-entregas');
-    if (kL) kL.textContent = '$' + fmt(data.total_llevado);
-    if (kP) kP.textContent = '$' + fmt(data.total_pagado);
-    if (kD) kD.textContent = '$' + fmt(data.saldo_pendiente);
-    if (kE) kE.textContent = String((data.entregas && data.entregas.length) || 0);
-  }
   var h = '';
   h += '<div class="caf-summary-row"><span>Llevado</span><strong>$' + fmt(data.total_llevado) + '</strong></div>';
   h += '<div class="caf-summary-row"><span>Pagado</span><strong style="color:var(--grn)">$' + fmt(data.total_pagado) + '</strong></div>';

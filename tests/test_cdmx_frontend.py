@@ -37,6 +37,7 @@ function fmt(n){return Number(n).toFixed(2);}
 function escHtml(n){return String(n);}
 function jsArg(n){return JSON.stringify(n);}
 function grupoFormalProducto(p){return {key:String(p.id),nombre:p.nombre,presentacion:p.presentacion};}
+function filtrarPOS(){}
 """
 
 
@@ -72,6 +73,25 @@ assert(!fields['pos-products'].innerHTML.includes('Sin precio CDMX'));
 assert(fields['pos-products'].innerHTML.includes('Agotado'));
 renderPOSFromData([{id:2,activo:true,precio_unitario:100}]);
 assert(fields['pos-products'].innerHTML.includes('Sin productos con precio CDMX'));
+""")
+
+
+def test_tab_change_repaints_prices_before_navigation_and_click_uses_current_channel():
+    node(HARNESS + section("function actualizarModoVentaUI", "async function abrirPreparacionUber")
+         + section("async function cambiarModoVenta", "var POS_DRAFT_KEY")
+         + section("var _posGroups = {}", "function cargarPOSProductos") + r"""
+let added=[];function add(...args){added.push(args);}
+renderPOSFromData([{id:1,nombre:'Panque',activo:true,stock_actual:10,
+  precio_unitario:350,precio_uber_eats:390,precio_cdmx:400}]);
+(async()=>{
+  assert(fields['pos-products'].innerHTML.includes('$350.00'));
+  await cambiarModoVenta('cdmx');assert(fields['pos-products'].innerHTML.includes('$400.00'));
+  agregarProductoPOS(1);assert.equal(added[0][2],400);
+  await cambiarModoVenta('mostrador');assert(fields['pos-products'].innerHTML.includes('$350.00'));
+  agregarProductoPOS(1);assert.equal(added[1][2],350);
+  await cambiarModoVenta('uber_eats');assert(fields['pos-products'].innerHTML.includes('$390.00'));
+  agregarProductoPOS(1);assert.equal(added[2][2],390);
+})();
 """)
 
 

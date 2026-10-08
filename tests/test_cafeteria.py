@@ -382,7 +382,8 @@ def test_cafeteria_descuenta_y_cancela_empaque(client, auth_headers):
 
 def test_frontend_cafeteria_b2b_surface():
     html = open("docs/index.html", encoding="utf-8").read()
-    assert "caf-k-llevado" in html
+    assert 'id="caf-filtro-cliente"' in html
+    assert 'id="caf-cobranza-saldo"' in html
     assert "cargarCafeteriaClientes" in html
     assert '<select id="caf-cliente-id"' in html
     assert 'id="caf-nombre"' not in html

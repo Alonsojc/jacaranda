@@ -1,6 +1,6 @@
 """Small runtime schema guards for deployments that fall back to create_all."""
 
-from sqlalchemy import Boolean, DateTime, Integer, Numeric, String, Text, inspect, text
+from sqlalchemy import Boolean, Date, DateTime, Integer, Numeric, String, Text, inspect, text
 from sqlalchemy.engine import Engine
 
 from app.models.cafeteria import (
@@ -142,6 +142,7 @@ def ensure_runtime_schema(engine: Engine) -> None:
         for table_name, index_name in (
             ("ventas", "ix_ventas_idempotency_key"),
             ("pedidos", "ix_pedidos_idempotency_key"),
+            ("pagos_cafeteria_venta", "ix_pagos_cafeteria_venta_idempotency_key"),
         ):
             if table_name not in tables:
                 continue
@@ -154,6 +155,10 @@ def ensure_runtime_schema(engine: Engine) -> None:
                 f"CREATE UNIQUE INDEX IF NOT EXISTS {index_name} "
                 f"ON {table_name} (idempotency_key)"
             ))
+
+        if "cafeteria_ventas" in tables:
+            columns = {col["name"] for col in inspector.get_columns("cafeteria_ventas")}
+            _add_column_if_missing(conn, engine, "cafeteria_ventas", columns, "fecha_entrega", Date())
 
         if "ventas" in tables:
             venta_columns = {col["name"] for col in inspector.get_columns("ventas")}
