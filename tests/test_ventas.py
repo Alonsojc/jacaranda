@@ -350,6 +350,88 @@ class TestVentas:
         prod = client.get(f"/api/v1/inventario/productos/{pid}", headers=auth_headers).json()
         assert float(prod["stock_actual"]) == 20.0
 
+    @pytest.mark.parametrize("metodo_pago,terminal", [("01", "efectivo"), ("28", "bbva")])
+    def test_cancelar_venta_devuelve_stock_aunque_siga_negativo(
+        self, client, auth_headers, db, metodo_pago, terminal,
+    ):
+        from app.models.auditoria import LogAuditoria
+        from app.models.inventario import MovimientoInventario, TipoMovimiento
+
+        caja_id = self._crear_caja(client, auth_headers, "Caja devolucion negativa")
+        productos = [
+            self._crear_producto(
+                client, auth_headers, "DEV-001", "100.00",
+                caja_ingrediente_id=caja_id, caja_cantidad="1",
+            ),
+            self._crear_producto(client, auth_headers, "DEV-002", "300.00"),
+            self._crear_producto(client, auth_headers, "DEV-003", "50.00"),
+        ]
+        for pid, stock in zip(productos, [10, 1, 10]):
+            self._agregar_stock(client, auth_headers, pid, stock)
+        venta = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": metodo_pago,
+            "terminal": terminal,
+            "monto_recibido": "450.00",
+            "detalles": [{"producto_id": pid, "cantidad": "1"} for pid in productos],
+        }, headers=auth_headers)
+        assert venta.status_code == 201, venta.text
+        venta = venta.json()
+
+        posterior = client.post("/api/v1/punto-de-venta/ventas", json={
+            "metodo_pago": metodo_pago,
+            "terminal": terminal,
+            "monto_recibido": "900.00",
+            "detalles": [{"producto_id": productos[1], "cantidad": "3"}],
+        }, headers=auth_headers)
+        assert posterior.status_code == 201, posterior.text
+
+        def stocks():
+            return [
+                Decimal(client.get(
+                    f"/api/v1/inventario/productos/{pid}", headers=auth_headers,
+                ).json()["stock_actual"])
+                for pid in productos
+            ]
+
+        assert stocks() == [Decimal("9"), Decimal("-3"), Decimal("9")]
+        cancel = client.post(
+            f"/api/v1/punto-de-venta/ventas/{venta['id']}/cancelar",
+            json={"motivo": "Correccion de ticket ficticio"},
+            headers=auth_headers,
+        )
+        assert cancel.status_code == 200, cancel.text
+        assert cancel.json()["estado"] == "cancelada"
+        assert stocks() == [Decimal("10"), Decimal("-2"), Decimal("10")]
+        caja = client.get(f"/api/v1/inventario/ingredientes/{caja_id}", headers=auth_headers)
+        assert Decimal(caja.json()["stock_actual"]) == Decimal("20")
+
+        resumen = client.get("/api/v1/punto-de-venta/corte-caja/resumen", headers=auth_headers)
+        assert resumen.status_code == 200, resumen.text
+        assert Decimal(resumen.json()["total_ventas"]) == Decimal("900.00")
+        assert Decimal(resumen.json()[f"total_ventas_{terminal}"]) == Decimal("900.00")
+        assert resumen.json()["numero_ventas"] == 1
+
+        repetida = client.post(
+            f"/api/v1/punto-de-venta/ventas/{venta['id']}/cancelar",
+            json={"motivo": "Segundo intento del mismo ticket"},
+            headers=auth_headers,
+        )
+        assert repetida.status_code == 400
+        assert "ya est\u00e1 cancelada" in repetida.json()["detail"]
+        assert stocks() == [Decimal("10"), Decimal("-2"), Decimal("10")]
+        devoluciones = db.query(MovimientoInventario).filter(
+            MovimientoInventario.tipo == TipoMovimiento.ENTRADA_DEVOLUCION,
+            MovimientoInventario.referencia == f"Cancelaci\u00f3n venta {venta['folio']}",
+        ).all()
+        assert len(devoluciones) == 4
+        assert {m.producto_id for m in devoluciones if m.producto_id} == set(productos)
+        assert all(m.cantidad == Decimal("1") for m in devoluciones)
+        assert db.query(LogAuditoria).filter(
+            LogAuditoria.modulo == "ventas",
+            LogAuditoria.accion == "cancelar",
+            LogAuditoria.entidad_id == venta["id"],
+        ).count() == 1
+
     def test_cancelar_venta_requiere_motivo(self, client, auth_headers):
         pid = self._crear_producto(client, auth_headers, "PAN-MOTIVO")
         self._agregar_stock(client, auth_headers, pid, 5)
