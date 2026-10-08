@@ -131,6 +131,27 @@ initEgresos();assert.equal(fields['eg-fecha'].value,'2026-10-08');assert.equal(f
     node(code)
 
 
+def test_session_reset_discards_receipt_fields_payload_and_review_view():
+    code = PREAMBLE + section("function limpiarEgresoForm", "function datosFormularioEgreso")
+    code += r"""
+let _resguardoData=null,_resguardoIniciando=false,_resguardoSeq=0,_egresosResumenSeq=0;
+let _ocrSeq=0,_ocrItems=[{nombre:'Dato anterior'}],_ocrGuardando=true;
+function cerrarCamaraEgreso(){}
+"""
+    code += section("function invalidarTareasSesion()", "  _contaCuentas = [];") + "}\n"
+    code += r"""
+_egresoOrigen='ocr';_egresoOcrPayload=[{proveedor:'Anterior'}];_egOcrResultados=[expense('Anterior',100)];
+['eg-concepto','eg-monto','eg-proveedor','eg-notas'].forEach(id=>document.getElementById(id).value='Anterior');
+fields['eg-ocr-result']={innerHTML:'Anterior',style:{display:'block'}};
+invalidarTareasSesion();
+assert.equal(_egresoOrigen,'manual');assert.equal(_egresoOcrPayload,null);assert.deepEqual(_egOcrResultados,[]);
+['eg-concepto','eg-monto','eg-proveedor','eg-notas'].forEach(id=>assert.equal(fields[id].value,''));
+assert.equal(fields['eg-ocr-result'].innerHTML,'');assert.equal(fields['eg-ocr-result'].style.display,'none');
+assert.deepEqual(_ocrItems,[]);assert.equal(fields['ocr-result'].style.display,'none');
+"""
+    node(code)
+
+
 def test_user_edits_during_read_and_expired_session_are_not_overwritten():
     code = PREAMBLE + COMMON + TOTALS + SUMMARY + EXPENSES
     code += section("function _firmaFormularioEgresoOCR", "function renderResumenEgresosOperativos")

@@ -3291,13 +3291,13 @@ function invalidarTareasSesion() {
   _resguardoIniciando = false;
   _resguardoSeq++;
   _egresosResumenSeq++;
-  _egOcrSeq++;
-  _egOcrResultados = [];
-  _egOcrSeleccionado = -1;
-  _egOcrProcesando = false;
+  limpiarEgresoForm();
   _ocrSeq++;
   _ocrItems = [];
   _ocrGuardando = false;
+  document.getElementById('ocr-result').style.display = 'none';
+  document.getElementById('ocr-items').innerHTML = '';
+  document.getElementById('ocr-status').textContent = '';
   _contaCuentas = [];
   cancelarAdminAuth();
   cerrarClaveAutorizacion(true);
