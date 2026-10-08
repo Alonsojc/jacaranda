@@ -570,11 +570,11 @@ def _pago_repetido(db: Session, venta_id: int, data: PagoCafeteriaCreate):
         return None
     if (
         pago.venta_id != venta_id
-        or (data.monto is not None and _q(data.monto) != pago.monto)
+        or _q(data.monto) != pago.monto
         or pago.metodo_pago != _normalizar_metodo_terminal(data.metodo_pago, data.terminal)
         or pago.terminal != data.terminal
         or _limpiar_texto(pago.referencia) != _limpiar_texto(data.referencia)
-        or (data.fecha_pago and operation_datetime(pago.fecha).date() != data.fecha_pago)
+        or operation_datetime(pago.fecha).date() != data.fecha_pago
     ):
         raise ValueError("La clave de este pago ya se usó con otros datos")
     return obtener_venta(db, venta_id)

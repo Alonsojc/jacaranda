@@ -113,6 +113,33 @@ def test_abonos_fechados_reintento_y_liquidacion_conservan_inventario(client, au
     assert producto.stock_actual == stock
 
 
+def test_clave_pago_exige_monto_y_fecha_explicitos_en_alta_y_reintento(client, auth_headers, db, cartera):
+    venta = pedido(db, cartera)
+    ruta = f"/api/v1/cafeteria/ventas/{venta.id}/pagos"
+    fecha = (operation_today() - timedelta(days=1)).isoformat()
+    payload = {"idempotency_key": "abono-datos-completos", "monto": "40.00", "fecha_pago": fecha}
+    assert client.post(ruta, json=payload, headers=auth_headers).status_code == 200
+    for incompleto in (
+        {"idempotency_key": payload["idempotency_key"]},
+        {"idempotency_key": payload["idempotency_key"], "fecha_pago": fecha},
+        {"idempotency_key": payload["idempotency_key"], "monto": "40.00"},
+        {**payload, "monto": None}, {**payload, "fecha_pago": None},
+        {"idempotency_key": "pago-nuevo-incompleto"},
+    ):
+        response = client.post(ruta, json=incompleto, headers=auth_headers)
+        assert response.status_code == 422, response.text
+    cambiado = client.post(ruta, json={**payload, "fecha_pago": operation_today().isoformat()}, headers=auth_headers)
+    assert cambiado.status_code == 400
+    db.refresh(venta)
+    assert venta.monto_pagado == 40
+    assert db.query(PagoCafeteriaVenta).filter_by(venta_id=venta.id).count() == 1
+    # Legacy callers without a retry key can still pay the remaining balance.
+    response = client.post(ruta, json={}, headers=auth_headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["estado"] == "pagada"
+    assert db.query(PagoCafeteriaVenta).filter_by(venta_id=venta.id).count() == 2
+
+
 @pytest.mark.parametrize("payload,status", [
     ({"monto": "100.01"}, 400), ({"monto": "0"}, 422),
     ({"monto": "1.001"}, 422), ({"monto": "NaN"}, 422),

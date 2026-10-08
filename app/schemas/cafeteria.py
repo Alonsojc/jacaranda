@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 from app.models.cafeteria import EstadoCuentaCafeteria
 from app.models.venta import MetodoPago, TerminalPago
@@ -69,6 +69,12 @@ class PagoCafeteriaCreate(BaseModel):
     terminal: TerminalPago = TerminalPago.EFECTIVO
     referencia: str | None = Field(default=None, max_length=120)
     motivo: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def validar_datos_reintento(self):
+        if self.idempotency_key and (self.monto is None or self.fecha_pago is None):
+            raise ValueError("Los pagos con clave de reintento requieren monto y fecha de pago explícitos")
+        return self
 
 
 class FechaEntregaCafeteriaUpdate(BaseModel):
