@@ -787,7 +787,10 @@ def cancelar_venta(
             cantidad=detalle.cantidad,
             referencia=f"Cancelación venta {venta.folio}",
         )
-        registrar_movimiento(db, mov, usuario_id, commit=False)
+        # La devolucion suma piezas aunque persista un faltante previo.
+        registrar_movimiento(
+            db, mov, usuario_id, commit=False, permitir_stock_negativo=True,
+        )
         if producto:
             registrar_empaque_producto(
                 db,
