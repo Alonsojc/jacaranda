@@ -3,6 +3,7 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -12,13 +13,16 @@ from app.models.cafeteria import EstadoCuentaCafeteria
 from app.models.usuario import Usuario
 from app.schemas.cafeteria import (
     CafeteriaClienteCreate,
+    CafeteriaFiltroClienteResponse,
     CafeteriaClienteResponse,
     CafeteriaClienteUpdate,
     CafeteriaVentaCreate,
     CafeteriaVentaResponse,
     PagoCafeteriaCreate,
+    FechaEntregaCafeteriaUpdate,
 )
 from app.services import cafeteria_service as svc
+from app.services import cafeteria_export_service as exports
 
 router = APIRouter()
 
@@ -86,10 +90,68 @@ def listar_ventas_cafeteria(
     fecha_fin: date | None = Query(default=None),
     estado: EstadoCuentaCafeteria | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    cafeteria_id: int | None = Query(default=None, gt=0),
+    cafeteria_nombre: str | None = Query(default=None, min_length=1, max_length=200),
+    pendientes: bool = Query(default=False),
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_permission("cafeteria", "ver")),
 ):
-    return svc.listar_ventas(db, fecha_inicio, fecha_fin, estado, limit)
+    try:
+        return svc.listar_ventas(db, fecha_inicio, fecha_fin, estado, limit,
+                                cafeteria_id=cafeteria_id, cafeteria_nombre=cafeteria_nombre,
+                                pendientes=pendientes, offset=offset)
+    except ValueError as exc:
+        raise _http_error(exc)
+
+
+@router.get("/cobranza/clientes", response_model=list[CafeteriaFiltroClienteResponse])
+def clientes_cobranza(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("cafeteria", "ver")),
+):
+    return svc.clientes_cobranza(db)
+
+
+@router.get("/cobranza/resumen")
+def resumen_cobranza(
+    cafeteria_id: int | None = Query(default=None, gt=0),
+    cafeteria_nombre: str | None = Query(default=None, min_length=1, max_length=200),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("cafeteria", "ver")),
+):
+    try:
+        return svc.resumen_cobranza(db, cafeteria_id, cafeteria_nombre)
+    except ValueError as exc:
+        raise _http_error(exc)
+
+
+@router.get("/estado-cuenta/pdf")
+def estado_cuenta_pdf(
+    cafeteria_id: int | None = Query(default=None, gt=0),
+    cafeteria_nombre: str | None = Query(default=None, min_length=1, max_length=200),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("cafeteria", "ver")),
+):
+    try:
+        buf = exports.generar_estado_cuenta_pdf(db, cafeteria_id, cafeteria_nombre)
+    except ValueError as exc:
+        raise _http_error(exc)
+    return StreamingResponse(buf, media_type="application/pdf", headers={
+        "Content-Disposition": "attachment; filename=estado_cuenta_cafeteria.pdf",
+    })
+
+
+@router.get("/historial/excel")
+def historial_excel(
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("cafeteria", "ver")),
+):
+    return StreamingResponse(
+        exports.exportar_historial_excel(db),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=cafeterias_historial_completo.xlsx"},
+    )
 
 
 @router.get("/ventas/{venta_id}", response_model=CafeteriaVentaResponse)
@@ -113,6 +175,19 @@ def registrar_pago_cafeteria(
 ):
     try:
         return svc.registrar_pago(db, venta_id, data, user.id)
+    except ValueError as exc:
+        raise _http_error(exc)
+
+
+@router.put("/ventas/{venta_id}/entrega", response_model=CafeteriaVentaResponse)
+def actualizar_fecha_entrega(
+    venta_id: int,
+    data: FechaEntregaCafeteriaUpdate,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_permission("cafeteria", "editar")),
+):
+    try:
+        return svc.actualizar_fecha_entrega(db, venta_id, data, user.id)
     except ValueError as exc:
         raise _http_error(exc)
 

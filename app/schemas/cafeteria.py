@@ -3,10 +3,11 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator
 
 from app.models.cafeteria import EstadoCuentaCafeteria
 from app.models.venta import MetodoPago, TerminalPago
+from app.core.time_utils import operation_datetime
 
 
 def _cantidad_entera(v) -> int:
@@ -37,8 +38,10 @@ class CafeteriaVentaCreate(BaseModel):
     telefono: str | None = Field(default=None, max_length=30)
     dias_credito: int = Field(default=7, ge=0, le=60)
     notas: str | None = None
+    fecha_entrega: date | None = None
     detalles: list[DetalleCafeteriaCreate] = Field(..., min_length=1)
-    pago_inicial: Decimal | None = Field(default=None, ge=0)
+    pago_inicial: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
+    fecha_pago_inicial: date | None = None
     metodo_pago: MetodoPago = MetodoPago.TRANSFERENCIA
     terminal: TerminalPago = TerminalPago.EFECTIVO
     referencia_pago: str | None = Field(default=None, max_length=120)
@@ -59,11 +62,22 @@ class CafeteriaVentaCreate(BaseModel):
 
 
 class PagoCafeteriaCreate(BaseModel):
-    monto: Decimal | None = Field(default=None, gt=0)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=80)
+    monto: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=2)
+    fecha_pago: date | None = None
     metodo_pago: MetodoPago = MetodoPago.TRANSFERENCIA
     terminal: TerminalPago = TerminalPago.EFECTIVO
     referencia: str | None = Field(default=None, max_length=120)
     motivo: str | None = Field(default=None, max_length=200)
+
+
+class FechaEntregaCafeteriaUpdate(BaseModel):
+    fecha_entrega: date
+
+
+class CafeteriaFiltroClienteResponse(BaseModel):
+    id: int | None
+    nombre: str
 
 
 class CafeteriaClienteCreate(BaseModel):
@@ -115,6 +129,11 @@ class PagoCafeteriaResponse(BaseModel):
     referencia: str | None
     fecha: datetime
 
+    @computed_field
+    @property
+    def fecha_pago(self) -> date:
+        return operation_datetime(self.fecha).date()
+
     model_config = {"from_attributes": True}
 
 
@@ -134,6 +153,7 @@ class CafeteriaVentaResponse(BaseModel):
     saldo_pendiente: Decimal
     estado: EstadoCuentaCafeteria
     fecha: datetime
+    fecha_entrega: date | None
     dias_credito: int
     fecha_credito: date | None
     actualizado_en: datetime
