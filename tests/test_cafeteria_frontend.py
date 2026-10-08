@@ -25,7 +25,7 @@ def node(script):
 HARNESS = r"""
 const assert=require('node:assert/strict'), fields={}, messages=[], downloads=[];
 const document={getElementById:id=>fields[id]||={value:'',textContent:'',innerHTML:'',disabled:false,
-  hidden:false,focus(){},setAttribute(){},classList:{toggle(){},add(){},remove(){}}}};
+  hidden:false,style:{},focus(){},setAttribute(){},classList:{toggle(){},add(){},remove(){}}}};
 const window={_permisos:{cafeteria:'editar'}};
 let _versionSesion=1,_cafCobranzaVista='pendientes',_cafCobranzaOffset=0,_cafCobranzaSeq=0,
   _cafCobranzaMas=false,_cafVentas=[],_cafFechaGuardando={},_cafPagoContext=null,
@@ -54,11 +54,12 @@ FUNCTIONS = (section("function metodoPagoCafeteria", "function registrarCafeteri
 SESSION_RESET = section("function invalidarTareasSesion()", "function moduloDesactivado")
 SESSION_HARNESS = r"""
 let _ticketEdicion=null,_ventaEnProceso=false,_apiGetCache={},_apiGetInFlight={},_migracionVentasTx=null;
-let _resguardoSeq=0,_egresosResumenSeq=0,_egOcrSeq=0;
+let _resguardoSeq=0,_egresosResumenSeq=0,_egOcrSeq=0,_ocrSeq=0;
 function cancelarAdminAuth(){}
 function cerrarClaveAutorizacion(){}
 function cerrarUsuario(){}
 function cerrarCamaraEgreso(){}
+function limpiarEgresoForm(){}
 """
 
 

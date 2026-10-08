@@ -271,6 +271,16 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .product-purchase-summary{display:flex;justify-content:space-between;align-items:center;gap:.8rem;margin-top:.8rem;padding:.7rem .8rem;border-radius:8px;background:#faf3f0;font-size:.86rem}
 .product-purchase-summary strong{color:var(--v);font-size:1rem}
 #compra-productos-list{overflow-x:auto}
+.ocr-warning{color:#92400e;border-left:3px solid #d97706;padding:.45rem .6rem;margin:.5rem 0;font-size:.8rem;overflow-wrap:anywhere}
+.ocr-warning ul{margin:0;padding-left:1rem}
+.ocr-line{padding:.7rem 0;border-bottom:1px solid var(--brd);font-size:.83rem;overflow-wrap:anywhere}
+.ocr-line-title{display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem}
+.ocr-line-title input{width:20px;height:20px;flex:0 0 20px;accent-color:var(--v)}
+.ocr-line-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.45rem}
+.ocr-line-fields label{font-size:.75rem;color:var(--mut)}
+.ocr-line-fields input,.ocr-line-fields select,#eg-ocr-ticket{display:block;width:100%;min-width:0;min-height:44px;border:1px solid var(--brd);border-radius:6px;padding:.4rem;font:inherit;background:#fff}
+.ocr-review{display:flex;gap:.5rem;align-items:center;margin-top:.7rem;font-size:.82rem;font-weight:600}
+.ocr-review input{width:20px;height:20px;flex:0 0 20px;accent-color:var(--v)}
 @media(max-width:560px){
 .caf-catalog-picker{grid-template-columns:minmax(0,1fr) 44px 44px}
 .product-purchase-table .col-stock{width:82px}
@@ -1106,7 +1116,6 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <p style="font-size:.83rem;color:var(--mut);margin-bottom:.8rem">Registra la compra de ingredientes cuando llega el proveedor.</p>
 <div class="card" style="margin-bottom:1rem">
 <h3>Escanear ticket de compra</h3>
-<p style="font-size:.82rem;color:var(--mut);margin-bottom:.6rem">Sube fotos o PDFs de tickets y se llenan los datos autom&aacute;ticamente. Puedes seleccionar varios archivos a la vez.</p>
 <label class="cobrar" style="padding:.5rem 1rem;font-size:.85rem;cursor:pointer;text-align:center;display:block">
 &#128247; Fotos o PDFs de tickets
 <input type="file" id="ocr-file" accept="image/*,application/pdf" multiple onchange="escanearTickets()" style="display:none">
@@ -1118,7 +1127,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <span id="ocr-prov" style="font-size:.82rem;color:var(--mut)"></span>
 </div>
 <div id="ocr-items"></div>
-<button class="cobrar" style="margin-top:.5rem" onclick="registrarTodoOCR()">Registrar todas las compras</button>
+<button class="cobrar" id="ocr-registrar" style="margin-top:.5rem" onclick="registrarTodoOCR()">Registrar compras seleccionadas</button>
 </div>
 </div>
 <div class="card">
@@ -1316,6 +1325,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <option value="otro">Otro</option>
 </select></div>
 <div class="fg"><label>Forma de pago</label><select id="eg-metodo">
+<option value="">Selecciona...</option>
 <option value="efectivo">Efectivo</option>
 <option value="resguardo" disabled>Resguardo</option>
 <option value="transferencia">Transferencia</option>
@@ -1346,7 +1356,6 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="row r2">
 <div class="card">
 <h3>Escanear ticket</h3>
-<p style="color:var(--mut);font-size:.83rem;margin-bottom:.6rem">Lee una foto o PDF y llena el egreso autom&aacute;ticamente.</p>
 <button type="button" class="limpiar" style="width:auto;min-height:44px;margin:0 0 .6rem" onclick="abrirCamaraEgreso()">&#128247; Tomar foto</button>
 <input type="file" id="eg-camera-file" accept="image/*" capture="environment" hidden onchange="escanearTicketEgreso(this)">
 <input type="file" id="eg-ocr-file" accept="image/*,application/pdf" multiple onchange="escanearTicketEgreso()" style="font-size:.82rem;width:100%">
@@ -3132,7 +3141,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v113';
+var APP_BUILD = 'jacaranda-v114';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -3282,7 +3291,14 @@ function invalidarTareasSesion() {
   _resguardoIniciando = false;
   _resguardoSeq++;
   _egresosResumenSeq++;
-  _egOcrSeq++;
+  limpiarEgresoForm();
+  _ocrSeq++;
+  _ocrItems = [];
+  _ocrGuardando = false;
+  document.getElementById('ocr-registrar').disabled = false;
+  document.getElementById('ocr-result').style.display = 'none';
+  document.getElementById('ocr-items').innerHTML = '';
+  document.getElementById('ocr-status').textContent = '';
   _contaCuentas = [];
   cancelarAdminAuth();
   cerrarClaveAutorizacion(true);
@@ -10049,135 +10065,147 @@ function registrarCompra() {
 
 // ─── OCR ticket scanning ─────────────────────────────────────────
 var _ocrItems = [];
+var _ocrSeq = 0, _ocrGuardando = false;
+
+async function _enviarArchivoOCR(file, path) {
+  var version = _versionSesion;
+  var formData = new FormData();
+  formData.append('archivo', file);
+  var controller = window.AbortController ? new AbortController() : null;
+  var timer = controller ? setTimeout(function() { controller.abort(); }, 110000) : null;
+  try {
+    var response = await fetch(API_URL + '/api/v1' + path, {
+      method:'POST', cache:'no-store', body:formData,
+      headers:TOKEN ? {Authorization:'Bearer ' + TOKEN} : {},
+      signal:controller ? controller.signal : undefined
+    });
+    if (version !== _versionSesion) throw new Error('La sesion cambio');
+    var body = await leerRespuestaJson(response);
+    if (!response.ok) {
+      var error = new Error(typeof body.detail === 'string' ? body.detail : 'No se pudo leer el ticket');
+      error.status = response.status;
+      throw error;
+    }
+    return body;
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('La lectura tardo demasiado. Intenta otra foto');
+    throw error;
+  } finally { if (timer) clearTimeout(timer); }
+}
+
+async function _procesarLoteOCR(files, enviar, progreso, vigente) {
+  if (files.length > 10) throw new Error('Selecciona hasta 10 archivos por vez');
+  var resultados = [], vistos = Object.create(null);
+  for (var i = 0; i < files.length; i++) {
+    if (!vigente()) return [];
+    progreso(i + 1, files.length);
+    try {
+      if (files[i].size > 20000000) throw new Error('El archivo supera 20 MB');
+      var huella = null;
+      if (window.crypto && window.crypto.subtle && files[i].arrayBuffer) {
+        var digest = await window.crypto.subtle.digest('SHA-256', await files[i].arrayBuffer());
+        huella = Array.from(new Uint8Array(digest)).map(function(b) { return b.toString(16).padStart(2,'0'); }).join('');
+        if (vistos[huella]) throw new Error('Archivo duplicado en esta seleccion');
+      }
+      if (!vigente()) return [];
+      var respuesta = await enviar(files[i]);
+      if (!vigente()) return [];
+      var datos = respuesta.ocr || respuesta;
+      if (datos.error || respuesta.error) throw new Error(datos.error || respuesta.error);
+      var id = datos.documento_id || huella;
+      if (id && vistos[id]) throw new Error('Archivo duplicado en esta seleccion');
+      if (id) vistos[id] = true;
+      if (huella) vistos[huella] = true;
+      respuesta._archivo = files[i].name || ('Ticket ' + (i + 1));
+      resultados.push(respuesta);
+    } catch (error) {
+      resultados.push({_archivo:files[i].name, error:error.message || 'No se pudo leer el archivo'});
+    }
+  }
+  return resultados;
+}
+
+function _advertenciasOCR(data) {
+  var warnings = (data && data.advertencias) || [];
+  if (!warnings.length) return '';
+  return '<div class="ocr-warning" role="status"><ul>' + warnings.map(function(w) {
+    return '<li>' + escHtml(w) + '</li>';
+  }).join('') + '</ul></div>';
+}
+
+function _erroresLoteOCR(res) {
+  return res.filter(function(r) { return r.error; }).map(function(r) {
+    return (r._archivo || 'Ticket') + ': ' + r.error;
+  }).join(' | ');
+}
 
 function escanearTicket() {
-  var fileInput = document.getElementById('ocr-file');
-  var file = fileInput.files[0];
-  if (!file) return;
-  var status = document.getElementById('ocr-status');
-  status.textContent = file.type === 'application/pdf' ? 'Procesando PDF...' : 'Procesando imagen...';
-  status.style.color = 'var(--amb)';
-  document.getElementById('ocr-result').style.display = 'none';
-  _enviarOCR(file).then(function(data) {
-    if (data.error) { status.textContent = data.error; status.style.color = '#b91c1c'; return; }
-    status.textContent = 'Ticket le\u00eddo correctamente';
-    status.style.color = 'var(--grn)';
-    mostrarResultadoOCR(data);
-  }).catch(function() { status.textContent = 'Error al procesar el ticket'; status.style.color = '#b91c1c'; });
-  fileInput.value = '';
+  return escanearTickets();
 }
 
 function _enviarOCR(file) {
-  var formData = new FormData();
-  formData.append('archivo', file);
-  var opts = {
-    method: 'POST',
-    cache: 'no-store',
-    headers: {},
-    body: formData
-  };
-  if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
-  return fetch(API_URL + '/api/v1/inventario/ocr-ticket', opts).then(function(r) { return leerRespuestaJson(r); });
+  return _enviarArchivoOCR(file, '/inventario/ocr-ticket');
 }
 
 function escanearTickets() {
+  if (_ocrGuardando) { toast('Espera a que se confirmen las compras', true); return; }
   var fileInput = document.getElementById('ocr-file');
-  var files = fileInput.files;
+  var files = Array.from(fileInput.files || []);
   if (!files || !files.length) return;
-  if (files.length === 1) { escanearTicket(); return; }
+  var seq = ++_ocrSeq, version = _versionSesion;
+  var vigente = function() { return seq === _ocrSeq && version === _versionSesion; };
   var status = document.getElementById('ocr-status');
-  var total = files.length, done = 0, errores = 0;
-  var todosItems = [], totalGeneral = 0, subtotalGen = 0, ivaGen = 0, iepsGen = 0, proveedores = [];
-  status.textContent = 'Procesando 0/' + total + ' archivos...';
   status.style.color = 'var(--amb)';
   document.getElementById('ocr-result').style.display = 'none';
-
-  var promesas = [];
-  for (var i = 0; i < files.length; i++) {
-    promesas.push(_enviarOCR(files[i]));
-  }
-  var nombres = [];
-  for (var n = 0; n < files.length; n++) nombres.push(files[n].name);
-  Promise.all(promesas.map(function(p) { return p.catch(function() { return {error:'fallo'}; }); }))
-  .then(function(resultados) {
-    var tickets = [];
-    for (var r = 0; r < resultados.length; r++) {
-      var data = resultados[r];
-      if (data.error) { errores++; continue; }
-      done++;
-      data._archivo = nombres[r] || ('Ticket ' + (r+1));
-      tickets.push(data);
-    }
-    if (done === 0) { status.textContent = 'No se pudo leer ningún archivo'; status.style.color = '#b91c1c'; return; }
-    status.textContent = done + '/' + total + ' tickets leídos' + (errores ? ' (' + errores + ' con error)' : '');
-    status.style.color = 'var(--grn)';
-    mostrarResultadoOCRMulti(tickets);
-  });
+  _ocrItems = [];
   fileInput.value = '';
+  return _procesarLoteOCR(files, _enviarOCR, function(n,total) {
+    if (vigente()) status.textContent = 'Leyendo ' + n + ' de ' + total + '...';
+  }, vigente).then(function(res) {
+    if (!vigente()) return;
+    var tickets = res.filter(function(r) { return !r.error; });
+    status.textContent = tickets.length + ' de ' + files.length + ' tickets leidos. ' + _erroresLoteOCR(res);
+    status.style.color = tickets.length ? 'var(--amb)' : '#b91c1c';
+    if (tickets.length) mostrarResultadoOCRMulti(tickets);
+  }).catch(function(error) {
+    if (vigente()) { status.textContent = error.message; status.style.color = '#b91c1c'; }
+  });
 }
 
 function _renderOCRItem(item, idx) {
   var matchId = matchIngrediente(item.nombre);
-  var nombreTicket = (item.nombre || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-  var nombreEsc = (item.nombre || '').replace(/'/g, "\\'");
-  var unidad = item.unidad || 'pz';
-  var h = '<div style="padding:.5rem 0;border-bottom:1px solid #f0e8e5;font-size:.83rem">';
-  h += '<div style="display:flex;align-items:center;gap:.4rem">';
-  h += '<input type="checkbox" checked id="ocr-chk-' + idx + '" style="accent-color:var(--v)">';
-  h += '<span style="flex:1;font-weight:600;font-size:.82rem">' + nombreTicket + '</span>';
-  h += '<span style="min-width:50px;text-align:right">' + (item.cantidad || 1) + ' ' + unidad + '</span>';
-  h += '<span style="min-width:70px;text-align:right;font-weight:600">$' + fmt(item.total || 0) + '</span>';
-  h += '</div>';
-  if (matchId) {
-    h += '<div style="margin-top:.3rem;margin-left:1.6rem;display:flex;gap:.3rem;align-items:center">';
-    h += '<select id="ocr-ing-' + idx + '" style="flex:1;padding:.3rem;border:1px solid var(--brd);border-radius:6px;font-size:.8rem">';
-    for (var j = 0; j < _allIngs.length; j++) {
-      var sel = _allIngs[j].id === matchId ? ' selected' : '';
-      h += '<option value="' + _allIngs[j].id + '"' + sel + '>' + _allIngs[j].nombre + '</option>';
-    }
-    h += '</select></div>';
-  } else {
-    h += '<div style="margin-top:.3rem;margin-left:1.6rem;display:flex;gap:.3rem;align-items:center" id="ocr-row-' + idx + '">';
-    h += '<span onclick="crearIngDesdeOCR(' + idx + ',\'' + nombreEsc + '\',\'' + unidad + '\')" style="display:inline-flex;align-items:center;gap:.25rem;background:#dcfce7;color:#166534;font-size:.75rem;font-weight:600;padding:.25rem .6rem;border-radius:20px;cursor:pointer;white-space:nowrap">+ Crear</span>';
-    h += '<span style="font-size:.7rem;color:var(--mut)">o</span>';
-    h += '<select id="ocr-ing-' + idx + '" style="flex:1;padding:.25rem;border:1px solid var(--brd);border-radius:6px;font-size:.78rem">';
-    h += '<option value="nuevo" selected>Asignar existente...</option>';
-    for (var j = 0; j < _allIngs.length; j++) {
-      h += '<option value="' + _allIngs[j].id + '">' + _allIngs[j].nombre + '</option>';
-    }
-    h += '</select></div>';
+  var h = '<div class="ocr-line" id="ocr-line-' + idx + '">';
+  h += '<label class="ocr-line-title"><input type="checkbox" id="ocr-chk-' + idx + '"><strong>' + escHtml(item.nombre) + '</strong></label>';
+  h += _advertenciasOCR(item);
+  h += '<div class="ocr-line-fields"><label>Cantidad<input type="number" id="ocr-cantidad-' + idx + '" min="0.0001" step="0.0001" value="' + escHtml(item.cantidad == null ? '' : item.cantidad) + '"></label>';
+  h += '<label>Unidad<select id="ocr-unidad-' + idx + '"><option value="">Selecciona...</option>';
+  ['kg','g','l','ml','pz','caja','bolsa','saco'].forEach(function(u) { h += '<option value="' + u + '"' + (item.unidad === u ? ' selected' : '') + '>' + u + '</option>'; });
+  h += '</select></label><label>Importe de la partida<input type="number" id="ocr-total-' + idx + '" min="0" step="0.01" value="' + escHtml(item.total == null ? '' : item.total) + '"></label>';
+  h += '<label>Ingrediente<select id="ocr-ing-' + idx + '"><option value="">Selecciona...</option>';
+  for (var j = 0; j < _allIngs.length; j++) {
+    var ing = _allIngs[j];
+    h += '<option value="' + ing.id + '"' + (String(ing.id) === String(matchId) ? ' selected' : '') + '>' + escHtml(ing.nombre + ' (' + ing.unidad_medida + ')') + '</option>';
   }
+  h += '</select></label></div>';
+  if (!matchId) h += '<button type="button" class="btn sm" style="margin-top:.4rem" onclick="crearIngDesdeOCR(' + idx + ')">+ Crear ingrediente</button>';
   h += '</div>';
   return h;
 }
 
 function _renderOCRTotales(data) {
-  var h = '';
-  var hayImpuestos = data.subtotal || data.iva || data.ieps;
-  if (hayImpuestos) {
-    h += '<div style="border-top:2px solid #e8ddd9;margin-top:.3rem;padding-top:.4rem;font-size:.83rem">';
-    if (data.subtotal) h += '<div style="display:flex;justify-content:space-between;padding:.15rem 0"><span>Subtotal</span><span>$' + fmt(data.subtotal) + '</span></div>';
-    if (data.iva) h += '<div style="display:flex;justify-content:space-between;padding:.15rem 0"><span>IVA</span><span>$' + fmt(data.iva) + '</span></div>';
-    if (data.ieps) h += '<div style="display:flex;justify-content:space-between;padding:.15rem 0"><span>IEPS</span><span>$' + fmt(data.ieps) + '</span></div>';
-    h += '</div>';
-  }
-  if (data.total) {
-    h += '<div style="display:flex;justify-content:space-between;padding:.5rem 0;font-weight:700;font-size:.9rem">';
-    h += '<span>Total</span><span>$' + fmt(data.total) + '</span></div>';
-  }
+  var h = '<div style="margin-top:.5rem;font-size:.83rem">';
+  var labels = {subtotal:'Subtotal',iva:'IVA',ieps:'IEPS',descuento:'Descuento',total:'Total impreso'};
+  Object.keys(labels).forEach(function(campo) {
+    if (data[campo] != null || campo === 'total') {
+      h += '<div style="display:flex;justify-content:space-between;padding:.2rem 0"><span>' + labels[campo] + '</span><strong>' + (data[campo] == null ? '--' : '$' + fmt(data[campo])) + '</strong></div>';
+    }
+  });
+  h += '</div>';
   return h;
 }
 
 function mostrarResultadoOCR(data) {
-  document.getElementById('ocr-result').style.display = 'block';
-  document.getElementById('ocr-prov').textContent = data.proveedor ? 'Proveedor: ' + data.proveedor : '';
-  _ocrItems = data.items || [];
-  var h = '';
-  for (var i = 0; i < _ocrItems.length; i++) {
-    h += _renderOCRItem(_ocrItems[i], i);
-  }
-  h += _renderOCRTotales(data);
-  document.getElementById('ocr-items').innerHTML = h;
+  return mostrarResultadoOCRMulti([data]);
 }
 
 function mostrarResultadoOCRMulti(tickets) {
@@ -10185,16 +10213,20 @@ function mostrarResultadoOCRMulti(tickets) {
   document.getElementById('ocr-prov').textContent = '';
   _ocrItems = [];
   var h = '', globalIdx = 0, totalGen = 0;
+  var totalVerificable = tickets.every(function(tk) { return tk.total != null && tk.moneda === 'MXN'; });
   for (var t = 0; t < tickets.length; t++) {
     var tk = tickets[t];
     var prov = tk.proveedor || tk._archivo || ('Ticket ' + (t+1));
     var archivo = (tk._archivo || '').replace(/\.[^.]+$/, '');
     h += '<div style="background:var(--cream);margin:.6rem -.6rem;padding:.4rem .6rem;border-radius:8px;display:flex;justify-content:space-between;align-items:center">';
-    h += '<span style="font-weight:700;font-size:.85rem">&#128196; ' + (archivo || ('Ticket ' + (t+1))) + '</span>';
-    if (prov !== archivo) h += '<span style="font-size:.75rem;color:var(--mut)">' + prov + '</span>';
+    h += '<span style="font-weight:700;font-size:.85rem;overflow-wrap:anywhere">&#128196; ' + escHtml(archivo || ('Ticket ' + (t+1))) + '</span>';
+    if (prov !== archivo) h += '<span style="font-size:.75rem;color:var(--mut)">' + escHtml(prov) + '</span>';
     h += '</div>';
+    h += _advertenciasOCR(tk);
     var items = tk.items || [];
     for (var i = 0; i < items.length; i++) {
+      items[i]._proveedor = tk.proveedor || '';
+      items[i]._moneda = tk.moneda;
       _ocrItems.push(items[i]);
       h += _renderOCRItem(items[i], globalIdx);
       globalIdx++;
@@ -10204,91 +10236,107 @@ function mostrarResultadoOCRMulti(tickets) {
   }
   if (tickets.length > 1) {
     h += '<div style="display:flex;justify-content:space-between;padding:.6rem 0;font-weight:700;font-size:1rem;border-top:3px solid var(--v);margin-top:.4rem">';
-    h += '<span>Total general (' + tickets.length + ' tickets)</span><span>$' + fmt(totalGen) + '</span></div>';
+    h += '<span>Total general (' + tickets.length + ' tickets)</span><span>' + (totalVerificable ? '$' + fmt(totalGen) : '--') + '</span></div>';
   }
   document.getElementById('ocr-items').innerHTML = h;
 }
 
 function matchIngrediente(nombre) {
   if (!nombre || !_allIngs.length) return null;
-  var lower = nombre.toLowerCase();
-  // Try: ingredient name is contained in ticket name (e.g. "mantequilla" in "MANTEQUILLA GLORIA VERDE")
-  var best = null, bestLen = 0;
+  var lower = normalizarBusquedaProductoTicket(nombre);
   for (var i = 0; i < _allIngs.length; i++) {
-    var ingLower = _allIngs[i].nombre.toLowerCase();
-    if (lower.indexOf(ingLower) >= 0 && ingLower.length > bestLen) {
-      best = _allIngs[i].id; bestLen = ingLower.length;
-    }
-  }
-  if (best) return best;
-  // Try: first significant word of ticket name matches ingredient
-  var words = lower.replace(/[^a-záéíóúñü\s]/g, '').split(/\s+/);
-  for (var j = 0; j < _allIngs.length; j++) {
-    var ingL = _allIngs[j].nombre.toLowerCase();
-    for (var k = 0; k < words.length && k < 2; k++) {
-      if (words[k].length >= 4 && ingL.indexOf(words[k]) >= 0) return _allIngs[j].id;
-    }
+    if (normalizarBusquedaProductoTicket(_allIngs[i].nombre) === lower) return _allIngs[i].id;
   }
   return null;
 }
 
-function crearIngDesdeOCR(idx, nombre, unidad) {
-  // Limpiar nombre: quitar códigos, pz, kg, cj, etc. al final
-  var limpio = nombre.replace(/\s+(pz|kg|g|l|ml|cj|CJ).*$/i, '').trim();
-  // Capitalizar
-  limpio = limpio.split(' ').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); }).join(' ');
-  var unidadMap = {pz:'pieza', kg:'kg', g:'g', l:'litro', ml:'ml'};
-  var um = unidadMap[unidad] || 'pieza';
-  api('POST', '/inventario/ingredientes/', {nombre: limpio, unidad_medida: um, stock_actual: 0, stock_minimo: 0})
-  .then(function(ing) {
+async function crearIngDesdeOCR(idx) {
+  if (_ocrGuardando) return;
+  var item = _ocrItems[idx], version = _versionSesion, seq = _ocrSeq;
+  var unidad = document.getElementById('ocr-unidad-' + idx).value;
+  if (!item || !unidad) { toast('Selecciona la unidad del ingrediente', true); return; }
+  if (item._creando) return;
+  item._creando = true;
+  try {
+    var ok = await confirmarAccion({title:'Crear ingrediente', message:item.nombre + ' (' + unidad + ')', acceptText:'Crear'});
+    if (!ok || version !== _versionSesion || seq !== _ocrSeq) return;
+    var ing = await api('POST', '/inventario/ingredientes/', {nombre:item.nombre, unidad_medida:unidad, stock_actual:0, stock_minimo:0});
+    if (version !== _versionSesion || seq !== _ocrSeq) return;
     _allIngs.push(ing);
-    var row = document.getElementById('ocr-row-' + idx);
-    if (row) {
-      row.innerHTML = '<span style="display:inline-flex;align-items:center;gap:.25rem;background:#dcfce7;color:#166534;font-size:.75rem;font-weight:600;padding:.25rem .6rem;border-radius:20px">&#10003; ' + ing.nombre + '</span>'
-        + '<input type="hidden" id="ocr-ing-' + idx + '" value="' + ing.id + '">';
-    }
+    var sel = document.getElementById('ocr-ing-' + idx);
+    sel.add(new Option(ing.nombre + ' (' + ing.unidad_medida + ')', ing.id, true, true));
     toast('Ingrediente "' + ing.nombre + '" creado');
-  }).catch(function(e) { toast(e.message || 'Error al crear ingrediente', true); });
+  } catch (error) { if (version === _versionSesion) toast(error.message || 'Error al crear ingrediente', true); }
+  finally { item._creando = false; }
 }
 
-function registrarTodoOCR() {
-  var prov = document.getElementById('ocr-prov').textContent.replace('Proveedor: ', '') || '';
+function _cantidadInventarioOCR(cantidad, origen, destino) {
+  // Los empaques solo se convierten a su misma unidad; no se supone su contenido.
+  var unidades = {g:{grupo:'peso',factor:1},kg:{grupo:'peso',factor:1000},ml:{grupo:'volumen',factor:1},l:{grupo:'volumen',factor:1000},pz:{grupo:'piezas',factor:1},caja:{grupo:'caja',factor:1},bolsa:{grupo:'bolsa',factor:1},saco:{grupo:'saco',factor:1}};
+  if (!unidades[origen] || !unidades[destino] || unidades[origen].grupo !== unidades[destino].grupo) return null;
+  return cantidad * unidades[origen].factor / unidades[destino].factor;
+}
+
+async function registrarTodoOCR() {
+  if (_ocrGuardando) return;
   var pendientes = [];
   for (var i = 0; i < _ocrItems.length; i++) {
     var chk = document.getElementById('ocr-chk-' + i);
     if (!chk || !chk.checked) continue;
     var sel = document.getElementById('ocr-ing-' + i);
-    if (!sel || sel.value === 'nuevo') continue;
     var item = _ocrItems[i];
-    pendientes.push({
-      ingrediente_id: sel.value,
-      cantidad: item.cantidad || 1,
-      costo: item.total || 0,
-      proveedor: prov,
-    });
+    if (item._registrado) continue;
+    if (item._incierto) { toast('Hay una compra sin confirmar. Revisa el inventario antes de volver a capturarla', true); return; }
+    if (item._moneda && item._moneda !== 'MXN') { toast('El ticket no esta en MXN. Captura la compra manualmente con el importe en pesos', true); return; }
+    var ing = _allIngs.find(function(g) { return sel && String(g.id) === sel.value; });
+    var cantidadRaw = document.getElementById('ocr-cantidad-' + i).value;
+    var totalRaw = document.getElementById('ocr-total-' + i).value;
+    var unidad = document.getElementById('ocr-unidad-' + i).value;
+    var cantidad = Number(cantidadRaw), costo = Number(totalRaw);
+    if (!ing || !cantidadRaw || !totalRaw || !Number.isFinite(cantidad) || cantidad <= 0 || !Number.isFinite(costo) || costo < 0 || costo > 10000000) {
+      toast('Revisa ingrediente, cantidad e importe de cada partida seleccionada', true); return;
+    }
+    var convertida = _cantidadInventarioOCR(cantidad, unidad, ing.unidad_medida);
+    if (convertida == null || convertida < 0.0001 || convertida > 1000000) {
+      toast('La unidad del ticket no corresponde a la del ingrediente. Corrige la cantidad y unidad', true); return;
+    }
+    if (costo / convertida > 10000000) { toast('El costo por unidad supera el limite; revisa la cantidad', true); return; }
+    pendientes.push({idx:i, ingrediente_id:ing.id, cantidad:convertida, costo:costo / convertida, proveedor:item._proveedor || ''});
   }
   if (!pendientes.length) { toast('No hay items seleccionados', true); return; }
-
-  var completadas = 0, total = pendientes.length;
-  for (var j = 0; j < pendientes.length; j++) {
-    (function(p) {
-      api('POST', '/inventario/ingredientes/' + p.ingrediente_id + '/compra?cantidad=' + p.cantidad + '&costo=' + p.costo + '&proveedor=' + encodeURIComponent(p.proveedor))
-      .then(function() {
-        completadas++;
-        if (completadas === total) {
-          toast(total + ' compras registradas del ticket');
-          document.getElementById('ocr-result').style.display = 'none';
-          document.getElementById('ocr-status').textContent = '';
-          _ocrItems = [];
-          cargarIngredientes();
-          cargarAlertasEmpaques();
-        }
-      })
-      .catch(function() {
-        completadas++;
-        toast('Error al registrar una compra', true);
-      });
-    })(pendientes[j]);
+  var version = _versionSesion, seq = _ocrSeq;
+  _ocrGuardando = true;
+  document.getElementById('ocr-registrar').disabled = true;
+  var completadas = 0;
+  try {
+    var ok = await confirmarAccion({title:'Registrar compras', message:pendientes.length + ' partidas seleccionadas',
+      detail:'Se sumaran las cantidades revisadas al inventario.', acceptText:'Registrar'});
+    if (!ok || version !== _versionSesion || seq !== _ocrSeq) return;
+    for (var j = 0; j < pendientes.length; j++) {
+      if (version !== _versionSesion || seq !== _ocrSeq) return;
+      var p = pendientes[j];
+      try {
+        await api('POST', '/inventario/ingredientes/' + p.ingrediente_id + '/compra?cantidad=' + p.cantidad + '&costo=' + p.costo.toFixed(4) + '&proveedor=' + encodeURIComponent(p.proveedor));
+      } catch (error) {
+        if (version !== _versionSesion) return;
+        if (!error.status || error.status >= 500) _ocrItems[p.idx]._incierto = true;
+        throw error;
+      }
+      if (version !== _versionSesion) return;
+      _ocrItems[p.idx]._registrado = true;
+      completadas++;
+      document.getElementById('ocr-chk-' + p.idx).checked = false;
+      document.getElementById('ocr-line-' + p.idx).querySelectorAll('input,select,button').forEach(function(el) { el.disabled = true; });
+    }
+    toast(completadas + ' compras confirmadas');
+  } catch (error) {
+    if (version === _versionSesion) toast(completadas + ' compras confirmadas. ' + (error.message || 'Revisa las compras pendientes'), true);
+  } finally {
+    if (version === _versionSesion) {
+      _ocrGuardando = false;
+      document.getElementById('ocr-registrar').disabled = false;
+      if (completadas) { cargarIngredientes(); cargarAlertasEmpaques(); }
+    }
   }
 }
 
@@ -12522,11 +12570,12 @@ var _egresosCache = {};
 var _egresoGuardando = false, _egresoCapturaPendiente = null;
 var _resguardoData = null, _resguardoSeq = 0, _resguardoIniciando = false;
 var _egresosResumenSeq = 0, _egOcrSeq = 0, _egCameraState = null;
+var _egOcrResultados = [], _egOcrSeleccionado = -1, _egOcrProcesando = false;
 
 function initEgresos() {
   var fecha = document.getElementById('eg-fecha');
-  if (fecha && !fecha.value) fecha.value = fechaHoyISO();
-  document.getElementById('eg-guardar').disabled = _egresoGuardando;
+  if (fecha && !fecha.value && _egresoOrigen !== 'ocr') fecha.value = fechaHoyISO();
+  document.getElementById('eg-guardar').disabled = _egresoGuardando || _egOcrProcesando;
   return Promise.all([cargarResumenEgresosApi(), cargarResguardo(), cargarEgresos(), cargarProveedoresEgresos(), cargarGastosFijosEgresos()]);
 }
 
@@ -12591,6 +12640,9 @@ function validarFechaEgreso(fechaStr) {
 function limpiarEgresoForm() {
   _egresoCapturaPendiente = null;
   _egOcrSeq++;
+  _egOcrResultados = [];
+  _egOcrSeleccionado = -1;
+  _egOcrProcesando = false;
   document.getElementById('eg-concepto').value = '';
   document.getElementById('eg-monto').value = '';
   document.getElementById('eg-categoria').value = 'operativo';
@@ -12614,7 +12666,7 @@ function datosFormularioEgreso(prefix) {
     monto: parseFloat(document.getElementById(prefix + '-monto').value),
     categoria: document.getElementById(prefix + '-categoria').value,
     metodo_pago: document.getElementById(prefix + '-metodo').value,
-    fecha: document.getElementById(prefix + '-fecha').value || fechaHoyISO(),
+    fecha: document.getElementById(prefix + '-fecha').value || (prefix === 'eg' && _egresoOrigen === 'ocr' ? '' : fechaHoyISO()),
     proveedor: document.getElementById(prefix + '-proveedor').value.trim() || null,
     notas: document.getElementById(prefix + '-notas').value.trim() || null
   };
@@ -12622,11 +12674,16 @@ function datosFormularioEgreso(prefix) {
   if (!data.monto || data.monto <= 0) { toast('Escribe un monto mayor a cero', true); return null; }
   if (!validarFechaEgreso(data.fecha)) return null;
   if (!data.proveedor) { toast('Escribe proveedor o persona', true); return null; }
+  if (!data.metodo_pago) { toast('Selecciona la forma de pago real', true); return null; }
   return data;
 }
 
 function guardarEgreso() {
-  if (_egresoGuardando) return;
+  if (_egresoGuardando || _egOcrProcesando) return;
+  if (_egresoOrigen === 'ocr') {
+    var revisado = document.getElementById('eg-ocr-revisado');
+    if (!revisado || !revisado.checked) { toast('Confirma los datos revisados del ticket', true); return; }
+  }
   var data = datosFormularioEgreso('eg');
   if (!data) return;
   var guardar = document.getElementById('eg-guardar-proveedor');
@@ -12640,9 +12697,11 @@ function guardarEgreso() {
   if (!_egresoCapturaPendiente) _egresoCapturaPendiente = {firma:firma, clave:nuevaClaveIdempotencia('egreso')};
   data.idempotency_key = _egresoCapturaPendiente.clave;
   _egresoGuardando = true;
+  var pendientesOCR = null;
   document.getElementById('eg-guardar').disabled = true;
   return api('POST', '/egresos/', data, false, null, version).then(function() {
     if (version !== _versionSesion) return;
+    pendientesOCR = _egresoOrigen === 'ocr' ? _egOcrResultados.filter(function(_,idx) { return idx !== _egOcrSeleccionado; }) : [];
     toast('Egreso guardado');
     limpiarEgresoForm();
     cargarEgresos();
@@ -12658,6 +12717,7 @@ function guardarEgreso() {
     if (version !== _versionSesion) return;
     _egresoGuardando = false;
     document.getElementById('eg-guardar').disabled = false;
+    if (pendientesOCR && pendientesOCR.length) mostrarTicketsEgresoOCR(pendientesOCR);
   });
 }
 
@@ -12692,18 +12752,15 @@ function cargarProveedoresEgresos() {
 }
 
 function _totalTicketOCR(data) {
-  var total = parseFloat(data && data.total);
-  if (total) return total;
-  return ((data && data.items) || []).reduce(function(sum, item) {
-    return sum + (parseFloat(item.total || 0) || 0);
-  }, 0);
+  var total = data && data.total;
+  return typeof total === 'number' && Number.isFinite(total) && total > 0 ? total : null;
 }
 
 function _resumenItemsOCR(items) {
   return (items || []).slice(0, 8).map(function(item) {
-    var cant = item.cantidad || 1;
-    var unidad = item.unidad || 'pz';
-    return cant + ' ' + unidad + ' ' + (item.nombre || 'item') + ' ($' + fmt(item.total || 0) + ')';
+    var cant = item.cantidad == null ? '?' : item.cantidad;
+    var unidad = item.unidad || '?';
+    return cant + ' ' + unidad + ' ' + (item.nombre || 'item') + ' (' + (item.total == null ? '--' : '$' + fmt(item.total)) + ')';
   }).join('; ');
 }
 
@@ -12717,57 +12774,65 @@ function _categoriaDesdeTicketOCR(data) {
 }
 
 function _enviarOCREgreso(file) {
-  var formData = new FormData();
-  formData.append('archivo', file);
-  var opts = {
-    method: 'POST',
-    cache: 'no-store',
-    headers: {},
-    body: formData
-  };
-  if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
-  return fetch(API_URL + '/api/v1/egresos/ocr-ticket', opts).then(function(r) {
-    return leerRespuestaJson(r).then(function(body) {
-      if (!r.ok) {
-        var e = new Error(body.detail || body.message || 'Error al procesar OCR');
-        e.status = r.status;
-        throw e;
-      }
-      return body;
-    });
-  });
+  return _enviarArchivoOCR(file, '/egresos/ocr-ticket');
 }
 
 function _llenarEgresoDesdeSugerencias(respuestas) {
-  var total = 0;
-  var proveedores = {};
-  var fechas = [];
-  var notas = [];
-  var categoria = 'operativo';
-  var conceptos = [];
-  var tickets = [];
-  respuestas.forEach(function(resp) {
-    var sugerido = resp && resp.suggested_egreso;
-    var data = resp && resp.ocr;
-    if (!sugerido) return;
-    total += parseFloat(sugerido.monto || 0) || 0;
-    if (sugerido.proveedor) proveedores[sugerido.proveedor.trim()] = true;
-    if (sugerido.fecha) fechas.push(sugerido.fecha);
-    if (sugerido.concepto) conceptos.push(sugerido.concepto);
-    var cat = sugerido.categoria || (data ? _categoriaDesdeTicketOCR(data) : 'operativo');
-    if (cat !== 'operativo') categoria = cat;
-    if (sugerido.notas) notas.push(sugerido.notas);
-    if (data) tickets.push(data);
-  });
-  var provs = Object.keys(proveedores);
-  document.getElementById('eg-concepto').value = respuestas.length > 1 ? 'Tickets escaneados' : (conceptos[0] || ('Ticket ' + (provs[0] || 'escaneado')));
-  document.getElementById('eg-monto').value = total ? total.toFixed(2) : '';
-  document.getElementById('eg-categoria').value = categoria;
-  if (fechas[0]) document.getElementById('eg-fecha').value = fechas[0];
-  document.getElementById('eg-proveedor').value = provs.join(', ');
-  document.getElementById('eg-notas').value = notas.join(' | ').slice(0, 900);
+  var resp = respuestas[0], sugerido = resp && resp.suggested_egreso;
+  if (!sugerido) return;
+  document.getElementById('eg-concepto').value = sugerido.concepto || '';
+  document.getElementById('eg-monto').value = sugerido.monto == null ? '' : Number(sugerido.monto).toFixed(2);
+  document.getElementById('eg-categoria').value = sugerido.categoria || 'operativo';
+  document.getElementById('eg-fecha').value = sugerido.fecha || '';
+  document.getElementById('eg-proveedor').value = sugerido.proveedor || '';
+  document.getElementById('eg-metodo').value = sugerido.metodo_pago || '';
+  document.getElementById('eg-notas').value = sugerido.notas || '';
   _egresoOrigen = 'ocr';
-  _egresoOcrPayload = tickets;
+  _egresoOcrPayload = [resp.ocr];
+}
+
+function mostrarTicketsEgresoOCR(respuestas, rellenar) {
+  _egOcrResultados = respuestas;
+  _egOcrSeleccionado = -1;
+  var result = document.getElementById('eg-ocr-result');
+  var h = '<label for="eg-ocr-ticket" style="display:block;margin-bottom:.4rem;font-weight:600">Tickets por revisar (' + respuestas.length + ')</label>';
+  h += '<select id="eg-ocr-ticket" onchange="seleccionarEgresoOCR(this.value)"><option value="">Selecciona un ticket...</option>';
+  respuestas.forEach(function(resp,idx) {
+    var t = resp.ocr || {};
+    h += '<option value="' + idx + '">' + escHtml((t.proveedor || resp._archivo || 'Ticket') + ' - ' + (t.total == null ? 'Sin total' : '$' + fmt(t.total))) + '</option>';
+  });
+  h += '</select><div id="eg-ocr-detalle"></div>';
+  result.innerHTML = h;
+  result.style.display = 'block';
+  if (rellenar !== false && respuestas.length) seleccionarEgresoOCR(0);
+}
+
+function seleccionarEgresoOCR(idx) {
+  if (_egresoGuardando || _egresoCapturaPendiente) {
+    document.getElementById('eg-ocr-ticket').value = _egOcrSeleccionado < 0 ? '' : _egOcrSeleccionado;
+    toast('Confirma primero la captura pendiente', true); return;
+  }
+  if (idx === '') return;
+  var resp = _egOcrResultados[Number(idx)];
+  if (!resp) return;
+  _egOcrSeleccionado = Number(idx);
+  _llenarEgresoDesdeSugerencias([resp]);
+  document.getElementById('eg-ocr-ticket').value = idx;
+  var t = resp.ocr || {};
+  var h = '<p style="margin:.6rem 0;color:var(--mut);overflow-wrap:anywhere">' + escHtml(resp._archivo || 'Ticket') + '</p>';
+  h += _advertenciasOCR(t) + _renderOCRTotales(t);
+  var items = t.items || [];
+  if (items.length) {
+    h += '<details' + (items.length <= 8 ? ' open' : '') + '><summary>Partidas (' + items.length + ')</summary><ul style="padding-left:1.2rem;overflow-wrap:anywhere">';
+    items.forEach(function(item) {
+      h += '<li>' + escHtml(_resumenItemsOCR([item]));
+      if (item.advertencias && item.advertencias.length) h += ' <small style="color:#92400e">' + escHtml(item.advertencias.join('; ')) + '</small>';
+      h += '</li>';
+    });
+    h += '</ul></details>';
+  }
+  h += '<label class="ocr-review"><input type="checkbox" id="eg-ocr-revisado">Importe, fecha, proveedor y pago revisados</label>';
+  document.getElementById('eg-ocr-detalle').innerHTML = h;
 }
 
 function escanearTicketEgreso(input) {
@@ -12801,7 +12866,7 @@ function abrirCamaraEgreso() {
   boton.disabled = true;
   status.textContent = 'Abriendo camara...';
   document.getElementById('modal-egreso-camara').classList.add('on');
-  return navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:1600}, height:{ideal:1200}}}).then(function(stream) {
+  return navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:2048}, height:{ideal:1536}}}).then(function(stream) {
     if (_egCameraState !== estado || estado.version !== _versionSesion) {
       stream.getTracks().forEach(function(t) { t.stop(); }); return;
     }
@@ -12826,7 +12891,7 @@ function tomarFotoEgreso() {
   if (!estado || estado.version !== _versionSesion || !video.videoWidth || !video.videoHeight) return;
   document.getElementById('eg-camera-capture').disabled = true;
   var canvas = document.createElement('canvas');
-  var escala = Math.min(1, 1800 / Math.max(video.videoWidth, video.videoHeight));
+  var escala = Math.min(1, 2200 / Math.max(video.videoWidth, video.videoHeight));
   canvas.width = Math.round(video.videoWidth * escala);
   canvas.height = Math.round(video.videoHeight * escala);
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -12835,47 +12900,59 @@ function tomarFotoEgreso() {
     cerrarCamaraEgreso();
     if (!blob) { toast('No se pudo capturar la foto', true); return; }
     procesarFotosEgreso([new File([blob], 'ticket-' + Date.now() + '.jpg', {type:'image/jpeg'})]);
-  }, 'image/jpeg', 0.9);
+  }, 'image/jpeg', 0.94);
 }
 
 document.addEventListener('visibilitychange', function() {
   if (document.hidden) cerrarCamaraEgreso();
 });
 
-function procesarFotosEgreso(files) {
-  var seq = ++_egOcrSeq, version = _versionSesion;
+function _firmaFormularioEgresoOCR() {
+  return JSON.stringify(['concepto','monto','categoria','metodo','fecha','proveedor','notas'].map(function(c) {
+    return document.getElementById('eg-' + c).value;
+  }));
+}
+
+async function procesarFotosEgreso(files) {
+  if (_egresoGuardando || _egresoCapturaPendiente || _egOcrProcesando) {
+    toast('Espera a que se confirme la captura pendiente', true); return;
+  }
+  if (!files.length) return;
+  var version = _versionSesion;
+  if (document.getElementById('eg-concepto').value || document.getElementById('eg-monto').value || _egOcrResultados.length) {
+    var ok = await confirmarAccion({title:'Leer nuevos tickets', message:'Hay datos o tickets sin guardar', acceptText:'Reemplazar'});
+    if (!ok || version !== _versionSesion || _egresoGuardando || _egresoCapturaPendiente || _egOcrProcesando) return;
+  }
+  var seq = ++_egOcrSeq;
+  var vigente = function() { return seq === _egOcrSeq && version === _versionSesion; };
+  var firma = _firmaFormularioEgresoOCR();
   var status = document.getElementById('eg-ocr-status');
   var result = document.getElementById('eg-ocr-result');
-  status.textContent = 'Procesando ' + files.length + ' ticket' + (files.length === 1 ? '' : 's') + '...';
   status.style.color = 'var(--amb)';
   result.style.display = 'none';
-  var promesas = [];
-  for (var i = 0; i < files.length; i++) promesas.push(_enviarOCREgreso(files[i]).catch(function(e) { return {error:e.message || 'No se pudo leer'}; }));
-  return Promise.all(promesas).then(function(res) {
-    if (seq !== _egOcrSeq || version !== _versionSesion) return;
-    var leidos = res.filter(function(r) { return r && !r.error && r.suggested_egreso; });
+  _egOcrProcesando = true;
+  document.getElementById('eg-guardar').disabled = true;
+  try {
+    var res = await _procesarLoteOCR(files, _enviarOCREgreso, function(n,total) {
+      if (vigente()) status.textContent = 'Leyendo ' + n + ' de ' + total + '...';
+    }, vigente);
+    if (!vigente()) return;
+    var leidos = res.filter(function(r) { return !r.error && r.suggested_egreso; });
+    var errores = _erroresLoteOCR(res);
     if (!leidos.length) {
-      status.textContent = 'No se pudo leer el ticket';
+      status.textContent = errores || 'No se pudo leer el ticket';
       status.style.color = '#b91c1c';
+      if (_egOcrResultados.length) result.style.display = 'block';
       return;
     }
-    _llenarEgresoDesdeSugerencias(leidos);
-    var total = leidos.reduce(function(sum, r) { return sum + (parseFloat(r.suggested_egreso.monto || 0) || 0); }, 0);
-    status.textContent = leidos.length + ' ticket' + (leidos.length === 1 ? '' : 's') + ' le\u00eddo' + (leidos.length === 1 ? '' : 's') + '. Revisa y guarda el egreso.';
-    status.style.color = 'var(--grn)';
-    var h = '<div style="display:flex;justify-content:space-between;gap:.5rem;align-items:center;margin-bottom:.4rem"><strong>Resultado OCR</strong><strong>$' + fmt(total) + '</strong></div>';
-    leidos.forEach(function(resp) {
-      var t = resp.ocr || {};
-      h += '<div style="padding:.4rem 0;border-top:1px solid #f0e8e5"><strong>' + escHtml(t.proveedor || resp.suggested_egreso.proveedor || 'Ticket') + '</strong><br><span style="color:var(--mut)">' + escHtml(_resumenItemsOCR(t.items || []) || resp.suggested_egreso.notas || 'Sin partidas detectadas') + '</span></div>';
-    });
-    result.innerHTML = h;
-    result.style.display = 'block';
-    cargarProveedoresEgresos();
-  }).catch(function() {
-    if (seq !== _egOcrSeq || version !== _versionSesion) return;
-    status.textContent = 'Error al procesar el ticket';
-    status.style.color = '#b91c1c';
-  });
+    status.textContent = leidos.length + ' de ' + files.length + ' tickets pendientes de revision. ' + errores;
+    mostrarTicketsEgresoOCR(leidos, firma === _firmaFormularioEgresoOCR());
+  } catch (error) {
+    if (vigente()) { status.textContent = error.message || 'Error al procesar el ticket'; status.style.color = '#b91c1c'; }
+    if (vigente() && _egOcrResultados.length) result.style.display = 'block';
+  } finally {
+    if (vigente()) { _egOcrProcesando = false; document.getElementById('eg-guardar').disabled = false; }
+  }
 }
 
 function renderResumenEgresosOperativos(data) {

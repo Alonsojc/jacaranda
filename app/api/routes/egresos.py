@@ -11,10 +11,11 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.core.database import get_db
 from app.core.dependencies import require_admin_or_override, require_permission
-from app.core.security_validation import detect_mime
+from app.core.ocr_upload import leer_archivo_ocr
 from app.core.time_utils import operation_today
 from app.models.egreso import Egreso
 from app.models.resguardo import ResguardoControl
@@ -422,27 +423,19 @@ def _resumen_recurrentes(db: Session) -> dict:
 
 def _total_ticket_ocr(data: dict) -> Decimal:
     try:
-        total = Decimal(str(data.get("total") or "0"))
-    except Exception:
-        total = Decimal("0")
-    if total > 0:
-        return total
-    acumulado = Decimal("0")
-    for item in data.get("items") or []:
-        try:
-            acumulado += Decimal(str(item.get("total") or "0"))
-        except Exception:
-            continue
-    return acumulado
+        total = Decimal(str(data.get("total")))
+        return total if total.is_finite() and 0 < total <= MAX_MONTO else Decimal("0")
+    except (ValueError, ArithmeticError):
+        return Decimal("0")
 
 
 def _resumen_items_ocr(items: list[dict]) -> str:
     partes = []
     for item in (items or [])[:8]:
         nombre = _limpiar_texto(str(item.get("nombre") or "item")) or "item"
-        cantidad = item.get("cantidad") or 1
-        unidad = item.get("unidad") or "pz"
-        total = item.get("total") or 0
+        cantidad = item.get("cantidad") if item.get("cantidad") is not None else "?"
+        unidad = item.get("unidad") or "?"
+        total = item.get("total") if item.get("total") is not None else "?"
         partes.append(f"{cantidad} {unidad} {nombre} (${total})")
     return "; ".join(partes)
 
@@ -471,6 +464,8 @@ def _sugerir_egreso_desde_ocr(data: dict) -> dict:
         except ValueError:
             fecha = None
     total = _total_ticket_ocr(data)
+    if data.get("moneda") not in (None, "MXN"):
+        total = Decimal("0")
     concepto = f"Ticket {proveedor or 'escaneado'}"
     resumen = _resumen_items_ocr(data.get("items") or [])
     notas = f"{proveedor or 'Ticket'}: {resumen}" if resumen else proveedor or "Ticket escaneado"
@@ -478,7 +473,7 @@ def _sugerir_egreso_desde_ocr(data: dict) -> dict:
         "concepto": concepto[:200],
         "monto": _money(total) if total else None,
         "categoria": _categoria_desde_ticket_ocr(data),
-        "metodo_pago": "efectivo",
+        "metodo_pago": data.get("metodo_pago") if data.get("metodo_pago") in METODOS_PAGO - {"resguardo"} else None,
         "fecha": fecha,
         "proveedor": proveedor,
         "notas": notas[:1200],
@@ -620,21 +615,8 @@ async def ocr_ticket_egreso(
     archivo: UploadFile = File(...),
     _user: Usuario = Depends(require_permission("egresos", "editar")),
 ):
-    allowed = archivo.content_type and (
-        archivo.content_type.startswith("image/") or archivo.content_type == "application/pdf"
-    )
-    if not allowed:
-        raise HTTPException(status_code=400, detail="El archivo debe ser una imagen (JPG, PNG) o PDF")
-
-    image_bytes = await archivo.read()
-    if len(image_bytes) > 20_000_000:
-        raise HTTPException(status_code=400, detail="El archivo es muy grande (máximo 20MB)")
-
-    real_mime = detect_mime(image_bytes)
-    if not real_mime or (not real_mime.startswith("image/") and real_mime != "application/pdf"):
-        raise HTTPException(status_code=400, detail="Contenido no corresponde a imagen o PDF válido")
-
-    ocr = extraer_datos_ticket(image_bytes, real_mime)
+    image_bytes, real_mime = await leer_archivo_ocr(archivo)
+    ocr = await run_in_threadpool(extraer_datos_ticket, image_bytes, real_mime)
     if ocr.get("error"):
         return {"ocr": ocr, "suggested_egreso": None}
     return {"ocr": ocr, "suggested_egreso": _sugerir_egreso_desde_ocr(ocr)}

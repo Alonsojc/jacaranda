@@ -20,6 +20,10 @@ python-dateutil==2.9.0
 # HTTP client (for Claude API OCR)
 httpx==0.28.1
 
+# OCR: validar PDF y orientar/comprimir fotos antes de enviarlas.
+Pillow==12.3.0
+pypdf==6.19.0
+
 # Push notifications
 firebase-admin==7.4.0
 
