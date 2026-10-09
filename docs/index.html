@@ -11852,6 +11852,10 @@ function filtrarTabla(id, q) {
 }
 
 function cargarListas() {
+  var lealtadSeleccionada = document.querySelector('#listas .tab.active[onclick*="l-lealtad"]');
+  mostrarLealtadEnCRM(false);
+  document.getElementById('l-lealtad').style.display = lealtadSeleccionada ? 'block' : 'none';
+  if (lealtadSeleccionada) cargarLealtad();
   cargarListaProductos();
   cargarListaFamiliasProducto();
   cargarListaEmpaques();

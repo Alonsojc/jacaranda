@@ -189,3 +189,24 @@ assert.equal(apiGetCacheTtl('/ia/dashboard'),30000);
 assert.equal(apiGetCacheTtl('/ia/pricing?dias=30'),30000);
 assert.equal(apiGetCacheTtl('/crm/clientes'),0);
 """)
+
+
+def test_loading_lists_restores_loyalty_without_changing_selected_tab():
+    node(HARNESS + CRM + section("function cargarListas()", "function cargarListaProductos()") + r"""
+let selected=true,loyaltyLoads=0;
+document.querySelector=selector=>selector==='#listas .tab.active[onclick*="l-lealtad"]'&&selected?{}:null;
+function cargarLealtad(){loyaltyLoads++;return Promise.resolve();}
+function cargarListaProductos(){}
+function cargarListaFamiliasProducto(){}
+function cargarListaEmpaques(){}
+function cargarListaClientes(){}
+(async()=>{
+  const panel=field('l-lealtad');field('listas').appendChild(panel);
+  await crmTab('c-lealtad');assert.equal(panel.parentElement,field('c-lealtad'));
+  cargarListas();assert.equal(panel.parentElement,field('listas'));
+  assert.equal(panel.style.display,'block');assert.equal(loyaltyLoads,2);
+  selected=false;await crmTab('c-lealtad');cargarListas();
+  assert.equal(panel.parentElement,field('listas'));assert.equal(panel.style.display,'none');
+  assert.equal(loyaltyLoads,3);
+})();
+""")
