@@ -22,8 +22,8 @@ def dashboard_ia(
 
 @router.get("/pronostico-demanda")
 def pronostico_demanda(
-    dias: int = Query(default=7, le=14),
-    semanas: int = Query(default=8, le=12),
+    dias: int = Query(default=7, ge=1, le=14),
+    semanas: int = Query(default=8, ge=1, le=12),
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_permission("iapg", "ver")),
 ):
@@ -42,7 +42,7 @@ def produccion_sugerida(
 
 @router.get("/pricing")
 def analisis_pricing(
-    dias: int = Query(default=60, le=90),
+    dias: int = Query(default=60, ge=1, le=90),
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_permission("iapg", "ver")),
 ):
@@ -52,7 +52,7 @@ def analisis_pricing(
 
 @router.get("/precision")
 def precision_modelo(
-    dias: int = Query(default=14, le=30),
+    dias: int = Query(default=14, ge=1, le=30),
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_permission("iapg", "ver")),
 ):

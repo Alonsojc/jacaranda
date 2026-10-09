@@ -54,6 +54,7 @@ FUNCTIONS = (section("function metodoPagoCafeteria", "function registrarCafeteri
 SESSION_RESET = section("function invalidarTareasSesion()", "function moduloDesactivado")
 SESSION_HARNESS = r"""
 let _ticketEdicion=null,_ventaEnProceso=false,_apiGetCache={},_apiGetInFlight={},_migracionVentasTx=null;
+let _dashGetCache={old:Promise.resolve({})},_dashCacheAt=100;
 let _resguardoSeq=0,_egresosResumenSeq=0,_egOcrSeq=0,_ocrSeq=0;
 function cancelarAdminAuth(){}
 function cerrarClaveAutorizacion(){}
@@ -111,6 +112,7 @@ def test_loading_error_clears_stale_data_and_session_change_cannot_repaint():
     node(HARNESS + FUNCTIONS + r"""
 let requests=[];function api(){const d=deferred();requests.push(d);return d.promise;}
 (async()=>{
+  document.getElementById('caf-filtro-cliente').value='id:1';
   let load=cargarCafeteriaVentas();requests[0].reject(new Error('Servidor no disponible'));
   requests[1].reject(new Error('Servidor no disponible'));await load;
   assert(fields['caf-ventas'].innerHTML.includes('Reintentar'));assert.deepEqual(_cafVentas,[]);
@@ -120,6 +122,24 @@ let requests=[];function api(){const d=deferred();requests.push(d);return d.prom
   requests[2].resolve([cuenta]);requests[3].resolve({saldo:999,cuentas:99});await old;
   assert.equal(fields['caf-ventas'].innerHTML,'');
   assert.equal(fields['caf-cobranza-saldo'].textContent,'--');
+})();
+""")
+
+
+def test_first_client_is_selected_before_loading_accounts_and_all_is_explicit():
+    node(HARNESS + FUNCTIONS + r"""
+let requests=[];
+function api(method,path){requests.push(path);return Promise.resolve(path.endsWith('/clientes')?
+  [{id:3,nombre:'Primero'},{id:4,nombre:'Segundo'}]:path.includes('/ventas?')?[]:{saldo:0,cuentas:0,vencidas:0});}
+(async()=>{
+  await cargarCafeteriaVentas();assert.equal(requests.length,0);
+  await cargarClientesCobranzaCafeteria();assert.equal(fields['caf-filtro-cliente'].value,'id:3');
+  await cargarCafeteriaVentas();assert(requests[1].includes('cafeteria_id=3'));
+  fields['caf-filtro-cliente'].value='todos';await cargarClientesCobranzaCafeteria();
+  assert.equal(fields['caf-filtro-cliente'].value,'todos');
+  await cargarCafeteriaVentas();assert(!requests.at(-2).includes('cafeteria_id='));
+  fields['caf-filtro-cliente'].value='id:999';await cargarClientesCobranzaCafeteria();
+  assert.equal(fields['caf-filtro-cliente'].value,'id:3');
 })();
 """)
 
@@ -214,6 +234,7 @@ cargarCafeteriaVentas=()=>{refreshes++;return Promise.resolve();};
   _cafVentas=[cuenta];pagarCafeteria(1,true);let old=guardarPagoCafeteria();
   assert.equal(_cafPagoGuardando,true);invalidarTareasSesion();
   assert.equal(_cafPagoGuardando,false);assert.equal(_cafPagoContext,null);
+  assert.deepEqual(_dashGetCache,{});assert.equal(_dashCacheAt,0);
   assert.deepEqual(_cafPagosPendientes,{});assert.deepEqual(_cafVentas,[]);
   assert.deepEqual(closed,['modal-caf-pago']);
   _cafVentas=[cuenta];pagarCafeteria(1,true);let current=guardarPagoCafeteria();

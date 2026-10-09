@@ -4,12 +4,15 @@ Segmentación RFM, campañas, encuestas de satisfacción, predicción de churn.
 """
 
 from datetime import datetime, timedelta, timezone
+from collections import defaultdict
 
-from sqlalchemy import func
+from sqlalchemy import func, case, or_
 from sqlalchemy.orm import Session
 
 from app.models.cliente import Cliente
-from app.models.venta import Venta, EstadoVenta
+from app.core.time_utils import operation_today, operation_period_bounds, operation_datetime
+from app.models.venta import Venta, DetalleVenta, EstadoVenta
+from app.models.inventario import Producto
 from app.models.crm import (
     Campana, EncuestaSatisfaccion, InteraccionCliente, SegmentoCliente,
 )
@@ -35,55 +38,45 @@ def _calcular_segmento(recencia_dias: int, frecuencia: int, monto_total: float) 
     return SegmentoCliente.NUEVO
 
 
-def segmentar_clientes(db: Session) -> list[dict]:
+def segmentar_clientes(db: Session, *, q: str | None = None,
+                      limit: int | None = None, offset: int = 0) -> list[dict]:
     """
     Ejecuta análisis RFM sobre todos los clientes activos.
     R = días desde la última compra
     F = número de compras en los últimos 90 días
     M = monto total gastado en los últimos 90 días
     """
-    ahora = datetime.now(timezone.utc)
-    hace_90_dias = ahora - timedelta(days=90)
-
-    clientes = db.query(Cliente).filter(Cliente.activo.is_(True)).all()
+    hoy = operation_today()
+    desde, hasta = operation_period_bounds(hoy - timedelta(days=89), hoy)
+    stats = db.query(
+        Venta.cliente_id.label("cliente_id"),
+        func.max(Venta.fecha).label("ultima"),
+        func.count(Venta.id).label("compras"),
+        func.sum(Venta.total).label("total"),
+        func.sum(case((Venta.fecha >= desde, 1), else_=0)).label("frecuencia"),
+        func.sum(case((Venta.fecha >= desde, Venta.total), else_=0)).label("monto_90"),
+    ).filter(Venta.estado == EstadoVenta.COMPLETADA, Venta.fecha <= hasta).group_by(
+        Venta.cliente_id,
+    ).subquery()
+    query = db.query(Cliente, stats.c.ultima, stats.c.compras, stats.c.total,
+                     stats.c.frecuencia, stats.c.monto_90).outerjoin(
+        stats, stats.c.cliente_id == Cliente.id,
+    ).filter(Cliente.activo.is_(True))
+    if q:
+        query = query.filter(or_(Cliente.nombre.icontains(q, autoescape=True),
+                                 Cliente.telefono.icontains(q, autoescape=True)))
+    query = query.order_by(func.lower(Cliente.nombre), Cliente.id).offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
+    clientes = query.all()
     resultados = []
 
-    for cliente in clientes:
-        # Recencia: última compra
-        ultima_venta = (
-            db.query(func.max(Venta.fecha))
-            .filter(
-                Venta.cliente_id == cliente.id,
-                Venta.estado == EstadoVenta.COMPLETADA,
-            )
-            .scalar()
-        )
-
-        if ultima_venta is None:
-            recencia_dias = 999
-        else:
-            if ultima_venta.tzinfo is None:
-                recencia_dias = (ahora.replace(tzinfo=None) - ultima_venta).days
-            else:
-                recencia_dias = (ahora - ultima_venta).days
-
-        # Frecuencia y monto en últimos 90 días
-        stats = (
-            db.query(
-                func.count(Venta.id),
-                func.coalesce(func.sum(Venta.total), 0),
-            )
-            .filter(
-                Venta.cliente_id == cliente.id,
-                Venta.estado == EstadoVenta.COMPLETADA,
-                Venta.fecha >= hace_90_dias,
-            )
-            .first()
-        )
-        frecuencia = stats[0] or 0
-        monto_total = float(stats[1] or 0)
-
-        segmento = _calcular_segmento(recencia_dias, frecuencia, monto_total)
+    for cliente, ultima_venta, compras, total, frecuencia, monto_90 in clientes:
+        recencia_dias = (hoy - operation_datetime(ultima_venta).date()).days if ultima_venta else None
+        frecuencia = int(frecuencia or 0)
+        monto_total = float(monto_90 or 0)
+        segmento = (_calcular_segmento(recencia_dias, frecuencia, monto_total)
+                    if recencia_dias is not None else SegmentoCliente.NUEVO)
 
         resultados.append({
             "cliente_id": cliente.id,
@@ -92,6 +85,13 @@ def segmentar_clientes(db: Session) -> list[dict]:
             "recencia_dias": recencia_dias,
             "frecuencia": frecuencia,
             "monto_total": monto_total,
+            "total_compras": float(total or 0),
+            "compras": int(compras or 0),
+            "ticket_promedio": round(float(total or 0) / compras, 2) if compras else 0,
+            "ultima_compra": operation_datetime(ultima_venta).date().isoformat() if ultima_venta else None,
+            "telefono": cliente.telefono,
+            "puntos": cliente.puntos_acumulados,
+            "nivel": cliente.nivel_lealtad,
         })
 
     return resultados
@@ -108,6 +108,35 @@ def obtener_segmentacion(db: Session) -> dict:
     return {
         "segmentos": conteo,
         "total_clientes": len(clientes_segmentados),
+        "activos": sum(c["recencia_dias"] is not None and c["recencia_dias"] <= 30 for c in clientes_segmentados),
+        "en_riesgo": conteo[SegmentoCliente.EN_RIESGO.value],
+        "sin_compras": sum(c["compras"] == 0 for c in clientes_segmentados),
+    }
+
+
+def compras_cliente(db: Session, cliente_id: int, limit: int = 25, offset: int = 0) -> dict:
+    """Read-only purchase detail; opening CRM never redeems or expires points."""
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id, Cliente.activo.is_(True)).first()
+    if not cliente:
+        raise ValueError("Cliente no encontrado")
+    _, hasta = operation_period_bounds(operation_today(), operation_today())
+    ventas = db.query(Venta.id, Venta.folio, Venta.fecha, Venta.total, Venta.metodo_pago).filter(
+        Venta.cliente_id == cliente_id, Venta.estado == EstadoVenta.COMPLETADA, Venta.fecha <= hasta,
+    ).order_by(Venta.fecha.desc(), Venta.id.desc()).offset(offset).limit(limit + 1).all()
+    visibles = ventas[:limit]
+    detalles = defaultdict(list)
+    if visibles:
+        rows = db.query(DetalleVenta.venta_id, DetalleVenta.cantidad, Producto.nombre).outerjoin(
+            Producto, Producto.id == DetalleVenta.producto_id,
+        ).filter(DetalleVenta.venta_id.in_([v.id for v in visibles])).order_by(DetalleVenta.id).all()
+        for venta_id, cantidad, nombre in rows:
+            detalles[venta_id].append({"cantidad": float(cantidad), "producto": nombre or "Producto no disponible"})
+    return {
+        "cliente_id": cliente.id, "nombre": cliente.nombre,
+        "hay_mas": len(ventas) > limit, "offset": offset,
+        "compras": [{"id": v.id, "folio": v.folio, "fecha": operation_datetime(v.fecha).isoformat(),
+                     "total": float(v.total), "metodo_pago": v.metodo_pago.value,
+                     "detalles": detalles[v.id]} for v in visibles],
     }
 
 

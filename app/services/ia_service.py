@@ -4,16 +4,61 @@ Algoritmos estadísticos sin dependencias externas de ML.
 """
 
 from decimal import Decimal
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from collections import defaultdict
-from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from math import ceil
+import re
+import unicodedata
+from sqlalchemy.orm import Session, load_only, joinedload
+from sqlalchemy import func
 
 from app.core.time_utils import operation_datetime, operation_period_bounds, operation_today
 from app.models.venta import Venta, DetalleVenta, EstadoVenta
-from app.models.inventario import Producto, HistorialPrecio
+from app.models.inventario import Producto, HistorialPrecio, CategoriaProducto, CategoriaProductoEnum
 
 ZERO = Decimal("0")
+
+
+def _productos(db: Session) -> dict[int, Producto]:
+    return {p.id: p for p in db.query(Producto).options(
+        load_only(Producto.id, Producto.nombre, Producto.precio_unitario,
+                  Producto.costo_produccion, Producto.stock_actual),
+        joinedload(Producto.categoria).load_only(CategoriaProducto.tipo),
+    ).filter(Producto.activo.is_(True)).all()}
+
+
+def _ventas_diarias(db: Session, inicio: date, fin: date) -> dict:
+    inicio_dt, fin_dt = operation_period_bounds(inicio, fin)
+    rows = db.query(DetalleVenta.producto_id, Venta.fecha, DetalleVenta.cantidad).join(
+        Venta, Venta.id == DetalleVenta.venta_id,
+    ).filter(Venta.estado == EstadoVenta.COMPLETADA,
+             Venta.fecha >= inicio_dt, Venta.fecha <= fin_dt).all()
+    historial = defaultdict(lambda: defaultdict(float))
+    for pid, fecha, cantidad in rows:
+        historial[pid][operation_datetime(fecha).date()] += float(cantidad)
+    return historial
+
+
+def _series_diarias(hist: dict, inicio: date, fin: date) -> dict:
+    """Include zero-sale days after the first observed sale, never before it."""
+    series = defaultdict(list)
+    observados = [dia for dia in hist if inicio <= dia <= fin]
+    if not observados:
+        return series
+    dia = max(inicio, min(observados))
+    while dia <= fin:
+        series[dia.weekday()].append(((dia - inicio).days // 7, hist.get(dia, 0)))
+        dia += timedelta(days=1)
+    return series
+
+
+def _es_horneable(prod: Producto) -> bool:
+    if prod.categoria and prod.categoria.tipo in (
+        CategoriaProductoEnum.BEBIDAS, CategoriaProductoEnum.OTROS,
+    ):
+        return False
+    nombre = unicodedata.normalize("NFKD", prod.nombre).encode("ascii", "ignore").decode().lower()
+    return not re.search(r"\b(velas?|chisperos?|toppers?)\b", nombre)
 
 
 # ─── Pronóstico de demanda ────────────────────────────────────────
@@ -22,6 +67,7 @@ def pronostico_demanda(
     db: Session,
     dias_futuro: int = 7,
     semanas_historico: int = 8,
+    *, historial: dict | None = None, productos: dict | None = None,
 ) -> list[dict]:
     """
     Pronóstico de demanda por producto para los próximos N días.
@@ -29,39 +75,19 @@ def pronostico_demanda(
     """
     hoy = operation_today()
     inicio = hoy - timedelta(weeks=semanas_historico)
-    inicio_dt, _ = operation_period_bounds(inicio, hoy)
-
-    # Agrupar en Python conserva el día operativo de CDMX, también por la noche.
-    rows = db.query(
-        DetalleVenta.producto_id,
-        Venta.fecha,
-        DetalleVenta.cantidad,
-    ).join(Venta, Venta.id == DetalleVenta.venta_id).filter(
-        and_(Venta.estado == EstadoVenta.COMPLETADA, Venta.fecha >= inicio_dt)
-    ).all()
-
-    # Organize: {producto_id: {date_str: qty}}
-    ventas_por_prod = defaultdict(lambda: defaultdict(float))
-    for pid, fecha, qty in rows:
-        if fecha is None:
-            continue
-        dia = operation_datetime(fecha).date()
-        ventas_por_prod[pid][dia] += float(qty)
-
-    # Load products
-    productos = {p.id: p for p in db.query(Producto).filter(Producto.activo.is_(True)).all()}
+    ayer = hoy - timedelta(days=1)
+    ventas_por_prod = historial if historial is not None else _ventas_diarias(db, inicio, ayer)
+    productos = productos if productos is not None else _productos(db)
 
     resultados = []
     for pid, hist in ventas_por_prod.items():
+        hist = {d: qty for d, qty in hist.items() if inicio <= d <= ayer}
         prod = productos.get(pid)
-        if not prod:
+        if not prod or not hist:
             continue
 
         # Build time series by day-of-week
-        dow_data = defaultdict(list)  # {0-6: [(week_num, qty)]}
-        for d, qty in sorted(hist.items()):
-            week_num = (d - inicio).days // 7
-            dow_data[d.weekday()].append((week_num, qty))
+        dow_data = _series_diarias(hist, inicio, ayer)
 
         # Generate forecast for each future day
         predicciones = []
@@ -72,8 +98,7 @@ def pronostico_demanda(
 
             if not series:
                 # No data for this day-of-week, use overall average
-                all_vals = list(hist.values())
-                pred = sum(all_vals) / max(len(all_vals), 1) if all_vals else 0
+                pred = sum(hist.values()) / max((hoy - min(hist)).days, 1)
                 confianza = 20
             else:
                 pred, confianza = _media_ponderada_con_tendencia(series, semanas_historico)
@@ -88,7 +113,7 @@ def pronostico_demanda(
         # Summary stats
         total_historico = sum(hist.values())
         dias_con_venta = len(hist)
-        promedio_diario = total_historico / max(dias_con_venta, 1)
+        promedio_diario = total_historico / max((hoy - min(hist)).days, 1)
 
         # Trend: compare last 2 weeks vs previous 2 weeks
         hace_2sem = hoy - timedelta(weeks=2)
@@ -105,6 +130,8 @@ def pronostico_demanda(
             "stock_actual": float(prod.stock_actual or 0),
             "promedio_diario": round(promedio_diario, 1),
             "tendencia_pct": tendencia,
+            "dias_con_venta": dias_con_venta,
+            "horneable": _es_horneable(prod),
             "predicciones": predicciones,
         })
 
@@ -113,13 +140,14 @@ def pronostico_demanda(
     return resultados
 
 
-def pronostico_produccion_ia(db: Session) -> list[dict]:
+def pronostico_produccion_ia(db: Session, *, historial=None, productos=None) -> list[dict]:
     """
     Sugerencia de producción para mañana basada en pronóstico IA.
     Retorna lista ordenada por prioridad de hornear.
     """
-    forecast = pronostico_demanda(db, dias_futuro=1, semanas_historico=8)
-    productos = {p.id: p for p in db.query(Producto).filter(Producto.activo.is_(True)).all()}
+    productos = productos if productos is not None else _productos(db)
+    forecast = pronostico_demanda(db, dias_futuro=1, semanas_historico=8,
+                                 historial=historial, productos=productos)
 
     sugerencias = []
     for item in forecast:
@@ -128,14 +156,19 @@ def pronostico_produccion_ia(db: Session) -> list[dict]:
             continue
 
         prod = productos.get(item["producto_id"])
-        if not prod:
+        if not prod or not item["horneable"]:
             continue
 
         demanda = pred_manana["cantidad"]
         stock = float(prod.stock_actual or 0)
         # Apply 15% safety margin
         necesario = demanda * 1.15
-        hornear = max(round(necesario - stock), 0)
+        advertencias = []
+        if stock < 0:
+            advertencias.append("Stock negativo: revisar inventario; no se suma a la demanda")
+        if item["dias_con_venta"] < 2:
+            advertencias.append("Historial insuficiente: revisar antes de producir")
+        hornear = max(ceil(necesario - max(stock, 0)), 0) if item["dias_con_venta"] >= 2 else 0
 
         if hornear > 0 or demanda > 0:
             sugerencias.append({
@@ -147,6 +180,7 @@ def pronostico_produccion_ia(db: Session) -> list[dict]:
                 "confianza": pred_manana["confianza"],
                 "tendencia_pct": item["tendencia_pct"],
                 "dia": pred_manana["dia_semana"],
+                "advertencias": advertencias,
                 "prioridad": "alta" if hornear > 0 and stock < demanda * 0.5 else
                              "media" if hornear > 0 else "baja",
             })
@@ -219,18 +253,37 @@ def _media_ponderada_con_tendencia(series: list[tuple], total_semanas: int) -> t
 
 # ─── Pricing dinámico ─────────────────────────────────────────────
 
-def analisis_pricing(db: Session, dias: int = 60) -> list[dict]:
+def analisis_pricing(db: Session, dias: int = 60, *, productos=None) -> list[dict]:
     """
     Análisis de pricing: elasticidad, sugerencias de precio, productos sin rotación.
     """
     hoy = operation_today()
     inicio = hoy - timedelta(days=dias)
-    inicio_dt, _ = operation_period_bounds(inicio, hoy)
+    inicio_dt, fin_dt = operation_period_bounds(inicio, hoy - timedelta(days=1))
 
-    productos = db.query(Producto).filter(Producto.activo.is_(True)).all()
+    productos = productos if productos is not None else _productos(db)
+    ventas_periodo = {row.producto_id: row for row in db.query(
+        DetalleVenta.producto_id,
+        func.sum(DetalleVenta.cantidad).label("qty"),
+        func.sum(DetalleVenta.subtotal).label("ingreso"),
+        func.count(DetalleVenta.id).label("transacciones"),
+    ).join(Venta, Venta.id == DetalleVenta.venta_id).filter(
+        Venta.estado == EstadoVenta.COMPLETADA, Venta.fecha >= inicio_dt, Venta.fecha <= fin_dt,
+    ).group_by(DetalleVenta.producto_id).all()}
+    ultimas = dict(db.query(DetalleVenta.producto_id, func.max(Venta.fecha)).join(
+        Venta, Venta.id == DetalleVenta.venta_id,
+    ).filter(Venta.estado == EstadoVenta.COMPLETADA, Venta.fecha <= fin_dt).group_by(
+        DetalleVenta.producto_id,
+    ).all())
+    cambios_por_prod = defaultdict(list)
+    for cambio in db.query(HistorialPrecio).filter(
+        HistorialPrecio.fecha >= inicio_dt, HistorialPrecio.fecha <= fin_dt,
+    ).order_by(HistorialPrecio.fecha).all():
+        cambios_por_prod[cambio.producto_id].append(cambio)
+    historia_precios = _ventas_diarias(db, inicio - timedelta(days=14), hoy - timedelta(days=1)) if cambios_por_prod else {}
 
     resultados = []
-    for prod in productos:
+    for prod in productos.values():
         precio = float(prod.precio_unitario or 0)
         costo = float(prod.costo_produccion or 0)
         if precio <= 0:
@@ -239,38 +292,20 @@ def analisis_pricing(db: Session, dias: int = 60) -> list[dict]:
         margen_pct = round((precio - costo) / precio * 100, 1) if precio > 0 else 0
 
         # Sales in period
-        ventas = db.query(
-            func.sum(DetalleVenta.cantidad).label("qty"),
-            func.sum(DetalleVenta.subtotal).label("ingreso"),
-            func.count(DetalleVenta.id).label("transacciones"),
-        ).join(Venta, Venta.id == DetalleVenta.venta_id).filter(
-            and_(
-                DetalleVenta.producto_id == prod.id,
-                Venta.estado == EstadoVenta.COMPLETADA,
-                Venta.fecha >= inicio_dt,
-            )
-        ).first()
-
-        qty_vendida = float(ventas.qty or 0)
-        ingreso = float(ventas.ingreso or 0)
-        transacciones = int(ventas.transacciones or 0)
+        ventas = ventas_periodo.get(prod.id)
+        qty_vendida = float(ventas.qty or 0) if ventas else 0
+        ingreso = float(ventas.ingreso or 0) if ventas else 0
+        transacciones = int(ventas.transacciones or 0) if ventas else 0
 
         # Days since last sale
-        ultima_venta = db.query(func.max(Venta.fecha)).join(
-            DetalleVenta, DetalleVenta.venta_id == Venta.id
-        ).filter(
-            and_(
-                DetalleVenta.producto_id == prod.id,
-                Venta.estado == EstadoVenta.COMPLETADA,
-            )
-        ).scalar()
+        ultima_venta = ultimas.get(prod.id)
 
         dias_sin_venta = (
             hoy - operation_datetime(ultima_venta).date()
         ).days if ultima_venta else 999
 
         # Price elasticity from price history
-        elasticidad = _calcular_elasticidad(db, prod.id, inicio_dt)
+        elasticidad = _elasticidad_historica(cambios_por_prod[prod.id], historia_precios.get(prod.id, {}), hoy)
 
         # Rotation speed (units per day)
         rotacion = qty_vendida / max(dias, 1)
@@ -306,21 +341,8 @@ def analisis_pricing(db: Session, dias: int = 60) -> list[dict]:
     return resultados
 
 
-def _calcular_elasticidad(db: Session, producto_id: int, desde: datetime) -> dict | None:
-    """
-    Calcula elasticidad de precio: % cambio demanda / % cambio precio.
-    Compara ventas antes vs después de cada cambio de precio.
-    """
-    cambios = db.query(HistorialPrecio).filter(
-        and_(
-            HistorialPrecio.producto_id == producto_id,
-            HistorialPrecio.fecha >= desde,
-        )
-    ).order_by(HistorialPrecio.fecha).all()
-
-    if not cambios:
-        return None
-
+def _elasticidad_historica(cambios: list, historial: dict, hoy: date) -> dict | None:
+    """Only compare complete, equally sized windows, excluding the change day."""
     elasticidades = []
     for cambio in cambios:
         if not cambio.precio_anterior or not cambio.precio_nuevo:
@@ -332,35 +354,13 @@ def _calcular_elasticidad(db: Session, producto_id: int, desde: datetime) -> dic
 
         pct_precio = (p_new - p_ant) / p_ant
 
-        # Compare sales 14 days before vs 14 days after
-        fecha_cambio = cambio.fecha
+        fecha_cambio = operation_datetime(cambio.fecha).date()
         antes_inicio = fecha_cambio - timedelta(days=14)
         despues_fin = fecha_cambio + timedelta(days=14)
-
-        qty_antes = db.query(func.coalesce(func.sum(DetalleVenta.cantidad), 0)).join(
-            Venta, Venta.id == DetalleVenta.venta_id
-        ).filter(
-            and_(
-                DetalleVenta.producto_id == producto_id,
-                Venta.estado == EstadoVenta.COMPLETADA,
-                Venta.fecha >= antes_inicio,
-                Venta.fecha < fecha_cambio,
-            )
-        ).scalar()
-
-        qty_despues = db.query(func.coalesce(func.sum(DetalleVenta.cantidad), 0)).join(
-            Venta, Venta.id == DetalleVenta.venta_id
-        ).filter(
-            and_(
-                DetalleVenta.producto_id == producto_id,
-                Venta.estado == EstadoVenta.COMPLETADA,
-                Venta.fecha >= fecha_cambio,
-                Venta.fecha <= despues_fin,
-            )
-        ).scalar()
-
-        qty_a = float(qty_antes)
-        qty_d = float(qty_despues)
+        if despues_fin >= hoy:
+            continue
+        qty_a = sum(q for d, q in historial.items() if antes_inicio <= d < fecha_cambio)
+        qty_d = sum(q for d, q in historial.items() if fecha_cambio < d <= despues_fin)
 
         if qty_a > 0 and abs(pct_precio) > 0.01:
             pct_demanda = (qty_d - qty_a) / qty_a
@@ -387,16 +387,25 @@ def _sugerir_precio(
 ) -> dict:
     """Genera sugerencia de pricing basada en múltiples factores."""
     margen_minimo = 25.0  # % minimum margin
+    if costo <= 0 or costo >= precio:
+        return {
+            "accion": "revisar", "precio_sugerido": precio,
+            "razon": "Revisar costo y precio del catalogo antes de sugerir cambios",
+            "impacto_mensual": 0,
+        }
 
     # Case 1: Product hasn't sold in a while with stock
     if dias_sin_venta > 14 and stock > 0:
         descuento = min(30, max(10, dias_sin_venta // 7 * 5))
         nuevo = round(max(precio * (1 - descuento / 100), costo * 1.1), 2)
+        if nuevo >= precio:
+            return {"accion": "mantener", "precio_sugerido": precio,
+                    "razon": "Sin margen suficiente para descontar", "impacto_mensual": 0}
         return {
             "accion": "descuento",
             "precio_sugerido": nuevo,
             "razon": f"{dias_sin_venta} días sin venta, {int(stock)} en stock",
-            "descuento_pct": descuento,
+            "descuento_pct": round((precio - nuevo) / precio * 100, 1),
             "impacto_mensual": round(-(precio - nuevo) * stock * 0.5, 2),
         }
 
@@ -415,7 +424,7 @@ def _sugerir_precio(
 
     # Case 3: Low margin → should raise
     if margen_pct < margen_minimo and margen_pct > 0:
-        nuevo = round(costo * (1 + margen_minimo / 100), 2)
+        nuevo = round(costo / (1 - margen_minimo / 100), 2)
         if nuevo > precio:
             return {
                 "accion": "subir",
@@ -429,59 +438,52 @@ def _sugerir_precio(
     if elasticidad and elasticidad["valor"] < -1.5 and rotacion < 1:
         descuento = 10
         nuevo = round(max(precio * 0.9, costo * 1.15), 2)
+        if nuevo >= precio:
+            return {"accion": "mantener", "precio_sugerido": precio,
+                    "razon": "Sin margen suficiente para bajar precio", "impacto_mensual": 0}
         return {
             "accion": "bajar",
             "precio_sugerido": nuevo,
             "razon": f"Demanda elástica ({elasticidad['valor']}), rotación baja ({rotacion}/día)",
-            "descuento_pct": descuento,
+            "descuento_pct": round((precio - nuevo) / precio * 100, 1),
             "impacto_mensual": round(rotacion * 1.5 * 30 * (nuevo - costo) - rotacion * 30 * (precio - costo), 2),
         }
 
-    # Default: price is optimal
+    # Default: no change supported by these rules
     return {
         "accion": "mantener",
         "precio_sugerido": precio,
-        "razon": f"Precio óptimo. Margen {margen_pct}%, rotación {rotacion}/día",
+        "razon": f"Sin cambio sugerido. Margen {margen_pct}%, rotación {rotacion}/día",
         "impacto_mensual": 0,
     }
 
 
 # ─── Precisión del modelo ─────────────────────────────────────────
 
-def precision_modelo(db: Session, dias_atras: int = 14) -> dict:
+def precision_modelo(db: Session, dias_atras: int = 14, *, historial=None) -> dict:
     """
     Evalúa precisión del pronóstico comparando predicciones pasadas con ventas reales.
     Simula lo que hubiera predicho hace N días y compara con lo que pasó.
     """
     hoy = operation_today()
+    dias_atras = min(dias_atras, 30)
+    historial = historial if historial is not None else _ventas_diarias(
+        db, hoy - timedelta(days=dias_atras + 1, weeks=8), hoy - timedelta(days=1),
+    )
     errores = []
     comparaciones = []
 
     # For each of the last N days, simulate what we'd have predicted
-    for delta in range(1, min(dias_atras + 1, 15)):
+    for delta in range(1, dias_atras + 1):
         dia_evaluado = hoy - timedelta(days=delta)
 
-        # What we would have predicted (using data up to day before)
-        predicho = _predecir_dia_historico(db, dia_evaluado, semanas=6)
-
-        # What actually happened
-        inicio_dt, fin_dt = operation_period_bounds(dia_evaluado, dia_evaluado)
-
-        real = db.query(
-            DetalleVenta.producto_id,
-            func.sum(DetalleVenta.cantidad).label("qty"),
-        ).join(Venta, Venta.id == DetalleVenta.venta_id).filter(
-            and_(
-                Venta.estado == EstadoVenta.COMPLETADA,
-                Venta.fecha >= inicio_dt,
-                Venta.fecha <= fin_dt,
-            )
-        ).group_by(DetalleVenta.producto_id).all()
-
-        real_map = {pid: float(qty) for pid, qty in real}
+        # Tomorrow's forecast is issued the prior day, using only closed days.
+        predicho = _predecir_dia_historico(db, dia_evaluado, semanas=8, historial=historial)
+        real_map = {pid: hist.get(dia_evaluado, 0) for pid, hist in historial.items()}
 
         # Compare
-        for pid, pred_qty in predicho.items():
+        for pid in predicho.keys() | real_map.keys():
+            pred_qty = predicho.get(pid, 0)
             real_qty = real_map.get(pid, 0)
             if pred_qty > 0 or real_qty > 0:
                 error = abs(pred_qty - real_qty)
@@ -500,6 +502,8 @@ def precision_modelo(db: Session, dias_atras: int = 14) -> dict:
         return {
             "precision_promedio": 0,
             "mape": 0,
+            "error_normalizado_pct": 0,
+            "metrica": "error absoluto / max(predicho, real, 1)",
             "muestras": 0,
             "comparaciones": [],
             "calificacion": "sin datos",
@@ -515,7 +519,7 @@ def precision_modelo(db: Session, dias_atras: int = 14) -> dict:
     elif precision >= 50:
         calif = "aceptable"
     else:
-        calif = "en entrenamiento"
+        calif = "baja"
 
     # Top 20 most recent comparisons
     comparaciones.sort(key=lambda x: (x["fecha"], -x["error_pct"]), reverse=True)
@@ -523,51 +527,34 @@ def precision_modelo(db: Session, dias_atras: int = 14) -> dict:
     return {
         "precision_promedio": round(precision, 1),
         "mape": round(mape, 1),
+        "error_normalizado_pct": round(mape, 1),
+        "metrica": "error absoluto / max(predicho, real, 1)",
         "muestras": len(errores),
-        "dias_evaluados": min(dias_atras, 14),
+        "dias_evaluados": dias_atras,
         "comparaciones": comparaciones[:20],
         "calificacion": calif,
     }
 
 
 def _predecir_dia_historico(
-    db: Session, dia: date, semanas: int = 6
+    db: Session, dia: date, semanas: int = 8, *, historial=None,
 ) -> dict[int, float]:
-    """Predice ventas para un día usando datos anteriores a ese día."""
-    inicio = dia - timedelta(weeks=semanas)
-    inicio_dt, fin_dt = operation_period_bounds(inicio, dia - timedelta(days=1))
-
-    rows = db.query(
-        DetalleVenta.producto_id,
-        Venta.fecha,
-        DetalleVenta.cantidad,
-    ).join(Venta, Venta.id == DetalleVenta.venta_id).filter(
-        and_(
-            Venta.estado == EstadoVenta.COMPLETADA,
-            Venta.fecha >= inicio_dt,
-            Venta.fecha <= fin_dt,
-        )
-    ).all()
-
-    # Group by product and day-of-week matching target
-    target_dow = dia.weekday()
-    totales_por_dia = defaultdict(float)
-    for pid, fecha, qty in rows:
-        if fecha is None:
-            continue
-        fecha_operacion = operation_datetime(fecha).date()
-        totales_por_dia[(pid, fecha_operacion)] += float(qty)
-
-    por_prod = defaultdict(list)
-    for (pid, d), qty in totales_por_dia.items():
-        if d.weekday() == target_dow:
-            week_num = (d - inicio).days // 7
-            por_prod[pid].append((week_num, qty))
-
+    """Replay the same closed-day cutoff as the forecast issued the prior day."""
+    fecha_emision = dia - timedelta(days=1)
+    inicio = fecha_emision - timedelta(weeks=semanas)
+    ayer = fecha_emision - timedelta(days=1)
+    historial = historial if historial is not None else _ventas_diarias(db, inicio, ayer)
     predicciones = {}
-    for pid, series in por_prod.items():
-        pred, _ = _media_ponderada_con_tendencia(series, semanas)
-        predicciones[pid] = pred
+    for pid, hist in historial.items():
+        hist = {d: q for d, q in hist.items() if inicio <= d <= ayer}
+        if not hist:
+            continue
+        series = _series_diarias(hist, inicio, ayer).get(dia.weekday(), [])
+        if series:
+            pred, _ = _media_ponderada_con_tendencia(series, semanas)
+        else:
+            pred = sum(hist.values()) / max((fecha_emision - min(hist)).days, 1)
+        predicciones[pid] = round(max(pred, 0), 1)
 
     return predicciones
 
@@ -577,15 +564,18 @@ def _predecir_dia_historico(
 def dashboard_ia(db: Session) -> dict:
     """Dashboard consolidado de IA: resumen rápido."""
     # Production suggestions for tomorrow
-    sugerencias = pronostico_produccion_ia(db)
-    top_hornear = sugerencias[:5]
+    hoy = operation_today()
+    productos = _productos(db)
+    historial = _ventas_diarias(db, hoy - timedelta(weeks=9, days=1), hoy - timedelta(days=1))
+    sugerencias = pronostico_produccion_ia(db, historial=historial, productos=productos)
+    top_hornear = [s for s in sugerencias if s["sugerido_hornear"] > 0][:5]
 
     # Pricing alerts
-    pricing = analisis_pricing(db, dias=30)
+    pricing = analisis_pricing(db, dias=30, productos=productos)
     alertas_precio = [p for p in pricing if p["sugerencia"]["accion"] != "mantener"][:5]
 
     # Model accuracy
-    precision = precision_modelo(db, dias_atras=7)
+    precision = precision_modelo(db, dias_atras=7, historial=historial)
 
     # Products not selling
     sin_venta = [p for p in pricing if p["dias_sin_venta"] > 7 and p["stock_actual"] > 0]
@@ -598,6 +588,7 @@ def dashboard_ia(db: Session) -> dict:
 
     return {
         "sugerencias_produccion": top_hornear,
+        "total_productos_hornear": sum(s["sugerido_hornear"] > 0 for s in sugerencias),
         "alertas_pricing": alertas_precio,
         "precision_modelo": {
             "valor": precision["precision_promedio"],
@@ -607,6 +598,8 @@ def dashboard_ia(db: Session) -> dict:
         "productos_sin_rotacion": len(sin_venta),
         "impacto_potencial_mensual": round(impacto_total, 2),
         "total_productos_analizados": len(pricing),
+        "fecha_base": (hoy - timedelta(days=1)).isoformat(),
+        "advertencias": [s["nombre"] + ": " + aviso for s in sugerencias for aviso in s["advertencias"]],
     }
 
 
