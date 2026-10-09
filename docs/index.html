@@ -173,11 +173,12 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .caf-cobranza-header h3{margin:0;font-size:1rem}
 .caf-cobranza-actions{display:flex;gap:.4rem;flex-wrap:wrap}
 .caf-cobranza-actions button,.caf-pagination button{width:auto;margin:0;min-height:44px;padding:.5rem .8rem}
-.caf-cobranza-toolbar .fg{flex:1;min-width:200px;max-width:400px;margin:0}
-.caf-cobranza-toolbar select{width:100%;min-height:44px}
+.caf-cobranza-toolbar .fg{display:flex;align-items:center;gap:.5rem;flex:1;min-width:200px;max-width:320px;margin:0}
+.caf-cobranza-toolbar .fg label{margin:0;font-size:.8rem}
+.caf-cobranza-toolbar select{flex:1;min-width:0;width:100%;min-height:44px;padding:.4rem .6rem;font-size:.82rem}
 .caf-cobranza-total{font-size:.9rem;color:var(--txt);text-align:right}
 .caf-cobranza-total strong{display:block;color:#b45309;font-size:1.2rem}
-.caf-cobranza .caf-sale{border:0;border-bottom:1px solid var(--brd);border-radius:0;margin:0;padding:1rem 0;background:transparent}
+.caf-cobranza .caf-sale{border:0;border-bottom:1px solid var(--brd);border-radius:0;margin:0;padding:.65rem 0;background:transparent}
 .caf-cobranza .caf-sale-head{display:grid;grid-template-columns:minmax(0,1fr) auto}
 .caf-cobranza .caf-sale-head strong,.caf-cobranza .caf-sale-lines{overflow-wrap:anywhere}
 .caf-cobranza .tab{border:0;background:transparent;white-space:nowrap;min-width:100px}
@@ -190,6 +191,27 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .caf-pagination[hidden]{display:none}
 .caf-sale-dates{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;font-size:.78rem;color:var(--mut);margin-top:.3rem}
 .caf-sale-dates .catalog-icon-btn{width:36px;height:36px;font-size:1rem}
+.caf-sale-footer{display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap;margin-top:.3rem}
+.caf-sale-amounts{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;font-size:.8rem}
+.caf-sale-amounts span{color:var(--mut)}.caf-sale-amounts strong{color:var(--dk)}
+.caf-sale-footer .caf-mini-actions{margin:0}
+.caf-mini-actions .caf-cancel{color:#b91c1c;background:#fff1f2;border:1px solid #fecaca}
+.caf-mini-actions .caf-cancel:hover{background:#fee2e2}
+.caf-sale-detail>summary{min-height:36px;line-height:36px;cursor:pointer;font-size:.78rem;color:var(--mut)}
+.caf-sale-head strong{font-size:.86rem}
+.crm-toolbar,.crm-pagination{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:.7rem 0}
+.crm-toolbar input{flex:1;min-width:180px;max-width:340px;padding:.6rem;border:1px solid var(--brd);border-radius:8px;font:inherit;font-size:.85rem}
+.crm-pagination{justify-content:flex-end}.crm-pagination button{margin:0;width:44px;height:44px}
+#crm .section-tabs .tab{border:0;background:transparent;font-family:inherit;flex-shrink:0;white-space:nowrap}
+#crm .section-tabs .tab.active{background:var(--v);color:#fff}
+.crm-client-table{width:100%;min-width:760px;border-collapse:collapse;font-size:.82rem;text-align:left}
+.crm-client-table th:first-child{min-width:190px}
+.crm-client-table th,.crm-client-table td{padding:.55rem .5rem;border-bottom:1px solid var(--brd)}
+.crm-client-table .money{text-align:right;white-space:nowrap}.crm-client-table small{display:block;color:var(--mut);margin-top:.2rem}
+.crm-history{border-top:1px solid var(--brd);padding-top:.8rem;margin-top:1rem}
+.crm-purchase{display:flex;justify-content:space-between;gap:1rem;padding:.7rem 0;border-bottom:1px solid var(--brd);font-size:.83rem}
+.crm-purchase small{display:block;color:var(--mut);margin-top:.3rem}
+.analytics-status{font-size:.82rem;color:var(--mut);margin:.4rem 0}.analytics-status:empty{display:none}
 @media(max-width:600px){.caf-cobranza-toolbar .fg{min-width:0;max-width:none;flex-basis:100%}.caf-cobranza-total{text-align:left}.caf-cobranza-actions{width:100%}.caf-cobranza-actions .limpiar{flex:1}.caf-cobranza .caf-summary-row{flex-wrap:wrap}.caf-cobranza .caf-sale-head>div{min-width:0}}
 .caf-report-list{max-height:280px;overflow:auto}
 .caf-summary-row{display:flex;justify-content:space-between;gap:.5rem;border-bottom:1px solid #f0e8e5;padding:.35rem 0;font-size:.82rem}
@@ -447,7 +469,7 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .ia-pricing-card .ip-name{font-weight:700;font-size:.88rem;color:var(--dk)}
 .ia-pricing-card .ip-detail{font-size:.78rem;color:var(--mut);margin-bottom:.3rem}
 .ia-pricing-card .ip-action{display:flex;align-items:center;gap:.5rem;font-size:.82rem;font-weight:600}
-.ia-act-subir{color:#047857}.ia-act-bajar{color:#f59e0b}.ia-act-descuento{color:#b91c1c}.ia-act-mantener{color:var(--mut)}
+.ia-act-subir{color:#047857}.ia-act-bajar{color:#f59e0b}.ia-act-descuento{color:#b91c1c}.ia-act-mantener{color:var(--mut)}.ia-act-revisar{color:#b45309}
 /* Nav dropdown groups */
 .nav-group{position:relative;display:inline-block}
 .nav-group>a{text-decoration:none;color:var(--mut);font-size:.82rem;font-weight:500;padding:.5rem .8rem;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.25rem;min-height:44px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
@@ -818,8 +840,10 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 
 <!-- DESEMPE&Ntilde;O (sin KPI row duplicada, el hero ya muestra ese dato) -->
-<div class="dash-section">
+<div class="dash-section" id="dash-mensual" data-admin-finance>
   <div class="dash-section-title">Desempe&ntilde;o mensual</div>
+  <p id="da-estado" class="analytics-status" role="status"></p>
+  <button type="button" id="da-reintentar" class="limpiar" onclick="cargarDashAvanzado(true)" hidden>Reintentar</button>
   <div class="card" style="margin-bottom:1.1rem">
     <h3>Ventas - &Uacute;ltimos 12 meses</h3>
     <div class="chart-container"><canvas id="chart-meses"></canvas></div>
@@ -827,12 +851,13 @@ table.tbl th,table.tbl td{font-size:.8rem}
   <div class="row r2">
     <div class="card"><h3>Utilidad estimada del mes</h3>
       <div id="da-utilidad">
-        <div class="srow"><span>Ingresos</span><span class="green" id="da-u-ingresos">$0</span></div>
-        <div class="srow"><span>Costo de ventas</span><span style="color:#b91c1c" id="da-u-costos">$0</span></div>
-        <div class="srow"><span style="font-weight:600">Utilidad bruta</span><span class="green" id="da-u-bruta" style="font-weight:600">$0</span></div>
-        <div class="srow"><span>Gastos fijos</span><span style="color:#b91c1c" id="da-u-gastos">$0</span></div>
-        <div class="srow" style="border-top:2px solid var(--brd);padding-top:.5rem;margin-top:.3rem"><span style="font-weight:700;font-size:1rem">Utilidad neta</span><span id="da-u-neta" style="font-weight:700;font-size:1rem">$0</span></div>
+        <div class="srow"><span>Ingresos</span><span class="green" id="da-u-ingresos">--</span></div>
+        <div class="srow"><span>Costo de ventas</span><span style="color:#b91c1c" id="da-u-costos">--</span></div>
+        <div class="srow"><span style="font-weight:600">Utilidad bruta</span><span class="green" id="da-u-bruta" style="font-weight:600">--</span></div>
+        <div class="srow"><span>Gastos fijos</span><span style="color:#b91c1c" id="da-u-gastos">--</span></div>
+        <div class="srow" style="border-top:2px solid var(--brd);padding-top:.5rem;margin-top:.3rem"><span style="font-weight:700;font-size:1rem">Utilidad neta</span><span id="da-u-neta" style="font-weight:700;font-size:1rem">--</span></div>
       </div>
+      <p id="da-costos-aviso" class="analytics-status"></p>
     </div>
     <div class="card"><h3>Clientes VIP &#11088;</h3>
       <div id="da-vip" style="max-height:280px;overflow-y:auto"><div class="empty-state"><div class="es-icon">&#11088;</div><div class="es-text">Cargando...</div></div></div>
@@ -1012,7 +1037,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <button type="button" class="tab active" id="caf-vista-pendientes" role="tab" aria-selected="true" onclick="cambiarVistaCobranza('pendientes')">Pendientes</button>
 <button type="button" class="tab" id="caf-vista-historial" role="tab" aria-selected="false" onclick="cambiarVistaCobranza('historial')">Historial</button>
 </div>
-<div class="fg"><label for="caf-filtro-cliente">Cliente</label><select id="caf-filtro-cliente" onchange="cargarCafeteriaVentas()"><option value="">Todos los clientes</option></select></div>
+<div class="fg"><label for="caf-filtro-cliente">Cliente</label><select id="caf-filtro-cliente" onchange="cargarCafeteriaVentas()"><option value="">Seleccionar cliente</option></select></div>
 <div class="caf-cobranza-total"><strong id="caf-cobranza-saldo">--</strong><span id="caf-cobranza-cuentas">Por cobrar</span></div>
 </div>
 <p id="caf-cobranza-estado" role="status" class="report-status caf-cobranza-estado"></p>
@@ -1023,7 +1048,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <button type="button" class="catalog-icon-btn" id="caf-pagina-siguiente" onclick="cambiarPaginaCafeteria(1)" title="P&aacute;gina siguiente" aria-label="P&aacute;gina siguiente">&#8594;</button>
 </div>
 </section>
-<details style="margin-top:1.2rem"><summary style="min-height:44px;cursor:pointer;font-weight:600">Reportes de Cafeter&iacute;as</summary>
+<details id="caf-reportes" ontoggle="if(this.open)cargarCafeteriaReportes()" style="margin-top:1.2rem"><summary style="min-height:44px;cursor:pointer;font-weight:600">Reportes de Cafeter&iacute;as</summary>
 <div class="row r2" style="margin-top:.6rem">
 <div><h3>Reporte semanal</h3><div id="caf-semana" class="caf-report-list"></div></div>
 <div><h3>Resumen mensual</h3><div id="caf-mes" class="caf-report-list"></div></div>
@@ -1517,10 +1542,10 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div id="l-lealtad" style="display:none">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
 <p style="font-size:.83rem;color:var(--mut);margin:0">Programa de lealtad: niveles, cupones, cumplea&ntilde;os.</p>
-<button class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="enviarOfertasCumple()">Enviar ofertas cumplea&ntilde;os</button>
+<button id="lealtad-ofertas" class="cobrar" style="width:auto;padding:.4rem 1rem;font-size:.8rem;margin:0" onclick="enviarOfertasCumple()">Enviar ofertas cumplea&ntilde;os</button>
 </div>
 <div id="lealtad-config" class="card" style="margin-bottom:1rem"><p style="color:var(--mut);font-size:.83rem">Cargando configuraci&oacute;n...</p></div>
-<div id="lealtad-dash" class="card" style="margin-bottom:1rem"><p style="color:var(--mut);font-size:.83rem">Cargando dashboard lealtad...</p></div>
+<div id="lealtad-dash" style="margin-bottom:1rem"><p style="color:var(--mut);font-size:.83rem">Cargando dashboard lealtad...</p></div>
 <h3 style="font-size:.95rem;margin-bottom:.5rem">Cupones activos</h3>
 <div id="lealtad-cupones"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
 <h3 style="font-size:.95rem;margin:.8rem 0 .5rem">Cumplea&ntilde;os del mes</h3>
@@ -2107,14 +2132,24 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <!-- CRM -->
 <div class="page" id="crm">
 <h2>CRM y Marketing</h2>
-<div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
-<button class="tab active" onclick="crmTab('c-segmentacion')">Segmentaci&oacute;n</button>
-<button class="tab" onclick="crmTab('c-campanas')">Campa&ntilde;as</button>
-<button class="tab" onclick="crmTab('c-encuestas')">Encuestas</button>
-<button class="tab" onclick="crmTab('c-churn')">Churn</button>
-<button class="tab" onclick="crmTab('c-dashboard')">Dashboard</button>
+<div class="section-tabs" role="tablist" aria-label="CRM">
+<button class="tab active" role="tab" aria-selected="true" onclick="crmTab('c-clientes',this)">Clientes</button>
+<button class="tab" id="crm-lealtad-tab" role="tab" aria-selected="false" onclick="crmTab('c-lealtad',this)">Lealtad</button>
+<button class="tab" role="tab" aria-selected="false" onclick="crmTab('c-segmentacion',this)">Segmentaci&oacute;n</button>
+<button class="tab" role="tab" aria-selected="false" onclick="crmTab('c-campanas',this)">Campa&ntilde;as</button>
+<button class="tab" role="tab" aria-selected="false" onclick="crmTab('c-encuestas',this)">Encuestas</button>
+<button class="tab" role="tab" aria-selected="false" onclick="crmTab('c-churn',this)">Churn</button>
+<button class="tab" role="tab" aria-selected="false" onclick="crmTab('c-dashboard',this)">Dashboard</button>
 </div>
-<div id="c-segmentacion"><div id="crm-seg-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
+<div id="c-clientes">
+<div class="crm-toolbar"><input type="search" id="crm-buscar" aria-label="Buscar cliente" placeholder="Buscar cliente..." oninput="buscarClientesCRM()"></div>
+<p id="crm-clientes-estado" class="analytics-status" role="status"></p>
+<div id="crm-clientes-tbl" style="overflow-x:auto"></div>
+<div class="crm-pagination"><button type="button" class="catalog-icon-btn" id="crm-anterior" onclick="paginaClientesCRM(-1)" title="P&aacute;gina anterior" aria-label="P&aacute;gina anterior">&#8592;</button><span id="crm-pagina"></span><button type="button" class="catalog-icon-btn" id="crm-siguiente" onclick="paginaClientesCRM(1)" title="P&aacute;gina siguiente" aria-label="P&aacute;gina siguiente">&#8594;</button></div>
+<section id="crm-compras" class="crm-history" hidden aria-live="polite"></section>
+</div>
+<div id="c-lealtad" style="display:none"></div>
+<div id="c-segmentacion" style="display:none"><div id="crm-seg-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
 <div id="c-campanas" style="display:none"><div id="crm-camp-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
 <div id="c-encuestas" style="display:none"><div id="crm-enc-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
 <div id="c-churn" style="display:none"><div id="crm-churn-tbl"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div></div>
@@ -3141,7 +3176,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v114';
+var APP_BUILD = 'jacaranda-v115';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -3313,6 +3348,7 @@ function invalidarTareasSesion() {
   _cafPagoGuardando = false;
   _cafFechaGuardando = {};
   _cafVentas = [];
+  document.getElementById('caf-filtro-cliente').value = '';
   _cafCobranzaOffset = 0;
   _cafCobranzaMas = false;
   _cafCobranzaSeq++;
@@ -3320,6 +3356,8 @@ function invalidarTareasSesion() {
   _ventaEnProceso = false;
   _apiGetCache = {};
   _apiGetInFlight = {};
+  _dashGetCache = {};
+  _dashCacheAt = 0;
   var tx = _migracionVentasTx;
   _migracionVentasTx = null;
   if (tx) {
@@ -3478,6 +3516,7 @@ function apiGetCacheTtl(path) {
   if (clean === '/clientes/') return 45000;
   if (clean === '/pedidos/reservas') return 15000;
   if (clean.indexOf('/cafeteria/clientes') === 0) return 60000;
+  if (clean.indexOf('/ia/') === 0) return 30000;
   return 0;
 }
 
@@ -4076,10 +4115,11 @@ var _dashGetCache = {};
 var _dashCacheAt = 0;
 function dashGet(path) {
   if (!_dashGetCache[path]) {
-    _dashGetCache[path] = api('GET', path, null, false, null, null, {silenciosa: true}).catch(function(e) {
-      delete _dashGetCache[path];
+    var request = api('GET', path, null, false, null, null, {silenciosa: true}).catch(function(e) {
+      if (_dashGetCache[path] === request) delete _dashGetCache[path];
       throw e;
     });
+    _dashGetCache[path] = request;
   }
   return _dashGetCache[path];
 }
@@ -7614,9 +7654,7 @@ function initCafeteria() {
   return Promise.all([
     cargarCafeteriaClientes(),
     cargarCafeteriaProductos(),
-    cargarClientesCobranzaCafeteria(),
-    cargarCafeteriaVentas(),
-    cargarCafeteriaReportes()
+    cargarClientesCobranzaCafeteria().then(function(ok) { if (ok) return cargarCafeteriaVentas(); })
   ]);
 }
 
@@ -8064,8 +8102,7 @@ function registrarCafeteria() {
     cafClear();
     cargarCafeteriaProductos();
     cargarCafeteriaClientes();
-    cargarClientesCobranzaCafeteria();
-    cargarCafeteriaVentas();
+    cargarClientesCobranzaCafeteria().then(function(ok) { if (ok) cargarCafeteriaVentas(); });
     cargarCafeteriaReportes();
     _cafEnProceso = false;
   }).catch(function(e) {
@@ -8090,15 +8127,25 @@ function cargarClientesCobranzaCafeteria() {
   return api('GET', '/cafeteria/cobranza/clientes').then(function(items) {
     if (version !== _versionSesion) return;
     var select = document.getElementById('caf-filtro-cliente'), value = select.value;
-    var html = '<option value="">Todos los clientes</option>';
+    var keys = [], html = '<option value="todos">Todos los clientes</option>';
     (items || []).forEach(function(c) {
       var key = c.id == null ? 'nombre:' + c.nombre : 'id:' + c.id;
+      keys.push(key);
       html += '<option value="' + escHtml(key) + '">' + escHtml(c.nombre) + (c.id == null ? ' (histórico)' : '') + '</option>';
     });
     select.innerHTML = html;
-    select.value = value;
+    select.value = value === 'todos' || keys.indexOf(value) >= 0 ? value : (keys[0] || '');
+    if (!keys.length) {
+      select.innerHTML = '<option value="">Sin clientes</option>';
+      select.value = '';
+    }
+    return true;
   }).catch(function(e) {
-    if (version === _versionSesion) toast(e.message || 'No se pudieron cargar los clientes', true);
+    if (version === _versionSesion) {
+      document.getElementById('caf-cobranza-estado').textContent = e.message || 'No se pudieron cargar los clientes';
+      document.getElementById('caf-ventas').innerHTML = '<button type="button" class="limpiar" onclick="actualizarCobranzaCafeteria()">Reintentar</button>';
+    }
+    return false;
   });
 }
 
@@ -8123,6 +8170,16 @@ function cargarPaginaCobranzaCafeteria(conservarPagina) {
   if (!conservarPagina) _cafCobranzaOffset = 0;
   var seq = ++_cafCobranzaSeq, version = _versionSesion;
   var filter = filtroClienteCobranzaCafeteria();
+  if (!filter && document.getElementById('caf-filtro-cliente').value !== 'todos') {
+    _cafVentas = [];
+    document.getElementById('caf-ventas').innerHTML = '';
+    document.getElementById('caf-pagination').hidden = true;
+    document.getElementById('caf-pdf-cliente').disabled = true;
+    document.getElementById('caf-cobranza-saldo').textContent = '--';
+    document.getElementById('caf-cobranza-cuentas').textContent = '';
+    document.getElementById('caf-cobranza-estado').textContent = 'Selecciona un cliente para ver sus cuentas.';
+    return Promise.resolve();
+  }
   var query = 'limit=51&offset=' + _cafCobranzaOffset + '&pendientes=' + (_cafCobranzaVista === 'pendientes');
   if (filter) query += '&' + filter;
   document.getElementById('caf-pdf-cliente').disabled = !filter;
@@ -8162,9 +8219,8 @@ function cargarPaginaCobranzaCafeteria(conservarPagina) {
 
 function actualizarCobranzaCafeteria() {
   apiCacheInvalidate('/cafeteria/');
-  cargarClientesCobranzaCafeteria();
   cargarCafeteriaReportes();
-  return cargarCafeteriaVentas();
+  return cargarClientesCobranzaCafeteria().then(function(ok) { if (ok) return cargarCafeteriaVentas(); });
 }
 
 function descargarEstadoCuentaCafeteria() {
@@ -8244,14 +8300,15 @@ function renderCafeteriaVentas(items) {
     var fecha = v.fecha ? formatearInstanteOperacion(v.fecha, {day:'2-digit', month:'short', year:'numeric'}) : '';
     var venc = v.fecha_credito ? new Date(v.fecha_credito + 'T00:00:00').toLocaleDateString('es-MX', {day:'2-digit', month:'short'}) : '';
     h += '<div class="caf-sale">';
-    h += '<div class="caf-sale-head"><div><strong>' + escHtml(v.folio) + ' &bull; ' + escHtml(v.cafeteria_nombre) + '</strong><br>';
-    h += '<span style="font-size:.78rem;color:var(--mut)">Registrado ' + fecha + (venc ? ' &bull; vence ' + venc : '') + '</span>';
-    h += '<div class="caf-sale-dates"><span>Entregado: ' + escHtml(fechaCortaCafeteria(v.fecha_entrega)) + '</span>';
+    h += '<div class="caf-sale-head"><div><strong>' + escHtml(v.folio) + ' &bull; ' + escHtml(v.cafeteria_nombre) + '</strong>';
+    h += '<div class="caf-sale-dates"><span>Registrado ' + fecha + (venc ? ' &bull; vence ' + venc : '') + '</span>';
+    h += '<span>Entregado: ' + escHtml(fechaCortaCafeteria(v.fecha_entrega)) + '</span>';
     if (v.estado !== 'cancelada' && (window._permisos || {}).cafeteria === 'editar') {
       h += '<button type="button" class="catalog-icon-btn" onclick="editarFechaEntregaCafeteria(' + v.id + ')" title="Editar fecha de entrega" aria-label="Editar fecha de entrega ' + escHtml(v.folio) + '">&#9998;</button>';
     }
     h += '</div></div>';
-    h += '<div style="text-align:right">' + etiquetaEstadoCafeteria(v) + '<br><strong style="color:var(--v)">$' + fmt(v.total) + '</strong></div></div>';
+    h += '<div style="text-align:right">' + etiquetaEstadoCafeteria(v) + '</div></div>';
+    h += '<details class="caf-sale-detail"><summary>Productos y pagos</summary>';
     if (v.detalles && v.detalles.length) {
       h += '<div class="caf-sale-lines">';
       for (var d = 0; d < v.detalles.length; d++) {
@@ -8260,8 +8317,6 @@ function renderCafeteriaVentas(items) {
       }
       h += '</div>';
     }
-    h += '<div class="caf-summary-row"><span>Pagado</span><strong>$' + fmt(v.monto_pagado) + ' de $' + fmt(v.total) + '</strong></div>';
-    h += '<div class="caf-summary-row"><span>Saldo</span><strong style="color:' + (saldo > 0 ? '#b45309' : 'var(--grn)') + '">$' + fmt(saldo) + '</strong></div>';
     if (v.pagos && v.pagos.length) {
       h += '<details class="caf-payment-history"><summary>Pagos (' + v.pagos.length + ')</summary>';
       v.pagos.slice().sort(function(a, b) { return String(a.fecha).localeCompare(String(b.fecha)) || a.id - b.id; }).forEach(function(p) {
@@ -8270,15 +8325,18 @@ function renderCafeteriaVentas(items) {
       });
       h += '</details>';
     }
+    h += '</details><div class="caf-sale-footer"><div class="caf-sale-amounts">';
+    h += '<span>Total <strong>$' + fmt(v.total) + '</strong></span><span>Pagado <strong>$' + fmt(v.monto_pagado) + '</strong></span>';
+    h += '<span>Saldo <strong style="color:' + (saldo > 0 ? '#b45309' : 'var(--grn)') + '">$' + fmt(saldo) + '</strong></span></div>';
     h += '<div class="caf-mini-actions">';
     if (saldo > 0 && (window._permisos || {}).cafeteria === 'editar') {
       h += '<button class="limpiar" onclick="pagarCafeteria(' + v.id + ',false)">Pago parcial</button>';
       h += '<button class="cobrar" onclick="pagarCafeteria(' + v.id + ',true)">Liquidar</button>';
     }
     if (String(v.estado).toLowerCase() !== 'cancelada' && (window._permisos || {}).cafeteria === 'editar') {
-      h += '<button class="limpiar" onclick="cancelarCafeteria(' + v.id + ',' + jsArg(v.folio) + ')">Cancelar</button>';
+      h += '<button class="limpiar caf-cancel" onclick="cancelarCafeteria(' + v.id + ',' + jsArg(v.folio) + ')">Cancelar</button>';
     }
-    h += '</div></div>';
+    h += '</div></div></div>';
   }
   el.innerHTML = h;
 }
@@ -8398,6 +8456,7 @@ async function cancelarCafeteria(id, folio) {
 }
 
 function cargarCafeteriaReportes() {
+  if (!document.getElementById('caf-reportes').open) return Promise.resolve();
   return Promise.all([
     api('GET', '/cafeteria/reportes/semanal').then(function(data) { renderCafReport(data, 'caf-semana'); }).catch(function(e) {
       document.getElementById('caf-semana').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">' + escHtml(e.message || 'Error') + '</p>';
@@ -9750,8 +9809,19 @@ function canjearPuntosCliente() {
 
 // ─── Dashboard avanzado ──────────────────────────────────────────
 var _chartMeses = null;
-function cargarDashAvanzado() {
-  dashGet('/reportes/dashboard-avanzado').then(function(d) {
+var _dashAvanzadoSeq = 0;
+function cargarDashAvanzado(force) {
+  if (!esAdminActual()) return Promise.resolve();
+  var seq = ++_dashAvanzadoSeq, version = _versionSesion;
+  if (force) { delete _dashGetCache['/reportes/dashboard-avanzado']; apiCacheInvalidate('/reportes/dashboard-avanzado'); }
+  document.getElementById('da-estado').textContent = 'Cargando datos mensuales...';
+  document.getElementById('da-reintentar').hidden = true;
+  document.getElementById('da-costos-aviso').textContent = '';
+  ['ingresos','costos','bruta','gastos','neta'].forEach(function(id) { document.getElementById('da-u-' + id).textContent = '--'; });
+  document.getElementById('da-vip').textContent = 'Cargando clientes...';
+  document.getElementById('chart-meses').parentElement.hidden = true;
+  return dashGet('/reportes/dashboard-avanzado').then(function(d) {
+    if (seq !== _dashAvanzadoSeq || version !== _versionSesion) return;
     // Utilidad
     document.getElementById('da-u-ingresos').textContent = '$' + fmt(d.utilidad.ingresos);
     document.getElementById('da-u-costos').textContent = '-$' + fmt(d.utilidad.costo_ventas);
@@ -9760,36 +9830,52 @@ function cargarDashAvanzado() {
     var netaEl = document.getElementById('da-u-neta');
     netaEl.textContent = (d.utilidad.utilidad_neta >= 0 ? '$' : '-$') + fmt(Math.abs(d.utilidad.utilidad_neta));
     netaEl.style.color = d.utilidad.utilidad_neta >= 0 ? 'var(--grn)' : '#b91c1c';
+    document.getElementById('da-costos-aviso').textContent = d.utilidad.partidas_sin_costo > 0 ?
+      d.utilidad.partidas_sin_costo + ' partidas sin costo de producci\u00f3n. La utilidad est\u00e1 incompleta.' : '';
+    document.getElementById('da-estado').textContent = '';
 
     // VIP
     var vh = '';
     for (var i = 0; i < d.clientes_vip.length; i++) {
       var v = d.clientes_vip[i];
-      vh += '<div class="srow"><span>' + (i+1) + '. ' + v.nombre + (v.puntos ? ' <span style="color:#7c3aed;font-size:.72rem">(' + v.puntos + ' pts)</span>' : '') + '</span>';
+      vh += '<div class="srow"><span>' + (i+1) + '. ' + escHtml(v.nombre) + (v.puntos ? ' <span style="color:#7c3aed;font-size:.72rem">(' + v.puntos + ' pts)</span>' : '') + '</span>';
       vh += '<span class="green">$' + fmt(v.total_compras) + ' <span style="font-size:.7rem;color:var(--mut)">' + v.visitas + ' vis</span></span></div>';
     }
     if (vh) document.getElementById('da-vip').innerHTML = vh;
     else document.getElementById('da-vip').innerHTML = '<div class="srow" style="color:var(--mut)"><span>Asocia clientes a ventas para ver VIP</span></div>';
 
     // Chart.js — 12 meses
-    renderChartMeses(d.meses);
-  }).catch(function(e){ console.warn('Error cargando datos:', e); });
+    return Promise.resolve().then(function() { return renderChartMeses(d.meses, seq, version); }).catch(function() {
+      if (seq !== _dashAvanzadoSeq || version !== _versionSesion) return;
+      document.getElementById('da-estado').textContent = 'Datos disponibles; no se pudo cargar la gr\u00e1fica.';
+      document.getElementById('da-reintentar').hidden = false;
+    });
+  }).catch(function(e){
+    if (seq !== _dashAvanzadoSeq || version !== _versionSesion) return;
+    document.getElementById('da-estado').textContent = e.message || 'No se pudieron cargar los datos mensuales.';
+    document.getElementById('da-vip').textContent = 'Clientes no disponibles.';
+    document.getElementById('da-reintentar').hidden = false;
+  });
 }
 
-function renderChartMeses(meses) {
+function renderChartMeses(meses, seq, version) {
+  if (seq !== _dashAvanzadoSeq || version !== _versionSesion) return;
   var ctx = document.getElementById('chart-meses');
   if (!ctx) return;
-  if (typeof Chart === 'undefined') {
-    ensureChart().then(function() { renderChartMeses(meses); }).catch(function(){});
+  if (!meses || !meses.length || !meses.some(function(m) { return Number(m.total) > 0; })) {
+    if (_chartMeses) _chartMeses.destroy();
+    _chartMeses = null;
+    ctx.parentElement.hidden = true;
+    document.getElementById('da-estado').textContent = 'Sin ventas registradas en los \u00faltimos 12 meses.';
     return;
+  }
+  if (typeof Chart === 'undefined') {
+    return ensureChart().then(function() { return renderChartMeses(meses, seq, version); });
   }
 
   if (_chartMeses) _chartMeses.destroy();
-
-  if (!meses || !meses.length) {
-    ctx.parentElement.innerHTML = '<p style="text-align:center;color:var(--mut);padding:2rem;font-size:.85rem">Sin datos de ventas mensuales</p>';
-    return;
-  }
+  _chartMeses = null;
+  ctx.parentElement.hidden = false;
 
   var labels = meses.map(function(m) { return m.mes; });
   var datos = meses.map(function(m) { return m.total; });
@@ -11738,6 +11824,7 @@ async function eliminarReceta(id, nombre) {
 
 // ─── Listas page ─────────────────────────────────────────────────
 function listTab(tab, evt) {
+  if (tab === 'l-lealtad') mostrarLealtadEnCRM(false);
   var permitidos = ['l-prods','l-familias','l-empaques','l-clientes','l-nomina','l-lealtad'];
   if (permitidos.indexOf(tab) < 0) tab = 'l-prods';
   ['l-prods','l-familias','l-empaques','l-ings','l-recs','l-clientes','l-nomina','l-lealtad'].forEach(function(t) {
@@ -11765,6 +11852,10 @@ function filtrarTabla(id, q) {
 }
 
 function cargarListas() {
+  var lealtadSeleccionada = document.querySelector('#listas .tab.active[onclick*="l-lealtad"]');
+  mostrarLealtadEnCRM(false);
+  document.getElementById('l-lealtad').style.display = lealtadSeleccionada ? 'block' : 'none';
+  if (lealtadSeleccionada) cargarLealtad();
   cargarListaProductos();
   cargarListaFamiliasProducto();
   cargarListaEmpaques();
@@ -15808,21 +15899,34 @@ function cargarEficiencia() {
 }
 
 // ─── IA / Pronósticos ─────────────────────────────────────────────
-function iaTab(tab) {
+var _iaVista = 'ia-dash';
+var _iaSeq = {};
+function solicitudIA(id) {
+  var seq = (_iaSeq[id] || 0) + 1, version = _versionSesion;
+  _iaSeq[id] = seq;
+  return function() { return seq === _iaSeq[id] && version === _versionSesion; };
+}
+function errorIA(id, mensaje, retry) {
+  document.getElementById(id).innerHTML = '<p class="analytics-status">' + escHtml(mensaje) + '</p><button type="button" class="limpiar" onclick="' + retry + '()">Reintentar</button>';
+}
+function iaTab(tab, target) {
+  _iaVista = tab;
   ['ia-dash','ia-produccion','ia-demanda','ia-pricing','ia-precision'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('#iapg .tab').forEach(function(t) { t.classList.remove('active'); });
-  event.target.classList.add('active');
-  if (tab === 'ia-produccion') cargarProduccionIA();
-  if (tab === 'ia-demanda') cargarDemandaIA();
-  if (tab === 'ia-pricing') cargarPricingIA();
-  if (tab === 'ia-precision') cargarPrecisionIA();
+  target = target || document.querySelector('#iapg .tab[onclick*="' + tab + '"]');
+  if (target) target.classList.add('active');
+  if (tab === 'ia-dash') return cargarDashIA();
+  if (tab === 'ia-produccion') return cargarProduccionIA();
+  if (tab === 'ia-demanda') return cargarDemandaIA();
+  if (tab === 'ia-pricing') return cargarPricingIA();
+  if (tab === 'ia-precision') return cargarPrecisionIA();
 }
 
 function initIA() {
-  cargarDashIA();
+  return iaTab(_iaVista);
 }
 
 function _confBadge(conf) {
@@ -15842,10 +15946,13 @@ function _trendIcon(pct) {
 }
 
 function cargarDashIA() {
-  api('GET', '/ia/dashboard').then(function(r) {
+  var vigente = solicitudIA('ia-dash-content');
+  document.getElementById('ia-dash-content').textContent = 'Cargando an\u00e1lisis...';
+  return api('GET', '/ia/dashboard').then(function(r) {
+    if (!vigente()) return;
     var h = '<div class="row r4" style="margin-bottom:1rem">';
-    h += '<div class="card kpi"><div class="n">' + r.precision_modelo.valor + '%</div><div class="l">Precisi\u00f3n ' + r.precision_modelo.calificacion + '</div></div>';
-    h += '<div class="card kpi g"><div class="n">' + r.sugerencias_produccion.length + '</div><div class="l">Productos a hornear</div></div>';
+    h += '<div class="card kpi"><div class="n">' + (r.precision_modelo.muestras ? r.precision_modelo.valor + '%' : '--') + '</div><div class="l">Precisi\u00f3n hist\u00f3rica: ' + escHtml(r.precision_modelo.calificacion) + '</div></div>';
+    h += '<div class="card kpi g"><div class="n">' + (r.total_productos_hornear || 0) + '</div><div class="l">Productos a hornear</div></div>';
     h += '<div class="card kpi a"><div class="n">' + r.alertas_pricing.length + '</div><div class="l">Alertas de precio</div></div>';
     h += '<div class="card kpi p"><div class="n">' + (r.impacto_potencial_mensual > 0 ? '+$' + fmt(r.impacto_potencial_mensual) : '$0') + '</div><div class="l">Impacto potencial/mes</div></div>';
     h += '</div>';
@@ -15859,7 +15966,7 @@ function cargarDashIA() {
       for (var i = 0; i < r.sugerencias_produccion.length; i++) {
         var s = r.sugerencias_produccion[i];
         var pCls = s.prioridad === 'alta' ? 'bout' : s.prioridad === 'media' ? 'blow' : 'bok';
-        h += '<div class="ia-sug"><div><div class="is-name">' + s.nombre + '</div>';
+        h += '<div class="ia-sug"><div><div class="is-name">' + escHtml(s.nombre) + '</div>';
         h += '<div class="is-detail">Stock: ' + s.stock_actual + ' | Demanda: ' + s.demanda_estimada + ' | ' + _trendIcon(s.tendencia_pct) + '</div></div>';
         h += '<div class="is-action"><div class="is-qty">' + s.sugerido_hornear + '</div>';
         h += '<span class="badge ' + pCls + '">' + s.prioridad + '</span> ' + _confBadge(s.confianza) + '</div></div>';
@@ -15870,16 +15977,16 @@ function cargarDashIA() {
     // Pricing alerts
     h += '<div class="card"><h3>&#128176; Alertas de precio</h3>';
     if (!r.alertas_pricing.length) {
-      h += '<p style="color:var(--mut);font-size:.83rem">Sin alertas. Precios \u00f3ptimos.</p>';
+      h += '<p style="color:var(--mut);font-size:.83rem">Sin cambios de precio sugeridos.</p>';
     } else {
       for (var j = 0; j < r.alertas_pricing.length; j++) {
         var p = r.alertas_pricing[j];
         var sg = p.sugerencia;
         var aCls = 'ia-act-' + sg.accion;
-        var icon = sg.accion === 'subir' ? '&#9650;' : sg.accion === 'descuento' ? '&#128178;' : '&#9660;';
-        h += '<div class="ia-pricing-card"><div class="ip-head"><span class="ip-name">' + p.nombre + '</span>';
+        var icon = sg.accion === 'revisar' ? 'Revisar' : sg.accion === 'subir' ? '&#9650;' : sg.accion === 'descuento' ? '&#128178;' : '&#9660;';
+        h += '<div class="ia-pricing-card"><div class="ip-head"><span class="ip-name">' + escHtml(p.nombre) + '</span>';
         h += '<span class="ip-action ' + aCls + '">' + icon + ' $' + p.precio_actual + ' &rarr; $' + sg.precio_sugerido + '</span></div>';
-        h += '<div class="ip-detail">' + sg.razon + '</div></div>';
+        h += '<div class="ip-detail">' + escHtml(sg.razon) + '</div></div>';
       }
     }
     h += '</div></div>';
@@ -15888,19 +15995,29 @@ function cargarDashIA() {
       h += '<div class="card" style="margin-top:.5rem;border-left:3px solid #f59e0b;padding:.6rem .8rem"><span style="font-size:.85rem"><strong>' + r.productos_sin_rotacion + ' productos</strong> sin venta en 7+ d\u00edas con stock disponible. Revisa la pesta\u00f1a Pricing.</span></div>';
     }
 
+    if (r.advertencias && r.advertencias.length) {
+      h += '<details style="margin-top:.8rem"><summary>Revisar datos (' + r.advertencias.length + ')</summary>';
+      r.advertencias.forEach(function(a) { h += '<p class="analytics-status">' + escHtml(a) + '</p>'; });
+      h += '</details>';
+    }
+    if (r.fecha_base) h += '<p class="analytics-status">Historial hasta ' + escHtml(r.fecha_base) + '</p>';
     document.getElementById('ia-dash-content').innerHTML = h;
-  }).catch(function() { document.getElementById('ia-dash-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Error al cargar dashboard IA. Necesita datos de ventas para funcionar.</p></div>'; });
+  }).catch(function(e) { if (vigente()) errorIA('ia-dash-content', e.message || 'No se pudo cargar el an\u00e1lisis.', 'cargarDashIA'); });
 }
 
 function cargarProduccionIA() {
+  var vigente = solicitudIA('ia-prod-content');
   document.getElementById('ia-prod-content').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Analizando...</p>';
-  api('GET', '/ia/produccion-sugerida').then(function(items) {
+  return api('GET', '/ia/produccion-sugerida').then(function(items) {
+    if (!vigente()) return;
     if (!items.length) { document.getElementById('ia-prod-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Sin datos suficientes para generar sugerencias.</p></div>'; return; }
     var h = '<div class="card" style="margin-bottom:.8rem"><table class="tbl"><tr><th>Producto</th><th>Stock</th><th>Demanda est.</th><th>Hornear</th><th>Confianza</th><th>Tendencia</th><th>Prioridad</th></tr>';
     for (var i = 0; i < items.length; i++) {
       var s = items[i];
       var pCls = s.prioridad === 'alta' ? 'bout' : s.prioridad === 'media' ? 'blow' : 'bok';
-      h += '<tr><td style="font-weight:600">' + s.nombre + '</td>';
+      h += '<tr><td style="font-weight:600">' + escHtml(s.nombre);
+      (s.advertencias || []).forEach(function(a) { h += '<small style="display:block;color:#b45309;font-weight:400">' + escHtml(a) + '</small>'; });
+      h += '</td>';
       h += '<td>' + s.stock_actual + '</td>';
       h += '<td>' + s.demanda_estimada + '</td>';
       h += '<td style="font-weight:700;color:var(--v)">' + s.sugerido_hornear + '</td>';
@@ -15910,19 +16027,21 @@ function cargarProduccionIA() {
     }
     h += '</table></div>';
     document.getElementById('ia-prod-content').innerHTML = h;
-  }).catch(function() { document.getElementById('ia-prod-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Error al cargar sugerencias</p></div>'; });
+  }).catch(function(e) { if (vigente()) errorIA('ia-prod-content', e.message || 'No se pudieron cargar las sugerencias.', 'cargarProduccionIA'); });
 }
 
 function cargarDemandaIA() {
+  var vigente = solicitudIA('ia-dem-content');
   var dias = document.getElementById('ia-dem-dias').value || 7;
   document.getElementById('ia-dem-content').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Calculando pron\u00f3stico...</p>';
-  api('GET', '/ia/pronostico-demanda?dias=' + dias).then(function(items) {
+  return api('GET', '/ia/pronostico-demanda?dias=' + dias).then(function(items) {
+    if (!vigente()) return;
     if (!items.length) { document.getElementById('ia-dem-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Sin datos suficientes.</p></div>'; return; }
     var h = '';
     for (var i = 0; i < Math.min(items.length, 15); i++) {
       var item = items[i];
       h += '<div class="card" style="margin-bottom:.7rem"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">';
-      h += '<span style="font-weight:700;font-size:.9rem;color:var(--dk)">' + item.nombre + '</span>';
+      h += '<span style="font-weight:700;font-size:.9rem;color:var(--dk)">' + escHtml(item.nombre) + '</span>';
       h += '<span style="font-size:.78rem;color:var(--mut)">Prom: ' + item.promedio_diario + '/d\u00eda | ' + _trendIcon(item.tendencia_pct) + '</span></div>';
       // Bar chart for predictions
       var maxQty = 0;
@@ -15942,13 +16061,15 @@ function cargarDemandaIA() {
       h += '</div>';
     }
     document.getElementById('ia-dem-content').innerHTML = h;
-  }).catch(function() { document.getElementById('ia-dem-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Error al calcular pron\u00f3stico</p></div>'; });
+  }).catch(function(e) { if (vigente()) errorIA('ia-dem-content', e.message || 'No se pudo calcular el pron\u00f3stico.', 'cargarDemandaIA'); });
 }
 
 function cargarPricingIA() {
+  var vigente = solicitudIA('ia-pr-content');
   var dias = document.getElementById('ia-pr-dias').value || 60;
   document.getElementById('ia-pr-content').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Analizando precios...</p>';
-  api('GET', '/ia/pricing?dias=' + dias).then(function(items) {
+  return api('GET', '/ia/pricing?dias=' + dias).then(function(items) {
+    if (!vigente()) return;
     if (!items.length) { document.getElementById('ia-pr-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Sin productos para analizar.</p></div>'; return; }
     // Count by action
     var counts = {subir:0, bajar:0, descuento:0, mantener:0};
@@ -15958,7 +16079,7 @@ function cargarPricingIA() {
     h += '<div class="card kpi g"><div class="n">' + (counts.subir||0) + '</div><div class="l">Subir precio</div></div>';
     h += '<div class="card kpi a"><div class="n">' + (counts.bajar||0) + '</div><div class="l">Bajar precio</div></div>';
     h += '<div class="card kpi" style="border-left:3px solid #ef4444"><div class="n">' + (counts.descuento||0) + '</div><div class="l">Aplicar descuento</div></div>';
-    h += '<div class="card kpi"><div class="n">' + (counts.mantener||0) + '</div><div class="l">Precio \u00f3ptimo</div></div>';
+    h += '<div class="card kpi"><div class="n">' + (counts.mantener||0) + '</div><div class="l">Sin cambio sugerido</div></div>';
     h += '</div>';
 
     for (var i = 0; i < items.length; i++) {
@@ -15967,7 +16088,7 @@ function cargarPricingIA() {
       var aCls = 'ia-act-' + sg.accion;
       var icon = sg.accion === 'subir' ? '&#9650;' : sg.accion === 'descuento' ? '&#128178;' : sg.accion === 'bajar' ? '&#9660;' : '&#10003;';
       h += '<div class="ia-pricing-card">';
-      h += '<div class="ip-head"><span class="ip-name">' + p.nombre + '</span>';
+      h += '<div class="ip-head"><span class="ip-name">' + escHtml(p.nombre) + '</span>';
       h += '<span class="ip-action ' + aCls + '">' + icon + ' ' + sg.accion.toUpperCase() + '</span></div>';
       h += '<div class="ip-detail">';
       h += 'Precio: <strong>$' + fmt(p.precio_actual) + '</strong> | Costo: $' + fmt(p.costo) + ' | Margen: ' + p.margen_pct + '% | ';
@@ -15979,22 +16100,24 @@ function cargarPricingIA() {
         h += '<div style="margin-top:.3rem;font-size:.82rem;font-weight:600">';
         h += '<span class="' + aCls + '">$' + fmt(p.precio_actual) + ' &rarr; $' + fmt(sg.precio_sugerido) + '</span>';
         if (sg.impacto_mensual) h += ' &bull; Impacto: <span style="color:' + (sg.impacto_mensual > 0 ? 'var(--grn)' : '#b91c1c') + '">$' + fmt(sg.impacto_mensual) + '/mes</span>';
-        h += ' &bull; <span style="color:var(--mut)">' + sg.razon + '</span>';
+        h += ' &bull; <span style="color:var(--mut)">' + escHtml(sg.razon) + '</span>';
         h += '</div>';
       }
       h += '</div>';
     }
     document.getElementById('ia-pr-content').innerHTML = h;
-  }).catch(function() { document.getElementById('ia-pr-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Error al analizar precios</p></div>'; });
+  }).catch(function(e) { if (vigente()) errorIA('ia-pr-content', e.message || 'No se pudieron analizar los precios.', 'cargarPricingIA'); });
 }
 
 function cargarPrecisionIA() {
+  var vigente = solicitudIA('ia-prec-content');
   document.getElementById('ia-prec-content').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Evaluando modelo...</p>';
-  api('GET', '/ia/precision?dias=14').then(function(r) {
+  return api('GET', '/ia/precision?dias=14').then(function(r) {
+    if (!vigente()) return;
     var h = '<div class="row r4" style="margin-bottom:1rem">';
     var pCls = r.precision_promedio >= 70 ? 'g' : r.precision_promedio >= 50 ? 'a' : '';
-    h += '<div class="card kpi ' + pCls + '"><div class="n">' + r.precision_promedio + '%</div><div class="l">Precisi\u00f3n promedio</div></div>';
-    h += '<div class="card kpi"><div class="n">' + r.mape + '%</div><div class="l">Error (MAPE)</div></div>';
+    h += '<div class="card kpi ' + pCls + '"><div class="n">' + (r.muestras ? r.precision_promedio + '%' : '--') + '</div><div class="l">Precisi\u00f3n hist\u00f3rica</div></div>';
+    h += '<div class="card kpi"><div class="n">' + (r.muestras ? r.error_normalizado_pct + '%' : '--') + '</div><div class="l">Error normalizado</div></div>';
     h += '<div class="card kpi"><div class="n">' + r.muestras + '</div><div class="l">Muestras evaluadas</div></div>';
     var calCls = r.calificacion === 'excelente' ? 'bok' : r.calificacion === 'buena' ? 'bok' : r.calificacion === 'aceptable' ? 'blow' : 'bout';
     h += '<div class="card kpi"><div class="n"><span class="badge ' + calCls + '" style="font-size:.9rem;padding:.3rem .7rem">' + r.calificacion + '</span></div><div class="l">Calificaci\u00f3n</div></div>';
@@ -16012,11 +16135,11 @@ function cargarPrecisionIA() {
       }
       h += '</table></div>';
     } else {
-      h += '<div class="card"><p style="color:var(--mut);font-size:.83rem">Sin suficientes datos hist\u00f3ricos para evaluar. El modelo necesita al menos 2 semanas de ventas.</p></div>';
+      h += '<div class="card"><p style="color:var(--mut);font-size:.83rem">Sin comparaciones hist\u00f3ricas disponibles.</p></div>';
     }
 
     document.getElementById('ia-prec-content').innerHTML = h;
-  }).catch(function() { document.getElementById('ia-prec-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Error al evaluar precisi\u00f3n</p></div>'; });
+  }).catch(function(e) { if (vigente()) errorIA('ia-prec-content', e.message || 'No se pudo evaluar la precisi\u00f3n.', 'cargarPrecisionIA'); });
 }
 
 // ─── Contabilidad ─────────────────────────────────────────────────
@@ -17498,7 +17621,7 @@ function renderLealtadConfig(c) {
   var h = '';
   h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.8rem;flex-wrap:wrap;margin-bottom:.7rem">';
   h += '<div><h3 style="font-size:.95rem;margin:0 0 .2rem">Configuraci&oacute;n de lealtad</h3><p style="font-size:.78rem;color:var(--mut);margin:0">Estos valores cambian lo que se acumula y lo que ve el cliente en su tarjeta.</p></div>';
-  h += '<button class="cobrar" style="width:auto;padding:.45rem 1rem;font-size:.8rem;margin:0" onclick="guardarConfigLealtad()">Guardar cambios</button>';
+  if ((window._permisos || {}).listas === 'editar') h += '<button class="cobrar" style="width:auto;padding:.45rem 1rem;font-size:.8rem;margin:0" onclick="guardarConfigLealtad()">Guardar cambios</button>';
   h += '</div>';
   h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.65rem">';
   h += '<label style="display:grid;gap:.25rem;font-size:.78rem;color:var(--mut);font-weight:700">Meta recompensa<input id="lc-meta" type="number" min="1" step="0.01" value="' + escHtml(c.recompensa_monto_meta || 10000) + '" style="padding:.5rem;border:1px solid var(--brd);border-radius:8px;font-size:.86rem"></label>';
@@ -17511,18 +17634,25 @@ function renderLealtadConfig(c) {
   h += '</div>';
   h += '<p style="font-size:.75rem;color:var(--mut);margin:.65rem 0 0">Ejemplo: 0.1 puntos por peso = 1 punto por cada $10. El valor por punto controla el descuento cuando canjean puntos en caja.</p>';
   document.getElementById('lealtad-config').innerHTML = h;
+  document.getElementById('lealtad-config').querySelectorAll('input').forEach(function(input) {
+    input.disabled = (window._permisos || {}).listas !== 'editar';
+  });
 }
 
 function cargarConfigLealtad() {
+  var version = _versionSesion;
   return api('GET', '/lealtad/configuracion').then(function(c) {
+    if (version !== _versionSesion) return;
     renderLealtadConfig(c);
     return c;
   }).catch(function() {
+    if (version !== _versionSesion) return;
     document.getElementById('lealtad-config').innerHTML = '<p style="color:#b91c1c;font-size:.83rem">Error al cargar configuraci&oacute;n.</p>';
   });
 }
 
 function guardarConfigLealtad() {
+  if ((window._permisos || {}).listas !== 'editar') return;
   var expiraRaw = (document.getElementById('lc-expira').value || '').trim();
   var payload = {
     recompensa_monto_meta: document.getElementById('lc-meta').value,
@@ -17542,8 +17672,11 @@ function guardarConfigLealtad() {
 }
 
 function cargarLealtad() {
+  var version = _versionSesion;
+  document.getElementById('lealtad-ofertas').hidden = (window._permisos || {}).listas !== 'editar';
   cargarConfigLealtad();
   api('GET', '/lealtad/dashboard').then(function(d) {
+    if (version !== _versionSesion) return;
     var h = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.6rem">';
     h += '<div class="card" style="text-align:center"><div style="font-size:1.5rem;font-weight:700">' + (d.total_puntos_circulacion||0) + '</div><div style="font-size:.75rem;color:var(--mut)">Puntos en circulaci&oacute;n</div></div>';
     h += '<div class="card" style="text-align:center"><div style="font-size:1.5rem;font-weight:700">' + (d.cupones_activos||0) + '</div><div style="font-size:.75rem;color:var(--mut)">Cupones activos</div></div>';
@@ -17555,12 +17688,13 @@ function cargarLealtad() {
     h += '</div>';
     if (d.top_clientes && d.top_clientes.length) {
       h += '<h4 style="margin:.8rem 0 .4rem;font-size:.85rem">Top clientes</h4><table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.3rem">Nombre</th><th>Nivel</th><th>Puntos</th></tr>';
-      d.top_clientes.forEach(function(c) { h += '<tr><td style="padding:.3rem">' + c.nombre + '</td><td>' + c.nivel + '</td><td>' + c.puntos_acumulados + '</td></tr>'; });
+      d.top_clientes.forEach(function(c) { h += '<tr><td style="padding:.3rem">' + escHtml(c.nombre) + '</td><td>' + escHtml(c.nivel) + '</td><td>' + c.puntos_acumulados + '</td></tr>'; });
       h += '</table>';
     }
     document.getElementById('lealtad-dash').innerHTML = h;
-  }).catch(function() { document.getElementById('lealtad-dash').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
+  }).catch(function() { if (version === _versionSesion) document.getElementById('lealtad-dash').innerHTML = '<p style="color:var(--mut)">Error al cargar</p>'; });
   api('GET', '/lealtad/cupones?activos_only=false').then(function(data) {
+    if (version !== _versionSesion) return;
     if (!data.length) { document.getElementById('lealtad-cupones').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Sin cupones.</p>'; return; }
     var h = '<table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.3rem">C&oacute;digo</th><th>Nombre</th><th>Tipo</th><th>Valor</th><th>Usos</th><th>Vigencia</th></tr>';
     data.forEach(function(c) { h += '<tr><td style="padding:.3rem;font-family:monospace">' + c.codigo + '</td><td>' + c.nombre + '</td><td>' + c.tipo + '</td><td>' + c.valor + '</td><td>' + c.usos_actuales + '/' + c.max_usos + '</td><td>' + c.fecha_inicio + ' a ' + c.fecha_fin + '</td></tr>'; });
@@ -17568,6 +17702,7 @@ function cargarLealtad() {
     document.getElementById('lealtad-cupones').innerHTML = h;
   }).catch(function() {});
   api('GET', '/lealtad/cumpleanos').then(function(data) {
+    if (version !== _versionSesion) return;
     if (!data.length) { document.getElementById('lealtad-cumple').innerHTML = '<p style="color:var(--mut);font-size:.83rem">Ning&uacute;n cliente cumple a&ntilde;os este mes.</p>'; return; }
     var h = '<table style="width:100%;font-size:.82rem"><tr style="background:var(--bg2)"><th style="padding:.3rem">Nombre</th><th>Fecha</th><th>Nivel</th></tr>';
     data.forEach(function(c) { h += '<tr><td style="padding:.3rem">' + c.nombre + '</td><td>' + c.fecha_cumpleanos + '</td><td>' + c.nivel + '</td></tr>'; });
@@ -17576,6 +17711,7 @@ function cargarLealtad() {
   }).catch(function() {});
 }
 function enviarOfertasCumple() {
+  if ((window._permisos || {}).listas !== 'editar') return;
   api('POST', '/lealtad/cumpleanos/enviar-ofertas').then(function(d) { toast(d.mensaje); cargarLealtad(); }).catch(function(e) { toast(e.message || 'Error', true); });
 }
 
@@ -17756,20 +17892,106 @@ function cargarIndicadoresCalidad() {
 }
 
 // ─── CRM y Marketing ─────────────────────────────────────────────
-function crmTab(tab) {
-  ['c-segmentacion','c-campanas','c-encuestas','c-churn','c-dashboard'].forEach(function(t) {
+var _crmSeq = 0, _crmOffset = 0, _crmMas = false, _crmBusquedaTimer = null;
+var _crmCompraSeq = 0, _crmClienteId = null;
+function mostrarLealtadEnCRM(enCRM) {
+  var panel = document.getElementById('l-lealtad');
+  document.getElementById(enCRM ? 'c-lealtad' : 'listas').appendChild(panel);
+  panel.style.display = 'block';
+}
+function crmTab(tab, target) {
+  if (tab === 'c-lealtad' && ['ver','editar'].indexOf((window._permisos || {}).listas) < 0) return;
+  ['c-clientes','c-lealtad','c-segmentacion','c-campanas','c-encuestas','c-churn','c-dashboard'].forEach(function(t) {
     var el = document.getElementById(t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
-  document.querySelectorAll('#crm .tab').forEach(function(t) { t.classList.remove('active'); });
-  event.target.classList.add('active');
+  document.querySelectorAll('#crm .tab').forEach(function(t) {
+    var active = t.getAttribute('onclick').indexOf("'" + tab + "'") >= 0;
+    t.classList.toggle('active', active);
+    t.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  if (tab === 'c-clientes') return cargarClientesCRM();
+  if (tab === 'c-lealtad') { mostrarLealtadEnCRM(true); return cargarLealtad(); }
   if (tab === 'c-segmentacion') cargarSegmentacion();
   if (tab === 'c-campanas') cargarCampanas();
   if (tab === 'c-encuestas') cargarEncuestas();
   if (tab === 'c-churn') cargarChurn();
   if (tab === 'c-dashboard') cargarCRMDashboard();
 }
-function initCRM() { cargarSegmentacion(); }
+function initCRM() {
+  document.getElementById('crm-lealtad-tab').hidden = ['ver','editar'].indexOf((window._permisos || {}).listas) < 0;
+  _crmOffset = 0;
+  return crmTab('c-clientes');
+}
+function buscarClientesCRM() {
+  clearTimeout(_crmBusquedaTimer);
+  ++_crmSeq; ++_crmCompraSeq;
+  document.getElementById('crm-compras').hidden = true;
+  var version = _versionSesion;
+  _crmBusquedaTimer = setTimeout(function() {
+    if (version !== _versionSesion) return;
+    _crmOffset = 0;
+    cargarClientesCRM();
+  }, 250);
+}
+function paginaClientesCRM(delta) {
+  if (delta > 0 && !_crmMas) return;
+  _crmOffset = Math.max(0, _crmOffset + delta * 50);
+  return cargarClientesCRM();
+}
+function cargarClientesCRM() {
+  var seq = ++_crmSeq, version = _versionSesion;
+  ++_crmCompraSeq; _crmClienteId = null;
+  document.getElementById('crm-compras').hidden = true;
+  document.getElementById('crm-clientes-tbl').innerHTML = '';
+  document.getElementById('crm-clientes-estado').textContent = 'Cargando clientes...';
+  document.getElementById('crm-anterior').disabled = true;
+  document.getElementById('crm-siguiente').disabled = true;
+  var q = document.getElementById('crm-buscar').value.trim();
+  return api('GET', '/crm/clientes?limit=50&offset=' + _crmOffset + (q ? '&q=' + encodeURIComponent(q) : '')).then(function(data) {
+    if (seq !== _crmSeq || version !== _versionSesion) return;
+    _crmMas = data.hay_mas;
+    document.getElementById('crm-anterior').disabled = !_crmOffset;
+    document.getElementById('crm-siguiente').disabled = !_crmMas;
+    document.getElementById('crm-pagina').textContent = 'P\u00e1gina ' + (Math.floor(_crmOffset / 50) + 1);
+    document.getElementById('crm-clientes-estado').textContent = data.clientes.length ? '' : 'Sin clientes para esta b\u00fasqueda.';
+    var h = '<table class="crm-client-table"><thead><tr><th>Cliente</th><th class="money">Total comprado</th><th class="money">Compras</th><th class="money">Ticket promedio</th><th>\u00daltima compra</th><th class="money">Puntos</th><th></th></tr></thead><tbody>';
+    data.clientes.forEach(function(c) {
+      h += '<tr><td><strong>' + escHtml(c.nombre) + '</strong><small>' + escHtml(c.nivel || 'bronce') + (c.telefono ? ' · ' + escHtml(c.telefono) : '') + '</small></td>';
+      h += '<td class="money">$' + fmt(c.total_compras) + '</td><td class="money">' + Number(c.compras) + '</td><td class="money">$' + fmt(c.ticket_promedio) + '</td>';
+      h += '<td>' + (c.ultima_compra ? escHtml(fechaCortaCafeteria(c.ultima_compra)) : 'Sin compras') + '</td><td class="money">' + Number(c.puntos || 0) + '</td>';
+      h += '<td><button type="button" class="catalog-icon-btn" onclick="verComprasCRM(' + Number(c.cliente_id) + ',0)" title="Ver compras" aria-label="Ver compras de ' + escHtml(c.nombre) + '">&#128203;</button></td></tr>';
+    });
+    document.getElementById('crm-clientes-tbl').innerHTML = data.clientes.length ? h + '</tbody></table>' : '';
+  }).catch(function(e) {
+    if (seq !== _crmSeq || version !== _versionSesion) return;
+    document.getElementById('crm-clientes-estado').textContent = e.message || 'No se pudieron cargar los clientes.';
+    document.getElementById('crm-clientes-tbl').innerHTML = '<button type="button" class="limpiar" onclick="cargarClientesCRM()">Reintentar</button>';
+  });
+}
+function verComprasCRM(id, offset) {
+  _crmClienteId = id;
+  var seq = ++_crmCompraSeq, version = _versionSesion;
+  var el = document.getElementById('crm-compras');
+  el.hidden = false; el.textContent = 'Cargando compras...';
+  return api('GET', '/crm/clientes/' + id + '/compras?limit=25&offset=' + offset).then(function(data) {
+    if (seq !== _crmCompraSeq || version !== _versionSesion || id !== _crmClienteId) return;
+    var h = '<h3 style="font-size:1rem">Compras de ' + escHtml(data.nombre) + '</h3>';
+    data.compras.forEach(function(v) {
+      h += '<div class="crm-purchase"><div><strong>' + escHtml(v.folio) + '</strong><small>' + escHtml(formatearInstanteOperacion(v.fecha, {day:'2-digit',month:'short',year:'numeric'})) + '</small><small>';
+      h += v.detalles.map(function(d) { return fmtQty(d.cantidad) + 'x ' + escHtml(d.producto); }).join(' · ');
+      h += '</small></div><strong>$' + fmt(v.total) + '</strong></div>';
+    });
+    if (!data.compras.length) h += '<p class="analytics-status">Sin compras registradas.</p>';
+    h += '<div class="crm-pagination">';
+    if (offset) h += '<button type="button" class="catalog-icon-btn" onclick="verComprasCRM(' + id + ',' + Math.max(0, offset - 25) + ')" title="Compras anteriores" aria-label="Compras anteriores">&#8592;</button>';
+    if (data.hay_mas) h += '<button type="button" class="catalog-icon-btn" onclick="verComprasCRM(' + id + ',' + (offset + 25) + ')" title="M\u00e1s compras" aria-label="M\u00e1s compras">&#8594;</button>';
+    el.innerHTML = h + '</div>';
+  }).catch(function(e) {
+    if (seq !== _crmCompraSeq || version !== _versionSesion) return;
+    el.innerHTML = '<p class="analytics-status">' + escHtml(e.message || 'No se pudieron cargar las compras.') + '</p><button type="button" class="limpiar" onclick="verComprasCRM(' + id + ',' + offset + ')">Reintentar</button>';
+  });
+}
 function cargarSegmentacion() {
   api('GET', '/crm/segmentacion').then(function(data) {
     var h = '<div class="row r3">';

@@ -79,6 +79,32 @@ def clientes_en_riesgo(
     return crm_service.clientes_en_riesgo(db)
 
 
+@router.get("/clientes")
+def clientes_crm(
+    q: str | None = Query(default=None, max_length=200),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("crm", "ver")),
+):
+    items = crm_service.segmentar_clientes(db, q=q, limit=limit + 1, offset=offset)
+    return {"clientes": items[:limit], "hay_mas": len(items) > limit, "offset": offset}
+
+
+@router.get("/clientes/{cliente_id}/compras")
+def compras_cliente_crm(
+    cliente_id: int,
+    limit: int = Query(default=25, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("crm", "ver")),
+):
+    try:
+        return crm_service.compras_cliente(db, cliente_id, limit, offset)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
 # ── Campañas ────────────────────────────────────────────────────────
 
 

@@ -1154,6 +1154,7 @@ def dashboard_avanzado(db: Session) -> dict:
 
     # --- Ventas últimos 12 meses para gráfica ---
     meses = []
+    sumas_meses = []
     for i in range(11, -1, -1):
         m = hoy.month - i
         y = hoy.year
@@ -1167,62 +1168,70 @@ def dashboard_avanzado(db: Session) -> dict:
             mes_fin = date(y, m + 1, 1) - timedelta(days=1)
 
         mes_inicio_dt, mes_fin_dt = operation_period_bounds(mes_inicio, mes_fin)
-        total_mes = db.query(func.sum(Venta.total)).filter(
+        if i == 11:
+            inicio_12meses = mes_inicio_dt
+        sumas_meses.append(func.sum(case((
             and_(
                 Venta.fecha >= mes_inicio_dt,
                 Venta.fecha <= mes_fin_dt,
-                Venta.estado == EstadoVenta.COMPLETADA,
-            )
-        ).scalar() or Decimal("0")
+            ), Venta.total,
+        ), else_=0)))
 
         nombres_mes = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
                         'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
         meses.append({
             "mes": f"{nombres_mes[m]} {y}",
-            "total": float(total_mes),
+            "total": 0,
         })
+    totales_meses = db.query(*sumas_meses).filter(
+        Venta.estado == EstadoVenta.COMPLETADA,
+        Venta.fecha >= inicio_12meses,
+        Venta.fecha <= fin_este_mes,
+    ).one()
+    for mes, total in zip(meses, totales_meses, strict=True):
+        mes["total"] = float(total or 0)
 
     # --- Top 10 clientes VIP ---
     top_clientes = db.query(
-        Venta.cliente_id,
+        Cliente.id, Cliente.nombre, Cliente.telefono, Cliente.puntos_acumulados,
         func.sum(Venta.total).label("total"),
         func.count(Venta.id).label("visitas"),
-    ).filter(
+    ).select_from(Venta).join(Cliente, Cliente.id == Venta.cliente_id).filter(
         and_(
             Venta.cliente_id.isnot(None),
             Venta.estado == EstadoVenta.COMPLETADA,
+            Venta.fecha <= fin_este_mes,
         )
-    ).group_by(Venta.cliente_id).order_by(
+    ).group_by(Cliente.id, Cliente.nombre, Cliente.telefono, Cliente.puntos_acumulados).order_by(
         func.sum(Venta.total).desc()
     ).limit(10).all()
 
     clientes_vip = []
     for tc in top_clientes:
-        cliente = db.query(Cliente).filter(Cliente.id == tc.cliente_id).first()
-        if cliente:
-            clientes_vip.append({
-                "id": cliente.id,
-                "nombre": cliente.nombre,
-                "telefono": cliente.telefono,
-                "puntos": cliente.puntos_acumulados,
-                "total_compras": float(tc.total),
-                "visitas": tc.visitas,
-                "ticket_promedio": round(float(tc.total) / tc.visitas, 2),
-            })
+        clientes_vip.append({
+            "id": tc.id,
+            "nombre": tc.nombre,
+            "telefono": tc.telefono,
+            "puntos": tc.puntos_acumulados,
+            "total_compras": float(tc.total),
+            "visitas": tc.visitas,
+            "ticket_promedio": round(float(tc.total) / tc.visitas, 2),
+        })
 
     # --- Utilidad estimada (ventas - costos - gastos fijos) ---
-    costo_ventas = Decimal("0")
-    detalles_mes = db.query(DetalleVenta).join(Venta).filter(
+    costos = db.query(
+        func.sum(DetalleVenta.cantidad * func.coalesce(Producto.costo_produccion, 0)),
+        func.sum(case((func.coalesce(Producto.costo_produccion, 0) <= 0, 1), else_=0)),
+    ).join(Venta, Venta.id == DetalleVenta.venta_id).outerjoin(
+        Producto, Producto.id == DetalleVenta.producto_id,
+    ).filter(
         and_(
             Venta.fecha >= inicio_este_mes,
             Venta.fecha <= fin_este_mes,
             Venta.estado == EstadoVenta.COMPLETADA,
         )
-    ).all()
-    for d in detalles_mes:
-        prod = db.query(Producto).filter(Producto.id == d.producto_id).first()
-        if prod:
-            costo_ventas += d.cantidad * prod.costo_produccion
+    ).one()
+    costo_ventas = costos[0] or Decimal("0")
 
     gastos_fijos = db.query(GastoFijo).filter(GastoFijo.activo.is_(True)).all()
     total_gastos_fijos = Decimal("0")
@@ -1252,6 +1261,7 @@ def dashboard_avanzado(db: Session) -> dict:
             "utilidad_bruta": float(utilidad_bruta),
             "gastos_fijos": float(total_gastos_fijos),
             "utilidad_neta": float(utilidad_neta),
+            "partidas_sin_costo": int(costos[1] or 0),
         },
         "meses": meses,
         "clientes_vip": clientes_vip,
