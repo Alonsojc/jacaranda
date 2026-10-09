@@ -57,6 +57,7 @@ CRM = section("var _crmSeq = 0,", "function cargarSegmentacion()")
 
 
 def test_dashboard_error_retry_empty_and_chart_failures_preserve_real_values():
+    assert '#da-reintentar[hidden]{display:none}' in HTML
     node(HARNESS + DASH_HARNESS + DASH + r"""
 (async()=>{
   admin=false;await cargarDashAvanzado();assert.equal(calls.length,0);admin=true;
@@ -68,6 +69,7 @@ def test_dashboard_error_retry_empty_and_chart_failures_preserve_real_values():
   assert.equal(_dashGetCache['/reportes/dashboard-avanzado'],undefined);
   assert.deepEqual(invalidated,['/reportes/dashboard-avanzado']);
   assert.equal(field('da-u-ingresos').textContent,'$100.00');
+  assert.equal(field('da-reintentar').hidden,true);
   assert(field('da-costos-aviso').textContent.includes('2 partidas'));
   assert(field('da-vip').innerHTML.includes('Cliente &lt;uno&gt;'));
   assert.equal(charts.length,1);assert.equal(field('chart-meses').parentElement.hidden,false);
