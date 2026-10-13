@@ -16801,7 +16801,7 @@ function hacerLogin() {
     document.getElementById('btn-logout').style.display = '';
     mostrarBotonActualizarApp(true);
     setConnected(true);
-    postLogin();
+    return postLogin();
   }).catch(function(e) {
     if (e && e.code === 'PENDING_SALES_OWNER_MISMATCH') {
       errEl.textContent = 'Entra con la cuenta anterior para recuperar sus ventas o pedidos pendientes.';
@@ -16891,11 +16891,27 @@ function aplicarPostLogin(u, opciones) {
 }
 
 function postLogin(usuario, opciones) {
-  if (usuario) {
-    aplicarPostLogin(usuario, opciones);
-    return;
+  var version = _versionSesion;
+  function falloPostLogin(e) {
+    if (version !== _versionSesion) return false;
+    console.warn('Error cargando datos:', e);
+    document.getElementById('login-screen').style.display = 'flex';
+    mostrarErrorLogin(e && e.code === 'PENDING_SALES_OWNER_MISMATCH'
+      ? 'Entra con la cuenta anterior para recuperar sus ventas o pedidos pendientes.'
+      : 'No se pudo completar el inicio. Tu sesi\u00f3n sigue guardada; vuelve a intentar.');
+    return false;
   }
-  api('GET', '/auth/me').then(aplicarPostLogin).catch(function(e){ console.warn('Error cargando datos:', e); });
+  if (usuario) {
+    try {
+      aplicarPostLogin(usuario, opciones);
+      return Promise.resolve(true);
+    } catch (e) { return Promise.resolve(falloPostLogin(e)); }
+  }
+  return apiLecturaRecuperable('/auth/me', {silenciosa: true}).then(function(u) {
+    if (version !== _versionSesion) return false;
+    aplicarPostLogin(u, opciones);
+    return true;
+  }).catch(falloPostLogin);
 }
 
 function aplicarPermisosModulos(permisos) {
@@ -17616,7 +17632,7 @@ function autoConectar() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('login-error').style.display = 'none';
     document.getElementById('btn-logout').style.display = '';
-    postLogin(u, {conservarVista: true});
+    return postLogin(u, {conservarVista: true});
   }).catch(function(e) {
     if (version !== _versionSesion) return;
     if (esSesionExpirada(e)) {

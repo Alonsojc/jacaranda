@@ -205,6 +205,28 @@ def test_order_form_catalog_is_loaded_only_when_opening_new_order():
     assert "prepararDatosNuevoPedido();" in section("function abrirNuevoPedido()", "function cerrarNuevoPedido()")
 
 
+def test_post_login_owner_mismatch_restores_login_and_preserves_queued_work():
+    harness = r"""
+const assert=require('node:assert/strict'),fields={},messages=[],reads=[];
+let _versionSesion=1;
+const document={getElementById:id=>fields[id]||={style:{display:'none'}}};
+function mostrarErrorLogin(message){messages.push(message);}
+function apiLecturaRecuperable(){return new Promise((resolve,reject)=>reads.push({resolve,reject}));}
+function aplicarPostLogin(){const error=new Error('owner');error.code='PENDING_SALES_OWNER_MISMATCH';throw error;}
+"""
+    node(harness + section("function postLogin(usuario, opciones)", "function aplicarPermisosModulos") + r"""
+async function run(){
+  let login=postLogin();reads[0].resolve({id:2});assert.equal(await login,false);
+  assert.equal(fields['login-screen'].style.display,'flex');assert.match(messages[0],/cuenta anterior/);
+  fields['login-screen'].style.display='none';assert.equal(await postLogin({id:2}),false);
+  assert.equal(fields['login-screen'].style.display,'flex');assert.equal(messages.length,2);
+  login=postLogin();_versionSesion++;fields['login-screen'].style.display='none';
+  reads[1].reject({code:'PENDING_SALES_OWNER_MISMATCH'});await login;
+  assert.equal(fields['login-screen'].style.display,'none');assert.equal(messages.length,2);
+}
+""")
+
+
 def test_logout_clears_local_business_cache_even_when_deferred_core_is_unavailable():
     cleanup = section("function limpiarClavesSesionCompartida()", "function limpiarSesionConBloqueo")
     for key in ("jacaranda_prods_cache", "jacaranda_pedido_contactos", "jacaranda_tab"):
