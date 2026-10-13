@@ -8997,15 +8997,22 @@ function guardarPedidosPendientes() {
   actualizarPropietarioColasVentas();
 }
 
-function guardarPedidoPendiente(pedido) {
-  verificarPropietarioColasVentas(TOKEN);
+function guardarPedidoPendiente(pedido, versionSesion, tokenSesion) {
+  if (versionSesion == null) versionSesion = _versionSesion;
+  if (tokenSesion == null) tokenSesion = TOKEN;
   var key = pedido.idempotency_key || nuevaClaveIdempotencia('pedido');
   pedido.idempotency_key = key;
-  for (var i = 0; i < _pedidosPendientes.length; i++) {
-    if (_pedidosPendientes[i].payload && _pedidosPendientes[i].payload.idempotency_key === key) return;
-  }
-  _pedidosPendientes.push({id: key, creado_en: new Date().toISOString(), payload: pedido});
-  guardarPedidosPendientes();
+  return conBloqueoColasVentas(function(exigirBloqueoVigente) {
+    exigirBloqueoVigente();
+    exigirSesionColasVigente(versionSesion, tokenSesion);
+    verificarPropietarioColasVentas(TOKEN);
+    _pedidosPendientes = leerPedidosPendientesLocal();
+    for (var i = 0; i < _pedidosPendientes.length; i++) {
+      if (_pedidosPendientes[i].payload && _pedidosPendientes[i].payload.idempotency_key === key) return;
+    }
+    _pedidosPendientes.push({id: key, creado_en: new Date().toISOString(), payload: pedido});
+    guardarPedidosPendientes();
+  }, 30000);
 }
 
 function pedidosPendientesComoCache() {
@@ -9039,7 +9046,7 @@ function pedidosVisibles() {
 
 function sincronizarPedidosPendientes(silencioso) {
   if (!_pedidosPendientes.length || !TOKEN) return Promise.resolve();
-  var version = _versionSesion;
+  var version = _versionSesion, tokenSesion = TOKEN;
   var pending = _pedidosPendientes.slice();
   var restantes = [];
   var ok = 0;
@@ -9047,6 +9054,8 @@ function sincronizarPedidosPendientes(silencioso) {
   pending.forEach(function(item) {
     chain = chain.then(function() {
       if (version !== _versionSesion) return;
+      exigirSesionColasVigente(version, tokenSesion);
+      verificarPropietarioColasVentas(TOKEN);
       return api('POST', '/pedidos/', item.payload).then(function() {
         ok++;
       }).catch(function() {
@@ -9056,14 +9065,22 @@ function sincronizarPedidosPendientes(silencioso) {
   });
   return chain.then(function() {
     if (version !== _versionSesion) return false;
-    var procesados = {};
-    pending.forEach(function(item) { procesados[item.id] = true; });
-    _pedidosPendientes = leerPedidosPendientesLocal().filter(function(item) { return !procesados[item.id]; }).concat(restantes);
-    guardarPedidosPendientes();
-    if (ok && !silencioso) toast(ok + ' pedido(s) sincronizado(s)');
-    renderPedidos();
-    if (_calPedVisible) renderCalPed();
-    if (ok) cargarPedidos();
+    return conBloqueoColasVentas(function(exigirBloqueoVigente) {
+      exigirBloqueoVigente();
+      exigirSesionColasVigente(version, tokenSesion);
+      verificarPropietarioColasVentas(TOKEN);
+      var procesados = {};
+      pending.forEach(function(item) { procesados[item.id] = true; });
+      _pedidosPendientes = leerPedidosPendientesLocal().filter(function(item) { return !procesados[item.id]; }).concat(restantes);
+      guardarPedidosPendientes();
+      if (ok && !silencioso) toast(ok + ' pedido(s) sincronizado(s)');
+      renderPedidos();
+      if (_calPedVisible) renderCalPed();
+      if (ok) cargarPedidos();
+    }, 30000);
+  }).catch(function(e) {
+    if (version === _versionSesion) console.warn('Pedidos pendientes conservados:', e);
+    return false;
   });
 }
 
@@ -9121,6 +9138,7 @@ function guardarPed() {
     detalles: detallesPedido
   };
 
+  var versionPedido = _versionSesion, tokenPedido = TOKEN;
   crearPedidoServidor(pedido).then(function(p) {
     guardarContactoPedido(nom, telPedido);
     toast('Pedido ' + p.folio + ' guardado para ' + nom);
@@ -9132,17 +9150,27 @@ function guardarPed() {
     cargarPedidos();
   }).catch(function(e) {
     if (esErrorTemporal(e)) {
-      guardarContactoPedido(nom, telPedido);
-      guardarPedidoPendiente(pedido);
-      document.getElementById('modal-ped').classList.remove('on');
-      _pedidoEnProceso = false;
-      setPedidoGuardando(false);
-      _pedidoIdempotencyKey = null;
-      limpiarNuevoPedido();
-      renderPedidos();
-      if (_calPedVisible) renderCalPed();
-      toast('Pedido guardado pendiente de sincronizar para ' + nom, true);
-      return;
+      return guardarPedidoPendiente(pedido, versionPedido, tokenPedido).then(function() {
+        if (!sesionColasVigente(versionPedido, tokenPedido)) return;
+        guardarContactoPedido(nom, telPedido);
+        document.getElementById('modal-ped').classList.remove('on');
+        _pedidoEnProceso = false;
+        setPedidoGuardando(false);
+        _pedidoIdempotencyKey = null;
+        limpiarNuevoPedido();
+        renderPedidos();
+        if (_calPedVisible) renderCalPed();
+        toast('Pedido guardado pendiente de sincronizar para ' + nom, true);
+      }).catch(function() {
+        if (!sesionColasVigente(versionPedido, tokenPedido)) {
+          toast('La sesi\u00f3n cambi\u00f3 antes de guardar el pedido pendiente. Vuelve a intentar con la cuenta anterior.', true);
+          return;
+        }
+        _pedidoEnProceso = false;
+        setPedidoGuardando(false);
+        mostrarErrorPedido('No se pudo guardar el pedido pendiente. Revisa la sesi\u00f3n y vuelve a intentar.');
+        toast('No se guard\u00f3 el pedido pendiente. Revisa la sesi\u00f3n.', true);
+      });
     }
     var msg = mensajeErrorPedido(e);
     mostrarErrorPedido(msg);
@@ -9372,6 +9400,10 @@ async function borrarPedido(id, folio) {
 }
 
 function borrarPedidoLocal(localId) {
+  var version = _versionSesion, tokenSesion = TOKEN;
+  var idx = parseInt(String(localId || '').replace('local-', ''), 10);
+  var item = _pedidosPendientes[idx];
+  if (!item) return;
   confirmarAccion({
     title: 'Borrar pendiente local',
     message: '¿Borrar este pedido pendiente de este dispositivo?',
@@ -9380,13 +9412,18 @@ function borrarPedidoLocal(localId) {
     tone: 'danger'
   }).then(function(ok) {
     if (!ok) return;
-    var idx = parseInt(String(localId || '').replace('local-', ''), 10);
-    if (isNaN(idx) || idx < 0 || idx >= _pedidosPendientes.length) return;
-    _pedidosPendientes.splice(idx, 1);
-    guardarPedidosPendientes();
-    renderPedidos();
-    if (_calPedVisible) renderCalPed();
-    toast('Pedido pendiente borrado');
+    return conBloqueoColasVentas(function(exigirBloqueoVigente) {
+      exigirBloqueoVigente();
+      exigirSesionColasVigente(version, tokenSesion);
+      verificarPropietarioColasVentas(TOKEN);
+      _pedidosPendientes = leerPedidosPendientesLocal().filter(function(actual) { return actual.id !== item.id; });
+      guardarPedidosPendientes();
+      renderPedidos();
+      if (_calPedVisible) renderCalPed();
+      toast('Pedido pendiente borrado');
+    }, 30000);
+  }).catch(function() {
+    toast('No se pudo borrar el pedido pendiente. Revisa la sesi\u00f3n.', true);
   });
 }
 
@@ -16826,9 +16863,10 @@ function mostrarInicioGuardado(u) {
 function aplicarPostLogin(u, opciones) {
     var anterior = _currentUser;
     var activa = opciones && opciones.conservarVista ? document.querySelector('.page.on') : null;
+    _pedidosPendientes = leerPedidosPendientesLocal();
+    verificarPropietarioColasVentas(TOKEN);
     _currentUser = u;
     _userRole = u.rol || 'CAJERO';
-    _pedidosPendientes = leerPedidosPendientesLocal();
     guardarUsuarioCache(u);
     aplicarPermisosModulos(u.permisos_modulos || {});
     if (!opciones || !opciones.conservarVista || !anterior || String(anterior.id) !== String(u.id)) restorePosDraft(u);
@@ -16953,6 +16991,7 @@ function cerrarSesion(opciones) {
   function limpiarSesionConBloqueo(exigirBloqueoVigente) {
     (exigirBloqueoVigente || exigirBloqueoCierre)();
     if (!credencialesCompartidasSiguenSiendoSesion()) return false;
+    if (leerPedidosPendientesLocal().length) preservarVentasPendientes = true;
     if (preservarVentasPendientes) {
       _ventasPendientes = leerVentasPendientesLocal();
       _ventasLegacyRevision = leerVentasLegacyRevision();
@@ -16960,7 +16999,14 @@ function cerrarSesion(opciones) {
         asegurarPropietarioColasVentas(true, propietarioVentasSesion);
       }
     }
-    return limpiarClavesSesionCompartida();
+    limpiarClavesSesionCompartida();
+    // Cache cleanup shares the queue lock with login and pending-order writes.
+    if (!window.JacarandaCore) return true;
+    var limpiezaCore = preservarVentasPendientes
+      ? JacarandaCore.clearSensitiveCachesPreservingSales
+      : JacarandaCore.clearSensitiveCaches;
+    if (!limpiezaCore) return true;
+    return Promise.resolve(limpiezaCore()).then(function() { return true; });
   }
   var limpiezaSesionCompartida = bloqueoColasAdquirido
     ? Promise.resolve().then(function() { return limpiarSesionConBloqueo(exigirBloqueoCierre); })
@@ -16984,16 +17030,6 @@ function cerrarSesion(opciones) {
     if (!limpiada) {
       programarRecargaSesionCompartida();
       return;
-    }
-    if (!window.JacarandaCore) return;
-    if (preservarVentasPendientes) {
-      if (JacarandaCore.clearSensitiveCachesPreservingSales) {
-        return JacarandaCore.clearSensitiveCachesPreservingSales();
-      }
-      return;
-    }
-    if (JacarandaCore.clearSensitiveCaches) {
-      return JacarandaCore.clearSensitiveCaches();
     }
   }).catch(function() {});
   if (navigator.serviceWorker && navigator.serviceWorker.controller) {

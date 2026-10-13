@@ -380,7 +380,7 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     )
     assert "(exigirBloqueoVigente || exigirBloqueoCierre)()" in cleanup_segment
     assert cleanup_segment.index("if (!credencialesCompartidasSiguenSiendoSesion()) return false") < cleanup_segment.index(
-        "return limpiarClavesSesionCompartida()"
+        "limpiarClavesSesionCompartida()"
     )
     assert "clearPosDraft()" in logout_segment
     assert "limpiezaSesionCompartida.then(function(limpiada)" in logout_segment
@@ -499,7 +499,7 @@ def test_logout_revokes_push_without_reusing_a_new_session():
     )
     assert "localStorage.removeItem(FCM_TOKEN_KEY)" in shared_cleanup_segment
     assert locked_cleanup_segment.index("if (!credencialesCompartidasSiguenSiendoSesion()) return false") < locked_cleanup_segment.index(
-        "return limpiarClavesSesionCompartida()"
+        "limpiarClavesSesionCompartida()"
     )
 
 

@@ -136,8 +136,8 @@ async function run(){mostrarInicioGuardado({id:1,rol:'CAJERO'});
 
 def test_post_login_preserves_working_view_and_draft_only_for_same_customer_session():
     harness = r"""
-const assert=require('node:assert/strict'),tabs=[];
-let _currentUser={id:1},_userRole='',drafts=0,_ultimaRecuperacionVentasCompleta=false;
+const assert=require('node:assert/strict'),tabs=[],orderChecks=[];
+let _currentUser={id:1},_userRole='',drafts=0,_ultimaRecuperacionVentasCompleta=false,TOKEN='token',rejectOwner=false;
 const _ventasPendientes=[],savedOrders=[{id:'order-1'}];let _pedidosPendientes=[];
 const document={querySelector:()=>({id:'ped'}),getElementById:()=>({style:{}})};
 function guardarUsuarioCache(){}function aplicarPermisosModulos(){}function restorePosDraft(){drafts++;}
@@ -146,7 +146,8 @@ function pantallaInicialUsuario(){return 'pos';}function go(tab){tabs.push(tab);
 function iniciarPollPedidos(){}function deferDashboard(){}function mostrarBotonActualizarApp(){}
 function iniciarNotifPeriodicas(){}function solicitarPermisoNotif(){}function registrarFCMPush(){}function initWebSocket(){}
 function recuperarVentasIndexedDB(){return Promise.resolve();}
-function leerPedidosPendientesLocal(){return savedOrders;}
+function leerPedidosPendientesLocal(){orderChecks.push('read');return savedOrders;}
+function verificarPropietarioColasVentas(){orderChecks.push('owner');if(rejectOwner)throw Error('owner mismatch');}
 """
     node(harness + section("function aplicarPostLogin(u, opciones)", "function postLogin") + r"""
 async function run(){
@@ -155,6 +156,9 @@ async function run(){
   assert.deepEqual(_pedidosPendientes,savedOrders);
   aplicarPostLogin({id:2,permisos_modulos:{pos:'editar'}},{conservarVista:true});
   assert.equal(tabs[1],'pos');assert.equal(drafts,1);
+  assert.deepEqual(orderChecks,['read','owner','read','owner']);rejectOwner=true;
+  assert.throws(()=>aplicarPostLogin({id:3,permisos_modulos:{ped:'ver'}},{conservarVista:true}));
+  assert.equal(tabs.length,2);
 }
 """)
 
@@ -262,6 +266,9 @@ let _versionSesion=1,TOKEN='token',_pedidosPendientes=[original],_calPedVisible=
 let stored=JSON.stringify(_pedidosPendientes);
 const localStorage={getItem:()=>stored,setItem:(key,value)=>stored=value};
 function asegurarPropietarioColasVentas(){return true;}function actualizarPropietarioColasVentas(){}
+function verificarPropietarioColasVentas(){}
+function exigirSesionColasVigente(version,token){if(version!==_versionSesion||!TOKEN||!token)throw Error('Session changed');}
+function conBloqueoColasVentas(task){return Promise.resolve().then(()=>task(()=>true));}
 function api(){return new Promise((resolve,reject)=>requests.push({resolve,reject}));}
 function toast(){}function renderPedidos(){}function cargarPedidos(){}
 async function flush(){for(let i=0;i<10;i++)await Promise.resolve();}
@@ -270,7 +277,7 @@ async function flush(){for(let i=0;i<10;i++)await Promise.resolve();}
 
 def test_order_sync_cannot_clear_pending_orders_after_session_expiry():
     code = section("function leerPedidosPendientesLocal()", "function hayColasVentasConPropietario()")
-    code += section("function guardarPedidosPendientes()", "function guardarPedidoPendiente(pedido)")
+    code += section("function guardarPedidosPendientes()", "function guardarPedidoPendiente(pedido, versionSesion, tokenSesion)")
     code += section("function sincronizarPedidosPendientes(silencioso)", "function guardarPed()")
     node(ORDER_SYNC_HARNESS + code + r"""
 async function run(){
@@ -285,7 +292,7 @@ async function run(){
 
 def test_order_sync_preserves_orders_added_while_a_request_is_pending():
     code = section("function leerPedidosPendientesLocal()", "function hayColasVentasConPropietario()")
-    code += section("function guardarPedidosPendientes()", "function guardarPedidoPendiente(pedido)")
+    code += section("function guardarPedidosPendientes()", "function guardarPedidoPendiente(pedido, versionSesion, tokenSesion)")
     code += section("function sincronizarPedidosPendientes(silencioso)", "function guardarPed()")
     node(ORDER_SYNC_HARNESS + code + r"""
 async function run(){
@@ -295,6 +302,57 @@ async function run(){
   assert.deepEqual(_pedidosPendientes,[added]);assert.deepEqual(JSON.parse(stored),[added]);
 }
 """)
+
+
+def test_pending_order_writes_share_the_login_lock_and_reject_an_old_account_tab():
+    harness = r"""
+const assert=require('node:assert/strict');
+let _versionSesion=1,TOKEN='old-token',_pedidosPendientes=[],tail=Promise.resolve();
+const stored=new Map([['jacaranda_token',TOKEN]]);
+const localStorage={getItem:key=>stored.get(key)||null,setItem:(key,value)=>stored.set(key,value)};
+function conBloqueoColasVentas(task){const job=tail.then(()=>task(()=>true));tail=job.catch(()=>{});return job;}
+function exigirSesionColasVigente(version,token){
+  if(version!==_versionSesion||token!==TOKEN||stored.get('jacaranda_token')!==TOKEN)throw Error('Session changed');}
+function verificarPropietarioColasVentas(){}function asegurarPropietarioColasVentas(){return true;}
+function actualizarPropietarioColasVentas(){}function nuevaClaveIdempotencia(){throw Error('Key already supplied');}
+async function flush(){for(let i=0;i<10;i++)await Promise.resolve();}
+"""
+    code = section("function leerPedidosPendientesLocal()", "function hayColasVentasConPropietario()")
+    code += section("function guardarPedidosPendientes()", "function pedidosPendientesComoCache()")
+    node(harness + code + r"""
+async function run(){
+  let release;const held=conBloqueoColasVentas(()=>new Promise(resolve=>release=resolve));await flush();
+  const pending=guardarPedidoPendiente({idempotency_key:'late'},1,'old-token');
+  await flush();assert.equal(stored.has('jacaranda_pedidos_pendientes'),false);
+  stored.set('jacaranda_token','new-token');release();await held;
+  await assert.rejects(pending,/Session changed/);assert.equal(stored.has('jacaranda_pedidos_pendientes'),false);
+  stored.set('jacaranda_token','old-token');
+  stored.set('jacaranda_pedidos_pendientes',JSON.stringify([{id:'existing',payload:{idempotency_key:'existing'}}]));
+  await guardarPedidoPendiente({idempotency_key:'mine'},1,'old-token');
+  await guardarPedidoPendiente({idempotency_key:'mine'},1,'old-token');
+  assert.deepEqual(leerPedidosPendientesLocal().map(p=>p.id),['existing','mine']);
+}
+""")
+
+
+def test_sensitive_cache_cleanup_finishes_before_releasing_the_session_queue_lock():
+    cleanup = section("function limpiarSesionConBloqueo(exigirBloqueoVigente)", "var limpiezaSesionCompartida =")
+    after = section("limpiezaSesionCompartida.then(function(limpiada)", "if (navigator.serviceWorker && navigator.serviceWorker.controller)")
+    assert "if (leerPedidosPendientesLocal().length) preservarVentasPendientes = true" in cleanup
+    assert "return Promise.resolve(limpiezaCore()).then(function() { return true; })" in cleanup
+    assert "clearSensitiveCaches" not in after
+    for start, end in (
+        ("function guardarPedidoPendiente(pedido, versionSesion, tokenSesion)", "function pedidosPendientesComoCache()"),
+        ("function sincronizarPedidosPendientes(silencioso)", "function guardarPed()"),
+        ("function borrarPedidoLocal(localId)", "function "),
+    ):
+        if end == "function ":
+            offset = HTML.index(start)
+            code = HTML[offset:HTML.index(end, offset + len(start))]
+        else:
+            code = section(start, end)
+        assert "conBloqueoColasVentas(function(exigirBloqueoVigente)" in code
+        assert "exigirSesionColasVigente(" in code
 
 
 def test_mobile_refresh_only_reports_success_after_actual_reads_complete():
