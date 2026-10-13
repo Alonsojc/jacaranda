@@ -3247,7 +3247,15 @@ function identidadActualColasVentas(preferida) {
 }
 var _indexedDBSinPropietarioAlCargar = !leerPropietarioColasVentas() && !identidadActualColasVentas();
 
+function leerPedidosPendientesLocal() {
+  try {
+    var guardados = JSON.parse(localStorage.getItem('jacaranda_pedidos_pendientes') || '[]');
+    return Array.isArray(guardados) ? guardados : [];
+  } catch (e) { return []; }
+}
+
 function hayColasVentasConPropietario() {
+  if (leerPedidosPendientesLocal().length) return true;
   if (_ventasPendientes.length) return true;
   return _ventasLegacyRevision.some(function(item) {
     return !(item && item.propietario_desconocido);
@@ -3285,7 +3293,7 @@ function verificarPropietarioColasVentas(tokenNuevo) {
   if (!propietario) return;
   var usuarioNuevo = usuarioIdDesdeTokenVentas(tokenNuevo);
   if (usuarioNuevo && usuarioNuevo === propietario) return;
-  var error = new Error('Las ventas pendientes pertenecen a la sesi\u00f3n anterior');
+  var error = new Error('Las ventas o pedidos pendientes pertenecen a la sesi\u00f3n anterior');
   error.code = 'PENDING_SALES_OWNER_MISMATCH';
   throw error;
 }
@@ -3316,7 +3324,8 @@ var _versionSesion = 0;
 var _migracionVentasTx = null;
 var _recuperacionVentasPromise = null;
 var _ultimaRecuperacionVentasCompleta = false;
-var _pedidosPendientes = JSON.parse(localStorage.getItem('jacaranda_pedidos_pendientes') || '[]');
+var _pedidosPendientes = leerPedidosPendientesLocal();
+if (_pedidosPendientes.length) asegurarPropietarioColasVentas(true);
 var _pedidoContactos = JSON.parse(localStorage.getItem('jacaranda_pedido_contactos') || '[]');
 var _pedidoCatalogo = [];
 var _pedidoItems = [];
@@ -8981,10 +8990,15 @@ function crearPedidoServidor(pedido) {
 }
 
 function guardarPedidosPendientes() {
+  if (_pedidosPendientes.length && !asegurarPropietarioColasVentas(true)) {
+    throw new Error('No se pudo proteger el propietario de los pedidos pendientes');
+  }
   localStorage.setItem('jacaranda_pedidos_pendientes', JSON.stringify(_pedidosPendientes));
+  actualizarPropietarioColasVentas();
 }
 
 function guardarPedidoPendiente(pedido) {
+  verificarPropietarioColasVentas(TOKEN);
   var key = pedido.idempotency_key || nuevaClaveIdempotencia('pedido');
   pedido.idempotency_key = key;
   for (var i = 0; i < _pedidosPendientes.length; i++) {
@@ -9025,12 +9039,14 @@ function pedidosVisibles() {
 
 function sincronizarPedidosPendientes(silencioso) {
   if (!_pedidosPendientes.length || !TOKEN) return Promise.resolve();
+  var version = _versionSesion;
   var pending = _pedidosPendientes.slice();
   var restantes = [];
   var ok = 0;
   var chain = Promise.resolve();
   pending.forEach(function(item) {
     chain = chain.then(function() {
+      if (version !== _versionSesion) return;
       return api('POST', '/pedidos/', item.payload).then(function() {
         ok++;
       }).catch(function() {
@@ -9039,7 +9055,10 @@ function sincronizarPedidosPendientes(silencioso) {
     });
   });
   return chain.then(function() {
-    _pedidosPendientes = restantes;
+    if (version !== _versionSesion) return false;
+    var procesados = {};
+    pending.forEach(function(item) { procesados[item.id] = true; });
+    _pedidosPendientes = leerPedidosPendientesLocal().filter(function(item) { return !procesados[item.id]; }).concat(restantes);
     guardarPedidosPendientes();
     if (ok && !silencioso) toast(ok + ' pedido(s) sincronizado(s)');
     renderPedidos();
@@ -16748,7 +16767,7 @@ function hacerLogin() {
     postLogin();
   }).catch(function(e) {
     if (e && e.code === 'PENDING_SALES_OWNER_MISMATCH') {
-      errEl.textContent = 'Entra con la cuenta anterior para recuperar sus ventas pendientes.';
+      errEl.textContent = 'Entra con la cuenta anterior para recuperar sus ventas o pedidos pendientes.';
     } else {
       errEl.textContent = e && (e.name === 'TypeError' || /failed to fetch|network|servidor/i.test(e.message || ''))
         ? 'No se pudo conectar al servidor. Revisa internet o espera unos segundos.'
@@ -16809,6 +16828,7 @@ function aplicarPostLogin(u, opciones) {
     var activa = opciones && opciones.conservarVista ? document.querySelector('.page.on') : null;
     _currentUser = u;
     _userRole = u.rol || 'CAJERO';
+    _pedidosPendientes = leerPedidosPendientesLocal();
     guardarUsuarioCache(u);
     aplicarPermisosModulos(u.permisos_modulos || {});
     if (!opciones || !opciones.conservarVista || !anterior || String(anterior.id) !== String(u.id)) restorePosDraft(u);
@@ -16848,7 +16868,7 @@ function aplicarPermisosModulos(permisos) {
 
 function expirarSesion() {
   var cierre = cerrarSesion({preservarVentasPendientes: true});
-  mostrarErrorLogin('Tu sesi\u00f3n venció. Ingresa de nuevo para recuperar tus ventas pendientes.');
+  mostrarErrorLogin('Tu sesi\u00f3n venci\u00f3. Ingresa de nuevo para recuperar tus ventas o pedidos pendientes.');
   return cierre;
 }
 
@@ -16866,9 +16886,10 @@ function cerrarSesion(opciones) {
       _ventasPendientes = leerVentasPendientesLocal();
       _ventasLegacyRevision = leerVentasLegacyRevision();
       var ventasDetectadas = _ventasPendientes.length + _ventasLegacyRevision.length;
-      if (ventasDetectadas) {
+      var pedidosDetectados = leerPedidosPendientesLocal().length;
+      if (ventasDetectadas || pedidosDetectados) {
         actualizarBannerOffline();
-        return {cerrada: false, ventasPendientes: ventasDetectadas};
+        return {cerrada: false, ventasPendientes: ventasDetectadas, pedidosPendientes: pedidosDetectados};
       }
       return cerrarSesion({
         bloqueoColasAdquirido: true,
@@ -16878,6 +16899,7 @@ function cerrarSesion(opciones) {
       });
     }, 30000);
   }
+  if (leerPedidosPendientesLocal().length) preservarVentasPendientes = true;
   var propietarioVentasSesion = identidadActualColasVentas();
   var tokenSesionCierre = TOKEN;
   var refreshSesionCierre = REFRESH_TOKEN;
@@ -16912,7 +16934,7 @@ function cerrarSesion(opciones) {
   }
   function limpiarClavesSesionCompartida() {
     clearPosDraft();
-    ['jacaranda_prods_cache', 'jacaranda_pedidos_pendientes', 'jacaranda_pedido_contactos', 'jacaranda_tab'].forEach(function(key) {
+    ['jacaranda_prods_cache', 'jacaranda_pedido_contactos', 'jacaranda_tab'].forEach(function(key) {
       localStorage.removeItem(key);
     });
     localStorage.removeItem(FCM_TOKEN_KEY);
@@ -16981,6 +17003,15 @@ function cerrarSesion(opciones) {
 }
 
 async function confirmarCerrarSesion() {
+  if (leerPedidosPendientesLocal().length) {
+    await confirmarAccion({
+      title: 'Hay pedidos pendientes',
+      message: 'Sincroniza los pedidos pendientes antes de cerrar sesi\u00f3n.',
+      acceptText: 'Entendido',
+      cancelText: 'Seguir trabajando'
+    });
+    return;
+  }
   await recuperarVentasIndexedDB();
   if (window.indexedDB && !_ultimaRecuperacionVentasCompleta) {
     toast('No se pudieron comprobar las ventas guardadas. Intenta cerrar sesi\u00f3n de nuevo.', true);
@@ -17009,7 +17040,7 @@ async function confirmarCerrarSesion() {
   try {
     var resultadoCierre = await cerrarSesion({exigirColasVacias: true});
     if (resultadoCierre && !resultadoCierre.cerrada) {
-      toast('Se guardó una venta en otra ventana. Revísala antes de cerrar sesión.', true);
+      toast('Hay ventas o pedidos pendientes en otra ventana. Rev\u00edsalos antes de cerrar sesi\u00f3n.', true);
     }
   } catch (e) {
     toast('No se pudo comprobar que las ventas estén guardadas. Intenta de nuevo.', true);

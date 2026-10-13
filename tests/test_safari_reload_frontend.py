@@ -138,7 +138,7 @@ def test_post_login_preserves_working_view_and_draft_only_for_same_customer_sess
     harness = r"""
 const assert=require('node:assert/strict'),tabs=[];
 let _currentUser={id:1},_userRole='',drafts=0,_ultimaRecuperacionVentasCompleta=false;
-const _ventasPendientes=[],_pedidosPendientes=[];
+const _ventasPendientes=[],savedOrders=[{id:'order-1'}];let _pedidosPendientes=[];
 const document={querySelector:()=>({id:'ped'}),getElementById:()=>({style:{}})};
 function guardarUsuarioCache(){}function aplicarPermisosModulos(){}function restorePosDraft(){drafts++;}
 function puedeVerModuloUsuario(u,p){return !!u.permisos_modulos[p];}
@@ -146,11 +146,13 @@ function pantallaInicialUsuario(){return 'pos';}function go(tab){tabs.push(tab);
 function iniciarPollPedidos(){}function deferDashboard(){}function mostrarBotonActualizarApp(){}
 function iniciarNotifPeriodicas(){}function solicitarPermisoNotif(){}function registrarFCMPush(){}function initWebSocket(){}
 function recuperarVentasIndexedDB(){return Promise.resolve();}
+function leerPedidosPendientesLocal(){return savedOrders;}
 """
     node(harness + section("function aplicarPostLogin(u, opciones)", "function postLogin") + r"""
 async function run(){
   aplicarPostLogin({id:1,permisos_modulos:{ped:'ver'}},{conservarVista:true});
   assert.equal(tabs[0],'ped');assert.equal(drafts,0);
+  assert.deepEqual(_pedidosPendientes,savedOrders);
   aplicarPostLogin({id:2,permisos_modulos:{pos:'editar'}},{conservarVista:true});
   assert.equal(tabs[1],'pos');assert.equal(drafts,1);
 }
@@ -201,10 +203,98 @@ def test_order_form_catalog_is_loaded_only_when_opening_new_order():
 
 def test_logout_clears_local_business_cache_even_when_deferred_core_is_unavailable():
     cleanup = section("function limpiarClavesSesionCompartida()", "function limpiarSesionConBloqueo")
-    for key in ("jacaranda_prods_cache", "jacaranda_pedidos_pendientes", "jacaranda_pedido_contactos", "jacaranda_tab"):
+    for key in ("jacaranda_prods_cache", "jacaranda_pedido_contactos", "jacaranda_tab"):
         assert key in cleanup
+    assert "jacaranda_pedidos_pendientes" not in cleanup
     assert "'jacaranda_ventas_pendientes'" in cleanup
     assert "if (!preservarVentasPendientes)" in cleanup
+
+
+def test_expired_session_cleanup_preserves_pending_orders_and_their_owner():
+    harness = r"""
+const assert=require('node:assert/strict');
+const order={id:'order-1',payload:{idempotency_key:'order-1'}};
+const stored=new Map([['jacaranda_pedidos_pendientes',JSON.stringify([order])],['jacaranda_ventas_propietario','1'],
+  ['jacaranda_token','token'],['jacaranda_refresh_token','refresh'],['jacaranda_prods_cache','cache']]);
+const localStorage={getItem:key=>stored.get(key)||null,setItem:(key,value)=>stored.set(key,value),removeItem:key=>stored.delete(key)};
+const window={};let preservarVentasPendientes=true,_fcmRegistroIntentado=true;
+let _currentUser={id:1},TOKEN='token',_ventasPendientes=[],_ventasLegacyRevision=[];
+const FCM_TOKEN_KEY='fcm';function clearPosDraft(){}
+"""
+    code = section("var VENTAS_QUEUE_OWNER_KEY", "function leerVentasPendientesLocal()")
+    code += section("function limpiarClavesSesionCompartida()", "function limpiarSesionConBloqueo")
+    code += Path("docs/js/jacaranda-core.js").read_text(encoding="utf-8")
+    node(harness + code + r"""
+async function run(){
+  limpiarClavesSesionCompartida();await window.JacarandaCore.clearSensitiveCachesPreservingSales();
+  assert.deepEqual(leerPedidosPendientesLocal(),[order]);assert.equal(stored.has('jacaranda_token'),false);
+  assert.equal(stored.has('jacaranda_prods_cache'),false);
+  actualizarPropietarioColasVentas();assert.equal(leerPropietarioColasVentas(),'1');
+  const token=id=>'header.'+Buffer.from(JSON.stringify({sub:id})).toString('base64url')+'.signature';
+  assert.throws(()=>verificarPropietarioColasVentas(token(2)),{code:'PENDING_SALES_OWNER_MISMATCH'});
+  verificarPropietarioColasVentas(token(1));
+  stored.set('jacaranda_pedidos_pendientes','[]');actualizarPropietarioColasVentas();
+  assert.equal(leerPropietarioColasVentas(),'');
+}
+""")
+    logout = section("function cerrarSesion(opciones)", "async function confirmarCerrarSesion()")
+    assert "if (leerPedidosPendientesLocal().length) preservarVentasPendientes = true" in logout
+    assert "ventasDetectadas || pedidosDetectados" in logout
+
+
+def test_manual_logout_warns_before_closing_with_pending_orders():
+    harness = r"""
+const assert=require('node:assert/strict'),messages=[];
+function leerPedidosPendientesLocal(){return [{id:'order-1'}];}
+function confirmarAccion(options){messages.push(options);return Promise.resolve(true);}
+function recuperarVentasIndexedDB(){throw Error('Logout continued despite pending orders');}
+"""
+    node(harness + section("async function confirmarCerrarSesion()", "// ─── Gestión de usuarios") + r"""
+async function run(){await confirmarCerrarSesion();assert.equal(messages.length,1);
+  assert.equal(messages[0].title,'Hay pedidos pendientes');}
+""")
+
+
+ORDER_SYNC_HARNESS = r"""
+const assert=require('node:assert/strict'),requests=[];
+const original={id:'order-1',payload:{idempotency_key:'order-1'}};
+let _versionSesion=1,TOKEN='token',_pedidosPendientes=[original],_calPedVisible=false;
+let stored=JSON.stringify(_pedidosPendientes);
+const localStorage={getItem:()=>stored,setItem:(key,value)=>stored=value};
+function asegurarPropietarioColasVentas(){return true;}function actualizarPropietarioColasVentas(){}
+function api(){return new Promise((resolve,reject)=>requests.push({resolve,reject}));}
+function toast(){}function renderPedidos(){}function cargarPedidos(){}
+async function flush(){for(let i=0;i<10;i++)await Promise.resolve();}
+"""
+
+
+def test_order_sync_cannot_clear_pending_orders_after_session_expiry():
+    code = section("function leerPedidosPendientesLocal()", "function hayColasVentasConPropietario()")
+    code += section("function guardarPedidosPendientes()", "function guardarPedidoPendiente(pedido)")
+    code += section("function sincronizarPedidosPendientes(silencioso)", "function guardarPed()")
+    node(ORDER_SYNC_HARNESS + code + r"""
+async function run(){
+  const second={id:'order-2',payload:{idempotency_key:'order-2'}};
+  _pedidosPendientes.push(second);guardarPedidosPendientes();const before=stored;
+  const sync=sincronizarPedidosPendientes(true);await flush();
+  _versionSesion++;TOKEN='';_pedidosPendientes=[];requests[0].reject(new Error('401'));
+  assert.equal(await sync,false);assert.equal(stored,before);assert.equal(requests.length,1);
+}
+""")
+
+
+def test_order_sync_preserves_orders_added_while_a_request_is_pending():
+    code = section("function leerPedidosPendientesLocal()", "function hayColasVentasConPropietario()")
+    code += section("function guardarPedidosPendientes()", "function guardarPedidoPendiente(pedido)")
+    code += section("function sincronizarPedidosPendientes(silencioso)", "function guardarPed()")
+    node(ORDER_SYNC_HARNESS + code + r"""
+async function run(){
+  const sync=sincronizarPedidosPendientes(true);await flush();
+  const added={id:'order-2',payload:{idempotency_key:'order-2'}};
+  stored=JSON.stringify([original,added]);requests[0].resolve({id:1});await sync;
+  assert.deepEqual(_pedidosPendientes,[added]);assert.deepEqual(JSON.parse(stored),[added]);
+}
+""")
 
 
 def test_mobile_refresh_only_reports_success_after_actual_reads_complete():

@@ -395,7 +395,7 @@ def test_offline_sales_queue_keeps_failures_and_avoids_background_auth_tokens():
     assert "return conBloqueoColasVentas(function(exigirBloqueoVigente)" in logout_segment
     assert "_ventasPendientes = leerVentasPendientesLocal()" in logout_segment
     assert "_ventasLegacyRevision = leerVentasLegacyRevision()" in logout_segment
-    assert "return {cerrada: false, ventasPendientes: ventasDetectadas}" in logout_segment
+    assert "return {cerrada: false, ventasPendientes: ventasDetectadas, pedidosPendientes: pedidosDetectados}" in logout_segment
     assert "exigirBloqueoVigente: exigirBloqueoVigente" in logout_segment
     assert logout_segment.index("if (!preservarVentasPendientes && exigirColasVacias") < logout_segment.index(
         "invalidarTareasSesion()"
