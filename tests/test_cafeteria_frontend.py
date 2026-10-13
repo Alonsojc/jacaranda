@@ -235,6 +235,7 @@ cargarCafeteriaVentas=()=>{refreshes++;return Promise.resolve();};
   _cafVentas=[cuenta];pagarCafeteria(1,true);let old=guardarPagoCafeteria();
   assert.equal(_cafPagoGuardando,true);invalidarTareasSesion();
   assert.equal(_pedCargaSeq,1);assert.equal(_pedidosCache.length,0);
+  assert.equal(fields['ped-list'].textContent,'');assert.equal(fields['ped-cal-content'].textContent,'');
   assert.equal(_cafPagoGuardando,false);assert.equal(_cafPagoContext,null);
   assert.deepEqual(_dashGetCache,{});assert.equal(_dashCacheAt,0);
   assert.deepEqual(_cafPagosPendientes,{});assert.deepEqual(_cafVentas,[]);

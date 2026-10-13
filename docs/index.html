@@ -3359,6 +3359,13 @@ function invalidarTareasSesion() {
   _cafCobranzaSeq++;
   _pedCargaSeq++;
   _pedidosCache = [];
+  _pedidosConocidos = {};
+  document.getElementById('ped-list').textContent = '';
+  document.getElementById('ped-cal-content').textContent = '';
+  document.getElementById('ped-reservas').innerHTML = '';
+  ['ped-hoy','ped-man','ped-sem'].forEach(function(id) { document.getElementById(id).textContent = '--'; });
+  document.getElementById('ped-datos-estado').hidden = true;
+  document.getElementById('ped-reintentar').hidden = true;
   cerrarModal('modal-caf-pago');
   _ventaEnProceso = false;
   _apiGetCache = {};
@@ -4644,6 +4651,7 @@ function go(p, opts) {
             resolve(Array.isArray(result) ? result.every(function(item) { return item !== false; }) : result !== false);
           }, function(err) {
             finalizarCarga();
+            if (versionCarga !== _versionSesion) { resolve(false); return; }
             reportarErrorPagina(p, err);
             resolve(false);
           });
@@ -16792,7 +16800,6 @@ function mostrarInicioGuardado(u) {
       _offline = true;
       actualizarBannerOffline();
       renderPOSFromData(cached);
-      reconcilePosDraftWithProducts(cached);
     }
   }
 }

@@ -119,17 +119,18 @@ async function run(){
 def test_cached_products_are_rendered_before_session_validation_finishes():
     harness = r"""
 const assert=require('node:assert/strict');
-let _currentUser=null,_userRole='',_offline=false,renders=[],drafts=0,selected='';
+let _currentUser=null,_userRole='',_offline=false,renders=[],drafts=0,selected='',reconciled=0;
 const APP_DEFAULT_PAGE='pos',products=[{id:1,precio_unitario:100}],document={getElementById:()=>({})};
 function pantallaInicialUsuario(){return 'pos';}function mostrarBotonActualizarApp(){}
 function aplicarPermisosModulos(){}function restorePosDraft(){drafts++;}
 function activarPagina(tab){selected=tab;}function leerCacheLocalJson(){return products;}
 function actualizarBannerOffline(){}function renderPOSFromData(p){renders.push(p);}
-function reconcilePosDraftWithProducts(){}
+function reconcilePosDraftWithProducts(){reconciled++;}
 """
     node(harness + section("function mostrarInicioGuardado(u)", "function aplicarPostLogin") + r"""
 async function run(){mostrarInicioGuardado({id:1,rol:'CAJERO'});
-  assert.equal(selected,'pos');assert.equal(drafts,1);assert.deepEqual(renders,[products]);assert.equal(_offline,true);}
+  assert.equal(selected,'pos');assert.equal(drafts,1);assert.deepEqual(renders,[products]);assert.equal(_offline,true);
+  assert.equal(reconciled,0);}
 """)
 
 
