@@ -108,6 +108,18 @@ def test_read_recovery_is_bounded_and_never_replays_cancellation():
 """)
 
 
+def test_background_read_recovery_stays_quiet_when_both_attempts_fail():
+    node(API_HARNESS + r"""
+(async () => {
+  fetchImpl = () => Promise.resolve(response(503, {detail:'temporary'}));
+  await assert.rejects(apiLecturaRecuperable('/background', {silenciosa:true}), e => e.status === 503);
+  assert.equal(requests.length, 2);
+  assert.equal(failures.length, 0);
+  assert.equal(expired, 0);
+})().catch(e => { console.error(e); process.exitCode = 1; });
+""")
+
+
 def test_json_body_read_stays_timed_and_invalid_success_is_not_cached():
     node(API_HARNESS + r"""
 (async () => {

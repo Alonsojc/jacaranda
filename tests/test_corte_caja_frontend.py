@@ -160,7 +160,7 @@ def test_cut_load_waits_for_both_requests_and_ignores_old_dates():
 const assert = require('node:assert/strict');
 const fields = {};
 const document = {getElementById: id => fields[id] ||= {value:'',style:{},textContent:'',innerHTML:''}};
-let _corteCargaSeq=0, _corteVistaLista=false, _resumenCorteVista=null;
+let _corteCargaSeq=0, _corteVistaLista=false, _resumenCorteVista=null, _versionSesion=1;
 let _efTotal=0, _corteVentas=[], _corteActual=null, _totalVentasDia=0;
 function actualizarVisibilidadFinanzasCorte() {}
 function calcularDiferencia() { fields['mathLast'] = _efTotal; }
@@ -171,6 +171,7 @@ function fechaDiasAntesISO() { return '2026-09-30'; }
 function fmt(n) { return Number(n).toFixed(2); }
 const requests=[];
 function api(method,path) { return new Promise((resolve,reject)=>requests.push({path,resolve,reject})); }
+function apiLecturaRecuperable(path) { return api('GET', path); }
 function summary(date,total) { return {fecha:date,total_ventas_efectivo:total,total_ventas_tarjeta:0,
 total_ventas_transferencia:0,total_ventas_clip:0,total_ventas_bbva:0,total_ventas:total,numero_ventas:0}; }
 """ + load + r"""
@@ -181,15 +182,18 @@ async function run() {
   fields['c-fecha'].value='2026-10-06'; let latest=cargarCorte();
   requests[2].resolve([]); await Promise.resolve();
   assert.equal(_corteVistaLista,false);
-  requests[3].resolve(summary('2026-10-06',502.5)); await latest;
+  requests[3].resolve(summary('2026-10-06',502.5)); assert.equal(await latest,true);
   assert.equal(_efTotal,502.5); assert.equal(fields['mathLast'],502.5);
   assert.equal(fields['btn-imprimir-corte'].disabled,false);
   requests[0].resolve([]); requests[1].resolve(summary('2026-10-05',900)); await old;
   assert.equal(_efTotal,502.5);
-  latest=cargarCorte(); requests[4].resolve([]); requests[5].reject(new Error('offline')); await latest;
+  latest=cargarCorte(); requests[4].resolve([]); requests[5].reject(new Error('offline')); assert.equal(await latest,false);
   assert.equal(_corteVistaLista,false); assert.equal(_efTotal,null);
   assert.equal(fields['btn-corte'].disabled,true);
   assert.equal(fields['btn-imprimir-corte'].disabled,true);
+  latest=cargarCorte();_versionSesion++;_efTotal=99;_corteVistaLista=true;
+  requests[6].resolve([]);requests[7].resolve(summary('2026-10-06',500));
+  assert.equal(await latest,false);assert.equal(_efTotal,99);assert.equal(_corteVistaLista,true);
 }
 run().catch(e=>{console.error(e);process.exit(1)});
 """

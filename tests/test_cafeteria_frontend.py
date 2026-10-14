@@ -56,6 +56,7 @@ SESSION_HARNESS = r"""
 let _ticketEdicion=null,_ventaEnProceso=false,_apiGetCache={},_apiGetInFlight={},_migracionVentasTx=null;
 let _dashGetCache={old:Promise.resolve({})},_dashCacheAt=100;
 let _resguardoSeq=0,_egresosResumenSeq=0,_egOcrSeq=0,_ocrSeq=0;
+let _pedCargaSeq=0,_pedidosCache=[{id:1}];
 function cancelarAdminAuth(){}
 function cerrarClaveAutorizacion(){}
 function cerrarUsuario(){}
@@ -233,6 +234,8 @@ cargarCafeteriaVentas=()=>{refreshes++;return Promise.resolve();};
 (async()=>{
   _cafVentas=[cuenta];pagarCafeteria(1,true);let old=guardarPagoCafeteria();
   assert.equal(_cafPagoGuardando,true);invalidarTareasSesion();
+  assert.equal(_pedCargaSeq,1);assert.equal(_pedidosCache.length,0);
+  assert.equal(fields['ped-list'].textContent,'');assert.equal(fields['ped-cal-content'].textContent,'');
   assert.equal(_cafPagoGuardando,false);assert.equal(_cafPagoContext,null);
   assert.deepEqual(_dashGetCache,{});assert.equal(_dashCacheAt,0);
   assert.deepEqual(_cafPagosPendientes,{});assert.deepEqual(_cafVentas,[]);
@@ -256,6 +259,7 @@ cargarCafeteriaVentas=()=>{refreshes++;return Promise.resolve();};
 (async()=>{
   _cafVentas=[cuenta];let old=editarFechaEntregaCafeteria(1);await Promise.resolve();
   assert.equal(_cafFechaGuardando[1],true);invalidarTareasSesion();
+  assert.equal(_pedCargaSeq,1);assert.equal(_pedidosCache.length,0);
   assert.deepEqual(_cafFechaGuardando,{});
   _cafVentas=[cuenta];let current=editarFechaEntregaCafeteria(1);await Promise.resolve();
   requests[0].resolve(cuenta);await old;

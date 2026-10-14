@@ -24,13 +24,13 @@
     var preserveSales = !!(options && options.preserveSales);
     var localKeys = [
       'jacaranda_prods_cache',
-      'jacaranda_pedidos_pendientes',
       'jacaranda_pedido_contactos',
       'jacaranda_pos_draft',
       'jacaranda_tab'
     ];
     if (!preserveSales) {
       localKeys.push(
+        'jacaranda_pedidos_pendientes',
         'jacaranda_ventas_pendientes',
         'jacaranda_ventas_legacy_revision',
         'jacaranda_ventas_propietario'
