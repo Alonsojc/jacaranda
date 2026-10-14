@@ -4,6 +4,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 import shutil
 import subprocess
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -55,13 +56,25 @@ class HeadParser(HTMLParser):
 def test_startup_does_not_wait_for_fonts_or_core_before_painting():
     parser = HeadParser()
     parser.feed(HTML)
-    core = [attrs for tag, attrs in parser.tags if tag == "script" and attrs.get("src") == "js/jacaranda-core.js"]
+    core = [attrs for tag, attrs in parser.tags if tag == "script" and urlsplit(attrs.get("src", "")).path == "js/jacaranda-core.js"]
     fonts = [attrs for tag, attrs in parser.tags if tag == "link" and "fonts.googleapis.com" in attrs.get("href", "")]
     assert len(core) == len(fonts) == 1
     assert "defer" in core[0]
     assert fonts[0]["rel"] == "preload"
     assert fonts[0]["as"] == "style"
     assert "this.rel='stylesheet'" in fonts[0]["onload"]
+
+
+def test_core_url_is_pinned_to_the_same_build_as_html_and_worker_precache():
+    parser = HeadParser()
+    parser.feed(HTML)
+    core = [attrs["src"] for tag, attrs in parser.tags if tag == "script" and urlsplit(attrs.get("src", "")).path == "js/jacaranda-core.js"]
+    assert len(core) == 1
+    build = parse_qs(urlsplit(core[0]).query)["v"][0]
+    assert f"var APP_BUILD = '{build}'" in HTML
+    sw = Path("docs/sw.js").read_text(encoding="utf-8")
+    assert f"const CACHE_NAME = '{build}'" in sw
+    assert f"'./{core[0]}'" in sw
 
 
 START_HARNESS = r"""
