@@ -16089,10 +16089,11 @@ function cargarDashIA() {
   document.getElementById('ia-dash-content').textContent = 'Cargando an\u00e1lisis...';
   return api('GET', '/ia/dashboard').then(function(r) {
     if (!vigente()) return;
+    var alertasPricing = r.alertas_pricing.filter(function(p) { return accionPricingIA(p) !== 'mantener'; });
     var h = '<div class="row r4" style="margin-bottom:1rem">';
     h += '<div class="card kpi"><div class="n">' + (r.precision_modelo.muestras ? r.precision_modelo.valor + '%' : '--') + '</div><div class="l">Precisi\u00f3n hist\u00f3rica: ' + escHtml(r.precision_modelo.calificacion) + '</div></div>';
     h += '<div class="card kpi g"><div class="n">' + (r.total_productos_hornear || 0) + '</div><div class="l">Productos a hornear</div></div>';
-    h += '<div class="card kpi a"><div class="n">' + r.alertas_pricing.length + '</div><div class="l">Alertas de precio y datos</div></div>';
+    h += '<div class="card kpi a"><div class="n">' + alertasPricing.length + '</div><div class="l">Alertas de precio y datos</div></div>';
     h += '<div class="card kpi p"><div class="n">' + (r.impacto_potencial_mensual > 0 ? '+$' + fmt(r.impacto_potencial_mensual) : '$0') + '</div><div class="l">Impacto potencial/mes</div></div>';
     h += '</div>';
 
@@ -16115,11 +16116,11 @@ function cargarDashIA() {
 
     // Pricing alerts
     h += '<div class="card"><h3>&#128176; Alertas de precio y datos</h3>';
-    if (!r.alertas_pricing.length) {
+    if (!alertasPricing.length) {
       h += '<p style="color:var(--mut);font-size:.83rem">Sin cambios de precio sugeridos.</p>';
     } else {
-      for (var j = 0; j < r.alertas_pricing.length; j++) {
-        var p = r.alertas_pricing[j];
+      for (var j = 0; j < alertasPricing.length; j++) {
+        var p = alertasPricing[j];
         var sg = p.sugerencia;
         var accion = accionPricingIA(p);
         var aCls = 'ia-act-' + accion;

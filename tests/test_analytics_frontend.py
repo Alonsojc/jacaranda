@@ -218,8 +218,16 @@ const up={...missing,nombre:'Propuesta real',costo:20,margen_pct:63.6,
     total_productos_hornear:0,alertas_pricing:[missing,same,up],sugerencias_produccion:[],
     impacto_potencial_mensual:0,productos_sin_rotacion:0});await load;
   const summary=field('ia-dash-content').innerHTML;
-  assert(summary.includes('Revisar datos'));assert(summary.includes('Sin cambio'));
+  assert(summary.includes('Revisar datos'));assert(!summary.includes('Sin cambio'));
+  assert(summary.includes('<div class="n">2</div><div class="l">Alertas de precio y datos</div>'));
   assert.equal((summary.match(/&rarr;/g)||[]).length,1);
+  load=cargarDashIA();calls[2].resolve({precision_modelo:{muestras:0,valor:0,calificacion:'sin datos'},
+    total_productos_hornear:0,alertas_pricing:[same],sugerencias_produccion:[],
+    impacto_potencial_mensual:0,productos_sin_rotacion:0});await load;
+  const noAlerts=field('ia-dash-content').innerHTML;
+  assert(noAlerts.includes('<div class="n">0</div><div class="l">Alertas de precio y datos</div>'));
+  assert(noAlerts.includes('Sin cambios de precio sugeridos.'));
+  assert(!noAlerts.includes('Redondeado'));
 })();
 """)
 
