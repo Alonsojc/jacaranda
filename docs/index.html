@@ -374,8 +374,8 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .prompt-input{width:100%;padding:.78rem;border:1px solid var(--brd);border-radius:10px;font-size:1rem;margin-top:.35rem}
 .prompt-input:focus{outline:none;border-color:var(--v);box-shadow:0 0 0 3px rgba(196,152,138,.18)}
 /* Toast notification */
-.toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);background:#c4988a;color:#fff;padding:.8rem 1.5rem;border-radius:12px;font-weight:600;font-size:.9rem;box-shadow:0 8px 25px rgba(196,152,138,.35);z-index:200;transition:transform .3s ease-out;display:flex;align-items:center;gap:.5rem;pointer-events:none}
-.toast.show{transform:translateX(-50%) translateY(0)}
+.toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);opacity:0;visibility:hidden;background:#c4988a;color:#fff;padding:.8rem 1.5rem;border-radius:12px;font-weight:600;font-size:.9rem;box-shadow:0 8px 25px rgba(196,152,138,.35);z-index:200;transition:opacity .2s,transform .3s ease-out;display:flex;align-items:center;gap:.5rem;pointer-events:none}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1;visibility:visible}
 .toast.err{background:#ef4444;box-shadow:0 8px 25px rgba(239,68,68,.3)}
 .app-status{position:fixed;top:0;left:0;right:0;height:3px;z-index:220;pointer-events:none;opacity:0;transition:opacity .16s ease;background:linear-gradient(90deg,transparent,var(--v),transparent);background-size:180% 100%;animation:statusSlide 1.1s linear infinite}
 .app-status.on{opacity:1}
@@ -468,8 +468,8 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .ia-conf-med{background:#fef3c7;color:#92400e}
 .ia-conf-low{background:#fee2e2;color:#b91c1c}
 .ia-pricing-card{background:#fff;border-radius:12px;padding:.8rem 1rem;border:1px solid var(--brd);margin-bottom:.6rem}
-.ia-pricing-card .ip-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem}
-.ia-pricing-card .ip-name{font-weight:700;font-size:.88rem;color:var(--dk)}
+.ia-pricing-card .ip-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem;margin-bottom:.3rem}
+.ia-pricing-card .ip-name{font-weight:700;font-size:.88rem;color:var(--dk);overflow-wrap:anywhere}
 .ia-pricing-card .ip-detail{font-size:.78rem;color:var(--mut);margin-bottom:.3rem}
 .ia-pricing-card .ip-action{display:flex;align-items:center;gap:.5rem;font-size:.82rem;font-weight:600}
 .ia-act-subir{color:#047857}.ia-act-bajar{color:#f59e0b}.ia-act-descuento{color:#b91c1c}.ia-act-mantener{color:var(--mut)}.ia-act-revisar{color:#b45309}
@@ -664,7 +664,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 #rep .section-tabs .tab{white-space:nowrap;flex-shrink:0}
 @media(max-width:768px){.report-period .limpiar,.report-period .cobrar{min-height:44px}.report-period input{min-height:44px}}
 </style>
-<script defer src="js/jacaranda-core.js?v=jacaranda-v118"></script>
+<script defer src="js/jacaranda-core.js?v=jacaranda-v119"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 </head>
@@ -3147,7 +3147,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 
 <div class="app-status" id="app-status" aria-hidden="true"></div>
-<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true"></div>
 <div class="footer">
 <strong style="font-family:'DM Serif Display',serif;letter-spacing:.2em;color:var(--v);font-weight:400">Jacaranda</strong> <span style="color:var(--mut);font-size:.75rem">sharing flavors</span><br>
 Plaza Distrito Marqu&eacute;s, Quer&eacute;taro &bull; <a href="https://instagram.com/jacaranda.flavors" target="_blank">@jacaranda.flavors</a> &bull; <a href="https://wa.me/5214424670397" target="_blank">WhatsApp</a>
@@ -3181,7 +3181,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v118';
+var APP_BUILD = 'jacaranda-v119';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -3467,18 +3467,34 @@ function nuevaClaveIdempotencia(prefix) {
 
 // ─── Toast ────────────────────────────────────────────────────────
 var _toastTimer = null;
+var _toastHasta = 0;
+function ocultarToast() {
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = null;
+  _toastHasta = 0;
+  var el = document.getElementById('toast');
+  if (!el) return;
+  el.classList.remove('show');
+  el.textContent = '';
+  el.setAttribute('aria-hidden', 'true');
+}
+function revisarVencimientoToast() {
+  if (_toastHasta && Date.now() >= _toastHasta) ocultarToast();
+}
+document.addEventListener('visibilitychange', revisarVencimientoToast);
+window.addEventListener('pageshow', revisarVencimientoToast);
 function toast(msg, isErr) {
   var el = document.getElementById('toast');
+  if (!el) return;
   if (_toastTimer) clearTimeout(_toastTimer);
   el.textContent = msg;
-  el.className = 'toast' + (isErr ? ' err' : '');
+  el.className = 'toast show' + (isErr ? ' err' : '');
   el.setAttribute('role', isErr ? 'alert' : 'status');
   el.setAttribute('aria-live', isErr ? 'assertive' : 'polite');
-  setTimeout(function() { el.classList.add('show'); }, 10);
-  _toastTimer = setTimeout(function() {
-    el.classList.remove('show');
-    _toastTimer = null;
-  }, isErr ? 5000 : 3200);
+  el.setAttribute('aria-hidden', 'false');
+  var duracion = isErr ? 5000 : 3200;
+  _toastHasta = Date.now() + duracion;
+  _toastTimer = setTimeout(ocultarToast, duracion);
 }
 
 function esArchivoLocal() {
@@ -14423,8 +14439,9 @@ function _setDelta(elId, subId, current, previous, fmtFn) {
 }
 
 function cargarSparklines() {
-  dashGet('/reportes/ventas-por-dia?dias=14').then(function(dias) {
+  dashGet('/reportes/ventas-por-dia?dias=15').then(function(dias) {
     if (!dias || !dias.length) return;
+    dias = dias.slice(-14);
     var ventas = dias.map(function(d){ return parseFloat(d.total) || 0; });
     var tickets = dias.map(function(d){ return parseInt(d.tickets) || 0; });
     var prom = dias.map(function(d){ return d.tickets > 0 ? (d.total / d.tickets) : 0; });
@@ -14472,28 +14489,40 @@ function renderDashAlertas(extra) {
 }
 
 function cargarComparativoSemanal() {
-  dashGet('/reportes/ventas-por-dia?dias=14').then(function(dias) {
+  var seq = ++_chartWeekSeq, version = _versionSesion, hoy = fechaHoyISO();
+  function vigente() { return seq === _chartWeekSeq && version === _versionSesion; }
+  return dashGet('/reportes/ventas-por-dia?dias=15').then(function(dias) {
+    if (!vigente()) return;
+    var completos = dias.filter(function(dia) { return dia.fecha < hoy; }).slice(-14);
+    if (completos.length !== 14) throw new Error('No se recibieron los 14 d\u00edas completos del comparativo.');
     var diasSemana = ['Dom','Lun','Mar','Mi\u00e9','Jue','Vie','S\u00e1b'];
-    var semanaAct = dias.slice(-7);
-    var semanaAnt = dias.slice(0, 7);
+    var semanaAct = completos.slice(-7);
+    var semanaAnt = completos.slice(0, 7);
     var totalAct = 0, totalAnt = 0;
     for (var i = 0; i < semanaAct.length; i++) totalAct += semanaAct[i].total;
     for (var j = 0; j < semanaAnt.length; j++) totalAnt += semanaAnt[j].total;
-    var cambio = totalAnt > 0 ? ((totalAct - totalAnt) / totalAnt * 100) : 0;
+    var cambio = totalAnt > 0 ? ((totalAct - totalAnt) / totalAnt * 100) : null;
     var flecha = cambio > 0 ? '\u25B2' : cambio < 0 ? '\u25BC' : '\u25CF';
     var color = cambio > 0 ? 'var(--grn)' : cambio < 0 ? '#ef4444' : 'var(--mut)';
+    function fechaBreve(fecha) {
+      return fechaLocalDesdeISO(fecha).toLocaleDateString('es-MX', {day:'numeric',month:'short'});
+    }
 
     // Header con resumen compacto
-    var h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">';
-    h += '<div style="display:flex;gap:1.2rem;align-items:baseline">';
-    h += '<span style="font-size:.72rem;color:var(--mut);text-transform:uppercase;letter-spacing:.03em">Esta semana <strong style="font-size:1rem;color:var(--v)">$' + fmt(totalAct) + '</strong></span>';
-    h += '<span style="font-size:.72rem;color:var(--mut);text-transform:uppercase;letter-spacing:.03em">Anterior <strong style="font-size:1rem;color:var(--mut)">$' + fmt(totalAnt) + '</strong></span>';
+    var h = '<p style="font-size:.75rem;color:var(--mut);margin-bottom:.6rem">D\u00edas completos hasta el ' + fechaBreve(semanaAct[6].fecha) + '</p>';
+    h += '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;margin-bottom:.5rem">';
+    h += '<div style="min-width:0"><div style="font-size:.72rem;color:var(--mut)">\u00daltimos 7 d\u00edas</div><strong style="font-size:1rem;color:var(--v)">$' + fmt(totalAct) + '</strong>';
+    h += '<div style="font-size:.7rem;color:var(--mut)">' + fechaBreve(semanaAct[0].fecha) + ' - ' + fechaBreve(semanaAct[6].fecha) + '</div></div>';
+    h += '<div style="min-width:0"><div style="font-size:.72rem;color:var(--mut)">7 d\u00edas anteriores</div><strong style="font-size:1rem;color:var(--mut)">$' + fmt(totalAnt) + '</strong>';
+    h += '<div style="font-size:.7rem;color:var(--mut)">' + fechaBreve(semanaAnt[0].fecha) + ' - ' + fechaBreve(semanaAnt[6].fecha) + '</div></div>';
     h += '</div>';
-    h += '<span style="font-size:.85rem;font-weight:700;color:' + color + ';background:' + (cambio > 0 ? '#d1fae5' : cambio < 0 ? '#fee2e2' : '#f3f4f6') + ';padding:.2rem .5rem;border-radius:6px">' + flecha + ' ' + Math.abs(cambio).toFixed(1) + '%</span>';
-    h += '</div>';
+    h += '<span style="display:inline-block;margin-bottom:.6rem;font-size:.85rem;font-weight:700;color:' + color + ';background:' + (cambio > 0 ? '#d1fae5' : cambio < 0 ? '#fee2e2' : '#f3f4f6') + ';padding:.2rem .5rem;border-radius:6px">' + (cambio === null ? 'Sin base previa' : flecha + ' ' + Math.abs(cambio).toFixed(1) + '%') + '</span>';
 
     // Chart.js grouped bar
-    h += '<div style="height:200px"><canvas id="chart-week-compare"></canvas></div>';
+    h += '<div id="chart-week-panel" style="height:200px"><canvas id="chart-week-compare"></canvas></div>';
+    h += '<p id="chart-week-estado" class="analytics-status" role="status" hidden></p>';
+    if (_chartWeek) try { _chartWeek.destroy(); } catch(e){}
+    _chartWeek = null;
     document.getElementById('d-week-compare').innerHTML = h;
 
     // Render chart
@@ -14501,44 +14530,52 @@ function cargarComparativoSemanal() {
     var dataAct = [];
     var dataAnt = [];
     for (var d = 0; d < 7; d++) {
-      var diaFecha = semanaAct[d] ? new Date(semanaAct[d].fecha + 'T12:00:00') : null;
-      labels.push(diaFecha ? diasSemana[diaFecha.getDay()] : '');
-      dataAct.push(semanaAct[d] ? semanaAct[d].total : 0);
-      dataAnt.push(semanaAnt[d] ? semanaAnt[d].total : 0);
+      labels.push(diasSemana[fechaLocalDesdeISO(semanaAct[d].fecha).getDay()]);
+      dataAct.push(semanaAct[d].total);
+      dataAnt.push(semanaAnt[d].total);
     }
-    var ctx = document.getElementById('chart-week-compare');
-    if (!ctx) return;
-    if (typeof Chart === 'undefined') {
-      ensureChart().then(function() { cargarComparativoSemanal(); }).catch(function(){});
-      return;
-    }
-    if (_chartWeek) try { _chartWeek.destroy(); } catch(e){}
-    _chartWeek = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [
-          { label: 'Esta semana', data: dataAct, backgroundColor: 'rgba(196,152,138,0.85)', borderRadius: 5, borderSkipped: false },
-          { label: 'Anterior', data: dataAnt, backgroundColor: 'rgba(196,152,138,0.25)', borderRadius: 5, borderSkipped: false }
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 }, padding: 12 } },
-          tooltip: { callbacks: { label: function(c) { return c.dataset.label + ': $' + c.parsed.y.toLocaleString('es-MX',{minimumFractionDigits:2}); } } }
+    function dibujar() {
+      if (!vigente()) return;
+      var ctx = document.getElementById('chart-week-compare');
+      if (!ctx) return;
+      _chartWeek = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: '\u00daltimos 7 d\u00edas', data: dataAct, backgroundColor: 'rgba(196,152,138,0.85)', borderRadius: 5, borderSkipped: false },
+            { label: '7 d\u00edas anteriores', data: dataAnt, backgroundColor: 'rgba(196,152,138,0.25)', borderRadius: 5, borderSkipped: false }
+          ]
         },
-        scales: {
-          y: { beginAtZero: true, ticks: { callback: function(v){ return '$' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v); }, font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.04)' } },
-          x: { ticks: { font: { size: 11, weight: '600' } }, grid: { display: false } }
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 }, padding: 12 } },
+            tooltip: { callbacks: { label: function(c) { return c.dataset.label + ': $' + c.parsed.y.toLocaleString('es-MX',{minimumFractionDigits:2}); } } }
+          },
+          scales: {
+            y: { beginAtZero: true, ticks: { callback: function(v){ return '$' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v); }, font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.04)' } },
+            x: { ticks: { font: { size: 11, weight: '600' } }, grid: { display: false } }
+          }
         }
-      }
+      });
+    }
+    return Promise.resolve().then(function() {
+      if (typeof Chart === 'undefined') return ensureChart();
+    }).then(dibujar).catch(function() {
+      if (!vigente()) return;
+      document.getElementById('chart-week-panel').hidden = true;
+      var estado = document.getElementById('chart-week-estado');
+      estado.hidden = false;
+      estado.textContent = 'Datos disponibles; no se pudo cargar la gr\u00e1fica.';
     });
   }).catch(function() {
-    document.getElementById('d-week-compare').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center;padding:1rem">Sin datos de ventas</p>';
+    if (!vigente()) return;
+    document.getElementById('d-week-compare').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center;padding:1rem">No se pudo cargar el comparativo</p>';
   });
 }
 var _chartWeek = null;
+var _chartWeekSeq = 0;
 
 // Auto-conectar si hay URL guardada (con reintentos para Railway cold start)
 // ─── Permisos por rol ─────────────────────────────────────────────
@@ -16043,15 +16080,28 @@ function _trendIcon(pct) {
   return '<span style="color:var(--mut)">&#9644; ' + pct + '%</span>';
 }
 
+function accionPricingIA(producto) {
+  var sg = producto.sugerencia;
+  if (sg.accion === 'revisar') return 'revisar';
+  var actual = Math.round(Number(producto.precio_actual) * 100);
+  var nuevo = Math.round(Number(sg.precio_sugerido) * 100);
+  if (Number.isFinite(actual) && Number.isFinite(nuevo) && nuevo > 0) {
+    if (sg.accion === 'subir' && nuevo > actual) return 'subir';
+    if ((sg.accion === 'bajar' || sg.accion === 'descuento') && nuevo < actual) return sg.accion;
+  }
+  return 'mantener';
+}
+
 function cargarDashIA() {
   var vigente = solicitudIA('ia-dash-content');
   document.getElementById('ia-dash-content').textContent = 'Cargando an\u00e1lisis...';
   return api('GET', '/ia/dashboard').then(function(r) {
     if (!vigente()) return;
+    var alertasPricing = r.alertas_pricing.filter(function(p) { return accionPricingIA(p) !== 'mantener'; });
     var h = '<div class="row r4" style="margin-bottom:1rem">';
     h += '<div class="card kpi"><div class="n">' + (r.precision_modelo.muestras ? r.precision_modelo.valor + '%' : '--') + '</div><div class="l">Precisi\u00f3n hist\u00f3rica: ' + escHtml(r.precision_modelo.calificacion) + '</div></div>';
     h += '<div class="card kpi g"><div class="n">' + (r.total_productos_hornear || 0) + '</div><div class="l">Productos a hornear</div></div>';
-    h += '<div class="card kpi a"><div class="n">' + r.alertas_pricing.length + '</div><div class="l">Alertas de precio</div></div>';
+    h += '<div class="card kpi a"><div class="n">' + alertasPricing.length + '</div><div class="l">Alertas de precio y datos</div></div>';
     h += '<div class="card kpi p"><div class="n">' + (r.impacto_potencial_mensual > 0 ? '+$' + fmt(r.impacto_potencial_mensual) : '$0') + '</div><div class="l">Impacto potencial/mes</div></div>';
     h += '</div>';
 
@@ -16073,17 +16123,18 @@ function cargarDashIA() {
     h += '</div>';
 
     // Pricing alerts
-    h += '<div class="card"><h3>&#128176; Alertas de precio</h3>';
-    if (!r.alertas_pricing.length) {
+    h += '<div class="card"><h3>&#128176; Alertas de precio y datos</h3>';
+    if (!alertasPricing.length) {
       h += '<p style="color:var(--mut);font-size:.83rem">Sin cambios de precio sugeridos.</p>';
     } else {
-      for (var j = 0; j < r.alertas_pricing.length; j++) {
-        var p = r.alertas_pricing[j];
+      for (var j = 0; j < alertasPricing.length; j++) {
+        var p = alertasPricing[j];
         var sg = p.sugerencia;
-        var aCls = 'ia-act-' + sg.accion;
-        var icon = sg.accion === 'revisar' ? 'Revisar' : sg.accion === 'subir' ? '&#9650;' : sg.accion === 'descuento' ? '&#128178;' : '&#9660;';
+        var accion = accionPricingIA(p);
+        var aCls = 'ia-act-' + accion;
+        var propuesta = accion === 'revisar' ? 'Revisar datos' : accion === 'mantener' ? 'Sin cambio' : '$' + fmt(p.precio_actual) + ' &rarr; $' + fmt(sg.precio_sugerido);
         h += '<div class="ia-pricing-card"><div class="ip-head"><span class="ip-name">' + escHtml(p.nombre) + '</span>';
-        h += '<span class="ip-action ' + aCls + '">' + icon + ' $' + p.precio_actual + ' &rarr; $' + sg.precio_sugerido + '</span></div>';
+        h += '<span class="ip-action ' + aCls + '">' + propuesta + '</span></div>';
         h += '<div class="ip-detail">' + escHtml(sg.razon) + '</div></div>';
       }
     }
@@ -16170,8 +16221,8 @@ function cargarPricingIA() {
     if (!vigente()) return;
     if (!items.length) { document.getElementById('ia-pr-content').innerHTML = '<div class="card"><p style="color:var(--mut)">Sin productos para analizar.</p></div>'; return; }
     // Count by action
-    var counts = {subir:0, bajar:0, descuento:0, mantener:0};
-    for (var c = 0; c < items.length; c++) counts[items[c].sugerencia.accion] = (counts[items[c].sugerencia.accion]||0) + 1;
+    var counts = {subir:0, bajar:0, descuento:0, mantener:0, revisar:0};
+    for (var c = 0; c < items.length; c++) counts[accionPricingIA(items[c])]++;
 
     var h = '<div class="row r4" style="margin-bottom:1rem">';
     h += '<div class="card kpi g"><div class="n">' + (counts.subir||0) + '</div><div class="l">Subir precio</div></div>';
@@ -16179,26 +16230,33 @@ function cargarPricingIA() {
     h += '<div class="card kpi" style="border-left:3px solid #ef4444"><div class="n">' + (counts.descuento||0) + '</div><div class="l">Aplicar descuento</div></div>';
     h += '<div class="card kpi"><div class="n">' + (counts.mantener||0) + '</div><div class="l">Sin cambio sugerido</div></div>';
     h += '</div>';
+    if (counts.revisar) h += '<p class="analytics-status">Revisar datos: ' + counts.revisar + '. Sin propuesta de precio.</p>';
 
     for (var i = 0; i < items.length; i++) {
       var p = items[i];
       var sg = p.sugerencia;
-      var aCls = 'ia-act-' + sg.accion;
-      var icon = sg.accion === 'subir' ? '&#9650;' : sg.accion === 'descuento' ? '&#128178;' : sg.accion === 'bajar' ? '&#9660;' : '&#10003;';
+      var accion = accionPricingIA(p);
+      var cambioPrecio = accion !== 'mantener' && accion !== 'revisar';
+      var aCls = 'ia-act-' + accion;
+      var etiqueta = accion === 'revisar' ? 'REVISAR DATOS' : accion === 'mantener' ? 'SIN CAMBIO' : accion.toUpperCase();
       h += '<div class="ia-pricing-card">';
       h += '<div class="ip-head"><span class="ip-name">' + escHtml(p.nombre) + '</span>';
-      h += '<span class="ip-action ' + aCls + '">' + icon + ' ' + sg.accion.toUpperCase() + '</span></div>';
+      h += '<span class="ip-action ' + aCls + '">' + etiqueta + '</span></div>';
       h += '<div class="ip-detail">';
-      h += 'Precio: <strong>$' + fmt(p.precio_actual) + '</strong> | Costo: $' + fmt(p.costo) + ' | Margen: ' + p.margen_pct + '% | ';
+      h += 'Precio: <strong>$' + fmt(p.precio_actual) + '</strong> | ';
+      h += Number(p.costo) > 0 ? 'Costo: $' + fmt(p.costo) + ' | Margen: ' + p.margen_pct + '% | ' : 'Costo: Sin registrar | Margen: No disponible | ';
       h += 'Vendidos: ' + p.qty_vendida + ' (' + p.rotacion_diaria + '/d\u00eda)';
       if (p.dias_sin_venta < 999) h += ' | \u00daltima venta: hace ' + p.dias_sin_venta + 'd';
       if (p.elasticidad) h += ' | Elasticidad: ' + p.elasticidad.valor + ' (' + p.elasticidad.interpretacion + ')';
       h += '</div>';
-      if (sg.accion !== 'mantener') {
+      if (accion !== 'mantener') {
         h += '<div style="margin-top:.3rem;font-size:.82rem;font-weight:600">';
-        h += '<span class="' + aCls + '">$' + fmt(p.precio_actual) + ' &rarr; $' + fmt(sg.precio_sugerido) + '</span>';
-        if (sg.impacto_mensual) h += ' &bull; Impacto: <span style="color:' + (sg.impacto_mensual > 0 ? 'var(--grn)' : '#b91c1c') + '">$' + fmt(sg.impacto_mensual) + '/mes</span>';
-        h += ' &bull; <span style="color:var(--mut)">' + escHtml(sg.razon) + '</span>';
+        if (cambioPrecio) {
+          h += '<span class="' + aCls + '">$' + fmt(p.precio_actual) + ' &rarr; $' + fmt(sg.precio_sugerido) + '</span>';
+          if (sg.impacto_mensual) h += ' &bull; Impacto: <span style="color:' + (sg.impacto_mensual > 0 ? 'var(--grn)' : '#b91c1c') + '">$' + fmt(sg.impacto_mensual) + '/mes</span>';
+          h += ' &bull; ';
+        }
+        h += '<span style="color:var(--mut)">' + escHtml(sg.razon) + '</span>';
         h += '</div>';
       }
       h += '</div>';

@@ -193,6 +193,45 @@ assert.equal(apiGetCacheTtl('/crm/clientes'),0);
 """)
 
 
+def test_pricing_separates_data_review_unchanged_prices_and_real_proposals():
+    node(HARNESS + IA + r"""
+const missing={producto_id:1,nombre:'Sin costo <uno>',precio_actual:55,costo:0,margen_pct:100,
+  qty_vendida:25,rotacion_diaria:0.42,dias_sin_venta:1,
+  sugerencia:{accion:'revisar',precio_sugerido:55,impacto_mensual:0,razon:'Revisar costo <pendiente>'}};
+const same={...missing,nombre:'Redondeado',costo:20,margen_pct:63.6,
+  sugerencia:{accion:'subir',precio_sugerido:55.001,razon:'Sin diferencia visible'}};
+const up={...missing,nombre:'Propuesta real',costo:20,margen_pct:63.6,
+  sugerencia:{accion:'subir',precio_sugerido:60,impacto_mensual:10,razon:'Margen bajo'}};
+(async()=>{
+  assert.equal(accionPricingIA(same),'mantener');
+  assert.equal(accionPricingIA({...same,sugerencia:{accion:'bajar',precio_sugerido:56}}),'mantener');
+  assert.equal(accionPricingIA({...same,sugerencia:{accion:'descuento',precio_sugerido:NaN}}),'mantener');
+  let load=cargarPricingIA();calls[0].resolve([missing,same,up]);await load;
+  const html=field('ia-pr-content').innerHTML;
+  assert(html.includes('REVISAR DATOS'));assert(html.includes('Costo: Sin registrar | Margen: No disponible'));
+  assert(!html.includes('Margen: 100%'));assert(!html.includes('$55.00 &rarr; $55.00'));
+  assert(html.includes('SIN CAMBIO'));assert(html.includes('$55.00 &rarr; $60.00'));
+  assert(html.includes('Revisar costo &lt;pendiente&gt;'));
+  assert(html.includes('Revisar datos: 1. Sin propuesta de precio.'));
+  assert.equal((html.match(/&rarr;/g)||[]).length,1);
+  load=cargarDashIA();calls[1].resolve({precision_modelo:{muestras:0,valor:0,calificacion:'sin datos'},
+    total_productos_hornear:0,alertas_pricing:[missing,same,up],sugerencias_produccion:[],
+    impacto_potencial_mensual:0,productos_sin_rotacion:0});await load;
+  const summary=field('ia-dash-content').innerHTML;
+  assert(summary.includes('Revisar datos'));assert(!summary.includes('Sin cambio'));
+  assert(summary.includes('<div class="n">2</div><div class="l">Alertas de precio y datos</div>'));
+  assert.equal((summary.match(/&rarr;/g)||[]).length,1);
+  load=cargarDashIA();calls[2].resolve({precision_modelo:{muestras:0,valor:0,calificacion:'sin datos'},
+    total_productos_hornear:0,alertas_pricing:[same],sugerencias_produccion:[],
+    impacto_potencial_mensual:0,productos_sin_rotacion:0});await load;
+  const noAlerts=field('ia-dash-content').innerHTML;
+  assert(noAlerts.includes('<div class="n">0</div><div class="l">Alertas de precio y datos</div>'));
+  assert(noAlerts.includes('Sin cambios de precio sugeridos.'));
+  assert(!noAlerts.includes('Redondeado'));
+})();
+""")
+
+
 def test_loading_lists_restores_loyalty_without_changing_selected_tab():
     node(HARNESS + CRM + section("function cargarListas()", "function cargarListaProductos()") + r"""
 let selected=true,loyaltyLoads=0;
