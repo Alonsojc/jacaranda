@@ -143,6 +143,24 @@ def test_weekly_zero_baseline_and_incomplete_response_do_not_invent_percentages(
 """)
 
 
+@pytest.mark.parametrize("failure", ["loader", "canvas"])
+def test_weekly_chart_failures_preserve_totals_dates_and_percentage(failure):
+    node(HARNESS + DATES + WEEK + f"const failure='{failure}';" + r"""
+(async()=>{
+  Chart=failure==='loader'?undefined:function(){throw new Error('Canvas failed');};
+  globalThis.ensureChart=()=>Promise.reject(new Error('CDN offline'));
+  const load=cargarComparativoSemanal();calls[0].resolve(dailySeries());await load;
+  const html=field('d-week-compare').innerHTML;
+  assert(html.includes('$140.00'));assert(html.includes('$70.00'));assert(html.includes('100.0%'));
+  assert(html.includes('D\u00edas completos hasta el'));assert(!html.includes('No se pudo cargar el comparativo'));
+  assert.equal(field('chart-week-panel').hidden,true);
+  assert.equal(field('chart-week-estado').hidden,false);
+  assert(field('chart-week-estado').textContent.includes('Datos disponibles'));
+  assert.equal(calls.length,1);
+})();
+""")
+
+
 def test_sparklines_share_the_daily_request_but_still_include_today():
     node(HARNESS + DATES + section("function cargarSparklines()", "var _dashAlertas") + r"""
 const sparks=[];function _renderSpark(id,values){sparks.push(values);}

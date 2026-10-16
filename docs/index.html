@@ -14519,7 +14519,8 @@ function cargarComparativoSemanal() {
     h += '<span style="display:inline-block;margin-bottom:.6rem;font-size:.85rem;font-weight:700;color:' + color + ';background:' + (cambio > 0 ? '#d1fae5' : cambio < 0 ? '#fee2e2' : '#f3f4f6') + ';padding:.2rem .5rem;border-radius:6px">' + (cambio === null ? 'Sin base previa' : flecha + ' ' + Math.abs(cambio).toFixed(1) + '%') + '</span>';
 
     // Chart.js grouped bar
-    h += '<div style="height:200px"><canvas id="chart-week-compare"></canvas></div>';
+    h += '<div id="chart-week-panel" style="height:200px"><canvas id="chart-week-compare"></canvas></div>';
+    h += '<p id="chart-week-estado" class="analytics-status" role="status" hidden></p>';
     if (_chartWeek) try { _chartWeek.destroy(); } catch(e){}
     _chartWeek = null;
     document.getElementById('d-week-compare').innerHTML = h;
@@ -14559,8 +14560,15 @@ function cargarComparativoSemanal() {
         }
       });
     }
-    if (typeof Chart === 'undefined') return ensureChart().then(dibujar);
-    dibujar();
+    return Promise.resolve().then(function() {
+      if (typeof Chart === 'undefined') return ensureChart();
+    }).then(dibujar).catch(function() {
+      if (!vigente()) return;
+      document.getElementById('chart-week-panel').hidden = true;
+      var estado = document.getElementById('chart-week-estado');
+      estado.hidden = false;
+      estado.textContent = 'Datos disponibles; no se pudo cargar la gr\u00e1fica.';
+    });
   }).catch(function() {
     if (!vigente()) return;
     document.getElementById('d-week-compare').innerHTML = '<p style="color:var(--mut);font-size:.83rem;text-align:center;padding:1rem">No se pudo cargar el comparativo</p>';
