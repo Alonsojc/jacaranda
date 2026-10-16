@@ -315,6 +315,17 @@ def analisis_pricing(db: Session, dias: int = 60, *, productos=None) -> list[dic
             precio, costo, margen_pct, elasticidad,
             rotacion, dias_sin_venta, float(prod.stock_actual or 0),
         )
+        # Normalize before sorting/limiting alerts; unchanged prices are not proposals.
+        accion = sugerencia["accion"]
+        if accion in ("subir", "bajar", "descuento"):
+            actual = Decimal(str(precio)).quantize(Decimal("0.01"))
+            nuevo = Decimal(str(sugerencia["precio_sugerido"])).quantize(Decimal("0.01"))
+            cambio = nuevo > actual if accion == "subir" else ZERO < nuevo < actual
+            if not cambio:
+                sugerencia = {
+                    "accion": "mantener", "precio_sugerido": precio,
+                    "razon": "Sin cambio de precio a centavos", "impacto_mensual": 0,
+                }
 
         resultados.append({
             "producto_id": prod.id,

@@ -196,6 +196,42 @@ def test_price_margin_and_discount_floor_are_mathematically_consistent():
     assert suggestion["precio_sugerido"] == 40
 
 
+@pytest.mark.parametrize("accion,nuevo", [
+    ("subir", 55), ("bajar", 55), ("descuento", 55),
+    ("subir", 54), ("bajar", 56), ("descuento", 56),
+])
+def test_pricing_normalizes_unchanged_and_wrong_direction_before_dashboard_limit(db, monkeypatch, accion, nuevo):
+    producto(db, precio_unitario=55, costo_produccion=20)
+    db.commit()
+    monkeypatch.setattr(ia, "_sugerir_precio", lambda *args: {
+        "accion": accion, "precio_sugerido": nuevo, "razon": "QA", "impacto_mensual": 999,
+    })
+    result = ia.analisis_pricing(db)[0]
+    assert result["sugerencia"]["accion"] == "mantener"
+    assert result["sugerencia"]["precio_sugerido"] == 55
+    assert result["sugerencia"]["impacto_mensual"] == 0
+    dashboard = ia.dashboard_ia(db)
+    assert dashboard["alertas_pricing"] == []
+    assert dashboard["impacto_potencial_mensual"] == 0
+
+
+def test_dashboard_backfills_five_real_alerts_after_unchanged_price_proposals(db, monkeypatch):
+    for i in range(5):
+        producto(db, f"SIN-CAMBIO-{i}", precio_unitario=55 + i, costo_produccion=20)
+        producto(db, f"REAL-{i}", precio_unitario=100 + i, costo_produccion=20)
+    db.commit()
+
+    def sugerencia(precio, *args):
+        return {"accion": "subir", "precio_sugerido": precio if precio < 100 else precio + 5,
+                "razon": "QA", "impacto_mensual": 999 if precio < 100 else 10}
+
+    monkeypatch.setattr(ia, "_sugerir_precio", sugerencia)
+    dashboard = ia.dashboard_ia(db)
+    assert len(dashboard["alertas_pricing"]) == 5
+    assert all(p["nombre"].startswith("REAL-") for p in dashboard["alertas_pricing"])
+    assert dashboard["impacto_potencial_mensual"] == 50
+
+
 def test_elasticity_waits_for_complete_comparable_windows():
     cambio = HistorialPrecio(fecha=datetime(2026, 10, 1, 12, tzinfo=timezone.utc),
                              precio_anterior=40, precio_nuevo=44)
