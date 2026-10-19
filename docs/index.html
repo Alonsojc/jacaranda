@@ -664,7 +664,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 #rep .section-tabs .tab{white-space:nowrap;flex-shrink:0}
 @media(max-width:768px){.report-period .limpiar,.report-period .cobrar{min-height:44px}.report-period input{min-height:44px}}
 </style>
-<script defer src="js/jacaranda-core.js?v=jacaranda-v119"></script>
+<script defer src="js/jacaranda-core.js?v=jacaranda-v120"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 </head>
@@ -3181,7 +3181,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v119';
+var APP_BUILD = 'jacaranda-v120';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -14551,7 +14551,15 @@ function cargarComparativoSemanal() {
           responsive: true, maintainAspectRatio: false,
           plugins: {
             legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 }, padding: 12 } },
-            tooltip: { callbacks: { label: function(c) { return c.dataset.label + ': $' + c.parsed.y.toLocaleString('es-MX',{minimumFractionDigits:2}); } } }
+            tooltip: { callbacks: {
+              title: function(items) {
+                if (!items.length) return '';
+                var punto = items[0];
+                var dia = (punto.datasetIndex === 0 ? semanaAct : semanaAnt)[punto.dataIndex];
+                return diasSemana[fechaLocalDesdeISO(dia.fecha).getDay()] + ' ' + fechaBreve(dia.fecha);
+              },
+              label: function(c) { return c.dataset.label + ': $' + c.parsed.y.toLocaleString('es-MX',{minimumFractionDigits:2}); }
+            } }
           },
           scales: {
             y: { beginAtZero: true, ticks: { callback: function(v){ return '$' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v); }, font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.04)' } },
