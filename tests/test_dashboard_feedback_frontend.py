@@ -105,10 +105,36 @@ def test_weekly_comparison_uses_two_aligned_closed_periods(tz, instant):
   assert.deepEqual(charts[0].data.datasets.map(s=>s.data),[Array(7).fill(20),Array(7).fill(10)]);
   const expected=rows.slice(7,14).map(d=>['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][new NativeDate(d.fecha+'T12:00:00Z').getUTCDay()]);
   assert.deepEqual(charts[0].data.labels,expected);
+  const title=charts[0].options.plugins.tooltip.callbacks.title;
+  const months=['ene','feb','mar','abr','may','jun','jul','ago','sept','oct','nov','dic'];
+  for(const datasetIndex of [0,1]) {
+    const period=datasetIndex===0?rows.slice(7,14):rows.slice(0,7);
+    for(let dataIndex=0;dataIndex<7;dataIndex++) {
+      const date=new NativeDate(period[dataIndex].fecha+'T12:00:00Z');
+      assert.equal(title([{datasetIndex,dataIndex}]),
+        expected[dataIndex]+' '+date.getUTCDate()+' '+months[date.getUTCMonth()]);
+    }
+  }
+  assert.equal(title([]),'');
   const html=field('d-week-compare').innerHTML;
   assert(html.includes('$140.00'));assert(html.includes('$70.00'));assert(html.includes('100.0%'));
   assert(html.includes('Días completos hasta el'));assert(!html.includes('999999'));
   assert.equal(rows[14].fecha,fechaHoyISO());
+})();
+""", tz)
+
+
+@pytest.mark.parametrize("tz", ["UTC", "America/Mexico_City", "Pacific/Auckland"])
+def test_weekly_tooltip_distinguishes_thursdays_by_the_hovered_bar(tz):
+    node(HARNESS + DATES + WEEK + r"""
+(async()=>{
+  now=NativeDate.parse('2026-10-19T20:42:00Z');
+  const load=cargarComparativoSemanal();calls[0].resolve(dailySeries());await load;
+  const callbacks=charts[0].options.plugins.tooltip.callbacks;
+  assert.equal(callbacks.title([{datasetIndex:0,dataIndex:3}]),'Jue 15 oct');
+  assert.equal(callbacks.title([{datasetIndex:1,dataIndex:3}]),'Jue 8 oct');
+  assert.equal(callbacks.label({dataset:{label:'7 días anteriores'},parsed:{y:28995}}),
+    '7 días anteriores: $28,995.00');
 })();
 """, tz)
 
