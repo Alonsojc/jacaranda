@@ -7,8 +7,8 @@ import json
 import re
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from pydantic import BaseModel, Field, field_validator, model_validator
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -25,6 +25,7 @@ from app.models.inventario import Proveedor
 from app.models.usuario import Usuario
 from app.services.auditoria_service import registrar_evento
 from app.services.ocr_service import extraer_datos_ticket
+from app.services import egresos_import_service as excel_import
 from app.services.resguardo_service import (
     bloquear_resguardo, resumen_resguardo, validar_salida_resguardo,
 )
@@ -55,7 +56,7 @@ METODOS_PAGO = {
     "mixto",
     "resguardo",
 }
-ORIGENES_EGRESO = {"manual", "ocr", "recurrente"}
+ORIGENES_EGRESO = {"manual", "ocr", "recurrente", "excel"}
 PERIODICIDADES = {"mensual", "quincenal", "semanal"}
 MAX_MONTO = Decimal("10000000")
 
@@ -214,6 +215,20 @@ class EgresoResponse(BaseModel):
     anulado_en: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class ConfirmarImportacionEgresos(BaseModel):
+    token: str = Field(min_length=64, max_length=4_000_000)
+    filas: list[int] = Field(min_length=1, max_length=excel_import.MAX_ROWS)
+    incluir_duplicados: list[int] = Field(default_factory=list, max_length=excel_import.MAX_ROWS)
+
+    @model_validator(mode="after")
+    def validar_seleccion(self):
+        if len(set(self.filas)) != len(self.filas) or any(f < 1 for f in self.filas):
+            raise ValueError("Seleccion de filas invalida")
+        if not set(self.incluir_duplicados).issubset(self.filas):
+            raise ValueError("Los duplicados deben estar seleccionados")
+        return self
 
 
 class ProveedorEgresoCreate(BaseModel):
@@ -833,11 +848,12 @@ def iniciar_resguardo(
     return resumen_resguardo(db)
 
 
-@router.post("/", response_model=EgresoResponse, status_code=201)
-def crear_egreso(
+def _registrar_egreso(
     data: EgresoCreate,
-    db: Session = Depends(get_db),
-    user: Usuario = Depends(require_permission("egresos", "editar")),
+    db: Session,
+    user: Usuario,
+    *,
+    importacion: dict | None = None,
 ):
     control = bloquear_resguardo(db)
     fingerprint = hashlib.sha256(json.dumps(
@@ -888,12 +904,161 @@ def crear_egreso(
         modulo="egresos",
         entidad="egreso",
         entidad_id=egreso.id,
-        datos_nuevos=_snapshot_egreso(egreso),
+        datos_nuevos={**_snapshot_egreso(egreso), **({"importacion_excel": importacion} if importacion else {})},
         commit=False,
     )
+    return egreso
+
+
+@router.post("/", response_model=EgresoResponse, status_code=201)
+def crear_egreso(
+    data: EgresoCreate,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_permission("egresos", "editar")),
+):
+    if data.origen == "excel":
+        raise HTTPException(status_code=400, detail="Usa la vista previa de Excel para importar gastos")
+    egreso = _registrar_egreso(data, db, user)
     db.commit()
     db.refresh(egreso)
     return egreso
+
+
+def _firma_duplicado(datos: dict) -> tuple:
+    return (str(datos["fecha"]), Decimal(str(datos["monto"])),
+            excel_import.normalizar(datos.get("proveedor")), datos["metodo_pago"])
+
+
+def _coincidencias_excel(db: Session, filas: list[dict]) -> dict:
+    fechas = {date.fromisoformat(f["datos"]["fecha"]) for f in filas if f.get("datos")}
+    existentes = db.query(Egreso).filter(Egreso.activo.is_(True), Egreso.fecha.in_(fechas)).all() if fechas else []
+    return {_firma_duplicado({"fecha": e.fecha.isoformat(), "monto": e.monto,
+                              "proveedor": e.proveedor, "metodo_pago": e.metodo_pago}): e.id for e in existentes}
+
+
+@router.post("/importacion/previsualizar")
+async def previsualizar_excel_egresos(
+    archivo: UploadFile = File(...),
+    opciones: str = Form(default="{}", max_length=10000),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_permission("egresos", "editar")),
+):
+    try:
+        config = excel_import.OpcionesImportacion.model_validate_json(opciones)
+    except ValidationError:
+        raise HTTPException(status_code=400, detail="Opciones de importacion invalidas") from None
+    if excel_import.normalizar(config.categoria) not in CATEGORIAS_EGRESO:
+        raise HTTPException(status_code=400, detail="Categoria predeterminada invalida")
+    nombre = (archivo.filename or "").replace("\\", "/").rsplit("/", 1)[-1][:200]
+    try:
+        if not nombre.lower().endswith(".xlsx"):
+            raise HTTPException(status_code=400, detail="Selecciona un Excel .xlsx; no una foto ni un archivo .xls")
+        contenido = bytearray()
+        while len(contenido) <= excel_import.MAX_BYTES:
+            parte = await archivo.read(min(1024 * 1024, excel_import.MAX_BYTES + 1 - len(contenido)))
+            if not parte:
+                break
+            contenido.extend(parte)
+        if len(contenido) > excel_import.MAX_BYTES:
+            raise HTTPException(status_code=413, detail="El Excel supera 5 MB")
+        try:
+            resultado = await run_in_threadpool(excel_import.leer_excel, bytes(contenido), config)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from None
+        except Exception:
+            raise HTTPException(status_code=400, detail="No se pudo leer el libro. Usa un Excel .xlsx valido, sin macros ni contrasena") from None
+    finally:
+        await archivo.close()
+    huella = hashlib.sha256(contenido).hexdigest()
+    return await run_in_threadpool(_construir_vista_excel, resultado, huella, nombre, config, db, user)
+
+
+def _construir_vista_excel(resultado, huella, nombre, config, db, user):
+    validas = []
+    for fila in resultado["filas"]:
+        fila["estado"] = "omitida" if fila["omitida"] else "error"
+        if fila["omitida"] or fila["errores"] or resultado["faltantes"]:
+            continue
+        try:
+            _validar_fecha_operativa(date.fromisoformat(fila["datos"]["fecha"]))
+            datos = EgresoCreate(**fila["datos"],
+                                 origen="excel", guardar_proveedor=config.guardar_proveedor,
+                                 idempotency_key=excel_import.clave_fila(huella, resultado["hoja"], fila["fila"]))
+            fila["datos"] = datos.model_dump(mode="json")
+            fila["estado"] = "lista"
+            validas.append(fila)
+        except ValidationError as exc:
+            fila["errores"] = [" / ".join(str(p) for p in e["loc"]) + ": " + e["msg"] for e in exc.errors()]
+        except (ValueError, HTTPException) as exc:
+            fila["errores"] = [str(exc.detail) if isinstance(exc, HTTPException) else str(exc)]
+    coincidencias = _coincidencias_excel(db, validas)
+    claves = [f["datos"]["idempotency_key"] for f in validas]
+    registradas = {e.idempotency_key: e for e in db.query(Egreso).filter(Egreso.idempotency_key.in_(claves)).all()} if claves else {}
+    vistas = {}
+    for fila in validas:
+        datos, firma = fila["datos"], _firma_duplicado(fila["datos"])
+        anterior = registradas.get(datos["idempotency_key"])
+        if anterior:
+            fila.update(estado="registrada", egreso_id=anterior.id)
+            fila["errores"] = ["Fila ya importada" if anterior.activo else "Fila importada y posteriormente anulada"]
+        elif firma in coincidencias or firma in vistas:
+            fila["estado"] = "duplicado"
+            fila["errores"] = ["Posible duplicado del egreso #" + str(coincidencias[firma]) if firma in coincidencias
+                               else "Coincide con la fila " + str(vistas[firma])]
+        vistas.setdefault(firma, fila["fila"])
+    token = excel_import.firmar_vista_previa({"archivo": nombre, "huella": huella, "hoja": resultado["hoja"],
+        "filas": [{"fila": f["fila"], "datos": f["datos"], "estado": f["estado"]} for f in validas]}, user.id) if validas else None
+    return {**resultado, "archivo": nombre, "token": token, "limite": excel_import.MAX_ROWS,
+            "total_listas": str(sum((Decimal(f["datos"]["monto"]) for f in validas if f["estado"] == "lista"), Decimal("0.00")))}
+
+
+@router.post("/importacion/confirmar")
+def confirmar_excel_egresos(
+    data: ConfirmarImportacionEgresos,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_permission("egresos", "editar")),
+):
+    try:
+        vista = excel_import.leer_vista_previa(data.token, user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    filas = {f["fila"]: f for f in vista["filas"] if f["estado"] in {"lista", "duplicado"}}
+    permitidos = {f for f in filas if filas[f]["estado"] == "duplicado"}
+    if not set(data.filas).issubset(filas) or not set(data.incluir_duplicados).issubset(permitidos):
+        raise HTTPException(status_code=400, detail="Seleccion no disponible en esta vista previa")
+    seleccion = [filas[f] for f in sorted(data.filas)]
+    try:
+        bloquear_resguardo(db)
+        coincidencias = _coincidencias_excel(db, seleccion)
+        importados, repetidos, anulados, ids = 0, 0, 0, []
+        total = Decimal("0.00")
+        for fila in seleccion:
+            captura = EgresoCreate(**fila["datos"])
+            anterior = db.query(Egreso).filter_by(idempotency_key=captura.idempotency_key).first()
+            if anterior:
+                fingerprint = hashlib.sha256(json.dumps(captura.model_dump(mode="json", exclude={"idempotency_key"}),
+                    sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode()).hexdigest()
+                if anterior.request_fingerprint != fingerprint:
+                    raise HTTPException(status_code=409, detail=f"La fila {fila['fila']} ya fue importada con otros datos")
+                repetidos += 1
+                anulados += int(not anterior.activo)
+                ids.append(anterior.id)
+                continue
+            firma = _firma_duplicado(fila["datos"])
+            if firma in coincidencias and fila["fila"] not in data.incluir_duplicados:
+                raise HTTPException(status_code=409, detail=f"La fila {fila['fila']} coincide con otro gasto. Actualiza la vista previa; no se guardo ninguna fila nueva")
+            egreso = _registrar_egreso(captura, db, user, importacion={"archivo": vista["archivo"],
+                "sha256": vista["huella"], "hoja": vista["hoja"], "fila": fila["fila"]})
+            ids.append(egreso.id)
+            importados += 1
+            total += egreso.monto
+            coincidencias[firma] = egreso.id
+        db.commit()
+        return {"importados": importados, "ya_registrados": repetidos, "anulados": anulados,
+                "monto_importado": str(total), "ids": ids}
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.get("/{id}", response_model=EgresoResponse)

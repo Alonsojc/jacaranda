@@ -663,8 +663,40 @@ table.tbl th,table.tbl td{font-size:.8rem}
 #rep .section-tabs{overflow-x:auto;flex-wrap:nowrap;min-width:0}
 #rep .section-tabs .tab{white-space:nowrap;flex-shrink:0}
 @media(max-width:768px){.report-period .limpiar,.report-period .cobrar{min-height:44px}.report-period input{min-height:44px}}
+.eg-import-modal{max-width:1140px;width:100%;border-radius:8px;text-align:left}
+#eg-importar-btn[hidden]{display:none}
+.eg-import-heading{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.7rem}
+.eg-import-heading h3{margin:0;font-size:1.1rem}
+.eg-import-settings{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.7rem;align-items:center}
+.eg-import-columnas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.6rem;margin-top:.7rem}
+.eg-import-check{display:flex;gap:.45rem;align-items:center;font-size:.82rem;line-height:1.4}
+.eg-import-check input,.eg-import-table input{width:18px;height:18px;flex-shrink:0;accent-color:var(--v)}
+.eg-import-modal .fg{min-width:0;margin-bottom:.6rem}
+.eg-import-modal input,.eg-import-modal select{max-width:100%;min-height:40px}
+.eg-import-modal summary{cursor:pointer;font-size:.82rem;padding:.5rem 0}
+.eg-import-estado{font-size:.82rem;line-height:1.4;margin:.7rem 0;overflow-wrap:anywhere}
+#eg-import-tabla{overflow:auto;max-height:42vh;-webkit-overflow-scrolling:touch}
+.eg-import-table{min-width:900px;text-align:left}
+.eg-import-table th{position:sticky;top:0;z-index:1;white-space:normal;line-height:1.3}
+.eg-import-table colgroup{display:table-column-group}
+@media(max-width:600px){.eg-import-table colgroup{display:none}}
+.eg-import-table td{vertical-align:top}
+.eg-import-descripcion{min-width:160px;max-width:240px;overflow-wrap:anywhere}
+.eg-import-nota{font-size:.75rem;color:var(--mut);max-width:260px;overflow-wrap:anywhere;white-space:normal;line-height:1.35;margin-top:.25rem}
+.eg-import-nowrap{white-space:nowrap}
+.eg-import-badge{font-size:.72rem;padding:.2rem .4rem;border-radius:4px;white-space:nowrap;background:#f3f4f6;color:#4b5563}
+.eg-import-lista{background:#d1fae5;color:#065f46}
+.eg-import-duplicado{background:#fef3c7;color:#92400e}
+.eg-import-error{background:#fee2e2;color:#991b1b}
+.eg-import-footer{position:sticky;bottom:-2rem;background:#fff;border-top:1px solid var(--brd);padding:.7rem 0;margin-top:.8rem;display:flex;align-items:center;justify-content:space-between;gap:.7rem;flex-wrap:wrap;z-index:2}
+.eg-import-footer strong{font-size:.85rem}
+.eg-import-actions{display:grid;grid-template-columns:minmax(110px,1fr) minmax(150px,1fr);gap:.5rem}
+.eg-import-actions button{min-height:44px;margin:0;padding:.65rem .7rem;width:100%;font-size:.82rem}
+@media(max-width:600px){.eg-import-modal{padding:1rem;max-height:calc(100dvh - 2rem)}.eg-import-columnas{grid-template-columns:repeat(2,minmax(0,1fr))}.eg-import-settings{grid-template-columns:minmax(0,1fr)}.eg-import-footer{bottom:-1rem}.eg-import-actions{width:100%;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media(max-width:600px){.eg-import-table{display:block;min-width:0;width:100%}.eg-import-table thead{display:none}.eg-import-table tbody{display:block}.eg-import-table tr{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:.1rem .25rem;border-bottom:1px solid var(--brd);padding:.6rem 0}.eg-import-table td{border:0;padding:.15rem .2rem;text-align:left}.eg-import-table td:nth-child(1){grid-column:1;grid-row:1 / 6}.eg-import-table td:nth-child(2){grid-column:2;grid-row:1;font-size:.72rem;color:var(--mut)}.eg-import-table td:nth-child(2)::before{content:'Fila '}.eg-import-table td:nth-child(3){grid-column:3;grid-row:1;font-size:.72rem;text-align:right}.eg-import-table td:nth-child(4){grid-column:2 / 4;grid-row:2;min-width:0;max-width:none}.eg-import-table td:nth-child(5){grid-column:3;grid-row:3;text-align:right;font-weight:700}.eg-import-table td:nth-child(6){grid-column:2;grid-row:3}.eg-import-table td:nth-child(7){grid-column:2 / 4;grid-row:4;font-size:.75rem;color:var(--mut)}.eg-import-table td:nth-child(7)::before{content:'Categoria: '}.eg-import-table td:nth-child(8){grid-column:2 / 4;grid-row:5}.eg-import-nota{max-width:none}}
 </style>
-<script defer src="js/jacaranda-core.js?v=jacaranda-v120"></script>
+<script defer src="js/jacaranda-core.js?v=jacaranda-v121"></script>
+<script defer src="js/egresos-import.js?v=jacaranda-v121"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 </head>
@@ -1317,6 +1349,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
     <p style="font-size:.83rem;color:var(--mut);margin:0">Registra gastos del d&iacute;a, recurrentes y tickets escaneados con proveedor y auditor&iacute;a.</p>
   </div>
   <div class="page-actions">
+    <button type="button" id="eg-importar-btn" class="limpiar" hidden style="width:auto;margin:0;min-height:44px" onclick="abrirImportacionEgresos()">Importar Excel</button>
     <button class="limpiar" style="width:auto;margin:0;padding:.45rem .8rem" onclick="abrirNuevoGasto()">Gasto mensual</button>
   </div>
 </div>
@@ -3092,6 +3125,30 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 </div>
 
+<!-- MODAL: Importar egresos -->
+<div class="modal-bg" id="modal-egresos-importar">
+<div class="modal eg-import-modal" role="dialog" aria-modal="true" aria-labelledby="eg-import-title">
+<div class="eg-import-heading"><h3 id="eg-import-title">Importar gastos</h3><button type="button" id="eg-import-cerrar" class="catalog-icon-btn" title="Cerrar importaci&oacute;n" aria-label="Cerrar importaci&oacute;n" onclick="cerrarImportacionEgresos()">&#215;</button></div>
+<div class="fg"><label for="eg-import-file">Excel (.xlsx, hasta 5 MB)</label><input type="file" id="eg-import-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onchange="cambiarArchivoExcelEgresos(this)"></div>
+<div class="eg-import-settings">
+<div class="fg"><label for="eg-import-categoria">Categor&iacute;a si falta en Excel</label><select id="eg-import-categoria" onchange="invalidarVistaExcelEgresos()"></select></div>
+<label class="eg-import-check"><input type="checkbox" id="eg-import-proveedores" checked onchange="invalidarVistaExcelEgresos()"> Guardar proveedores nuevos</label>
+</div>
+<div id="eg-import-config" hidden>
+<div class="fg"><label for="eg-import-hoja">Hoja</label><select id="eg-import-hoja" onchange="leerExcelEgresos(true)"></select></div>
+<details id="eg-import-mapeo"><summary>Columnas y encabezados</summary>
+<div class="eg-import-settings"><div class="fg"><label for="eg-import-header">Encabezados en fila</label><input type="number" min="1" max="50" step="1" id="eg-import-header" value="1" onchange="invalidarVistaExcelEgresos()"></div>
+<label class="eg-import-check"><input type="checkbox" id="eg-import-sin-header" onchange="invalidarVistaExcelEgresos()"> Sin encabezados</label></div>
+<div class="fg"><label for="eg-import-formato-fecha">Fechas en texto</label><select id="eg-import-formato-fecha" onchange="invalidarVistaExcelEgresos()"><option value="dia_mes_anio">D&iacute;a / mes / a&ntilde;o</option><option value="mes_dia_anio">Mes / d&iacute;a / a&ntilde;o</option></select></div>
+<div id="eg-import-columnas" class="eg-import-columnas"></div>
+</details>
+</div>
+<p id="eg-import-estado" class="eg-import-estado" role="status" aria-live="polite">Sin archivo</p>
+<div id="eg-import-tabla" tabindex="0" aria-label="Vista previa de gastos"></div>
+<div class="eg-import-footer"><strong id="eg-import-total">0 seleccionados</strong><div class="eg-import-actions"><button type="button" class="limpiar" id="eg-import-revisar" onclick="leerExcelEgresos()" disabled>Vista previa</button><button type="button" class="cobrar" id="eg-import-confirmar" onclick="confirmarExcelEgresos()" disabled>Importar gastos</button></div></div>
+</div>
+</div>
+
 <!-- MODAL: Usuario -->
 <div class="modal-bg" id="modal-usuario">
 <div class="modal" style="max-width:400px">
@@ -3181,7 +3238,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v120';
+var APP_BUILD = 'jacaranda-v121';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -3333,6 +3390,7 @@ var _pedidoDatosCargados = false;
 
 function invalidarTareasSesion() {
   _versionSesion++;
+  if (typeof cerrarImportacionEgresos === 'function') cerrarImportacionEgresos(true);
   cerrarCamaraEgreso();
   _egresoCapturaPendiente = null;
   _egresoGuardando = false;
@@ -3421,6 +3479,7 @@ function moduloFallbackActivo(u) {
 
 function actualizarVisibilidadModulos() {
   var permisos = window._permisos || {};
+  document.getElementById('eg-importar-btn').hidden = permisos.egresos !== 'editar';
   document.querySelectorAll('.nav-links a[data-pg], .mobile-nav .mn-item[data-pg], .mobile-menu .mm-link[data-pg]').forEach(function(a) {
     var mod = a.getAttribute('data-pg');
     var visible = a.classList.contains('sales-nav-link')
@@ -11529,6 +11588,7 @@ document.addEventListener('keydown', function(e) {
 });
 
 function cerrarModal(id) {
+  if (id === 'modal-egresos-importar') { cerrarImportacionEgresos(); return; }
   if (id === 'modal-egreso-camara') { cerrarCamaraEgreso(); return; }
   if (id === 'modal-clave-autorizacion') { cerrarClaveAutorizacion(); return; }
   if (id === 'modal-usuario') { cerrarUsuario(); return; }
@@ -11547,6 +11607,7 @@ document.addEventListener('keydown', function(e) {
     document.querySelectorAll('.modal-bg.on').forEach(function(m) {
       if (m.id === 'modal-admin-auth') cancelarAdminAuth();
       else if (m.id === 'modal-egreso-camara') cerrarCamaraEgreso();
+      else if (m.id === 'modal-egresos-importar') cerrarImportacionEgresos();
       else if (m.id === 'modal-clave-autorizacion' || m.id === 'modal-usuario') cerrarModal(m.id);
       else if (m.id === 'modal-ticket-editar') cerrarEdicionTicket();
       else if (m.id === 'modal-scan-cliente') cerrarModal('modal-scan-cliente');
@@ -11560,6 +11621,7 @@ document.addEventListener('click', function(e) {
   if (e.target.classList.contains('modal-bg')) {
     if (e.target.id === 'modal-admin-auth') cancelarAdminAuth();
     else if (e.target.id === 'modal-egreso-camara') cerrarCamaraEgreso();
+    else if (e.target.id === 'modal-egresos-importar') cerrarImportacionEgresos();
     else if (e.target.id === 'modal-clave-autorizacion' || e.target.id === 'modal-usuario') cerrarModal(e.target.id);
     else if (e.target.id === 'modal-ticket-editar') cerrarEdicionTicket();
     else if (e.target.id === 'modal-scan-cliente') cerrarModal('modal-scan-cliente');
