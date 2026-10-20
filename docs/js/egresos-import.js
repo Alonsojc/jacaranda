@@ -94,11 +94,17 @@ async function leerExcelEgresos(reiniciar) {
     var form = new FormData();
     form.append('archivo', estado.archivo);
     form.append('opciones', JSON.stringify(opciones));
-    var response = await fetch(API_URL + '/api/v1/egresos/importacion/previsualizar', {
-      method:'POST', cache:'no-store', body:form, headers:TOKEN ? {Authorization:'Bearer ' + TOKEN} : {},
-      signal:controller ? controller.signal : undefined
-    });
-    if (estado !== _egImport || estado.version !== _versionSesion || seq !== _egImportSeq) return;
+    var response;
+    for (var intento = 0; intento < 2; intento++) {
+      response = await fetch(API_URL + '/api/v1/egresos/importacion/previsualizar', {
+        method:'POST', cache:'no-store', body:form, headers:TOKEN ? {Authorization:'Bearer ' + TOKEN} : {},
+        signal:controller ? controller.signal : undefined
+      });
+      if (estado !== _egImport || estado.version !== _versionSesion || seq !== _egImportSeq) return;
+      if (response.status !== 401 || intento || !REFRESH_TOKEN) break;
+      await refreshAccessToken();
+      if (estado !== _egImport || estado.version !== _versionSesion || seq !== _egImportSeq) return;
+    }
     var data = await leerRespuestaJson(response);
     if (estado !== _egImport || estado.version !== _versionSesion || seq !== _egImportSeq) return;
     if (!response.ok) {

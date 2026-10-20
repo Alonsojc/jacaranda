@@ -143,6 +143,63 @@ def test_new_file_resets_displayed_date_format_to_the_one_actually_parsed():
 """)
 
 
+def test_preview_refreshes_access_token_once_without_losing_the_workbook():
+    node(r"""
+(async()=>{
+  _egImport=estado();field('eg-import-config').hidden=true;
+  const calls=[];let refreshed=0,expired=0;
+  globalThis.TOKEN='expired';globalThis.REFRESH_TOKEN='refresh-session';globalThis.API_URL='https://example.invalid';
+  globalThis.FormData=class{append(){}};
+  globalThis.fetch=async(url,options)=>{calls.push(options);return {ok:calls.length>1,status:calls.length>1?200:401};};
+  globalThis.refreshAccessToken=async()=>{refreshed++;globalThis.TOKEN='renewed';};
+  globalThis.expirarSesion=()=>{expired++;};
+  globalThis.leerRespuestaJson=async()=>({...vista(),hojas:['Septiembre'],fila_encabezado:1,
+    columnas:{fecha:1,proveedor:2,monto:3,metodo_pago:4},opciones_columnas:[]});
+  const workbook=_egImport.archivo;
+  await leerExcelEgresos(true);
+  assert.equal(refreshed,1);assert.equal(expired,0);assert.equal(calls.length,2);
+  assert.equal(calls[0].body,calls[1].body);
+  assert.equal(calls[0].headers.Authorization,'Bearer expired');
+  assert.equal(calls[1].headers.Authorization,'Bearer renewed');
+  assert.equal(_egImport.archivo,workbook);assert(_egImport.vista);
+})();
+""")
+
+
+def test_preview_does_not_retry_after_session_changes_during_refresh():
+    node(r"""
+(async()=>{
+  _egImport=estado();field('eg-import-config').hidden=true;
+  let calls=0;
+  globalThis.TOKEN='expired';globalThis.REFRESH_TOKEN='refresh-session';globalThis.API_URL='https://example.invalid';
+  globalThis.FormData=class{append(){}};
+  globalThis.fetch=async()=>{calls++;return {ok:false,status:401};};
+  globalThis.refreshAccessToken=async()=>{_versionSesion++;cerrarImportacionEgresos(true);};
+  await leerExcelEgresos(true);
+  assert.equal(calls,1);assert.equal(_egImport,null);
+  assert.equal(field('eg-import-estado').textContent,'');
+})();
+""")
+
+
+def test_preview_stops_after_second_unauthorized_response():
+    node(r"""
+(async()=>{
+  _egImport=estado();field('eg-import-config').hidden=true;
+  let calls=0,refreshed=0,expired=0;
+  globalThis.TOKEN='expired';globalThis.REFRESH_TOKEN='refresh-session';globalThis.API_URL='https://example.invalid';
+  globalThis.FormData=class{append(){}};
+  globalThis.fetch=async()=>{calls++;return {ok:false,status:401};};
+  globalThis.refreshAccessToken=async()=>{refreshed++;};
+  globalThis.leerRespuestaJson=async()=>({detail:'Sesion expirada'});
+  globalThis.expirarSesion=()=>{expired++;};
+  await leerExcelEgresos(true);
+  assert.equal(calls,2);assert.equal(refreshed,1);assert.equal(expired,1);
+  assert.equal(_egImport.ocupado,false);assert.equal(_egImport.vista,null);
+})();
+""")
+
+
 def test_import_script_and_worker_share_build_and_all_close_paths_clean_up():
     build = HTML.split("var APP_BUILD = '", 1)[1].split("'", 1)[0]
     asset = "js/egresos-import.js?v=" + build
