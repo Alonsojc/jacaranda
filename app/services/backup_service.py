@@ -10,7 +10,7 @@ from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 from time import monotonic
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse, urlsplit
 
 from sqlalchemy.engine import make_url
 
@@ -42,10 +42,11 @@ def _is_production() -> bool:
 
 
 def _backup_dir() -> Path:
-    value = getattr(settings, "BACKUP_DIR", "/tmp/jacaranda_backups")
-    if not isinstance(value, str):
-        value = "/tmp/jacaranda_backups"
-    return Path(value)
+    value = getattr(settings, "BACKUP_DIR", "")
+    if isinstance(value, str) and value:
+        return Path(value)
+    source = _sqlite_source()
+    return source.parent / "backups" if source is not None else Path("/tmp/jacaranda_backups")
 
 
 def _ensure_backup_dir():
@@ -77,7 +78,15 @@ def _timestamp() -> str:
 def _sqlite_source() -> Path | None:
     if not _is_sqlite():
         return None
-    database = make_url(settings.DATABASE_URL).database
+    url = make_url(settings.DATABASE_URL)
+    database = url.database
+    if database and database.startswith("file:") and str(url.query.get("uri", "")).lower() in {"true", "1"}:
+        uri = urlsplit(database)
+        if uri.netloc not in {"", "localhost"}:
+            raise RuntimeError("El URI SQLite debe apuntar a un archivo local")
+        database = unquote(uri.path)
+        if url.query.get("mode") == "memory":
+            return None
     if not database or database == ":memory:":
         return None
     return Path(database)
@@ -238,6 +247,21 @@ def obtener_ultimo_backup() -> dict:
         raise FileNotFoundError("No hay backups guardados. Cree un backup primero.")
     info = _backup_info(backups[0])
     info["db_type"] = "sqlite" if _is_sqlite() else "postgresql"
+    return info
+
+
+def preparar_descarga_backup(filename: str | None = None) -> dict:
+    """Copia privada de un respaldo completo, fuera de la retencion durante el envio."""
+    source = _resolver_backup_path(filename)
+    info = _backup_info(source)
+    fd, temporary = tempfile.mkstemp(prefix=".download_", dir=_backup_dir())
+    try:
+        with os.fdopen(fd, "wb") as target, source.open("rb") as stream:
+            shutil.copyfileobj(stream, target)
+    except Exception:
+        Path(temporary).unlink(missing_ok=True)
+        raise
+    info["path"] = temporary
     return info
 
 

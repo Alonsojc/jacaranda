@@ -1,6 +1,7 @@
 """Tests para backup y restauración."""
 
 import hashlib
+import importlib
 import os
 import sqlite3
 import stat
@@ -363,3 +364,61 @@ def test_verification_requires_admin(client, db, monkeypatch):
         verify.assert_not_called()
     finally:
         app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_sqlite_uri_excludes_the_real_source(monkeypatch, tmp_path):
+    from sqlalchemy import create_engine, text
+
+    source, directory = _configure_sqlite_backups(monkeypatch, tmp_path)
+    directory.mkdir()
+    source = source.rename(directory / "jacaranda_live #.db")
+    uri = f"sqlite:///{source.as_uri()}?mode=rw&uri=true"
+    engine = create_engine(uri)
+    try:
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT count(*) FROM productos")).scalar() == 1
+    finally:
+        engine.dispose()
+    monkeypatch.setattr(backup_service.settings, "DATABASE_URL", uri)
+    assert backup_service._sqlite_source().samefile(source)
+    assert backup_service.listar_backups() == []
+    backup_service.crear_backup()
+    with pytest.raises(FileNotFoundError):
+        backup_service.eliminar_backup(source.name)
+    assert source.exists()
+
+
+def test_default_sqlite_destination_stays_next_to_source(monkeypatch, tmp_path):
+    source, _directory = _configure_sqlite_backups(monkeypatch, tmp_path)
+    persistent = tmp_path / "persistent-volume"
+    persistent.mkdir()
+    source = source.rename(persistent / source.name)
+    monkeypatch.setattr(backup_service.settings, "DATABASE_URL", f"sqlite:///{source}")
+    monkeypatch.setattr(backup_service.settings, "BACKUP_DIR", "")
+    assert backup_service._backup_dir() == persistent / "backups"
+    assert Path(backup_service.crear_backup()["path"]).parent == persistent / "backups"
+
+
+@pytest.mark.parametrize("endpoint,module", [
+    ("/api/v1/reportes/backup", "app.api.routes.reportes"),
+    ("/api/v1/backup/descargar", "app.api.routes.backup"),
+])
+def test_download_survives_retention_before_stream_opens(client, auth_headers, monkeypatch, tmp_path, endpoint, module):
+    _configure_sqlite_backups(monkeypatch, tmp_path)
+    monkeypatch.setattr(backup_service.settings, "BACKUP_AUTO_CLEANUP", True)
+    monkeypatch.setattr(backup_service.settings, "BACKUP_MAX_FILES", 1)
+    backup_service.crear_backup()
+    routes = importlib.import_module(module)
+    original_response = routes.FileResponse
+
+    def before_stream(*args, **kwargs):
+        backup_service.crear_backup()
+        return original_response(*args, **kwargs)
+
+    monkeypatch.setattr(routes, "FileResponse", before_stream)
+    response = client.get(endpoint, headers=auth_headers)
+    assert response.status_code == 200
+    assert response.content.startswith(b"SQLite format 3")
+    assert response.headers["cache-control"] == "no-store"
+    assert len(backup_service.listar_backups()) == 1
+    assert not list(backup_service._backup_dir().glob(".download_*"))

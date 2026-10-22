@@ -1,11 +1,13 @@
 """Rutas de backup y restauración."""
 
 from urllib.parse import unquote
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from starlette.background import BackgroundTask
 
 from app.core.database import get_db
 from app.core.dependencies import require_admin_or_override, require_permission, require_role
@@ -48,7 +50,7 @@ def descargar_backup(
     db: Session = Depends(get_db),
 ):
     try:
-        info = backup_service.obtener_ultimo_backup()
+        info = backup_service.preparar_descarga_backup()
         registrar_evento(
             db,
             usuario_id=user.id,
@@ -62,6 +64,8 @@ def descargar_backup(
             path=info["path"],
             filename=info["filename"],
             media_type="application/octet-stream",
+            headers={"Cache-Control": "no-store"},
+            background=BackgroundTask(Path(info["path"]).unlink, missing_ok=True),
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

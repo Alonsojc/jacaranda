@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     DB_POOL_RECYCLE_SECONDS: int = 1800
 
     # --- Operación ---
-    BACKUP_DIR: str = "/tmp/jacaranda_backups"
+    BACKUP_DIR: str = ""  # SQLite: junto a la base; PostgreSQL: configurar volumen privado.
     BACKUP_RETENTION_DAYS: int = 7
     BACKUP_MAX_FILES: int = 20
     BACKUP_AUTO_CLEANUP: bool = False

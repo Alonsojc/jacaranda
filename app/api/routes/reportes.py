@@ -1,9 +1,11 @@
 """Rutas de reportes financieros e impuestos."""
 
 from datetime import date
+from pathlib import Path
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
+from starlette.background import BackgroundTask
 
 from app.core.config import settings
 from app.core.time_utils import operation_today
@@ -299,6 +301,7 @@ def descargar_backup(
         raise HTTPException(status_code=400, detail="Backup solo disponible para SQLite")
     try:
         info = backup_service.crear_backup()
+        info = backup_service.preparar_descarga_backup(info["filename"])
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Base de datos no encontrada") from None
     except (OSError, RuntimeError):
@@ -308,6 +311,8 @@ def descargar_backup(
         path=info["path"],
         filename=f"jacaranda_backup_{hoy}.db",
         media_type="application/octet-stream",
+        headers={"Cache-Control": "no-store"},
+        background=BackgroundTask(Path(info["path"]).unlink, missing_ok=True),
     )
 
 
