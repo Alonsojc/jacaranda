@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     BACKUP_DIR: str = "/tmp/jacaranda_backups"
     BACKUP_RETENTION_DAYS: int = 7
     BACKUP_MAX_FILES: int = 20
+    BACKUP_AUTO_CLEANUP: bool = False
+    BACKUP_TIMEOUT_SECONDS: int = 300
+    # Compatibilidad: no se ejecutan restauraciones contra esta URL.
     BACKUP_VERIFY_DATABASE_URL: str = ""
     ALLOW_DB_RESTORE: bool = False
     PEDIDOS_CAPACIDAD_DIARIA: int = 0  # 0 = sin límite duro

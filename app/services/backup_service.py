@@ -1,13 +1,18 @@
 """Servicio de backup/restore. Soporta SQLite y PostgreSQL."""
 
+import hashlib
 import os
 import shutil
 import sqlite3
 import subprocess
 import tempfile
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
+from time import monotonic
 from urllib.parse import urlparse
+
+from sqlalchemy.engine import make_url
 
 from app.core.config import settings
 
@@ -46,7 +51,10 @@ def _backup_dir() -> Path:
 def _ensure_backup_dir():
     backup_dir = _backup_dir()
     try:
-        backup_dir.mkdir(parents=True, exist_ok=True)
+        if backup_dir.is_symlink():
+            raise RuntimeError("BACKUP_DIR no puede ser un enlace simbolico")
+        backup_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        backup_dir.chmod(0o700)
     except OSError as exc:
         raise RuntimeError(
             f"No se pudo crear BACKUP_DIR={backup_dir}. "
@@ -66,6 +74,20 @@ def _timestamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
 
 
+def _sqlite_source() -> Path | None:
+    if not _is_sqlite():
+        return None
+    database = make_url(settings.DATABASE_URL).database
+    if not database or database == ":memory:":
+        return None
+    return Path(database)
+
+
+def _is_live_source(path: Path) -> bool:
+    source = _sqlite_source()
+    return source is not None and source.exists() and path.samefile(source)
+
+
 def _backup_files() -> list[Path]:
     backup_dir = _backup_dir()
     if not backup_dir.exists():
@@ -73,6 +95,7 @@ def _backup_files() -> list[Path]:
     return [
         f for f in backup_dir.iterdir()
         if f.name.startswith("jacaranda_") and f.suffix in (".db", ".sql")
+        and not f.is_symlink() and f.is_file() and not _is_live_source(f)
     ]
 
 
@@ -105,6 +128,8 @@ def _resolver_backup_path(filename: str | None = None) -> Path:
         target = _backup_dir() / clean_name
         if not target.exists():
             raise FileNotFoundError("Backup no encontrado")
+        if target not in _backup_files():
+            raise ValueError("El respaldo debe ser un archivo regular, no la base activa ni un enlace")
         return target
 
     backups = _sorted_backup_files()
@@ -127,11 +152,12 @@ def _postgres_cmd_base(parsed) -> list[str]:
 
 
 def limpiar_backups_antiguos() -> int:
-    """Elimina respaldos fuera de retención y por arriba del máximo permitido."""
+    """Limpieza explicita; siempre conserva al menos el respaldo mas reciente."""
     retention_days = max(_setting_int("BACKUP_RETENTION_DAYS", 7), 1)
     cutoff = datetime.now(timezone.utc).timestamp() - (retention_days * 86400)
     removed = 0
-    for f in list(_backup_files()):
+    backups = _sorted_backup_files()
+    for f in backups[1:]:
         if f.exists() and f.stat().st_mtime < cutoff:
             f.unlink()
             removed += 1
@@ -143,37 +169,56 @@ def limpiar_backups_antiguos() -> int:
 
 
 def crear_backup() -> dict:
-    """Crea backup de la base de datos."""
+    """Publica una copia consistente y privada sin eliminar respaldos por defecto."""
     _ensure_backup_dir()
-    limpiar_backups_antiguos()
     ts = _timestamp()
     backup_dir = _backup_dir()
+    fd, pending_name = tempfile.mkstemp(prefix=f".jacaranda_{ts}_", suffix=".pending", dir=backup_dir)
+    os.close(fd)
+    pending = Path(pending_name)
+    suffix = ".db" if _is_sqlite() else ".sql"
+    filename = pending.name[1:-len(".pending")] + suffix
+    dest = backup_dir / filename
+    timeout = max(_setting_int("BACKUP_TIMEOUT_SECONDS", 300), 1)
+    try:
+        if _is_sqlite():
+            src = _sqlite_source()
+            if src is None or not src.is_file() or src.stat().st_size == 0:
+                raise FileNotFoundError("Base de datos SQLite no encontrada")
+            deadline = monotonic() + timeout
 
-    if _is_sqlite():
-        db_url = settings.DATABASE_URL
-        if db_url in ("sqlite://", "sqlite:///"):
-            raise FileNotFoundError("Base de datos in-memory no se puede respaldar")
-        db_path = db_url.replace("sqlite:///", "")
-        src = Path(db_path)
-        if not src.exists() or src.stat().st_size == 0:
-            raise FileNotFoundError("Base de datos SQLite no encontrada")
-        filename = f"jacaranda_{ts}.db"
-        dest = backup_dir / filename
-        shutil.copyfile(str(src), str(dest))
-        os.utime(dest, None)
-    else:
-        parsed = urlparse(settings.DATABASE_URL)
-        filename = f"jacaranda_{ts}.sql"
-        dest = backup_dir / filename
-        env = _postgres_env(parsed)
-        cmd = ["pg_dump", *_postgres_cmd_base(parsed), "-f", str(dest)]
-        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
-        if result.returncode != 0:
-            dest.unlink(missing_ok=True)
-            raise RuntimeError(f"pg_dump failed: {result.stderr}")
+            def progress(_status, _remaining, _total):
+                if monotonic() > deadline:
+                    raise RuntimeError("El respaldo excedio el tiempo permitido; no se borraron copias anteriores")
 
+            with closing(sqlite3.connect(src.resolve().as_uri() + "?mode=ro", uri=True)) as source, \
+                    closing(sqlite3.connect(pending)) as target:
+                source.backup(target, pages=256, progress=progress)
+                if target.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+                    raise RuntimeError("La copia SQLite no paso la verificacion de integridad")
+        else:
+            parsed = urlparse(settings.DATABASE_URL)
+            cmd = ["pg_dump", *_postgres_cmd_base(parsed), "--no-password",
+                   "--lock-wait-timeout=5s", "-f", str(pending)]
+            result = subprocess.run(cmd, env=_postgres_env(parsed), capture_output=True,
+                                    text=True, timeout=timeout)
+            if result.returncode != 0:
+                raise RuntimeError("No se pudo crear el respaldo PostgreSQL; revise acceso y version de pg_dump")
+        if pending.stat().st_size == 0:
+            raise RuntimeError("El respaldo generado esta vacio")
+        with pending.open("rb") as stream:
+            checksum = hashlib.file_digest(stream, "sha256").hexdigest()
+            os.fsync(stream.fileno())
+        # Enlace atomico: nunca sobrescribe otra copia ni publica un archivo parcial.
+        os.link(pending, dest)
+    except sqlite3.Error:
+        raise RuntimeError("No se pudo crear una copia SQLite consistente") from None
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("pg_dump excedio el tiempo permitido; se conservaron los respaldos anteriores") from None
+    finally:
+        pending.unlink(missing_ok=True)
     size = dest.stat().st_size
-    removed = limpiar_backups_antiguos()
+    removed = limpiar_backups_antiguos() if _setting_bool("BACKUP_AUTO_CLEANUP") else 0
     return {
         "filename": filename,
         "path": str(dest),
@@ -181,6 +226,7 @@ def crear_backup() -> dict:
         "created_at": datetime.now(timezone.utc).isoformat(),
         "db_type": "sqlite" if _is_sqlite() else "postgresql",
         "removed_old_backups": removed,
+        "sha256": checksum,
     }
 
 
@@ -287,6 +333,7 @@ def _verificar_sqlite_backup(path: Path) -> dict:
         "filename": path.name,
         "db_type": "sqlite",
         "restore_mode": "sqlite_copy",
+        "restored": True,
         "integrity_check": integrity,
         "table_count": len(tables),
         "tables": counts,
@@ -320,93 +367,27 @@ def _verificar_postgres_dump_por_inspeccion(path: Path) -> dict:
         "filename": path.name,
         "db_type": "postgresql",
         "restore_mode": "sql_inspection",
+        "restored": False,
         "has_schema": has_schema,
         "has_data": has_data,
         "key_tables": key_tables,
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "warning": (
-            "Se validó que el SQL sea legible y tenga estructura. Para una prueba "
-            "de restauración completa, configure BACKUP_VERIFY_DATABASE_URL con "
-            "una base temporal."
+            "Solo se inspecciono el SQL; no se comprobo su restauracion. "
+            "La restauracion completa requiere un entorno aislado fuera de la "
+            "aplicacion, sin credenciales ni acceso a la base operativa."
         ),
     }
 
 
-def _verificar_postgres_backup_en_base_temporal(path: Path, database_url: str) -> dict:
-    parsed = urlparse(database_url)
-    db_name = parsed.path[1:]
-    if not db_name:
-        raise ValueError("BACKUP_VERIFY_DATABASE_URL no tiene nombre de base de datos")
-    if not any(token in db_name.lower() for token in ("verify", "restore", "test", "backup")):
-        raise ValueError(
-            "BACKUP_VERIFY_DATABASE_URL debe apuntar a una base temporal cuyo "
-            "nombre contenga verify, restore, test o backup"
-        )
-    env = _postgres_env(parsed)
-    base = _postgres_cmd_base(parsed)
-    reset = subprocess.run(
-        [
-            "psql",
-            *base,
-            "-v",
-            "ON_ERROR_STOP=1",
-            "-c",
-            "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;",
-        ],
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-    if reset.returncode != 0:
-        raise RuntimeError(f"No se pudo preparar la base temporal: {reset.stderr}")
-
-    restore = subprocess.run(
-        ["psql", *base, "-v", "ON_ERROR_STOP=1", "-f", str(path)],
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-    if restore.returncode != 0:
-        raise RuntimeError(f"Restore de prueba falló: {restore.stderr}")
-
-    count = subprocess.run(
-        [
-            "psql",
-            *base,
-            "-At",
-            "-c",
-            "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';",
-        ],
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-    table_count = int((count.stdout or "0").strip() or "0") if count.returncode == 0 else 0
-    if table_count <= 0:
-        raise RuntimeError("La restauración de prueba no creó tablas")
-
-    return {
-        "ok": True,
-        "filename": path.name,
-        "db_type": "postgresql",
-        "restore_mode": "postgres_verify_database",
-        "verify_database": db_name,
-        "table_count": table_count,
-        "checked_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-
 def verificar_restauracion_backup(filename: str | None = None) -> dict:
-    """Prueba un respaldo en una copia/ambiente seguro, sin tocar producción."""
+    """SQLite se prueba en copia; PostgreSQL solo se inspecciona, nunca se ejecuta."""
     path = _resolver_backup_path(filename)
     if path.stat().st_size == 0:
         raise ValueError("Backup vacío")
     if path.suffix == ".db":
         return _verificar_sqlite_backup(path)
     if path.suffix == ".sql":
-        verify_url = getattr(settings, "BACKUP_VERIFY_DATABASE_URL", "") or ""
-        if verify_url:
-            return _verificar_postgres_backup_en_base_temporal(path, verify_url)
         return _verificar_postgres_dump_por_inspeccion(path)
     raise ValueError("Extensión de backup inválida")
 
@@ -442,6 +423,7 @@ def estado_backup() -> dict:
         "last_backup": backups[0] if backups else None,
         "retention_days": max(_setting_int("BACKUP_RETENTION_DAYS", 7), 1),
         "max_backups": _max_backup_files(),
+        "auto_cleanup_enabled": _setting_bool("BACKUP_AUTO_CLEANUP"),
         "restore_enabled": (not _is_production()) or _setting_bool("ALLOW_DB_RESTORE", False),
         "pg_dump_available": shutil.which("pg_dump") is not None if db_type == "postgresql" else None,
         "psql_available": shutil.which("psql") is not None if db_type == "postgresql" else None,
@@ -449,7 +431,5 @@ def estado_backup() -> dict:
 
 
 def backup_programado() -> dict:
-    """Backup con auto-limpieza según BACKUP_RETENTION_DAYS."""
-    _ensure_backup_dir()
-    limpiar_backups_antiguos()
+    """Usa las mismas garantias de publicacion y retencion que el respaldo manual."""
     return crear_backup()

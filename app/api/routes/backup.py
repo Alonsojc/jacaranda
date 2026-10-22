@@ -34,7 +34,8 @@ def crear_backup(
             accion="crear",
             modulo="backup",
             entidad="backup",
-            datos_nuevos={"filename": info["filename"], "size_bytes": info["size_bytes"]},
+            datos_nuevos={"filename": info["filename"], "size_bytes": info["size_bytes"],
+                          "sha256": info["sha256"]},
         )
         return info
     except (FileNotFoundError, OSError, RuntimeError) as e:
@@ -113,6 +114,7 @@ def verificar_backup(
             datos_nuevos={
                 "filename": result.get("filename"),
                 "restore_mode": result.get("restore_mode"),
+                "restored": result.get("restored", False),
                 "ok": result.get("ok"),
             },
         )
