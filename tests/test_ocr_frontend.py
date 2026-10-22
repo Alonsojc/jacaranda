@@ -137,6 +137,7 @@ def test_session_reset_discards_receipt_fields_payload_and_review_view():
 let _resguardoData=null,_resguardoIniciando=false,_resguardoSeq=0,_egresosResumenSeq=0;
 let _ocrSeq=0,_ocrItems=[{nombre:'Dato anterior'}],_ocrGuardando=true;
 function cerrarCamaraEgreso(){}
+function cerrarModal(){}
 """
     code += section("function invalidarTareasSesion()", "  _contaCuentas = [];") + "}\n"
     code += r"""
