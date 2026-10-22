@@ -8,3 +8,9 @@ node_modules
 .venv
 venv
 tests/
+.github/
+docs/
+scripts/ci_test_shards.py
+ci-reports/
+.coverage*
+coverage.xml
