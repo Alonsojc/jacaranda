@@ -26,7 +26,7 @@ jobs:
         run: pip install ruff==0.8.4
 
       - name: Ruff check
-        run: ruff check app/ main.py --output-format=github
+        run: ruff check app/ main.py scripts/ci_test_shards.py tests/test_ci_sharding.py --output-format=github
 
   test-shards:
     runs-on: ubuntu-latest

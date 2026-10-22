@@ -14,7 +14,7 @@ def partition(items, total):
         files.setdefault(path, []).append((nodeid, weight))
     groups = [[] for _ in range(total)]
     costs = [0] * total
-    for path, tests in sorted(files.items(), key=lambda row: (-sum(t[1] for t in row[1]), row[0])):
+    for _path, tests in sorted(files.items(), key=lambda row: (-sum(t[1] for t in row[1]), row[0])):
         shard = min(range(total), key=lambda index: (costs[index], index))
         groups[shard].extend(nodeid for nodeid, _ in tests)
         costs[shard] += sum(weight for _, weight in tests)
