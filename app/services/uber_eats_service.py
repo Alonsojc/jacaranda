@@ -16,6 +16,7 @@ TOKEN_URL = "https://sandbox-login.uber.com/oauth/v2/token"
 API_URL = "https://test-api.uber.com"
 _token_lock = Lock()
 _token_cache = None
+_order_token_cache = None
 
 
 class UberEatsError(Exception):
@@ -35,6 +36,8 @@ def configuracion() -> dict:
         "puede_probar": settings.UBER_EATS_SANDBOX_ENABLED and all(campos.values()),
         "pedidos_automaticos": False,
         "publicacion_menu": False,
+        "webhook_pruebas": settings.UBER_EATS_SANDBOX_WEBHOOK_ENABLED,
+        "acciones_pruebas": settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED,
     }
 
 
@@ -85,19 +88,22 @@ def _json_response(response: httpx.Response) -> dict:
     return data
 
 
-def _access_token(client: httpx.Client) -> str:
-    global _token_cache
+def _access_token(client: httpx.Client, scope: str = "eats.store") -> str:
+    global _token_cache, _order_token_cache
+    if scope not in {"eats.store", "eats.order"}:
+        raise UberEatsError("Permiso de pruebas no soportado.")
     key = (
         settings.UBER_EATS_SANDBOX_CLIENT_ID.strip(),
         settings.UBER_EATS_SANDBOX_CLIENT_SECRET.get_secret_value(),
     )
     # Reutilizar tokens evita el limite de autenticaciones de Uber.
     with _token_lock:
-        if _token_cache and _token_cache[0] == key and _token_cache[2] > monotonic():
-            return _token_cache[1]
+        cached = _token_cache if scope == "eats.store" else _order_token_cache
+        if cached and cached[0] == key and cached[2] > monotonic():
+            return cached[1]
         data = _json_response(client.post(TOKEN_URL, data={
             "client_id": key[0], "client_secret": key[1],
-            "grant_type": "client_credentials", "scope": "eats.store",
+            "grant_type": "client_credentials", "scope": scope,
         }))
         token = data.get("access_token")
         try:
@@ -106,7 +112,11 @@ def _access_token(client: httpx.Client) -> str:
             expires = 0
         if not isinstance(token, str) or not token.strip() or expires <= 0:
             raise UberEatsError("Uber no devolvió un token válido.")
-        _token_cache = (key, token, monotonic() + max(0, expires - 60))
+        cached = (key, token, monotonic() + max(0, expires - 60))
+        if scope == "eats.store":
+            _token_cache = cached
+        else:
+            _order_token_cache = cached
         return token
 
 

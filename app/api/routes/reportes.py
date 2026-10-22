@@ -1,12 +1,11 @@
 """Rutas de reportes financieros e impuestos."""
 
 from datetime import date
-from pathlib import Path
 from fastapi import APIRouter, Depends, Query, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from starlette.background import BackgroundTask
 
+from app.api.file_responses import PrivateDownloadResponse, remove_download_copy
 from app.core.config import settings
 from app.core.time_utils import operation_today
 from app.services import pdf_service, backup_service
@@ -307,13 +306,16 @@ def descargar_backup(
     except (OSError, RuntimeError):
         raise HTTPException(status_code=500, detail="No se pudo crear un respaldo consistente") from None
     hoy = operation_today().isoformat()
-    return FileResponse(
-        path=info["path"],
-        filename=f"jacaranda_backup_{hoy}.db",
-        media_type="application/octet-stream",
-        headers={"Cache-Control": "no-store"},
-        background=BackgroundTask(Path(info["path"]).unlink, missing_ok=True),
-    )
+    try:
+        return PrivateDownloadResponse(
+            path=info["path"],
+            filename=f"jacaranda_backup_{hoy}.db",
+            media_type="application/octet-stream",
+            headers={"Cache-Control": "no-store"},
+        )
+    except Exception:
+        remove_download_copy(info["path"])
+        raise
 
 
 # ─── PDF Exports ──────────────────────────────────────────────────

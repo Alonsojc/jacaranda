@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     BACKUP_MAX_FILES: int = 20
     BACKUP_AUTO_CLEANUP: bool = False
     BACKUP_TIMEOUT_SECONDS: int = 300
+    BACKUP_MIN_FREE_BYTES: int = 64 * 1024 * 1024
     # Compatibilidad: no se ejecutan restauraciones contra esta URL.
     BACKUP_VERIFY_DATABASE_URL: str = ""
     ALLOW_DB_RESTORE: bool = False
@@ -129,6 +130,8 @@ class Settings(BaseSettings):
 
     # Uber Eats: consultas de prueba, sin operaciones reales.
     UBER_EATS_SANDBOX_ENABLED: bool = False
+    UBER_EATS_SANDBOX_WEBHOOK_ENABLED: bool = False
+    UBER_EATS_SANDBOX_ACTIONS_ENABLED: bool = False
     UBER_EATS_SANDBOX_CLIENT_ID: str = ""
     UBER_EATS_SANDBOX_CLIENT_SECRET: SecretStr = SecretStr("")
     UBER_EATS_SANDBOX_STORE_ID: str = ""

@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import selectors
 import shutil
 import sqlite3
 import subprocess
@@ -12,6 +13,8 @@ from pathlib import Path
 from time import monotonic
 from urllib.parse import unquote, urlparse, urlsplit
 
+from psycopg2.extensions import make_dsn
+from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
 from sqlalchemy.engine import make_url
 
 from app.core.config import settings
@@ -147,17 +150,65 @@ def _resolver_backup_path(filename: str | None = None) -> Path:
     return backups[0]
 
 
+def _postgres_options(parsed):
+    url = make_url(parsed.geturl())
+    if any(isinstance(value, tuple) for value in url.query.values()):
+        raise RuntimeError("Parametros PostgreSQL repetidos no permitidos")
+    _args, options = PGDialect_psycopg2().create_connect_args(url)
+    return options
+
+
 def _postgres_env(parsed):
-    return {**os.environ, "PGPASSWORD": parsed.password or ""}
+    options = _postgres_options(parsed)
+    env = dict(os.environ)
+    if "password" in options:
+        env["PGPASSWORD"] = options["password"]
+    return env
 
 
 def _postgres_cmd_base(parsed) -> list[str]:
-    return [
-        "-h", parsed.hostname or "localhost",
-        "-p", str(parsed.port or 5432),
-        "-U", parsed.username or "postgres",
-        "-d", parsed.path[1:],
-    ]
+    options = _postgres_options(parsed)
+    options.pop("password", None)
+    # Quote literal db names, including '='; never let -d reinterpret them as options.
+    return ["-d", make_dsn(**options)]
+
+
+def _check_backup_capacity(required_bytes: int = 0) -> None:
+    reserve = max(_setting_int("BACKUP_MIN_FREE_BYTES", 64 * 1024 * 1024), 0)
+    if shutil.disk_usage(_backup_dir()).free < reserve + max(required_bytes, 0):
+        raise RuntimeError("Espacio insuficiente para el respaldo sin comprometer la reserva de operacion")
+
+
+def _dump_postgres(pending: Path, timeout: int) -> None:
+    parsed = urlparse(settings.DATABASE_URL)
+    cmd = ["pg_dump", *_postgres_cmd_base(parsed), "--no-password", "--lock-wait-timeout=5s"]
+    deadline = monotonic() + timeout
+    process = subprocess.Popen(cmd, env=_postgres_env(parsed), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        with selectors.DefaultSelector() as selector, pending.open("wb", buffering=0) as target:
+            selector.register(process.stdout, selectors.EVENT_READ)
+            while True:
+                remaining = deadline - monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired("pg_dump", timeout)
+                if not selector.select(timeout=min(remaining, 1)):
+                    _check_backup_capacity()
+                    continue
+                chunk = os.read(process.stdout.fileno(), 64 * 1024)
+                if not chunk:
+                    break
+                _check_backup_capacity(len(chunk))
+                if target.write(chunk) != len(chunk):
+                    raise RuntimeError("Escritura incompleta del respaldo; no se publico la copia")
+            result = process.wait(timeout=max(deadline - monotonic(), 0.001))
+            _check_backup_capacity()
+            if result != 0:
+                raise RuntimeError("No se pudo crear el respaldo PostgreSQL; revise acceso y version de pg_dump")
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+        process.stdout.close()
 
 
 def limpiar_backups_antiguos() -> int:
@@ -180,6 +231,11 @@ def limpiar_backups_antiguos() -> int:
 def crear_backup() -> dict:
     """Publica una copia consistente y privada sin eliminar respaldos por defecto."""
     _ensure_backup_dir()
+    if not _setting_bool("BACKUP_AUTO_CLEANUP") and len(_backup_files()) >= _max_backup_files():
+        raise RuntimeError("Limite de respaldos alcanzado. Archive y verifique las copias antes de retirar alguna")
+    source = _sqlite_source()
+    estimate = source.stat().st_size if source and source.is_file() else 0
+    _check_backup_capacity(estimate)
     ts = _timestamp()
     backup_dir = _backup_dir()
     fd, pending_name = tempfile.mkstemp(prefix=f".jacaranda_{ts}_", suffix=".pending", dir=backup_dir)
@@ -199,6 +255,7 @@ def crear_backup() -> dict:
             def progress(_status, _remaining, _total):
                 if monotonic() > deadline:
                     raise RuntimeError("El respaldo excedio el tiempo permitido; no se borraron copias anteriores")
+                _check_backup_capacity()
 
             with closing(sqlite3.connect(src.resolve().as_uri() + "?mode=ro", uri=True)) as source, \
                     closing(sqlite3.connect(pending)) as target:
@@ -206,13 +263,7 @@ def crear_backup() -> dict:
                 if target.execute("PRAGMA quick_check").fetchone()[0] != "ok":
                     raise RuntimeError("La copia SQLite no paso la verificacion de integridad")
         else:
-            parsed = urlparse(settings.DATABASE_URL)
-            cmd = ["pg_dump", *_postgres_cmd_base(parsed), "--no-password",
-                   "--lock-wait-timeout=5s", "-f", str(pending)]
-            result = subprocess.run(cmd, env=_postgres_env(parsed), capture_output=True,
-                                    text=True, timeout=timeout)
-            if result.returncode != 0:
-                raise RuntimeError("No se pudo crear el respaldo PostgreSQL; revise acceso y version de pg_dump")
+            _dump_postgres(pending, timeout)
         if pending.stat().st_size == 0:
             raise RuntimeError("El respaldo generado esta vacio")
         with pending.open("rb") as stream:
@@ -254,6 +305,7 @@ def preparar_descarga_backup(filename: str | None = None) -> dict:
     """Copia privada de un respaldo completo, fuera de la retencion durante el envio."""
     source = _resolver_backup_path(filename)
     info = _backup_info(source)
+    _check_backup_capacity(source.stat().st_size)
     fd, temporary = tempfile.mkstemp(prefix=".download_", dir=_backup_dir())
     try:
         with os.fdopen(fd, "wb") as target, source.open("rb") as stream:

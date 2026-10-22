@@ -8,6 +8,7 @@ const STATIC_ASSETS = [
   './favicon.svg',
   './js/jacaranda-core.js?v=jacaranda-v122',
   './js/egresos-import.js?v=jacaranda-v122',
+  './js/uber-sandbox.js?v=jacaranda-v122',
   './manifest.json',
 ];
 

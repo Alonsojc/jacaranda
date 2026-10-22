@@ -6,13 +6,105 @@ import os
 import sqlite3
 import stat
 import subprocess
+import sys
 import time
+from types import SimpleNamespace
+from urllib.parse import urlparse
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from psycopg2.extensions import parse_dsn
+from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
+from sqlalchemy.engine import make_url
 
 from app.services import backup_service
+
+
+def test_download_audit_failure_removes_private_temporary_copy(client, auth_headers, monkeypatch, tmp_path):
+    _, directory = _configure_sqlite_backups(monkeypatch, tmp_path)
+    backup = backup_service.crear_backup()
+    with patch("app.api.routes.backup.registrar_evento", side_effect=RuntimeError("Audit unavailable")):
+        response = client.get("/api/v1/backup/descargar", headers=auth_headers)
+    assert response.status_code == 500
+    assert list(directory.glob(".download_*")) == []
+    assert Path(backup["path"]).is_file()
+
+
+def test_download_cleanup_also_runs_when_streaming_fails(tmp_path):
+    import asyncio
+    from app.api.file_responses import PrivateDownloadResponse
+
+    copied = tmp_path / ".download_test"
+    copied.write_bytes(b"synthetic-database")
+
+    async def fail_send(_message):
+        raise RuntimeError("Disconnected")
+
+    async def receive():
+        return {"type": "http.disconnect"}
+
+    with pytest.raises(RuntimeError, match="Disconnected"):
+        asyncio.run(PrivateDownloadResponse(copied)(
+            {"type": "http", "method": "GET", "headers": [], "asgi": {"spec_version": "2.3"}},
+            receive, fail_send,
+        ))
+    assert not copied.exists()
+
+
+def test_capture_and_download_refuse_insufficient_space_without_deleting(monkeypatch, tmp_path):
+    _, directory = _configure_sqlite_backups(monkeypatch, tmp_path)
+    backup = backup_service.crear_backup()
+    with patch.object(backup_service.shutil, "disk_usage", return_value=SimpleNamespace(free=0)):
+        with pytest.raises(RuntimeError, match="Espacio insuficiente"):
+            backup_service.crear_backup()
+        with pytest.raises(RuntimeError, match="Espacio insuficiente"):
+            backup_service.preparar_descarga_backup()
+    assert list(directory.glob(".pending")) == []
+    assert list(directory.glob(".download_*")) == []
+    assert Path(backup["path"]).is_file()
+
+
+def test_default_capture_limit_preserves_every_existing_recovery_point(monkeypatch, tmp_path):
+    _configure_file_backups(monkeypatch, tmp_path, max_files=1)
+    backup = backup_service.crear_backup()
+    with pytest.raises(RuntimeError, match="Limite de respaldos"):
+        backup_service.crear_backup()
+    assert [item["filename"] for item in backup_service.listar_backups()] == [backup["filename"]]
+
+
+def test_postgres_connection_preserves_encoding_and_tls_policy():
+    parsed = urlparse("postgresql://test%40user:fictional%3Apass%2Bword@localhost:5433/test%20db?sslmode=verify-full&sslrootcert=%2Ftmp%2Ftest-ca.pem&connect_timeout=8")
+    args = backup_service._postgres_cmd_base(parsed)
+    env = backup_service._postgres_env(parsed)
+    options = parse_dsn(args[1])
+    _args, runtime = PGDialect_psycopg2().create_connect_args(make_url(parsed.geturl()))
+    assert options == {key: str(value) for key, value in runtime.items() if key != "password"}
+    assert options["dbname"] == "test%20db"
+    assert env["PGPASSWORD"] == "fictional:pass+word"
+    assert options["sslmode"] == "verify-full" and options["sslrootcert"] == "/tmp/test-ca.pem"
+    assert options["connect_timeout"] == "8"
+    assert env["PGPASSWORD"] not in str(args)
+    with pytest.raises(RuntimeError, match="repetidos"):
+        backup_service._postgres_env(urlparse("postgresql://localhost/test?sslmode=require&sslmode=disable"))
+
+
+@pytest.mark.parametrize("database", ["test%20db", "dbname%3Ddifferent%20sslmode%3Ddisable", "contains=literal", "has'quote"])
+def test_postgres_database_name_is_literal_and_matches_runtime(database):
+    parsed = urlparse("postgresql://test:synthetic@localhost/" + database + "?sslmode=require")
+    options = parse_dsn(backup_service._postgres_cmd_base(parsed)[1])
+    assert options["dbname"] == make_url(parsed.geturl()).database
+    assert options["sslmode"] == "require"
+
+
+def test_download_can_select_exact_capture_and_matches_checksum(client, auth_headers, monkeypatch, tmp_path):
+    _configure_sqlite_backups(monkeypatch, tmp_path)
+    first = backup_service.crear_backup()
+    backup_service.crear_backup()
+    response = client.get("/api/v1/backup/descargar", params={"filename": first["filename"]}, headers=auth_headers)
+    assert response.status_code == 200 and first["filename"] in response.headers["content-disposition"]
+    assert hashlib.sha256(response.content).hexdigest() == first["sha256"]
+    assert client.get("/api/v1/backup/descargar?filename=../file.db", headers=auth_headers).status_code == 400
 
 
 @pytest.fixture(autouse=True)
@@ -208,7 +300,7 @@ def test_failed_capture_preserves_previous_backups(monkeypatch, tmp_path, captur
 def test_capture_preserves_all_previous_files_by_default(monkeypatch, tmp_path):
     _, directory = _configure_sqlite_backups(monkeypatch, tmp_path)
     old = _aged_backup(directory)
-    monkeypatch.setattr(backup_service.settings, "BACKUP_MAX_FILES", 1)
+    monkeypatch.setattr(backup_service.settings, "BACKUP_MAX_FILES", 4)
     for _ in range(3):
         assert backup_service.crear_backup()["removed_old_backups"] == 0
     assert old.exists()
@@ -270,20 +362,20 @@ def test_postgres_failures_do_not_delete_previous_files(monkeypatch, tmp_path, f
     old = _aged_backup(directory)
     monkeypatch.setattr(backup_service.settings, "DATABASE_URL", "postgresql://test:private-fake-password@localhost/test")
     monkeypatch.setattr(backup_service.settings, "BACKUP_AUTO_CLEANUP", True)
+    monkeypatch.setattr(backup_service.settings, "BACKUP_TIMEOUT_SECONDS", 1)
+    original_popen = subprocess.Popen
 
     def dump(cmd, **kwargs):
         assert "--no-password" in cmd
         assert "--lock-wait-timeout=5s" in cmd
-        assert kwargs["timeout"] > 0
         assert not any("private-fake-password" in arg for arg in cmd)
         assert [row["filename"] for row in backup_service.listar_backups()] == [old.name]
-        pending = Path(cmd[cmd.index("-f") + 1])
+        pending = next(directory.glob("*.pending"))
         assert stat.S_IMODE(pending.stat().st_mode) == 0o600
-        if failure == "timeout":
-            raise subprocess.TimeoutExpired(cmd, 1, stderr="private-fake-password")
-        return subprocess.CompletedProcess(cmd, 1 if failure == "error" else 0, stderr="private-fake-password")
+        code = {"error": "import sys;sys.exit(1)", "empty": "pass", "timeout": "import time;time.sleep(10)"}[failure]
+        return original_popen([sys.executable, "-c", code], **kwargs)
 
-    with patch.object(backup_service.subprocess, "run", side_effect=dump):
+    with patch.object(backup_service.subprocess, "Popen", side_effect=dump):
         with pytest.raises(RuntimeError) as error:
             capture()
     assert "private-fake-password" not in str(error.value)
@@ -294,19 +386,44 @@ def test_postgres_success_is_published_only_when_complete(monkeypatch, tmp_path)
     directory = _configure_file_backups(monkeypatch, tmp_path)
     directory.mkdir()
     monkeypatch.setattr(backup_service.settings, "DATABASE_URL", "postgresql://test:fake@localhost/test")
+    original_popen = subprocess.Popen
 
     def dump(cmd, **kwargs):
-        pending = Path(cmd[cmd.index("-f") + 1])
-        pending.write_text("CREATE TABLE products (id integer);\n", encoding="utf-8")
         assert backup_service.listar_backups() == []
-        return subprocess.CompletedProcess(cmd, 0)
+        return original_popen([sys.executable, "-c", "print('CREATE TABLE products (id integer);')"], **kwargs)
 
-    with patch.object(backup_service.subprocess, "run", side_effect=dump):
+    with patch.object(backup_service.subprocess, "Popen", side_effect=dump):
         created = backup_service.crear_backup()
     assert created["db_type"] == "postgresql"
     assert Path(created["path"]).read_text().startswith("CREATE TABLE")
     assert len(backup_service.listar_backups()) == 1
     assert not list(directory.glob("*.pending"))
+
+
+def test_postgres_stream_stops_before_free_space_reserve(monkeypatch, tmp_path):
+    directory = _configure_file_backups(monkeypatch, tmp_path)
+    old = _aged_backup(directory)
+    initial_size = old.stat().st_size
+    monkeypatch.setattr(backup_service.settings, "DATABASE_URL", "postgresql://test:fake@localhost/test")
+    monkeypatch.setattr(backup_service.settings, "BACKUP_MIN_FREE_BYTES", 64 * 1024 * 1024)
+    original_popen = subprocess.Popen
+    processes = []
+
+    def dump(cmd, **kwargs):
+        process = original_popen([sys.executable, "-c", "import sys;sys.stdout.buffer.write(b'x'*(2*1024*1024))"], **kwargs)
+        processes.append(process)
+        return process
+
+    def remaining(_path):
+        used = sum(path.stat().st_size for path in directory.iterdir()) - initial_size
+        return SimpleNamespace(free=65 * 1024 * 1024 - used)
+
+    with patch.object(backup_service.subprocess, "Popen", side_effect=dump), \
+            patch.object(backup_service.shutil, "disk_usage", side_effect=remaining):
+        with pytest.raises(RuntimeError, match="reserva"):
+            backup_service.crear_backup()
+    assert list(directory.iterdir()) == [old]
+    assert all(process.poll() is not None for process in processes)
 
 
 @pytest.mark.parametrize("verify_url", [
@@ -409,16 +526,31 @@ def test_download_survives_retention_before_stream_opens(client, auth_headers, m
     monkeypatch.setattr(backup_service.settings, "BACKUP_MAX_FILES", 1)
     backup_service.crear_backup()
     routes = importlib.import_module(module)
-    original_response = routes.FileResponse
+    original_response = routes.PrivateDownloadResponse
 
     def before_stream(*args, **kwargs):
         backup_service.crear_backup()
         return original_response(*args, **kwargs)
 
-    monkeypatch.setattr(routes, "FileResponse", before_stream)
+    monkeypatch.setattr(routes, "PrivateDownloadResponse", before_stream)
     response = client.get(endpoint, headers=auth_headers)
     assert response.status_code == 200
     assert response.content.startswith(b"SQLite format 3")
     assert response.headers["cache-control"] == "no-store"
     assert len(backup_service.listar_backups()) == 1
     assert not list(backup_service._backup_dir().glob(".download_*"))
+
+
+@pytest.mark.parametrize("module", ["app.api.routes.reportes", "app.api.routes.backup"])
+def test_all_backup_routes_cleanup_after_response_creation_failure(client, auth_headers, monkeypatch, tmp_path, module):
+    _, directory = _configure_sqlite_backups(monkeypatch, tmp_path)
+    backup_service.crear_backup()
+    routes = importlib.import_module(module)
+    monkeypatch.setattr(routes, "PrivateDownloadResponse", lambda **kwargs: (_ for _ in ()).throw(RuntimeError("response failure")))
+    endpoint = "/api/v1/reportes/backup" if module.endswith("reportes") else "/api/v1/backup/descargar"
+    try:
+        response = client.get(endpoint, headers=auth_headers)
+        assert response.status_code == 500
+    except RuntimeError as exc:
+        assert str(exc) == "response failure"
+    assert list(directory.glob(".download_*")) == []
