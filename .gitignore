@@ -43,6 +43,7 @@ Thumbs.db
 # Coverage
 htmlcov/
 .coverage
+ci-reports/
 
 # Tool artifacts
 .playwright-cli/
