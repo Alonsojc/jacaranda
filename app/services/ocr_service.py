@@ -63,13 +63,19 @@ OCR_SCHEMA = _objeto({
     "fecha": {"type": ["string", "null"]},
     "folio": {"type": ["string", "null"]},
     "moneda": {"type": ["string", "null"]},
-    "metodo_pago": {"type": ["string", "null"], "enum": [
-        "efectivo", "transferencia", "tarjeta", "credito", "debito", "bbva", "clip", "mixto", None,
+    "metodo_pago": {"anyOf": [
+        {"type": "string", "enum": [
+            "efectivo", "transferencia", "tarjeta", "credito", "debito", "bbva", "clip", "mixto",
+        ]},
+        {"type": "null"},
     ]},
     "items": {"type": "array", "items": _objeto({
         "nombre": {"type": "string"},
         "cantidad": {"type": ["number", "null"]},
-        "unidad": {"type": ["string", "null"], "enum": [*UNIDADES_OCR, None]},
+        "unidad": {"anyOf": [
+            {"type": "string", "enum": list(UNIDADES_OCR)},
+            {"type": "null"},
+        ]},
         "precio_unitario": {"type": ["number", "null"]},
         "total": {"type": ["number", "null"]},
     })},
