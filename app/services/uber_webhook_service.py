@@ -63,7 +63,10 @@ def sandbox_identity() -> tuple[str, str]:
 
 def verify_signature(body: bytes, signature: str | None) -> None:
     sandbox_identity()
-    secret = settings.UBER_EATS_SANDBOX_CLIENT_SECRET.get_secret_value()
+    secret = (
+        settings.UBER_EATS_SANDBOX_WEBHOOK_SECRET.get_secret_value()
+        or settings.UBER_EATS_SANDBOX_CLIENT_SECRET.get_secret_value()
+    )
     if not settings.UBER_EATS_SANDBOX_WEBHOOK_ENABLED or not secret:
         raise WebhookError(503, "La recepcion de pruebas no esta habilitada.")
     if not signature or not re.fullmatch(r"[0-9a-f]{64}", signature):

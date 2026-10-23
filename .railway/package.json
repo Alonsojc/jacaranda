@@ -1,0 +1,8 @@
+{
+  "name": "jacaranda-uber-sandbox-infrastructure",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "railway": "3.16.0"
+  }
+}

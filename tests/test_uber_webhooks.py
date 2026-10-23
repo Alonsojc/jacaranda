@@ -34,6 +34,7 @@ def configured(monkeypatch):
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_WEBHOOK_ENABLED", True)
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_CLIENT_ID", "fictional-client")
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_CLIENT_SECRET", SecretStr(SECRET))
+    monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_WEBHOOK_SECRET", SecretStr(""))
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_STORE_ID", STORE)
 
 
@@ -110,6 +111,17 @@ def test_modified_body_and_multiple_signatures_rejected(client, db):
         ("X-Uber-Signature", headers["X-Uber-Signature"]),
     ]).status_code == 401
     assert db.query(UberSandboxEvent).count() == 0
+
+
+def test_dedicated_signing_key_replaces_oauth_secret_for_signature_validation(client, db, monkeypatch):
+    signing_key = "synthetic-dedicated-signing-key"
+    monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_WEBHOOK_SECRET", SecretStr(signing_key))
+    body, headers = signed(event())
+    assert client.post(PATH, content=body, headers=headers).status_code == 401
+    headers["X-Uber-Signature"] = hmac.new(signing_key.encode(), body, hashlib.sha256).hexdigest()
+    monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_CLIENT_SECRET", SecretStr(""))
+    assert client.post(PATH, content=body, headers=headers).status_code == 200
+    assert db.query(UberSandboxEvent).count() == 1
 
 
 @pytest.mark.parametrize("setting,value", [
