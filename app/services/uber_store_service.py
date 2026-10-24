@@ -447,10 +447,44 @@ def submit(db: Session, request_key: UUID, operation: str, revision: int, confir
     return {"entorno": "sandbox", "estado": "recibida", "repetida": False}
 
 
+def _supersede_pre_revocation_status(db: Session, client_id: str, store_id: str) -> bool:
+    revoked = db.query(UberSandboxEvent).filter_by(
+        client_id=client_id, store_id=store_id, event_type="store.deprovisioned",
+    ).order_by(UberSandboxEvent.event_time.desc()).first()
+    if revoked is None:
+        return False
+    pair = db.query(UberSandboxStoreJob, UberSandboxEvent).join(
+        UberSandboxEvent,
+        (UberSandboxEvent.client_id == UberSandboxStoreJob.client_id)
+        & (UberSandboxEvent.store_id == UberSandboxStoreJob.store_id)
+        & (UberSandboxEvent.event_id == UberSandboxStoreJob.event_id),
+    ).filter(
+        UberSandboxStoreJob.client_id == client_id, UberSandboxStoreJob.store_id == store_id,
+        UberSandboxStoreJob.state.in_(("pending", "failed")),
+        UberSandboxEvent.event_type == "store.status.changed",
+        UberSandboxEvent.event_time < revoked.event_time,
+    ).order_by(UberSandboxStoreJob.id).first()
+    if pair is None:
+        return False
+    job, event = pair
+    # A signed unlink supersedes older status reads, even after access is restored.
+    updated = db.execute(update(UberSandboxStoreJob).where(
+        UberSandboxStoreJob.id == job.id, UberSandboxStoreJob.state.in_(("pending", "failed")),
+    ).values(state="superseded", updated_at=datetime.now(timezone.utc)))
+    if updated.rowcount != 1:
+        db.rollback()
+        return False
+    event.estado = "sustituido_por_baja"
+    db.commit()
+    return True
+
+
 def process_job(db: Session) -> bool:
     client_id, store_id = identity()
     if not settings.UBER_EATS_SANDBOX_STORE_AUTOMATION_ENABLED:
         return False
+    if _supersede_pre_revocation_status(db, client_id, store_id):
+        return True
     cutoff = datetime.now(timezone.utc) - timedelta(seconds=15)
     job = db.query(UberSandboxStoreJob).filter_by(client_id=client_id, store_id=store_id).filter(
         UberSandboxStoreJob.state == "pending", UberSandboxStoreJob.attempts < 3,

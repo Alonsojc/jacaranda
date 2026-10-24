@@ -130,3 +130,9 @@ despues deben verificarse configuracion, menu y disponibilidad antes de finaliza
 
 No ejecutar este ensayo con pedidos de prueba activos. Un HTTP 200 de la accion
 no acredita por si solo haber recibido `store.deprovisioned` de Uber.
+
+El worker conserva como `superseded` / `sustituido_por_baja` los avisos de estado
+pendientes o fallidos estrictamente anteriores a una baja firmada de la misma
+tienda y aplicacion. No vuelve a consultar ese acceso retirado ni borra la
+evidencia; avisos nuevos, de la misma fecha o sin esa prueba siguen su manejo
+normal de errores. La recuperacion posterior no reactiva esos avisos obsoletos.

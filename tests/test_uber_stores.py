@@ -425,6 +425,58 @@ def test_menu_refresh_uploads_once_even_when_remote_menu_is_already_identical(ma
         assert len([r for r in remote["calls"] if r.method == "PUT"]) == 1
 
 
+@pytest.mark.parametrize("job_state,attempts", [("pending", 0), ("failed", 3)])
+def test_signed_unlink_supersedes_only_older_status_reads_without_network(management, monkeypatch, job_state, attempts):
+    old = store_event("store.status.changed")
+    old["webhook_meta"]["webhook_msg_timestamp"] -= 10
+    with TestClient(runtime.app) as client:
+        assert receive(client, old).status_code == 200
+        assert receive(client, store_event("store.deprovisioned")).status_code == 200
+    monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_STORE_AUTOMATION_ENABLED", True)
+    with management[1]() as db, patch("httpx.Client") as network:
+        job = db.query(UberSandboxStoreJob).filter_by(event_id=old["webhook_meta"]["webhook_msg_uuid"]).one()
+        job.state, job.attempts = job_state, attempts
+        # Restoration must not replay a status read from the former association.
+        row = db.query(UberSandboxStore).one()
+        row.revoked, row.integration_enabled, row.online_status = False, True, "ONLINE"
+        db.commit()
+        assert stores.process_job(db)
+        assert job.state == "superseded" and job.attempts == attempts
+        event = db.query(UberSandboxEvent).filter_by(event_id=job.event_id).one()
+        assert event.estado == "sustituido_por_baja"
+        assert row.online_status == "ONLINE" and row.integration_enabled and not row.revoked
+        assert db.query(UberSandboxStoreJob).filter_by(state="pending").count() == 1
+        assert not stores.process_job(db)
+        network.assert_not_called()
+
+
+@pytest.mark.parametrize("proof", ["none", "same_time", "older", "other_store", "other_client"])
+def test_unrelated_revocation_cannot_hide_a_failed_status_job(management, monkeypatch, proof):
+    status = store_event("store.status.changed")
+    with TestClient(runtime.app) as client:
+        assert receive(client, status).status_code == 200
+        if proof != "none":
+            revocation = store_event("store.deprovisioned")
+            revocation["webhook_meta"]["webhook_msg_timestamp"] = status["webhook_meta"]["webhook_msg_timestamp"]
+            assert receive(client, revocation).status_code == 200
+    monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_STORE_AUTOMATION_ENABLED", True)
+    with management[1]() as db, patch("httpx.Client") as network:
+        job = db.query(UberSandboxStoreJob).filter_by(event_id=status["webhook_meta"]["webhook_msg_uuid"]).one()
+        job.state, job.attempts = "failed", 3
+        if proof != "none":
+            event = db.query(UberSandboxEvent).filter_by(event_type="store.deprovisioned").one()
+            if proof == "older":
+                event.event_time -= 1
+            elif proof in {"other_store", "other_client"}:
+                event.event_time += 1
+                setattr(event, "store_id" if proof == "other_store" else "client_id", str(uuid4()))
+        db.commit()
+        assert not stores.process_job(db)
+        assert job.state == "failed" and job.attempts == 3
+        assert db.query(UberSandboxEvent).filter_by(event_id=job.event_id).one().estado == "recibido"
+        network.assert_not_called()
+
+
 def test_merchant_oauth_is_one_use_encrypted_and_test_store_scoped(management):
     with TestClient(runtime.app) as client, provider() as remote:
         first = client.post(BASE + "/oauth/iniciar", headers=AUTH).json()
