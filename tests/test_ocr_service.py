@@ -85,6 +85,18 @@ def test_extraccion_estructurada_con_mismo_modelo_y_sin_exif(monkeypatch):
     assert not image.getexif()
 
 
+@pytest.mark.parametrize("campo,valores", [
+    ("metodo_pago", ["efectivo", "transferencia", "tarjeta", "credito", "debito", "bbva", "clip", "mixto"]),
+    ("unidad", list(ocr.UNIDADES_OCR)),
+])
+def test_enums_anulables_usan_ramas_con_tipos_escalares(campo, valores):
+    properties = ocr.OCR_SCHEMA["properties"]
+    schema = properties[campo] if campo == "metodo_pago" else properties["items"]["items"]["properties"][campo]
+    assert schema == {
+        "anyOf": [{"type": "string", "enum": valores}, {"type": "null"}],
+    }
+
+
 @pytest.mark.parametrize("formato,mime", [("PNG", "image/png"), ("WEBP", "image/webp"), ("GIF", "image/gif")])
 def test_prepara_formatos_y_limita_resolucion(formato, mime):
     blocks, _ = ocr.preparar_documento(imagen((2000, 2000), formato), mime)
@@ -171,7 +183,7 @@ def test_precio_calculado_se_identifica_y_no_se_alteran_totales():
 
 @pytest.mark.parametrize("unidad", list(UnidadMedida))
 def test_conserva_todas_las_unidades_de_inventario(unidad):
-    assert unidad.value in ocr.OCR_SCHEMA["properties"]["items"]["items"]["properties"]["unidad"]["enum"]
+    assert unidad.value in ocr.OCR_SCHEMA["properties"]["items"]["items"]["properties"]["unidad"]["anyOf"][0]["enum"]
     result = ocr.validar_resultado_ocr(ticket(items=[{
         "nombre": "Compra prueba", "cantidad": 2, "unidad": unidad.value, "total": 125.5,
     }]))

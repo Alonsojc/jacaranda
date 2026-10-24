@@ -82,7 +82,12 @@ def provider(change=None):
             if request.method == "PUT":
                 state["menu"] = json.loads(request.content)
                 return httpx.Response(204)
-            return httpx.Response(200, json=state["menu"])
+            menu = copy.deepcopy(state["menu"])
+            for category in menu.get("categories", []):
+                for item in category["entities"]:
+                    if item.get("type") == "ITEM":
+                        item.pop("type")
+            return httpx.Response(200, json=menu)
         raise AssertionError("Unexpected test endpoint")
 
     with patch.object(httpx, "Client", side_effect=lambda **kwargs: original(transport=httpx.MockTransport(respond), **kwargs)):

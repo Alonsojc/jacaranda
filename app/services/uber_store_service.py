@@ -204,11 +204,12 @@ def menu_signature(menu: dict) -> dict:
             else:
                 entities = row.get("entities") or []
                 if not isinstance(entities, list) or not all(
-                    isinstance(item, dict) and isinstance(item.get("id"), str) and isinstance(item.get("type"), str)
+                    isinstance(item, dict) and isinstance(item.get("id"), str) and isinstance(item.get("type", "ITEM"), str)
                     for item in entities
                 ):
                     raise StoreAPIError()
-                value["entities"] = sorted([item["id"], item["type"]] for item in entities)
+                # Uber's menu GET omits the default ITEM type supplied in the PUT.
+                value["entities"] = sorted([item["id"], item.get("type", "ITEM")] for item in entities)
             result[kind].append(value)
         result[kind].sort(key=lambda item: item["id"] or "")
     return result
