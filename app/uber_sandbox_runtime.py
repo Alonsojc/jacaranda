@@ -164,7 +164,7 @@ def script():
 
 @app.get("/favicon.svg", dependencies=[Depends(management_enabled)])
 def favicon():
-    return FileResponse(Path(__file__).parents[1] / "docs/favicon.svg", media_type="image/svg+xml")
+    return FileResponse(ASSETS / "favicon.svg", media_type="image/svg+xml")
 
 
 @app.get("/sandbox/estado", dependencies=[Depends(private_management)])

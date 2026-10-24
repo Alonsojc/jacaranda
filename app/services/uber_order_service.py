@@ -22,8 +22,9 @@ _REASONS = {"ITEM_ISSUE", "STORE_CLOSED", "POS_NOT_READY", "SPECIAL_INSTRUCTIONS
 
 
 class SandboxRequestError(Exception):
-    def __init__(self, uncertain: bool):
+    def __init__(self, uncertain: bool, status_code: int | None = None):
         self.uncertain = uncertain
+        self.status_code = status_code
         super().__init__("No se pudo confirmar la operacion de pruebas con Uber.")
 
 
@@ -52,7 +53,10 @@ def _request(method: str, order_id: str, payload: dict | None = None, action: st
                             api._order_token_cache = None
                     expected = 204 if action == "cancelar" else 200
                     if response.status_code != expected:
-                        raise SandboxRequestError(method == "POST" and not 400 <= response.status_code < 500)
+                        raise SandboxRequestError(
+                            method == "POST" and not 400 <= response.status_code < 500,
+                            response.status_code,
+                        )
                     if method == "POST":
                         return {}
                     body = bytearray()
@@ -223,7 +227,9 @@ def submit_action(
     # Persist before crossing the network boundary. A crash must block blind resends.
     db.commit()
     payload = {"external_reference_id": "jacaranda-sandbox-" + str(request_key)} if action == "aceptar" else {
-        "deny_reason" if action == "rechazar" else "cancellation_reason": {"type": reason},
+        "deny_reason" if action == "rechazar" else "cancellation_reason": {
+            "type": reason, "info": "Jacaranda Sandbox UBER_TEST integration validation.",
+        },
     }
     try:
         _request("POST", str(order_id), payload, action)
@@ -233,7 +239,8 @@ def submit_action(
             row.pending_request_key = None
         row.revision += 1
         db.commit()
-        raise WebhookError(502, "Uber no confirmo la accion. No se ha reenviado.") from None
+        status = f" (HTTP {exc.status_code})" if exc.status_code is not None else ""
+        raise WebhookError(502, f"Uber no confirmo la accion{status}. No se ha reenviado.") from None
     command.estado = "confirmada"
     row.state = "ACCEPTED" if action == "aceptar" else "FAILED"
     row.pending_request_key = None

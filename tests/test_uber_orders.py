@@ -131,6 +131,9 @@ def test_explicit_actions_use_documented_endpoints_once(db, receipt, action, rea
             assert data["external_reference_id"].endswith(str(key))
         else:
             assert data["deny_reason" if action == "rechazar" else "cancellation_reason"]["type"] == reason
+            assert data["deny_reason" if action == "rechazar" else "cancellation_reason"]["info"] == (
+                "Jacaranda Sandbox UBER_TEST integration validation."
+            )
         return httpx.Response(status)
 
     with transport(handler, calls):
@@ -149,6 +152,7 @@ def test_errors_do_not_claim_success_or_retry_blindly(db, receipt, status, uncer
         with pytest.raises(WebhookError) as error:
             submit(db)
         assert "never-expose" not in str(error.value)
+        assert f"HTTP {status}" in str(error.value)
         if uncertain:
             with pytest.raises(WebhookError, match="sin confirmar"):
                 submit(db)

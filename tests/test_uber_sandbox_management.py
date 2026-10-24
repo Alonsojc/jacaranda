@@ -65,6 +65,7 @@ def test_management_requires_its_own_credential_and_no_pos_identity(management):
         assert client.get("/sandbox.js").status_code == 200
         assert client.get("/sandbox.css").status_code == 200
         assert client.get("/favicon.svg").status_code == 200
+        assert runtime.favicon().path == runtime.ASSETS / "favicon.svg"
     assert set(inspect(engine).get_table_names()) == {model.__tablename__ for model in runtime.MODELS}
 
 
