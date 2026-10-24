@@ -122,7 +122,7 @@
         request_key: window.crypto.randomUUID(), accion: name, motivo: name === 'aceptar' ? null : reason,
         instrucciones_revisadas: reviewed, detalle_sha256: digest
       });
-      if (current === generation) status('Uber confirmo la accion de Sandbox. Actualiza el pedido.');
+      if (current === generation) status('Uber recibio la solicitud de Sandbox. Actualiza para verificar el estado.');
     } catch (error) { if (current === generation) status(error.message || 'Resultado sin confirmar. No se reenviara la accion.', true); }
     finally { if (current === generation) { if (selected) selected.acciones_habilitadas = false; busy = false; controls(); } }
   }
