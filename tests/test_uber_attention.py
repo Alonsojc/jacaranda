@@ -176,3 +176,32 @@ def test_edit_during_detail_fetch_requires_another_read(management, monkeypatch)
             monkeypatch.setattr(orders, "_request", fetch)
             result = orders.inspect_order(db, UUID(event["event_id"]))
             assert result["requiere_conciliacion"] and not result["acciones_habilitadas"]
+
+
+def test_edit_during_action_confirmation_remains_in_attention_queue(management, monkeypatch):
+    with TestClient(runtime.app) as client:
+        event = notify(client)
+        with management[1]() as db:
+            row = save_order(db, event, "OFFERED")
+            row.snapshot_json = json.dumps({"carts": [{"items": [{
+                "id": "fictional-brownie", "title": "Fixture", "quantity": {"amount": 1},
+            }]}]})
+            db.commit()
+            digest = hashlib.sha256(row.snapshot_json.encode()).hexdigest()
+            calls = []
+
+            def confirm(method, order_id, payload, action):
+                calls.append((method, action))
+                db.add(UberSandboxEvent(
+                    client_id=runtime.TEST_APPLICATION_ID, store_id=runtime.TEST_STORE_ID,
+                    event_id=str(uuid4()), order_id=order_id, event_type="orders.customer_order_edit",
+                    event_time=int(time.time()), fingerprint="synthetic",
+                ))
+                db.commit()
+                return {}
+
+            monkeypatch.setattr(orders, "_request", confirm)
+            result = orders.submit_action(db, UUID(row.order_id), uuid4(), "aceptar", None, True, digest)
+            assert result["estado"] == "confirmada"
+            assert orders.attention_orders(db)["conteos"]["verificar"] == 1
+            assert calls == [("POST", "aceptar")]

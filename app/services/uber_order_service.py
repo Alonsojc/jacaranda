@@ -290,6 +290,7 @@ def submit_action(
     reason: str | None, instructions_reviewed: bool, details_digest: str,
 ) -> dict:
     client_id, store_id = sandbox_identity()
+    action_started_at = datetime.now(timezone.utc)
     if not settings.UBER_EATS_SANDBOX_CLIENT_SECRET.get_secret_value():
         raise WebhookError(503, "Falta la credencial privada de pruebas.")
     if not settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED:
@@ -353,7 +354,7 @@ def submit_action(
         raise WebhookError(409, "El pedido ya tiene una operacion en curso.")
     command = UberSandboxAction(
         client_id=client_id, store_id=store_id, order_id=str(order_id), request_key=str(request_key),
-        fingerprint=fingerprint, action=action, estado="enviando", creado_en=datetime.now(timezone.utc),
+        fingerprint=fingerprint, action=action, estado="enviando", creado_en=action_started_at,
     )
     db.add(command)
     # Persist before crossing the network boundary. A crash must block blind resends.
@@ -377,6 +378,7 @@ def submit_action(
     row.state = "ACCEPTED" if action in {"aceptar", "listo"} else "FAILED"
     row.pending_request_key = None
     row.revision += 1
-    row.actualizado_en = datetime.now(timezone.utc)
+    # Edits received while Uber was confirming must remain unreviewed.
+    row.actualizado_en = action_started_at
     db.commit()
     return {"entorno": "sandbox", "estado": "confirmada", "repetida": False}
