@@ -144,6 +144,7 @@
   }
   function renderStore(data, fixture, events) {
     storeSelected = data;
+    if (data.cuenta_autorizada) { el('merchant-auth-link').removeAttribute('href'); el('merchant-auth-link').hidden = true; }
     el('store-summary').replaceChildren();
     [['Tienda', data.nombre], ['Identificador', data.tienda_id], ['Disponibilidad', data.estado],
       ['Integracion', data.revocada ? 'Revocada' : data.integracion.integration_enabled ? 'Habilitada' : 'Pausada'],

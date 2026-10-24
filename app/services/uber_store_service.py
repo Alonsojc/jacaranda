@@ -362,6 +362,9 @@ def submit(db: Session, request_key: UUID, operation: str, revision: int, confir
         desired = {"online_status": "OFFLINE" if operation == "pausar" else "ONLINE"}
         method, path = "POST", f"/v1/delivery/store/{store_id}/update-store-status"
         payload = {"status": desired["online_status"], "reason": "Jacaranda Sandbox UBER_TEST validation"}
+        if operation == "pausar":
+            # Uber requires a cutoff; a short TEST pause also expires if recovery is interrupted.
+            payload["is_offline_until"] = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(timespec="seconds")
     else:
         method, path = ("POST" if operation == "vincular" else "PATCH"), _path("/pos_data")
         enabled = operation != "integracion_pausar"

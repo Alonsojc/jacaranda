@@ -69,7 +69,13 @@ def provider(change=None):
         if path.endswith("/status"):
             return httpx.Response(200, json={"status": state["status"]})
         if path.endswith("/update-store-status"):
-            state["status"] = json.loads(request.content)["status"]
+            values = json.loads(request.content)
+            if values["status"] == "OFFLINE":
+                until = datetime.fromisoformat(values["is_offline_until"])
+                assert 240 < (until - datetime.now(timezone.utc)).total_seconds() <= 300
+            else:
+                assert "is_offline_until" not in values
+            state["status"] = values["status"]
             return httpx.Response(200, json={"status": state["status"]})
         if "/menus/items/" in path:
             item_id = path.rsplit("/", 1)[1]
