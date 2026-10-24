@@ -132,7 +132,13 @@ def integration() -> dict:
         raise WebhookError(409, "La tienda de pruebas esta asociada a otra aplicacion.")
     return {k: data[k] for k in (
         "store_id", "integration_enabled", "pos_integration_enabled", "require_manual_acceptance", "order_manager_client_id",
+        "integrator_brand_id", "integrator_store_id",
     ) if k in data}
+
+
+def _integration_ready(config: dict) -> bool:
+    return (config.get("integration_enabled") is True and config.get("pos_integration_enabled") is True
+            and config.get("order_manager_client_id") == TEST_CLIENT_ID and config.get("require_manual_acceptance") is False)
 
 
 def menu_view(data: dict) -> list[dict]:
@@ -218,8 +224,8 @@ def menu_signature(menu: dict) -> dict:
 def _desired_matches(desired: dict, config: dict, status: str, menu: dict) -> bool:
     if "integration_enabled" in desired:
         return config.get("integration_enabled") is desired["integration_enabled"] and (
-            not desired["integration_enabled"] or config.get("require_manual_acceptance") is False
-        )
+            not desired["integration_enabled"] or _integration_ready(config)
+        ) and all(config.get(key) == desired[key] for key in ("integrator_brand_id", "integrator_store_id") if key in desired)
     if "online_status" in desired:
         return status == desired["online_status"]
     if "menu" in desired:
@@ -250,7 +256,7 @@ def inspect_store(db: Session) -> dict:
         client_id=client_id, store_id=store_id, request_key=row.pending_request_key,
     ).first() if row.pending_request_key else None
     if row.revision == revision:
-        values = {"online_status": status, "integration_enabled": config.get("integration_enabled") is True,
+        values = {"online_status": status, "integration_enabled": _integration_ready(config),
                   "updated_at": datetime.now(timezone.utc), "revision": UberSandboxStore.revision + 1}
         resolved = pending is not None and pending.state in {"recibida", "incierta"} and _desired_matches(
             json.loads(pending.desired_json), config, status, menu,
@@ -371,7 +377,10 @@ def submit(db: Session, request_key: UUID, operation: str, revision: int, confir
         payload = _integration_payload() if operation == "vincular" else {"integration_enabled": enabled}
         if enabled and operation != "vincular":
             payload["require_manual_acceptance"] = False
+            payload["is_order_manager"] = True
         desired = {"integration_enabled": enabled}
+        if operation == "vincular":
+            desired.update({key: payload[key] for key in ("integrator_brand_id", "integrator_store_id")})
     claim = db.execute(update(UberSandboxStore).where(
         UberSandboxStore.id == row.id, UberSandboxStore.revision == revision,
         UberSandboxStore.pending_request_key.is_(None),
@@ -423,8 +432,8 @@ def process_job(db: Session) -> bool:
             config = integration()
             row = store_state(db, client_id, store_id, lock=True)
             if event.event_type == "store.provisioned" and event.event_time > row.lifecycle_event_time:
-                row.revoked = config.get("integration_enabled") is not True
-                row.integration_enabled = config.get("integration_enabled") is True
+                row.revoked = not _integration_ready(config)
+                row.integration_enabled = _integration_ready(config)
                 row.lifecycle_event_time = event.event_time
                 row.revision += 1
             db.commit()
@@ -438,7 +447,7 @@ def process_job(db: Session) -> bool:
             if job.needs_menu:
                 inspect_store(db)
                 row = store_state(db, client_id, store_id)
-                if row.revoked or config.get("integration_enabled") is not True:
+                if row.revoked or not _integration_ready(config):
                     raise StoreAPIError()
                 menu = json.loads(row.menu_json) if row.menu_json else fixture_menu()
                 remote = request("GET", f"/v2/eats/stores/{store_id}/menus")

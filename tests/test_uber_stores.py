@@ -30,7 +30,7 @@ BASE = "/api/v1/uber-eats/sandbox"
 @contextmanager
 def provider(change=None):
     state = {
-        "config": {"store_id": runtime.TEST_STORE_ID, "integration_enabled": True,
+        "config": {"store_id": runtime.TEST_STORE_ID, "integration_enabled": True, "pos_integration_enabled": True,
                    "order_manager_client_id": runtime.TEST_APPLICATION_ID, "require_manual_acceptance": False},
         "status": "ONLINE", "menu": {"items": [], "menus": []}, "calls": [], "tokens": [],
     }
@@ -61,9 +61,15 @@ def provider(change=None):
                 assert request.headers["authorization"] == "Bearer synthetic-merchant-token"
                 state["config"].update(json.loads(request.content))
                 state["config"]["integration_enabled"] = True
+                state["config"]["pos_integration_enabled"] = True
+                state["config"]["order_manager_client_id"] = runtime.TEST_APPLICATION_ID
                 return httpx.Response(200)
             if request.method == "PATCH":
-                state["config"].update(json.loads(request.content))
+                values = json.loads(request.content)
+                state["config"].update(values)
+                ready = values.get("integration_enabled") and values.get("is_order_manager") is True
+                state["config"]["pos_integration_enabled"] = bool(ready)
+                state["config"]["order_manager_client_id"] = runtime.TEST_APPLICATION_ID if ready else None
                 return httpx.Response(204)
             return httpx.Response(200, json=state["config"])
         if path.endswith("/status"):
@@ -211,6 +217,19 @@ def test_pause_resume_and_integration_updates_are_verified(management):
             result, _ = action(client, kind)
             assert result.status_code == 200
             assert current(client)["integracion"]["integration_enabled"] is expected
+
+
+def test_enabled_flag_alone_cannot_confirm_a_usable_order_integration(management):
+    def incomplete(request, state):
+        if request.method == "PATCH":
+            state["config"].update(integration_enabled=True, pos_integration_enabled=False, order_manager_client_id=None)
+            return httpx.Response(204)
+    with TestClient(runtime.app) as client, provider(incomplete) as remote:
+        result, _ = action(client, "integracion_activar")
+        assert result.status_code == 200
+        assert current(client)["requiere_conciliacion"]
+        remote["config"].update(pos_integration_enabled=True, order_manager_client_id=runtime.TEST_APPLICATION_ID)
+        assert not current(client)["requiere_conciliacion"]
 
 
 def test_uncertain_store_change_is_not_resent_and_only_matching_read_reconciles(management):
