@@ -157,7 +157,8 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
     return {
         "entorno": "sandbox", "pedido": snapshot,
         "acciones_habilitadas": settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED and pending is None and not changed and not regresses,
-        "requiere_conciliacion": pending is not None,
+        "requiere_conciliacion": pending is not None or regresses,
+        "estado_remoto": order["state"],
         "detalle_sha256": snapshot_digest,
     }
 

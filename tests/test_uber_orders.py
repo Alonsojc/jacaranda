@@ -232,8 +232,36 @@ def test_stale_remote_order_cannot_reopen_accepted_order(db, receipt):
     result = inspect(db, receipt, state="OFFERED")
     assert result["pedido"]["state"] == "ACCEPTED"
     assert result["acciones_habilitadas"] is False
+    assert result["requiere_conciliacion"] is True
+    assert result["estado_remoto"] == "OFFERED"
     with pytest.raises(WebhookError, match="estado"):
         submit(db)
+
+
+def test_success_response_with_unconfirmed_denial_does_not_reopen_order(db, receipt):
+    inspect(db, receipt)
+    with transport(lambda r: httpx.Response(200)):
+        submit(db, action="rechazar", reason="OTHER")
+    result = inspect(db, receipt, state="OFFERED")
+    assert result["pedido"]["state"] == "FAILED"
+    assert result["estado_remoto"] == "OFFERED"
+    assert result["requiere_conciliacion"] and not result["acciones_habilitadas"]
+    with patch.object(orders, "_request") as network, pytest.raises(WebhookError, match="estado"):
+        submit(db, action="rechazar", reason="OTHER")
+    network.assert_not_called()
+
+
+def test_unexpected_cancel_success_status_is_not_claimed_or_resent(db, receipt):
+    inspect(db, receipt, state="ACCEPTED")
+    with transport(lambda r: httpx.Response(200)), pytest.raises(WebhookError, match="HTTP 200"):
+        submit(db, action="cancelar", reason="OTHER")
+    result = inspect(db, receipt, state="SUCCEEDED")
+    assert result["pedido"]["state"] == "ACCEPTED"
+    assert result["estado_remoto"] == "SUCCEEDED"
+    assert result["requiere_conciliacion"] and not result["acciones_habilitadas"]
+    with patch.object(orders, "_request") as network, pytest.raises(WebhookError, match="sin confirmar"):
+        submit(db, action="cancelar", reason="OTHER")
+    network.assert_not_called()
 
 
 def test_sqlite_inspection_cannot_overwrite_concurrently_confirmed_acceptance(tmp_path, monkeypatch):

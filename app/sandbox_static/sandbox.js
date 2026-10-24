@@ -65,7 +65,8 @@
   function render(data) {
     var order = data.pedido;
     el('order-title').textContent = 'Pedido ' + (order.display_id || order.id.slice(0, 8));
-    el('order-state').textContent = order.state;
+    el('order-state').textContent = order.state + (data.estado_remoto && data.estado_remoto !== order.state ?
+      ' (Uber: ' + data.estado_remoto + ')' : '');
     el('instructions').textContent = order.store_instructions || 'Sin instrucciones generales';
     el('raw-detail').textContent = JSON.stringify(order, null, 2);
     el('items').replaceChildren();
@@ -76,7 +77,11 @@
         var quantity = item.quantity && item.quantity.amount;
         name.textContent = String(quantity === undefined ? '?' : quantity) + ' x ' + (item.title || 'Producto');
         row.appendChild(name);
-        if (item.special_instructions) { var note = document.createElement('p'); note.textContent = item.special_instructions; row.appendChild(note); }
+        var notes = [item.special_instructions, item.customer_request && item.customer_request.special_instructions];
+        notes.forEach(function (text, index) {
+          if (typeof text !== 'string' || !text || notes.indexOf(text) !== index) return;
+          var note = document.createElement('p'); note.textContent = text; row.appendChild(note);
+        });
         el('items').appendChild(row);
       });
     });
