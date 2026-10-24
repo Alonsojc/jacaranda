@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import json
+import logging
 import re
 import time
 from datetime import timezone
@@ -17,6 +18,7 @@ from app.models.uber_eats import UberSandboxEvent, UberSandboxStore, UberSandbox
 
 MAX_BODY_BYTES = 64 * 1024
 MAX_EVENT_AGE_SECONDS = 24 * 60 * 60
+logger = logging.getLogger(__name__)
 EVENT_TYPES = frozenset({
     "orders.notification", "orders.scheduled.notification", "orders.failure",
     "orders.cancel", "orders.release", "orders.fulfillment_issues.resolved",
@@ -122,6 +124,21 @@ def _same_event(existing: UberSandboxEvent, fingerprint: str) -> None:
         raise WebhookError(409, "La identidad del evento ya tiene otros datos.")
 
 
+def _log_schema_mismatch(data: object, error: ValidationError) -> None:
+    # Only fixed field names and types; never log provider values or error input.
+    fields = {"event_id", "event_type", "event_time", "store_id", "meta", "webhook_meta",
+              "user_id", "resource_id", "client_id", "webhook_msg_timestamp", "webhook_msg_uuid",
+              "perform_refresh_menu", "status"}
+    shape = {}
+    if isinstance(data, dict):
+        for parent, value in (("root", data), ("meta", data.get("meta")), ("webhook_meta", data.get("webhook_meta"))):
+            if isinstance(value, dict):
+                shape[parent] = {key: type(value[key]).__name__ for key in sorted(fields & value.keys())}
+    errors = [{"field": ".".join(str(key) if key in fields else "?" for key in item["loc"]),
+               "type": item["type"]} for item in error.errors(include_input=False, include_context=False, include_url=False)]
+    logger.warning("Sandbox schema rejected shape=%s errors=%s", json.dumps(shape, sort_keys=True), json.dumps(errors))
+
+
 def receive_event(db: Session, body: bytes, signature: str | None) -> bool:
     if not body or len(body) > MAX_BODY_BYTES:
         raise WebhookError(413 if body else 400, "Tamano de notificacion no permitido.")
@@ -144,7 +161,10 @@ def receive_event(db: Session, body: bytes, signature: str | None) -> bool:
             event_id = str(event.event_id)
             event_time = event.event_time
             resource_id = str(event.meta.resource_id)
-    except (ValueError, ValidationError, UnicodeDecodeError, RecursionError):
+    except ValidationError as exc:
+        _log_schema_mismatch(data, exc)
+        raise WebhookError(400, "Notificacion de Uber no valida.") from None
+    except (ValueError, UnicodeDecodeError, RecursionError):
         raise WebhookError(400, "Notificacion de Uber no valida.") from None
     if incoming_store != store_id:
         raise WebhookError(403, "El evento no corresponde a la tienda de pruebas.")

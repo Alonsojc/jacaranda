@@ -286,6 +286,18 @@ def test_invalid_store_events_cannot_enter_or_disable_a_store(management, change
         assert db.query(UberSandboxEvent).count() == db.query(UberSandboxStoreJob).count() == 0
 
 
+def test_signed_schema_diagnostics_do_not_log_payload_values(management, caplog):
+    payload = store_event("store.status.changed", store_id="never-log-private-value")
+    payload["webhook_meta"]["webhook_msg_uuid"] = "never-log-private-uuid"
+    payload["unknown-private-field"] = "never-log-private-content"
+    with TestClient(runtime.app) as client:
+        assert receive(client, payload).status_code == 400
+    assert "Sandbox schema rejected" in caplog.text
+    assert "store_id" in caplog.text and "uuid_parsing" in caplog.text
+    assert "never-log" not in caplog.text
+    assert "unknown-private-field" not in caplog.text
+
+
 @pytest.mark.parametrize("environment", ["production", "sandbox", "testing"])
 def test_unsigned_environment_header_cannot_override_signed_test_store_identity(management, environment):
     with TestClient(runtime.app) as client:
