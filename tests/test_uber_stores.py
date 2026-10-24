@@ -266,7 +266,7 @@ def test_signed_store_events_commit_once_without_network_or_order_inspection(man
         assert db.query(UberSandboxStore).one().revoked is (kind == "store.deprovisioned")
 
 
-@pytest.mark.parametrize("change", ["store", "client", "uuid", "time", "flag", "environment"])
+@pytest.mark.parametrize("change", ["store", "client", "uuid", "time", "flag"])
 def test_invalid_store_events_cannot_enter_or_disable_a_store(management, change):
     payload = store_event("store.deprovisioned")
     if change == "store":
@@ -280,10 +280,18 @@ def test_invalid_store_events_cannot_enter_or_disable_a_store(management, change
     elif change == "flag":
         payload["perform_refresh_menu"] = "yes"
     with TestClient(runtime.app) as client:
-        r = receive(client, payload, {"X-Environment": "production"} if change == "environment" else None)
+        r = receive(client, payload)
         assert r.status_code in {400, 403}
     with management[1]() as db:
         assert db.query(UberSandboxEvent).count() == db.query(UberSandboxStoreJob).count() == 0
+
+
+@pytest.mark.parametrize("environment", ["production", "sandbox", "testing"])
+def test_unsigned_environment_header_cannot_override_signed_test_store_identity(management, environment):
+    with TestClient(runtime.app) as client:
+        assert receive(client, store_event("store.status.changed"), {"X-Environment": environment}).status_code == 200
+        assert receive(client, store_event("store.status.changed", store_id=str(uuid4())),
+                       {"X-Environment": environment}).status_code == 403
 
 
 def test_deprovision_is_an_immediate_write_barrier(management):

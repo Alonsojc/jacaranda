@@ -1,5 +1,6 @@
 """Diagnóstico administrativo; no activa ni modifica tiendas de Uber Eats."""
 
+import logging
 from typing import Literal
 from uuid import UUID
 
@@ -17,6 +18,7 @@ from app.services import uber_order_service as orders
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 _admin = Depends(require_role(RolUsuario.ADMINISTRADOR))
 
 
@@ -49,9 +51,8 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
     """Only HMAC-authenticated sandbox events; acknowledge after durable commit."""
     if request.headers.get("content-encoding", "identity").lower() != "identity":
         raise HTTPException(415, "Codificacion no permitida.")
-    environment = request.headers.getlist("x-environment")
-    if environment and (len(environment) != 1 or environment[0].lower() != "sandbox"):
-        raise HTTPException(403, "Solo se reciben eventos de Sandbox.")
+    # Environment headers are unsigned. TEST isolation comes from the HMAC,
+    # configured runtime, and approved application/store IDs in the signed body.
     signatures = request.headers.getlist("x-uber-signature")
     if len(signatures) != 1:
         raise HTTPException(401, "Firma de Uber no valida.")
@@ -63,6 +64,7 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
     try:
         inbox.receive_event(db, bytes(raw), signatures[0])
     except inbox.WebhookError as exc:
+        logger.warning("Sandbox receipt rejected: http=%s reason=%s", exc.status_code, str(exc))
         raise HTTPException(exc.status_code, str(exc)) from None
     except SQLAlchemyError:
         db.rollback()
