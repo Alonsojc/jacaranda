@@ -161,6 +161,37 @@ def test_errors_do_not_claim_success_or_retry_blindly(db, receipt, status, uncer
     assert len([r for r in calls if r.url.host == "test-api.uber.com"]) == 1
 
 
+def test_provider_diagnostics_never_log_response_or_credentials(db, receipt, caplog):
+    inspect(db, receipt)
+    with caplog.at_level("INFO", logger="app.services.uber_order_service"), transport(lambda r: httpx.Response(
+        400, json={"code": "bad_request", "message": "private-response-secret"},
+        headers={"x-uber-request-id": "provider-private-token-not-a-uuid"},
+    )), pytest.raises(WebhookError):
+        submit(db)
+    assert "http=400" in caplog.text and "code=bad_request" in caplog.text
+    assert "fields=code,message" in caplog.text
+    assert "private-response-secret" not in caplog.text
+    assert "provider-private-token" not in caplog.text
+    assert "synthetic-order-secret" not in caplog.text
+
+
+def test_error_envelope_in_success_response_stays_uncertain(db, receipt):
+    inspect(db, receipt)
+    with transport(lambda r: httpx.Response(200, json={"code": "bad_request"})), pytest.raises(WebhookError):
+        submit(db)
+    assert db.query(UberSandboxAction).one().estado == "incierta"
+    with patch.object(orders, "_request") as network, pytest.raises(WebhookError, match="sin confirmar"):
+        submit(db)
+    network.assert_not_called()
+
+
+def test_oversized_post_response_is_uncertain_and_bounded(db, receipt):
+    inspect(db, receipt)
+    with transport(lambda r: httpx.Response(200, content=b" " * (orders.MAX_RESPONSE_BYTES + 1))), pytest.raises(WebhookError):
+        submit(db)
+    assert db.query(UberSandboxAction).one().estado == "incierta"
+
+
 def test_timeout_remains_uncertain_across_fresh_session_and_inspection(db, receipt):
     inspect(db, receipt)
 

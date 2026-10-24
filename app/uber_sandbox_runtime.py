@@ -2,6 +2,7 @@
 
 import hashlib
 import hmac
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -197,6 +198,10 @@ def health():
 if __name__ == "__main__":
     import uvicorn
 
+    order_log = logging.getLogger("app.services.uber_order_service")
+    order_log.setLevel(logging.INFO)
+    order_log.addHandler(logging.StreamHandler())
+    order_log.propagate = False
     uvicorn.run(
         "app.uber_sandbox_runtime:app",
         host="0.0.0.0",

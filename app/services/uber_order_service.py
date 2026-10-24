@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -19,6 +20,8 @@ MAX_RESPONSE_BYTES = 512 * 1024
 MAX_DETAILS_AGE_SECONDS = 120
 _ACTIONS = {"aceptar": "accept", "rechazar": "deny", "cancelar": "cancel"}
 _REASONS = {"ITEM_ISSUE", "STORE_CLOSED", "POS_NOT_READY", "SPECIAL_INSTRUCTIONS", "TECHNICAL_FAILURE", "OTHER"}
+_ERROR_CODES = {"bad_request", "unauthorized", "forbidden", "not_found", "not_implemented", "internal_server_error", "rate_limited"}
+logger = logging.getLogger(__name__)
 
 
 class SandboxRequestError(Exception):
@@ -51,6 +54,27 @@ def _request(method: str, order_id: str, payload: dict | None = None, action: st
                     if response.status_code == 401:
                         with api._token_lock:
                             api._order_token_cache = None
+                    body = bytearray()
+                    for chunk in response.iter_bytes():
+                        if len(body) + len(chunk) > MAX_RESPONSE_BYTES:
+                            raise SandboxRequestError(method == "POST", response.status_code)
+                        body.extend(chunk)
+                    try:
+                        data = json.loads(body) if body else {}
+                    except (ValueError, UnicodeDecodeError, RecursionError):
+                        data = None
+                    code = data.get("code") if isinstance(data, dict) else None
+                    code = code if isinstance(code, str) and code in _ERROR_CODES else None
+                    fields = sorted({"order", "code", "error", "errors", "status", "message", "metadata"}.intersection(data)) if isinstance(data, dict) else []
+                    try:
+                        request_id = str(UUID(response.headers.get("x-uber-request-id", "")))
+                    except (ValueError, TypeError, AttributeError):
+                        request_id = "-"
+                    # Do not log response text, credentials, contacts, or arbitrary provider fields.
+                    logger.info(
+                        "Uber sandbox response method=%s action=%s http=%s bytes=%s code=%s request_id=%s fields=%s",
+                        method, action or "consultar", response.status_code, len(body), code or "-", request_id, ",".join(fields) or "-",
+                    )
                     expected = 204 if action == "cancelar" else 200
                     if response.status_code != expected:
                         raise SandboxRequestError(
@@ -58,16 +82,9 @@ def _request(method: str, order_id: str, payload: dict | None = None, action: st
                             response.status_code,
                         )
                     if method == "POST":
+                        if code is not None:
+                            raise SandboxRequestError(True, response.status_code)
                         return {}
-                    body = bytearray()
-                    for chunk in response.iter_bytes():
-                        if len(body) + len(chunk) > MAX_RESPONSE_BYTES:
-                            raise SandboxRequestError(False)
-                        body.extend(chunk)
-                    try:
-                        data = json.loads(body)
-                    except (ValueError, UnicodeDecodeError, RecursionError):
-                        raise SandboxRequestError(False) from None
                     if not isinstance(data, dict):
                         raise SandboxRequestError(False)
                     return data
