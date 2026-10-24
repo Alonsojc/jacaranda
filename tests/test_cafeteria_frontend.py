@@ -239,7 +239,7 @@ cargarCafeteriaVentas=()=>{refreshes++;return Promise.resolve();};
   assert.equal(_cafPagoGuardando,false);assert.equal(_cafPagoContext,null);
   assert.deepEqual(_dashGetCache,{});assert.equal(_dashCacheAt,0);
   assert.deepEqual(_cafPagosPendientes,{});assert.deepEqual(_cafVentas,[]);
-  assert.deepEqual(closed,['modal-caf-pago']);
+  assert.deepEqual(closed,['modal-uber-preparacion','modal-caf-pago']);
   _cafVentas=[cuenta];pagarCafeteria(1,true);let current=guardarPagoCafeteria();
   requests[0].resolve(cuenta);await old;
   assert.equal(_cafPagoGuardando,true);assert.equal(fields['caf-pago-guardar'].disabled,true);

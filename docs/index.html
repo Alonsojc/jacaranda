@@ -697,6 +697,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </style>
 <script defer src="js/jacaranda-core.js?v=jacaranda-v122"></script>
 <script defer src="js/egresos-import.js?v=jacaranda-v122"></script>
+<script defer src="js/uber-sandbox.js?v=jacaranda-v122"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 </head>
@@ -3118,6 +3119,28 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <p>Pedidos autom&aacute;ticos: pendientes de activaci&oacute;n</p>
 <div id="uber-preparacion-content" aria-live="polite"></div>
 <p id="uber-prueba-resultado" role="status"></p>
+<section id="uber-sandbox-panel" style="border-top:1px solid var(--brd);padding-top:.8rem;margin-top:1rem">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
+<h4 style="margin:0;font-size:.9rem">Pedidos de prueba</h4>
+<button type="button" id="uber-eventos-cargar" class="catalog-icon-btn" style="width:44px;height:44px" onclick="cargarEventosUberSandbox()" aria-label="Actualizar notificaciones de prueba" title="Actualizar notificaciones de prueba">&#8635;</button>
+</div>
+<p id="uber-sandbox-estado" role="status" style="font-size:.82rem"></p>
+<div id="uber-sandbox-eventos" style="max-height:250px;overflow:auto"></div>
+<button type="button" id="uber-eventos-anteriores" class="limpiar" style="min-height:44px;width:auto" onclick="cargarEventosUberSandbox(true)" disabled>Notificaciones anteriores</button>
+<div id="uber-sandbox-pedido" hidden>
+<h4 id="uber-sandbox-pedido-titulo" style="font-size:.9rem;overflow-wrap:anywhere"></h4>
+<p id="uber-sandbox-instrucciones" style="white-space:pre-wrap;overflow-wrap:anywhere"></p>
+<details open><summary>Detalle del pedido de prueba</summary><pre id="uber-sandbox-detalle" style="font-size:.75rem;max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"></pre></details>
+<label style="display:flex;align-items:flex-start;gap:.5rem;margin:.7rem 0;font-size:.85rem"><input type="checkbox" id="uber-sandbox-revisado" onchange="actualizarAccionesUberSandbox()">Revis&eacute; productos, alergias e instrucciones</label>
+<label for="uber-sandbox-motivo" style="font-size:.82rem">Motivo de rechazo o cancelaci&oacute;n</label>
+<select id="uber-sandbox-motivo" style="width:100%;min-height:44px;margin:.4rem 0"><option value="SPECIAL_INSTRUCTIONS">Instrucciones no atendibles</option><option value="ITEM_ISSUE">Producto no disponible</option><option value="STORE_CLOSED">Tienda cerrada</option><option value="POS_NOT_READY">POS no disponible</option><option value="TECHNICAL_FAILURE">Falla t&eacute;cnica</option><option value="OTHER">Otro</option></select>
+<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem">
+<button type="button" id="uber-sandbox-aceptar" class="cobrar" style="min-height:44px;width:auto" onclick="accionUberSandbox('aceptar')" disabled>Aceptar prueba</button>
+<button type="button" id="uber-sandbox-rechazar" class="limpiar" style="min-height:44px;width:auto" onclick="accionUberSandbox('rechazar')" disabled>Rechazar prueba</button>
+<button type="button" id="uber-sandbox-cancelar" class="limpiar" style="min-height:44px;width:auto;color:#b91c1c;border:1px solid #fecaca" onclick="accionUberSandbox('cancelar')" disabled>Cancelar prueba</button>
+</div>
+</div>
+</section>
 <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem">
 <button type="button" class="cobrar" id="uber-probar-btn" style="min-height:44px" disabled onclick="probarConexionUber()">Probar conexi&oacute;n de pruebas</button>
 <button type="button" class="limpiar" style="min-height:44px" onclick="cerrarModal('modal-uber-preparacion')">Cerrar</button>
@@ -3390,6 +3413,8 @@ var _pedidoDatosCargados = false;
 
 function invalidarTareasSesion() {
   _versionSesion++;
+  if (typeof reiniciarUberSandbox === 'function') reiniciarUberSandbox();
+  cerrarModal('modal-uber-preparacion');
   if (typeof cerrarImportacionEgresos === 'function') cerrarImportacionEgresos(true);
   cerrarCamaraEgreso();
   _egresoCapturaPendiente = null;
@@ -4799,6 +4824,7 @@ function actualizarModoVentaUI(modo) {
 
 async function abrirPreparacionUber() {
   if (!esAdminActual()) return;
+  if (window.reiniciarUberSandbox) window.reiniciarUberSandbox();
   var content = document.getElementById('uber-preparacion-content');
   var button = document.getElementById('uber-probar-btn');
   document.getElementById('modal-uber-preparacion').classList.add('on');

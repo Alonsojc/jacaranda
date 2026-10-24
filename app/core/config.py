@@ -130,8 +130,14 @@ class Settings(BaseSettings):
 
     # Uber Eats: consultas de prueba, sin operaciones reales.
     UBER_EATS_SANDBOX_ENABLED: bool = False
+    UBER_EATS_SANDBOX_WEBHOOK_ENABLED: bool = False
+    UBER_EATS_SANDBOX_ACTIONS_ENABLED: bool = False
+    UBER_EATS_SANDBOX_MANAGEMENT_ENABLED: bool = False
+    UBER_EATS_SANDBOX_STORE_AUTOMATION_ENABLED: bool = False
+    UBER_EATS_SANDBOX_ADMIN_TOKEN: SecretStr = SecretStr("")
     UBER_EATS_SANDBOX_CLIENT_ID: str = ""
     UBER_EATS_SANDBOX_CLIENT_SECRET: SecretStr = SecretStr("")
+    UBER_EATS_SANDBOX_WEBHOOK_SECRET: SecretStr = SecretStr("")
     UBER_EATS_SANDBOX_STORE_ID: str = ""
 
     # BBVA API Market (conciliación de pagos)
