@@ -298,6 +298,58 @@ def test_signed_schema_diagnostics_do_not_log_payload_values(management, caplog)
     assert "unknown-private-field" not in caplog.text
 
 
+def status_notification():
+    return {
+        "event_id": str(uuid4()), "event_type": "store.status.changed", "event_time": int(time.time()) * 1000,
+        "meta": {"store_id": runtime.TEST_STORE_ID, "user_id": runtime.TEST_STORE_ID, "status": "OFFLINE"},
+    }
+
+
+def test_status_notification_envelope_is_durable_and_reads_canonical_status(management, monkeypatch):
+    payload = status_notification()
+    with TestClient(runtime.app) as client, provider() as remote:
+        for _ in range(2):
+            response = receive(client, payload)
+            assert response.status_code == 200 and response.content == b""
+        monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_STORE_AUTOMATION_ENABLED", True)
+        with management[1]() as db:
+            assert db.query(UberSandboxEvent).count() == db.query(UberSandboxStoreJob).count() == 1
+            receipt = db.query(UberSandboxEvent).one()
+            assert receipt.event_time == payload["event_time"] // 1000
+            assert receipt.order_id == runtime.TEST_STORE_ID
+            db.query(UberSandboxStoreJob).update({"updated_at": datetime.now(timezone.utc) - timedelta(minutes=1)})
+            db.commit()
+            assert stores.process_job(db)
+            assert db.query(UberSandboxStoreJob).one().state == "done"
+            assert db.query(UberSandboxStore).one().online_status == "ONLINE"
+            assert not stores.process_job(db)
+        assert all(request.method == "GET" for request in remote["calls"])
+
+
+@pytest.mark.parametrize("change,expected", [
+    ("other_store", 403), ("root_conflict", 403), ("other_client", 403),
+    ("missing_store", 400), ("bad_time", 400), ("wrong_event_type", 400),
+])
+def test_status_notification_envelope_preserves_signed_identity_guards(management, change, expected):
+    payload = status_notification()
+    if change == "other_store":
+        payload["meta"]["store_id"] = str(uuid4())
+    elif change == "root_conflict":
+        payload["store_id"] = str(uuid4())
+    elif change == "other_client":
+        payload["webhook_meta"] = {"client_id": "another-test-client"}
+    elif change == "missing_store":
+        payload["meta"].pop("store_id")
+    elif change == "bad_time":
+        payload["event_time"] = True
+    elif change == "wrong_event_type":
+        payload["event_type"] = "store.deprovisioned"
+    with TestClient(runtime.app) as client:
+        assert receive(client, payload).status_code == expected
+    with management[1]() as db:
+        assert db.query(UberSandboxEvent).count() == db.query(UberSandboxStoreJob).count() == 0
+
+
 @pytest.mark.parametrize("environment", ["production", "sandbox", "testing"])
 def test_unsigned_environment_header_cannot_override_signed_test_store_identity(management, environment):
     with TestClient(runtime.app) as client:

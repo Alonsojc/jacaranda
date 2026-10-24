@@ -7,6 +7,7 @@ import logging
 import re
 import time
 from datetime import timezone
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, ValidationError
@@ -68,6 +69,20 @@ class _StoreEvent(BaseModel):
     store_id: UUID
     perform_refresh_menu: StrictBool = False
     webhook_meta: _StoreWebhookMeta
+
+
+class _StoreStatusMeta(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    store_id: UUID
+
+
+class _StoreStatusEvent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    event_id: UUID
+    event_type: Literal["store.status.changed"]
+    event_time: StrictInt
+    meta: _StoreStatusMeta
+    webhook_meta: _WebhookMeta | None = None
 
 
 def store_state(db: Session, client_id: str, store_id: str, lock: bool = False) -> UberSandboxStore:
@@ -147,7 +162,18 @@ def receive_event(db: Session, body: bytes, signature: str | None) -> bool:
     try:
         data = json.loads(body, object_pairs_hook=_unique_keys)
         is_store = isinstance(data, dict) and data.get("event_type") in STORE_EVENT_TYPES
-        if is_store:
+        if is_store and data["event_type"] == "store.status.changed" and "meta" in data:
+            # Uber's status notifications use the order-style envelope but
+            # identify the store in meta.store_id, without an order resource_id.
+            event = _StoreStatusEvent.model_validate(data)
+            incoming_store = str(event.meta.store_id)
+            incoming_client = event.webhook_meta.client_id if event.webhook_meta else None
+            event_id = str(event.event_id)
+            event_time = event.event_time
+            resource_id = incoming_store
+            if "store_id" in data and data["store_id"] != incoming_store:
+                raise WebhookError(403, "Identificadores de tienda contradictorios.")
+        elif is_store:
             event = _StoreEvent.model_validate(data)
             incoming_store = str(event.store_id)
             incoming_client = event.webhook_meta.client_id
@@ -180,7 +206,7 @@ def receive_event(db: Session, body: bytes, signature: str | None) -> bool:
         "order_id": resource_id, "client_id": client_id,
     }
     if is_store:
-        identity["perform_refresh_menu"] = event.perform_refresh_menu
+        identity["perform_refresh_menu"] = getattr(event, "perform_refresh_menu", False)
     fingerprint = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     existing = db.query(UberSandboxEvent).filter_by(client_id=client_id, event_id=identity["event_id"]).first()
     if existing:
@@ -214,7 +240,7 @@ def receive_event(db: Session, body: bytes, signature: str | None) -> bool:
             row.revision += 1
         db.add(UberSandboxStoreJob(
             client_id=client_id, store_id=store_id, event_id=event_id,
-            needs_menu=event.event_type == "store.menu_refresh_request" or event.perform_refresh_menu,
+            needs_menu=event.event_type == "store.menu_refresh_request" or identity["perform_refresh_menu"],
         ))
     db.commit()
     return True
