@@ -153,18 +153,38 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
         row.state in {"FAILED", "SUCCEEDED"} and row.state != order["state"]
     )
     changed = not created and row.revision != before_revision
-    if pending is None and not changed and not regresses:
+    reconciles = False
+    if (
+        pending is not None and pending.estado == "incierta" and pending.action == "cancelar"
+        and row.pending_request_key == pending.request_key and order["state"] == "FAILED"
+    ):
+        # A late terminal GET plus a signed cancellation can resolve an uncertain
+        # request without treating its HTTP acknowledgement as confirmation.
+        created_at = pending.creado_en.replace(tzinfo=timezone.utc) if pending.creado_en.tzinfo is None else pending.creado_en
+        reconciles = db.query(UberSandboxEvent.id).filter_by(
+            client_id=client_id, store_id=store_id, order_id=event.order_id, event_type="orders.cancel",
+        ).filter(
+            UberSandboxEvent.recibido_en >= created_at,
+            UberSandboxEvent.event_time >= int(created_at.timestamp()),
+        ).first() is not None
+    if (pending is None or reconciles) and not changed and not regresses:
+        values = {
+            "state": order["state"], "snapshot_json": encoded,
+            "actualizado_en": datetime.now(timezone.utc), "revision": UberSandboxOrder.revision + 1,
+        }
+        if reconciles:
+            values["pending_request_key"] = None
         # SQLite ignores FOR UPDATE; the version predicate must protect this write too.
         refreshed = db.execute(update(UberSandboxOrder).where(
             UberSandboxOrder.id == row.id,
             UberSandboxOrder.revision == row.revision,
+            UberSandboxOrder.pending_request_key == pending.request_key if reconciles else
             UberSandboxOrder.pending_request_key.is_(None),
-        ).values(
-            state=order["state"], snapshot_json=encoded,
-            actualizado_en=datetime.now(timezone.utc),
-            revision=UberSandboxOrder.revision + 1,
-        ).execution_options(synchronize_session=False))
+        ).values(**values).execution_options(synchronize_session=False))
         changed = refreshed.rowcount != 1
+        if reconciles and not changed:
+            pending.estado = "conciliada"
+            pending = None
     db.refresh(row)
     snapshot = json.loads(row.snapshot_json)
     snapshot["state"] = row.state
@@ -204,8 +224,8 @@ def submit_action(
     if existing:
         if existing.fingerprint != fingerprint:
             raise WebhookError(409, "La clave de la operacion ya tiene otros datos.")
-        if existing.estado == "confirmada":
-            return {"entorno": "sandbox", "estado": "confirmada", "repetida": True}
+        if existing.estado in {"confirmada", "conciliada"}:
+            return {"entorno": "sandbox", "estado": existing.estado, "repetida": True}
         raise WebhookError(409, "Operacion registrada. Revisa su resultado antes de volver a enviarla.")
     if actions.filter_by(order_id=str(order_id)).filter(
         UberSandboxAction.estado.in_(["enviando", "incierta"])

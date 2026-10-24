@@ -295,6 +295,79 @@ def test_unexpected_cancel_success_status_is_not_claimed_or_resent(db, receipt):
     network.assert_not_called()
 
 
+def cancellation_receipt(db, **changes):
+    command = db.query(UberSandboxAction).one()
+    when = command.creado_en.replace(tzinfo=timezone.utc) + timedelta(seconds=1)
+    values = {
+        "client_id": "fictional-client", "store_id": STORE, "order_id": ORDER,
+        "event_id": str(uuid4()), "event_type": "orders.cancel",
+        "event_time": int(when.timestamp()), "recibido_en": when, "fingerprint": "1" * 64,
+    }
+    values.update(changes)
+    db.add(UberSandboxEvent(**values))
+    db.commit()
+
+
+def test_late_failed_order_and_signed_cancellation_reconcile_without_another_post(db, receipt):
+    original = inspect(db, receipt, state="ACCEPTED")
+    key = uuid4()
+    with transport(lambda r: httpx.Response(200)), pytest.raises(WebhookError, match="HTTP 200"):
+        submit(db, action="cancelar", key=key, reason="ITEM_ISSUE")
+    cancellation_receipt(db)
+    db.expire_all()
+    calls = []
+    with transport(lambda r: httpx.Response(200, json=details(state="FAILED", status="COMPLETED")), calls):
+        result = orders.inspect_order(db, UUID(receipt.event_id))
+        replay = orders.submit_action(
+            db, UUID(ORDER), key, "cancelar", "ITEM_ISSUE", True, original["detalle_sha256"],
+        )
+    assert result["pedido"]["state"] == result["estado_remoto"] == "FAILED"
+    assert result["requiere_conciliacion"] is False
+    assert db.query(UberSandboxOrder).one().pending_request_key is None
+    assert db.query(UberSandboxAction).one().estado == "conciliada"
+    assert replay == {"entorno": "sandbox", "estado": "conciliada", "repetida": True}
+    assert all(request.method != "POST" for request in calls)
+    assert db.query(Venta).count() == 0
+    with patch.object(orders, "_request") as network, pytest.raises(WebhookError, match="estado"):
+        submit(db, action="cancelar", reason="ITEM_ISSUE")
+    network.assert_not_called()
+
+
+@pytest.mark.parametrize("change", [
+    "missing", "other-client", "other-store", "other-order", "wrong-type", "old-event", "old-receipt",
+    "in-flight", "acceptance", "wrong-request", "succeeded", "offered",
+])
+def test_cancellation_reconciliation_requires_correlated_final_evidence(db, receipt, change):
+    inspect(db, receipt, state="ACCEPTED" if change != "acceptance" else "OFFERED")
+    action = "aceptar" if change == "acceptance" else "cancelar"
+    status = 500 if action == "aceptar" else 200
+    with transport(lambda r: httpx.Response(status)), pytest.raises(WebhookError):
+        submit(db, action=action, reason=None if action == "aceptar" else "ITEM_ISSUE")
+    command = db.query(UberSandboxAction).one()
+    before = command.creado_en.replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    if change != "missing":
+        overrides = {
+            "other-client": {"client_id": "other-client"},
+            "other-store": {"store_id": str(uuid4())},
+            "other-order": {"order_id": str(uuid4())},
+            "wrong-type": {"event_type": "orders.notification"},
+            "old-event": {"event_time": int(before.timestamp())},
+            "old-receipt": {"recibido_en": before},
+        }.get(change, {})
+        cancellation_receipt(db, **overrides)
+    if change == "in-flight":
+        command.estado = "enviando"
+    elif change == "wrong-request":
+        db.query(UberSandboxOrder).one().pending_request_key = str(uuid4())
+    db.commit()
+    remote = {"succeeded": "SUCCEEDED", "offered": "OFFERED"}.get(change, "FAILED")
+    result = inspect(db, receipt, state=remote)
+    assert result["pedido"]["state"] == ("OFFERED" if action == "aceptar" else "ACCEPTED")
+    assert result["requiere_conciliacion"] and not result["acciones_habilitadas"]
+    assert command.estado == ("enviando" if change == "in-flight" else "incierta")
+    assert db.query(UberSandboxOrder).one().pending_request_key
+
+
 def test_sqlite_inspection_cannot_overwrite_concurrently_confirmed_acceptance(tmp_path, monkeypatch):
     engine = create_engine("sqlite:///" + str(tmp_path / "sandbox-only.db"))
     sessions = sessionmaker(bind=engine)

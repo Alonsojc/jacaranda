@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from threading import Barrier, Event
 from types import SimpleNamespace
 from uuid import UUID, uuid4
@@ -126,6 +126,49 @@ def test_concurrent_actions_and_fresh_sessions_cannot_send_twice(pg_sessions, mo
     with pg_sessions() as db:
         assert db.query(UberSandboxAction).count() == 1
         assert db.query(UberSandboxOrder).one().state == "ACCEPTED"
+
+
+def test_concurrent_terminal_reads_reconcile_one_uncertain_cancellation(pg_sessions, monkeypatch):
+    event_id, request_key = str(uuid4()), str(uuid4())
+    created = datetime.now(timezone.utc) - timedelta(seconds=2)
+    with pg_sessions() as db:
+        db.add(UberSandboxOrder(
+            client_id="fictional-client", store_id=STORE, order_id=ORDER, state="ACCEPTED",
+            snapshot_json=json.dumps({"state": "ACCEPTED"}), pending_request_key=request_key,
+            actualizado_en=created,
+        ))
+        db.add(UberSandboxAction(
+            client_id="fictional-client", store_id=STORE, order_id=ORDER, request_key=request_key,
+            fingerprint="0" * 64, action="cancelar", estado="incierta", creado_en=created,
+        ))
+        db.add(UberSandboxEvent(
+            client_id="fictional-client", store_id=STORE, order_id=ORDER, event_id=event_id,
+            event_type="orders.cancel", event_time=int(time.time()), fingerprint="1" * 64,
+        ))
+        db.commit()
+    barrier = Barrier(2)
+    calls = []
+
+    def network(method, order_id, payload=None, action=None):
+        calls.append(method)
+        assert method == "GET"
+        barrier.wait(timeout=10)
+        return {"order": {"id": ORDER, "store": {"id": STORE}, "state": "FAILED", "status": "COMPLETED"}}
+
+    monkeypatch.setattr(orders, "_request", network)
+
+    def inspect_order():
+        with pg_sessions() as db:
+            return orders.inspect_order(db, UUID(event_id))
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        results = list(workers.map(lambda _: inspect_order(), range(2)))
+    assert calls == ["GET", "GET"]
+    assert all(result["pedido"]["state"] == "FAILED" for result in results)
+    assert all(not result["requiere_conciliacion"] for result in results)
+    with pg_sessions() as db:
+        assert db.query(UberSandboxAction).one().estado == "conciliada"
+        assert db.query(UberSandboxOrder).one().pending_request_key is None
 
 
 def test_real_postgres_capture_restores_only_into_owned_synthetic_database(pg_sessions, monkeypatch, tmp_path):
