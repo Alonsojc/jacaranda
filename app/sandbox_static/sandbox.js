@@ -1,23 +1,46 @@
 (function () {
   'use strict';
   var key = '', selected = null, eventId = null, beforeId = null, busy = false, generation = 0, viewingOlder = false;
-  var storeSelected = null, panel = 'orders';
+  var storeSelected = null, storeFresh = false, panel = 'orders';
+  var attentionRows = [], viewingAttention = true;
   var names = {aceptar: 'Aceptar prueba', rechazar: 'Rechazar prueba', cancelar: 'Cancelar prueba', listo: 'Listo para recoger'};
   var ids = {aceptar: 'accept', rechazar: 'deny', cancelar: 'cancel', listo: 'ready'};
   function el(id) { return document.getElementById(id); }
   function status(text, error) { el('status').textContent = text; el('status').className = error ? 'error' : ''; }
+  var attention = window.createSandboxAttention({
+    api: api,
+    isBusy: function () { return busy; },
+    openOrder: function (id, rows) { attentionRows = rows; showPanel('orders'); showPending(); inspect(id); },
+    onUnavailable: function () {
+      if (selected) selected.acciones_habilitadas = false;
+      storeFresh = false; controls();
+    },
+    onRecovered: controls,
+    onUpdate: function (data) {
+      attentionRows = data.pedidos;
+      if (viewingAttention) renderPending();
+      if (selected && data.pedidos.some(function (row) { return row.pedido_id === selected.pedido.id && row.tipo === 'verificar'; })) {
+        selected.acciones_habilitadas = false;
+      }
+      controls();
+    }
+  });
   function controls() {
     ['refresh', 'connection', 'reload-order'].forEach(function (id) { el(id).disabled = busy; });
-    el('older').disabled = busy || beforeId === null;
+    el('older').disabled = busy || viewingAttention || beforeId === null;
+    el('older').hidden = viewingAttention;
+    el('inbox-pending').disabled = busy; el('inbox-history').disabled = busy;
+    el('inbox-pending').setAttribute('aria-pressed', String(viewingAttention));
+    el('inbox-history').setAttribute('aria-pressed', String(!viewingAttention));
     Object.keys(ids).forEach(function (action) {
       var state = selected && selected.pedido.state;
       var stateOK = action === 'cancelar' || action === 'listo' ? state === 'ACCEPTED' : ['OFFERED', 'CREATED'].indexOf(state) !== -1;
-      el(ids[action]).disabled = busy || !selected || !selected.acciones_habilitadas ||
+      el(ids[action]).disabled = busy || !attention.connected() || !selected || !selected.acciones_habilitadas ||
         selected.requiere_conciliacion || !stateOK || (action === 'listo' && selected.listo_confirmado) ||
         ((action === 'aceptar' || action === 'listo') && !el('reviewed').checked);
     });
     ['reload-store', 'reload-menu', 'discover-stores', 'authorize-store'].forEach(function (id) { el(id).disabled = busy; });
-    var storeOK = storeSelected && !storeSelected.requiere_conciliacion;
+    var storeOK = attention.connected() && storeFresh && storeSelected && !storeSelected.requiere_conciliacion;
     el('store-online').disabled = busy || !storeOK || storeSelected.revocada || !storeSelected.integracion.integration_enabled;
     el('store-integrated').disabled = busy || !storeOK;
     el('publish-menu').disabled = busy || !storeOK || storeSelected.revocada || !storeSelected.integracion.integration_enabled;
@@ -25,14 +48,17 @@
     document.querySelectorAll('#fixture-items input, #fixture-items button').forEach(function (input) {
       input.disabled = busy || !storeOK || !storeSelected.menu_publicado || storeSelected.revocada;
     });
+    attention.syncControls();
   }
   function logout() {
+    attention.stop();
     generation += 1; key = ''; selected = null; eventId = null; beforeId = null; busy = false; viewingOlder = false;
+    attentionRows = []; viewingAttention = true;
     el('access-key').value = ''; el('access-form').hidden = false; el('workspace').hidden = true;
     el('logout').hidden = true; el('events').replaceChildren(); el('order-detail').hidden = true;
     el('raw-detail').textContent = ''; el('items').replaceChildren(); el('instructions').textContent = '';
     el('reviewed').checked = false; el('empty').hidden = false;
-    storeSelected = null; el('store-summary').replaceChildren(); el('store-events').replaceChildren();
+    storeSelected = null; storeFresh = false; el('store-summary').replaceChildren(); el('store-events').replaceChildren();
     el('fixture-items').replaceChildren(); el('fixture-detail').textContent = '';
     el('merchant-auth-link').removeAttribute('href'); el('merchant-auth-link').hidden = true;
     panel = 'orders';
@@ -41,6 +67,8 @@
     status('Acceso privado'); controls();
   }
   async function api(path, method, body) {
+    if (window.navigator && window.navigator.onLine === false) throw new Error('Sin conexi\u00f3n a internet.');
+    var current = generation, credential = key;
     var controller = new AbortController();
     var timeout = window.setTimeout(function () { controller.abort(); }, 20000);
     try {
@@ -50,6 +78,10 @@
         body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal
       });
       var data = await response.json();
+      if (response.status === 401 && current === generation && credential === key && !el('workspace').hidden) {
+        logout(); status('La sesi\u00f3n de Sandbox venci\u00f3. Vuelve a entrar.', true);
+        throw new Error('Acceso privado requerido.');
+      }
       if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'No se pudo completar la solicitud.');
       return data;
     } finally { window.clearTimeout(timeout); }
@@ -57,7 +89,7 @@
   async function load(older, silent) {
     if (!key || busy || (older && beforeId === null)) return;
     var current = generation;
-    busy = true; controls();
+    busy = true; viewingAttention = false; controls();
     if (!silent) status('Consultando notificaciones...');
     try {
       var data = await api('/api/v1/uber-eats/sandbox/eventos?limit=10' + (older ? '&before_id=' + beforeId : ''));
@@ -78,6 +110,23 @@
     } catch (error) { if (current === generation) status(error.message || 'No se pudo actualizar.', true); }
     finally { if (current === generation) { busy = false; controls(); } }
   }
+  function renderPending() {
+    var labels = {nuevo: 'Por aceptar', verificar: 'Por verificar', preparacion: 'En preparaci\u00f3n', programado: 'Programado'};
+    el('events').replaceChildren();
+    attentionRows.forEach(function (item) {
+      var button = document.createElement('button'); button.type = 'button';
+      button.className = 'event' + (item.event_id === eventId ? ' selected' : '');
+      var title = document.createElement('strong'); title.textContent = 'Pedido ' + item.pedido_id.slice(0, 8);
+      var meta = document.createElement('span'); meta.textContent = labels[item.tipo];
+      button.append(title, meta); button.addEventListener('click', function () { inspect(item.event_id); });
+      el('events').appendChild(button);
+    });
+    if (!attentionRows.length) {
+      var empty = document.createElement('p'); empty.className = 'queue-empty'; empty.textContent = 'Sin pedidos pendientes';
+      el('events').appendChild(empty);
+    }
+  }
+  function showPending() { viewingAttention = true; viewingOlder = false; renderPending(); controls(); }
   function render(data) {
     var order = data.pedido;
     el('order-title').textContent = 'Pedido ' + (order.display_id || order.id.slice(0, 8));
@@ -118,7 +167,7 @@
     finally { if (current === generation) { busy = false; controls(); } }
   }
   async function action(name) {
-    if (!key || busy || !selected || el(ids[name]).disabled) return;
+    if (!key || busy || !attention.connected() || !selected || el(ids[name]).disabled) return;
     if (!window.crypto || !window.crypto.randomUUID) { status('Este navegador no permite confirmar la operacion.', true); return; }
     var current = generation, orderId = selected.pedido.id, digest = selected.detalle_sha256;
     var reviewed = el('reviewed').checked, reason = el('reason').value;
@@ -140,10 +189,11 @@
       });
       if (current === generation) status('Uber recibio la solicitud de Sandbox. Actualiza para verificar el estado.');
     } catch (error) { if (current === generation) status(error.message || 'Resultado sin confirmar. No se reenviara la accion.', true); }
-    finally { if (current === generation) { if (selected) selected.acciones_habilitadas = false; busy = false; controls(); } }
+    finally { if (current === generation) { if (selected) selected.acciones_habilitadas = false; busy = false; controls(); attention.refresh(); } }
   }
   function renderStore(data, fixture, events) {
     storeSelected = data;
+    storeFresh = true;
     if (data.cuenta_autorizada) { el('merchant-auth-link').removeAttribute('href'); el('merchant-auth-link').hidden = true; }
     el('store-summary').replaceChildren();
     [['Tienda', data.nombre], ['Identificador', data.tienda_id], ['Disponibilidad', data.estado],
@@ -197,7 +247,7 @@
   }
   async function loadStore() {
     if (!key || busy) return;
-    var current = generation; busy = true; controls(); status('Consultando tienda de pruebas...');
+    var current = generation; busy = true; storeFresh = false; controls(); status('Consultando tienda de pruebas...');
     try {
       var result = await storeData(current);
       if (current !== generation) return;
@@ -207,7 +257,7 @@
     finally { if (current === generation) { busy = false; controls(); } }
   }
   async function storeAction(name, parameters, title) {
-    if (!key || busy || !storeSelected || storeSelected.requiere_conciliacion) return;
+    if (!key || busy || !attention.connected() || !storeFresh || !storeSelected || storeSelected.requiere_conciliacion) return;
     var current = generation, revision = storeSelected.revision;
     busy = true; controls();
     el('confirm-title').textContent = title; el('confirm-order').textContent = 'Solo Jacaranda Sandbox - ' + storeSelected.tienda_id;
@@ -232,14 +282,17 @@
       status(result[0].requiere_conciliacion ? 'Uber recibio la operacion. Resultado por verificar.' : 'Operacion de Sandbox verificada');
     } catch (error) {
       if (current === generation) { storeSelected.requiere_conciliacion = true; status(error.message || 'Actualiza para verificar el resultado.', true); }
-    } finally { if (current === generation) { busy = false; controls(); } }
+    } finally { if (current === generation) { busy = false; controls(); attention.refresh(); } }
+  }
+  function showPanel(name) {
+    panel = name;
+    ['orders', 'store', 'menu'].forEach(function (id) { el(id + '-panel').hidden = id !== name; el('tab-' + id).setAttribute('aria-selected', String(id === name)); });
   }
   ['orders', 'store', 'menu'].forEach(function (name) {
     el('tab-' + name).addEventListener('click', function () {
       if (busy) return;
-      panel = name;
-      ['orders', 'store', 'menu'].forEach(function (id) { el(id + '-panel').hidden = id !== name; el('tab-' + id).setAttribute('aria-selected', String(id === name)); });
-      if (name !== 'orders') loadStore();
+      showPanel(name);
+      if (name !== 'orders') loadStore(); else if (viewingAttention) { renderPending(); attention.refresh(); } else load(false, false);
     });
   });
   el('reload-store').addEventListener('click', loadStore); el('reload-menu').addEventListener('click', loadStore);
@@ -274,12 +327,14 @@
     try {
       await api('/sandbox/estado'); if (current !== generation) return;
       el('access-form').hidden = true; el('workspace').hidden = false; el('logout').hidden = false;
-      busy = false; await load(false, false);
+      busy = false; status('Sesi\u00f3n de pruebas activa'); showPending(); attention.start();
     } catch (error) { if (current === generation) { key = ''; status(error.message || 'No se pudo entrar.', true); } }
     finally { if (current === generation) { busy = false; controls(); } }
   });
   el('logout').addEventListener('click', logout);
-  el('refresh').addEventListener('click', function () { load(false, false); });
+  el('refresh').addEventListener('click', function () { if (!viewingAttention) load(false, false); attention.refresh(); });
+  el('inbox-pending').addEventListener('click', function () { if (!busy) { showPending(); attention.refresh(); } });
+  el('inbox-history').addEventListener('click', function () { load(false, false); });
   el('older').addEventListener('click', function () { load(true, false); });
   el('reload-order').addEventListener('click', function () { if (eventId) inspect(eventId); });
   el('reviewed').addEventListener('change', controls);
@@ -292,6 +347,6 @@
     finally { if (current === generation) { busy = false; controls(); } }
   });
   window.addEventListener('pagehide', logout);
-  window.setInterval(function () { if (key && panel === 'orders' && !busy && !viewingOlder && !document.hidden) load(false, true); }, 15000);
+  window.setInterval(function () { if (key && panel === 'orders' && !viewingAttention && !busy && !viewingOlder && !document.hidden && attention.connected()) load(false, true); }, 15000);
   controls();
 }());

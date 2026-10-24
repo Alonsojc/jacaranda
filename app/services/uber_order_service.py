@@ -7,9 +7,9 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 import httpx
-from sqlalchemy import update
+from sqlalchemy import and_, case, func, or_, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.core.config import settings
 from app.models.uber_eats import UberSandboxAction, UberSandboxEvent, UberSandboxOrder, UberSandboxStore
@@ -21,6 +21,8 @@ MAX_DETAILS_AGE_SECONDS = 120
 _ACTIONS = {"aceptar": "accept", "rechazar": "deny", "cancelar": "cancel", "listo": "ready"}
 _REASONS = {"ITEM_ISSUE", "STORE_CLOSED", "POS_NOT_READY", "SPECIAL_INSTRUCTIONS", "TECHNICAL_FAILURE", "OTHER"}
 _ERROR_CODES = {"bad_request", "unauthorized", "forbidden", "not_found", "not_implemented", "internal_server_error", "rate_limited"}
+_ORDER_CHANGES = frozenset({"orders.cancel", "orders.failure", "orders.customer_order_edit",
+                            "orders.fulfillment_issues.resolved", "order.fulfillment_issues.resolved"})
 logger = logging.getLogger(__name__)
 
 
@@ -98,6 +100,82 @@ def _order_query(db: Session, client_id: str, store_id: str, order_id: str):
     return db.query(UberSandboxOrder).filter_by(client_id=client_id, store_id=store_id, order_id=order_id)
 
 
+def attention_orders(db: Session) -> dict:
+    client_id, store_id = sandbox_identity()
+    latest = db.query(
+        UberSandboxEvent.id.label("id"),
+        func.row_number().over(
+            partition_by=UberSandboxEvent.order_id,
+            order_by=(UberSandboxEvent.event_time.desc(), UberSandboxEvent.id.desc()),
+        ).label("position"),
+    ).filter_by(client_id=client_id, store_id=store_id).filter(
+        UberSandboxEvent.event_type.not_in(STORE_EVENT_TYPES),
+    ).subquery()
+    pending = db.query(UberSandboxAction.id).filter(
+        UberSandboxAction.client_id == client_id, UberSandboxAction.store_id == store_id,
+        UberSandboxAction.order_id == UberSandboxEvent.order_id,
+        UberSandboxAction.estado.in_(("enviando", "incierta")),
+    ).exists()
+    pending = or_(pending, UberSandboxOrder.pending_request_key.is_not(None))
+    ready = db.query(UberSandboxAction.id).filter(
+        UberSandboxAction.client_id == client_id, UberSandboxAction.store_id == store_id,
+        UberSandboxAction.order_id == UberSandboxEvent.order_id,
+        UberSandboxAction.action == "listo", UberSandboxAction.estado == "confirmada",
+    ).exists()
+    change = aliased(UberSandboxEvent)
+    changed = db.query(change.id).filter(
+        change.client_id == client_id, change.store_id == store_id,
+        change.order_id == UberSandboxEvent.order_id,
+        change.event_type.in_(_ORDER_CHANGES),
+        or_(UberSandboxOrder.id.is_(None),
+            and_(change.event_type.not_in(("orders.cancel", "orders.failure")),
+                 change.recibido_en > UberSandboxOrder.actualizado_en),
+            and_(change.event_type.in_(("orders.cancel", "orders.failure")),
+                 UberSandboxOrder.state.not_in(("FAILED", "SUCCEEDED")))),
+    ).exists()
+    kind = case(
+        (or_(pending, changed), "verificar"),
+        (UberSandboxOrder.state == "ACCEPTED", "preparacion"),
+        (UberSandboxEvent.event_type == "orders.scheduled.notification", "programado"),
+        else_="nuevo",
+    )
+    query = db.query(UberSandboxEvent, kind.label("kind")).join(
+        latest, and_(latest.c.id == UberSandboxEvent.id, latest.c.position == 1),
+    ).outerjoin(UberSandboxOrder, and_(
+        UberSandboxOrder.client_id == client_id, UberSandboxOrder.store_id == store_id,
+        UberSandboxOrder.order_id == UberSandboxEvent.order_id,
+    )).filter(or_(
+        pending, changed, UberSandboxOrder.id.is_(None),
+        UberSandboxOrder.state.in_(("CREATED", "OFFERED")),
+        and_(UberSandboxOrder.state == "ACCEPTED", ~ready),
+    ))
+    names = ("nuevo", "verificar", "preparacion", "programado")
+    # One statement keeps full-queue counts and the bounded list in the same snapshot.
+    rows = query.add_columns(*[
+        func.sum(case((kind == name, 1), else_=0)).over() for name in names
+    ]).order_by(case((kind == "verificar", 0), (kind == "nuevo", 1), else_=2),
+                UberSandboxEvent.id).limit(100).all()
+    counts = dict(zip(names, rows[0][2:] if rows else (0, 0, 0, 0), strict=True))
+    return {
+        "entorno": "sandbox", "total": sum(counts.values()), "conteos": counts,
+        "pedidos": [{"pedido_id": event.order_id, "event_id": event.event_id, "tipo": value,
+                     "recibido_en": event.recibido_en.replace(tzinfo=timezone.utc).isoformat()}
+                    for event, value, *_ in rows],
+    }
+
+
+def _unseen_order_change(db: Session, row: UberSandboxOrder) -> bool:
+    return db.query(UberSandboxEvent.id).filter_by(
+        client_id=row.client_id, store_id=row.store_id, order_id=row.order_id,
+    ).filter(
+        UberSandboxEvent.event_type.in_(_ORDER_CHANGES),
+        or_(and_(UberSandboxEvent.event_type.not_in(("orders.cancel", "orders.failure")),
+                 UberSandboxEvent.recibido_en > row.actualizado_en),
+            and_(UberSandboxEvent.event_type.in_(("orders.cancel", "orders.failure")),
+                 row.state not in {"FAILED", "SUCCEEDED"})),
+    ).first() is not None
+
+
 def inspect_order(db: Session, event_id: UUID) -> dict:
     client_id, store_id = sandbox_identity()
     if not settings.UBER_EATS_SANDBOX_CLIENT_SECRET.get_secret_value():
@@ -112,6 +190,7 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
     query = _order_query(db, client_id, store_id, event.order_id)
     before = query.first()
     before_revision = before.revision if before else None
+    read_started_at = datetime.now(timezone.utc)
     try:
         data = _request("GET", event.order_id)
     except SandboxRequestError:
@@ -140,7 +219,7 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
                 row = UberSandboxOrder(
                     client_id=client_id, store_id=store_id, order_id=event.order_id,
                     state=order["state"], snapshot_json=encoded,
-                    actualizado_en=datetime.now(timezone.utc),
+                    actualizado_en=read_started_at,
                 )
                 db.add(row)
                 db.flush()
@@ -172,7 +251,7 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
     if (pending is None or reconciles) and not changed and not regresses:
         values = {
             "state": order["state"], "snapshot_json": encoded,
-            "actualizado_en": datetime.now(timezone.utc), "revision": UberSandboxOrder.revision + 1,
+            "actualizado_en": read_started_at, "revision": UberSandboxOrder.revision + 1,
         }
         if reconciles:
             values["pending_request_key"] = None
@@ -193,10 +272,11 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
     snapshot_digest = hashlib.sha256(row.snapshot_json.encode()).hexdigest()
     event.estado = "consultado"
     db.commit()
+    needs_review = _unseen_order_change(db, row)
     return {
         "entorno": "sandbox", "pedido": snapshot,
-        "acciones_habilitadas": settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED and pending is None and not changed and not regresses,
-        "requiere_conciliacion": pending is not None or regresses,
+        "acciones_habilitadas": settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED and pending is None and not changed and not regresses and not needs_review,
+        "requiere_conciliacion": pending is not None or regresses or needs_review,
         "estado_remoto": order["state"],
         "detalle_sha256": snapshot_digest,
         "listo_confirmado": db.query(UberSandboxAction.id).filter_by(
@@ -236,6 +316,8 @@ def submit_action(
         if existing.estado in {"confirmada", "conciliada"}:
             return {"entorno": "sandbox", "estado": existing.estado, "repetida": True}
         raise WebhookError(409, "Operacion registrada. Revisa su resultado antes de volver a enviarla.")
+    if _unseen_order_change(db, row):
+        raise WebhookError(409, "Llego un cambio del pedido. Actualiza y revisa su estado antes de continuar.")
     if actions.filter_by(order_id=str(order_id)).filter(
         UberSandboxAction.estado.in_(["enviando", "incierta"])
     ).first():

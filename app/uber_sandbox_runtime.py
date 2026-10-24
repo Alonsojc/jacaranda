@@ -32,7 +32,7 @@ from app.models.uber_eats import (
     UberSandboxAction, UberSandboxEvent, UberSandboxOrder,
     UberSandboxStore, UberSandboxStoreAction, UberSandboxStoreJob,
 )
-from app.services import uber_eats_service, uber_sandbox_oauth, uber_store_service, uber_webhook_service
+from app.services import uber_eats_service, uber_order_service, uber_sandbox_oauth, uber_store_service, uber_webhook_service
 
 
 TEST_APPLICATION_ID = "I2pbZ-jD6Qa7FQzhLUbX3Y5gN12EasPL"
@@ -207,6 +207,11 @@ def script():
     return FileResponse(ASSETS / "sandbox.js", media_type="text/javascript")
 
 
+@app.get("/attention.js", dependencies=[Depends(management_enabled)])
+def attention_script():
+    return FileResponse(ASSETS / "attention.js", media_type="text/javascript")
+
+
 @app.get("/favicon.svg", dependencies=[Depends(management_enabled)])
 def favicon():
     return FileResponse(ASSETS / "favicon.svg", media_type="image/svg+xml")
@@ -240,6 +245,11 @@ def store_call(function, *args, **kwargs):
         raise HTTPException(502, "Uber no confirmo la consulta de pruebas. No se reenviaron cambios.") from None
     except SQLAlchemyError:
         raise HTTPException(503, "El almacenamiento de Sandbox no esta disponible.") from None
+
+
+@app.get("/api/v1/uber-eats/sandbox/atencion", dependencies=[Depends(private_management)])
+def order_attention(db: Session = Depends(get_db)):
+    return store_call(uber_order_service.attention_orders, db)
 
 
 @app.get("/api/v1/uber-eats/sandbox/tiendas", dependencies=[Depends(private_management)])

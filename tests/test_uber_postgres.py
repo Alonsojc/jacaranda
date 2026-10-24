@@ -133,6 +133,29 @@ def test_concurrent_actions_and_fresh_sessions_cannot_send_twice(pg_sessions, mo
         assert db.query(UberSandboxOrder).one().state == "ACCEPTED"
 
 
+def test_attention_queries_group_orders_and_preserve_unresolved_changes(pg_sessions, monkeypatch):
+    now = datetime.now(timezone.utc)
+    other_order = str(uuid4())
+    with pg_sessions() as db:
+        for order_id, kind, offset in ((ORDER, "orders.notification", -10), (ORDER, "orders.cancel", -5),
+                                       (ORDER, "delivery.state_changed", 0), (other_order, "orders.notification", 0)):
+            db.add(UberSandboxEvent(
+                client_id="fictional-client", store_id=STORE, order_id=order_id,
+                event_id=str(uuid4()), event_type=kind, event_time=int(now.timestamp()) + offset,
+                fingerprint="synthetic", recibido_en=now,
+            ))
+        db.add(UberSandboxOrder(client_id="fictional-client", store_id=STORE, order_id=ORDER,
+                               state="ACCEPTED", snapshot_json="{}", actualizado_en=now))
+        db.commit()
+    monkeypatch.setattr(orders, "_request", lambda *args, **kwargs: pytest.fail("Inbox monitoring must not send an Uber request"))
+    for _ in range(2):
+        with pg_sessions() as db:
+            data = orders.attention_orders(db)
+            assert data["total"] == len(data["pedidos"]) == 2
+            assert data["conteos"] == {"nuevo": 1, "verificar": 1, "preparacion": 0, "programado": 0}
+            assert data["pedidos"][0]["pedido_id"] == ORDER
+
+
 def test_concurrent_terminal_reads_reconcile_one_uncertain_cancellation(pg_sessions, monkeypatch):
     event_id, request_key = str(uuid4()), str(uuid4())
     created = datetime.now(timezone.utc) - timedelta(seconds=2)

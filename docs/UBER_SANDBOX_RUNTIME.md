@@ -91,6 +91,36 @@ verifica tienda/pedido, detalle reciente y su hash antes de actuar. Registra la
 operacion antes de enviarla y bloquea reenvios ante resultados inciertos.
 No crea ventas ni movimientos de existencias. No hay aceptacion automatica.
 
+### Avisos y recuperacion
+
+`GET /api/v1/uber-eats/sandbox/atencion` consulta solo el inbox privado y los
+estados locales de pruebas. Agrupa por pedido, cuenta toda la cola y devuelve
+hasta 100 pendientes; no depende de la pagina de historial ni llama a Uber.
+Conserva las operaciones inciertas y los cambios por verificar, y excluye los
+pedidos terminados o ya listos cuando no requieren revision.
+
+La banda de pendientes se actualiza cada 15 segundos en todas las secciones
+del panel. El sonido se habilita con un toque; cada pedido/tipo suena una vez
+por sesion, conservando el aviso visual hasta su resolucion. Credenciales y
+deduplicacion de sonido permanecen en memoria, no en almacenamiento del navegador.
+
+Al perder conexion se conserva la ultima lista, se muestra la hora de su ultima
+consulta y se bloquean las acciones basadas en detalles antiguos. La recuperacion
+consulta otra vez la bandeja con esperas de 5, 10, 20 y hasta 30 segundos; nunca
+reenvia acciones. La vuelta a una pagina visible tambien fuerza una consulta.
+Una sesion vencida limpia el panel. Los cambios de pedido recibidos durante la
+consulta de detalles requieren otra revision antes de enviar una accion.
+
+Esta comprobacion cubre el panel Sandbox con la pagina visible. Safari en un iPad
+fisico, integracion de avisos en las secciones de caja y registro automatico de
+ventas/inventario siguen siendo etapas distintas; no se habilitan aqui.
+
+Vista local con datos ficticios y sin red saliente:
+`python scripts/preview_uber_sandbox.py --port 8767`.
+Solo escucha en `127.0.0.1`; la clave de fixture es `local-fixture-only` y no sirve
+en el servidor. Las pruebas de reconexion y sonido no deben producir acciones
+de Uber ni movimientos financieros.
+
 La prueba con Uber debe confirmar que la cuenta es TEST, la tienda es
 `b412bb20-cf36-4ada-ba77-fdda96ce8a9e` y el medio de pago es exclusivamente
 `UBER_TEST`. Si se ofrece un cobro real o no aparece ese medio, detenerse antes
