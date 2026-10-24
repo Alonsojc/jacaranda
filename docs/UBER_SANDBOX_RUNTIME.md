@@ -113,3 +113,20 @@ No afirmar que la operacion en iPad esta validada solo por recibir un webhook.
 
 Fuente oficial: https://developer.uber.com/docs/eats/guides/webhooks
 Fuente Railway: https://docs.railway.com/infrastructure-as-code
+
+## Ensayo de desvinculacion
+
+La accion privada `desvincular` solo esta disponible en el runtime aislado y
+requiere confirmacion, revision reciente, tienda pausada y el token de comerciante
+ya autorizado. Usa `DELETE /v1/eats/stores/{TEST_STORE_ID}/pos_data`; no elimina la
+tienda ni su menu. No acepta otra tienda ni un token client_credentials.
+
+Un DELETE confirmado con 200 y posterior 403/404 de GET pos_data permite mostrar
+la integracion revocada, sin fingir que aun puede consultarse su disponibilidad.
+Si se pierde la respuesta, el 403/404 solo no basta: se necesita tambien una
+notificacion de revocacion firmada posterior a la accion. Nunca se reenvia DELETE.
+La accion existente `vincular` recupera la asociacion con el mismo comerciante;
+despues deben verificarse configuracion, menu y disponibilidad antes de finalizar.
+
+No ejecutar este ensayo con pedidos de prueba activos. Un HTTP 200 de la accion
+no acredita por si solo haber recibido `store.deprovisioned` de Uber.

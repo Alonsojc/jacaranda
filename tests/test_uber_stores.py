@@ -59,11 +59,19 @@ def provider(change=None):
         if path.endswith("/pos_data"):
             if request.method == "POST":
                 assert request.headers["authorization"] == "Bearer synthetic-merchant-token"
+                state["removed"] = False
                 state["config"].update(json.loads(request.content))
                 state["config"]["integration_enabled"] = True
                 state["config"]["pos_integration_enabled"] = True
                 state["config"]["order_manager_client_id"] = runtime.TEST_APPLICATION_ID
                 return httpx.Response(200)
+            if request.method == "DELETE":
+                assert request.headers["authorization"] == "Bearer synthetic-merchant-token"
+                assert not request.content
+                state["removed"] = True
+                return httpx.Response(200)
+            if state.get("removed"):
+                return httpx.Response(403, json={"code": "forbidden"})
             if request.method == "PATCH":
                 values = json.loads(request.content)
                 state["config"].update(values)
@@ -437,6 +445,92 @@ def test_merchant_oauth_is_one_use_encrypted_and_test_store_scoped(management):
         assert row.merchant_token_encrypted and "synthetic-merchant-token" not in row.merchant_token_encrypted
         assert row.oauth_state_hash is None
         assert oauth.merchant_token(db) == "synthetic-merchant-token"
+
+
+def authorize_merchant(client):
+    url = client.post(BASE + "/oauth/iniciar", headers=AUTH).json()["url"]
+    state = parse_qs(urlsplit(url).query)["state"][0]
+    assert client.get("/sandbox/oauth/callback", params={"code": "test-code", "state": state}).status_code == 200
+
+
+def test_remove_integration_requires_merchant_and_paused_store_then_can_relink(management):
+    with TestClient(runtime.app) as client, provider() as remote:
+        assert action(client, "desvincular")[0].status_code == 409
+        authorize_merchant(client)
+        assert action(client, "desvincular")[0].status_code == 409
+        assert not any(r.method == "DELETE" for r in remote["calls"])
+        assert action(client, "menu_publicar")[0].status_code == 200
+        assert action(client, "pausar")[0].status_code == 200
+        result, body = action(client, "desvincular")
+        assert result.status_code == 200
+        state = current(client)
+        assert state["revocada"] and not state["requiere_conciliacion"]
+        assert state["estado"] == "UNKNOWN" and not state["integracion"]["integration_enabled"]
+        assert state["cuenta_autorizada"] and state["items"] == []
+        assert client.post(BASE + "/tienda/accion", headers=AUTH, json=body).json()["repetida"]
+        assert len([r for r in remote["calls"] if r.method == "DELETE"]) == 1
+        assert action(client, "menu_publicar")[0].status_code == 409
+        assert action(client, "vincular")[0].status_code == 200
+        state = current(client)
+        assert not state["revocada"] and not state["requiere_conciliacion"]
+        assert state["integracion"]["integration_enabled"] and len(state["items"]) == 2
+        assert action(client, "reanudar")[0].status_code == 200
+        assert current(client)["estado"] == "ONLINE"
+
+
+def test_uncertain_remove_waits_for_signed_revocation_and_never_retries(management):
+    def lose_response(request, state):
+        if request.method == "DELETE":
+            state["removed"] = True
+            return httpx.Response(500)
+    with TestClient(runtime.app) as client, provider(lose_response) as remote:
+        authorize_merchant(client)
+        assert action(client, "pausar")[0].status_code == 200
+        result, body = action(client, "desvincular")
+        assert result.status_code == 502
+        assert client.get(BASE + "/tienda", headers=AUTH).status_code == 502
+        assert client.post(BASE + "/tienda/accion", headers=AUTH, json=body).json()["repetida"]
+        assert len([r for r in remote["calls"] if r.method == "DELETE"]) == 1
+        assert receive(client, store_event("store.deprovisioned")).status_code == 200
+        state = current(client)
+        assert state["revocada"] and not state["requiere_conciliacion"]
+        with management[1]() as db:
+            assert db.query(UberSandboxStoreAction).filter_by(action="desvincular").one().state == "conciliada"
+
+
+@pytest.mark.parametrize("status", [401, 403, 404, 500])
+def test_unrelated_read_error_is_not_reported_as_removed_integration(management, status):
+    def forbidden(request, _state):
+        if request.url.path.endswith("/pos_data"):
+            return httpx.Response(status)
+    with TestClient(runtime.app) as client, provider(forbidden):
+        assert client.get(BASE + "/tienda", headers=AUTH).status_code == 502
+    with management[1]() as db:
+        assert not db.query(UberSandboxStore).one().revoked
+
+
+def test_old_signed_revocation_cannot_resolve_uncertain_removal(management):
+    def lose_response(request, state):
+        if request.method == "DELETE":
+            state["removed"] = True
+            return httpx.Response(500)
+    with TestClient(runtime.app) as client, provider(lose_response):
+        authorize_merchant(client)
+        assert action(client, "pausar")[0].status_code == 200
+        assert action(client, "desvincular")[0].status_code == 502
+        event = store_event("store.deprovisioned")
+        event["webhook_meta"]["webhook_msg_timestamp"] -= 60
+        assert receive(client, event).status_code == 200
+        assert client.get(BASE + "/tienda", headers=AUTH).status_code == 502
+
+
+def test_remove_integration_cannot_target_another_store_or_use_app_token(management):
+    with patch("httpx.Client") as network:
+        with pytest.raises(WebhookError):
+            stores.request("DELETE", "/v1/eats/stores/" + str(uuid4()) + "/pos_data", merchant_token="synthetic")
+        with pytest.raises(WebhookError):
+            stores.request("DELETE", stores._path("/pos_data"))
+        network.assert_not_called()
 
 
 def test_oauth_rejects_a_different_store_even_with_a_valid_token(management):

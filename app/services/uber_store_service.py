@@ -21,7 +21,7 @@ TEST_CLIENT_ID = "I2pbZ-jD6Qa7FQzhLUbX3Y5gN12EasPL"
 TEST_STORE_ID = "b412bb20-cf36-4ada-ba77-fdda96ce8a9e"
 ITEM_IDS = ("jacaranda-sandbox-brownie", "jacaranda-sandbox-galleta")
 MAX_BYTES = 2 * 1024 * 1024
-OPERATIONS = frozenset({"menu_publicar", "item_actualizar", "pausar", "reanudar", "integracion_pausar", "integracion_activar", "vincular"})
+OPERATIONS = frozenset({"menu_publicar", "item_actualizar", "pausar", "reanudar", "integracion_pausar", "integracion_activar", "vincular", "desvincular"})
 logger = logging.getLogger(__name__)
 
 
@@ -82,6 +82,7 @@ def request(method: str, path: str, payload: dict | None = None, merchant_token:
         ("GET", _path("/pos_data")): (200, "eats.store"),
         ("PATCH", _path("/pos_data")): (204, "eats.store"),
         ("POST", _path("/pos_data")): (200, "merchant"),
+        ("DELETE", _path("/pos_data")): (200, "merchant"),
         ("GET", f"/v1/delivery/store/{TEST_STORE_ID}/status"): (200, "eats.store"),
         ("POST", f"/v1/delivery/store/{TEST_STORE_ID}/update-store-status"): (200, "eats.store.status.write"),
         ("GET", f"/v2/eats/stores/{TEST_STORE_ID}/menus"): (200, "eats.store"),
@@ -241,11 +242,50 @@ def _desired_matches(desired: dict, config: dict, status: str, menu: dict) -> bo
     return False
 
 
+def _store_view(row: UberSandboxStore, config: dict, status: str, items: list[dict]) -> dict:
+    return {"entorno": "sandbox", "tienda_id": row.store_id, "nombre": "Jacaranda Sandbox", "revision": row.revision,
+            "integracion": config, "estado": status, "revocada": row.revoked,
+            "requiere_conciliacion": row.pending_request_key is not None,
+            "menu_publicado": row.menu_uploaded, "items": items,
+            "cuenta_autorizada": bool(row.merchant_token_encrypted and row.merchant_token_expires and
+                                       _utc(row.merchant_token_expires) > datetime.now(timezone.utc))}
+
+
+def _inspect_removed_store(db: Session, client_id: str, store_id: str, error: StoreAPIError) -> dict:
+    if error.status not in {403, 404}:
+        raise error
+    row = store_state(db, client_id, store_id, lock=True)
+    pending = db.query(UberSandboxStoreAction).filter_by(
+        client_id=client_id, store_id=store_id, request_key=row.pending_request_key,
+    ).first() if row.pending_request_key else None
+    if pending:
+        # A lost response is only reconciled by a newer, signed revocation.
+        signed_revocation = row.revoked and row.lifecycle_event_time >= int(_utc(pending.created_at).timestamp())
+        if pending.action != "desvincular" or not (
+            pending.state == "recibida" or (pending.state == "incierta" and signed_revocation)
+        ):
+            raise error
+        pending.state = "conciliada" if pending.state == "incierta" else "confirmada"
+        row.pending_request_key = None
+        row.revoked = True
+    if not row.revoked:
+        raise error
+    row.integration_enabled = False
+    row.online_status = "UNKNOWN"
+    row.updated_at = datetime.now(timezone.utc)
+    row.revision += 1
+    db.commit()
+    return _store_view(row, {"store_id": store_id, "integration_enabled": False}, "UNKNOWN", [])
+
+
 def inspect_store(db: Session) -> dict:
     client_id, store_id = identity()
     row = store_state(db, client_id, store_id)
     revision = row.revision
-    config = integration()
+    try:
+        config = integration()
+    except StoreAPIError as exc:
+        return _inspect_removed_store(db, client_id, store_id, exc)
     status = request("GET", f"/v1/delivery/store/{store_id}/status").get("status")
     if status not in {"ONLINE", "OFFLINE"}:
         raise StoreAPIError()
@@ -275,12 +315,7 @@ def inspect_store(db: Session) -> dict:
     db.flush()
     db.refresh(row)
     db.commit()
-    return {"entorno": "sandbox", "tienda_id": store_id, "nombre": "Jacaranda Sandbox", "revision": row.revision,
-            "integracion": config, "estado": status, "revocada": row.revoked,
-            "requiere_conciliacion": row.pending_request_key is not None,
-            "menu_publicado": row.menu_uploaded, "items": items,
-            "cuenta_autorizada": bool(row.merchant_token_encrypted and row.merchant_token_expires and
-                                       _utc(row.merchant_token_expires) > datetime.now(timezone.utc))}
+    return _store_view(row, config, status, items)
 
 
 def _utc(value: datetime) -> datetime:
@@ -328,7 +363,7 @@ def submit(db: Session, request_key: UUID, operation: str, revision: int, confir
     client_id, store_id = identity()
     if not settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED or not confirmed or operation not in OPERATIONS:
         raise WebhookError(409, "Confirma la operacion exclusiva de Sandbox.")
-    if operation == "vincular" and not merchant_token:
+    if operation in {"vincular", "desvincular"} and not merchant_token:
         raise WebhookError(409, "Autoriza primero la cuenta de comerciante de pruebas.")
     if operation == "item_actualizar" and (
         item_id not in ITEM_IDS or type(price) is not int or not 100 <= price <= 500 or type(sold_out) is not bool
@@ -348,6 +383,8 @@ def submit(db: Session, request_key: UUID, operation: str, revision: int, confir
         raise WebhookError(409, "La integracion esta revocada.")
     if (datetime.now(timezone.utc) - _utc(row.updated_at)).total_seconds() > 120:
         raise WebhookError(409, "Actualiza la tienda antes de enviar cambios.")
+    if operation == "desvincular" and row.online_status != "OFFLINE":
+        raise WebhookError(409, "Pausa primero la tienda de pruebas antes de desvincularla.")
     if operation in {"menu_publicar", "item_actualizar", "pausar", "reanudar"} and not row.integration_enabled:
         raise WebhookError(409, "La integracion de pruebas no esta habilitada.")
     menu = json.loads(row.menu_json) if row.menu_json else fixture_menu()
@@ -371,6 +408,9 @@ def submit(db: Session, request_key: UUID, operation: str, revision: int, confir
         if operation == "pausar":
             # Uber requires a cutoff; a short TEST pause also expires if recovery is interrupted.
             payload["is_offline_until"] = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(timespec="seconds")
+    elif operation == "desvincular":
+        method, path, payload = "DELETE", _path("/pos_data"), None
+        desired = {"deprovisioned": True}
     else:
         method, path = ("POST" if operation == "vincular" else "PATCH"), _path("/pos_data")
         enabled = operation != "integracion_pausar"

@@ -223,7 +223,7 @@ def management_status():
 class StoreActionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     request_key: UUID
-    accion: Literal["menu_publicar", "item_actualizar", "pausar", "reanudar", "integracion_pausar", "integracion_activar", "vincular"]
+    accion: Literal["menu_publicar", "item_actualizar", "pausar", "reanudar", "integracion_pausar", "integracion_activar", "vincular", "desvincular"]
     revision: StrictInt = Field(ge=0)
     solo_sandbox_confirmado: StrictBool
     item_id: Literal["jacaranda-sandbox-brownie", "jacaranda-sandbox-galleta"] | None = None
@@ -273,7 +273,7 @@ def store_events(db: Session = Depends(get_db)):
 
 @app.post("/api/v1/uber-eats/sandbox/tienda/accion", dependencies=[Depends(private_management)])
 def store_action(data: StoreActionRequest, db: Session = Depends(get_db)):
-    token = store_call(uber_sandbox_oauth.merchant_token, db) if data.accion == "vincular" else None
+    token = store_call(uber_sandbox_oauth.merchant_token, db) if data.accion in {"vincular", "desvincular"} else None
     return store_call(uber_store_service.submit, db, data.request_key, data.accion, data.revision,
                       data.solo_sandbox_confirmado, data.item_id, data.precio_centavos, data.agotado, token)
 
