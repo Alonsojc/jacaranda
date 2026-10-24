@@ -3,10 +3,10 @@
 from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.api.file_responses import PrivateDownloadResponse, remove_download_copy
 from app.core.database import get_db
 from app.core.dependencies import require_admin_or_override, require_permission, require_role
 from app.models.usuario import Usuario, RolUsuario
@@ -34,7 +34,8 @@ def crear_backup(
             accion="crear",
             modulo="backup",
             entidad="backup",
-            datos_nuevos={"filename": info["filename"], "size_bytes": info["size_bytes"]},
+            datos_nuevos={"filename": info["filename"], "size_bytes": info["size_bytes"],
+                          "sha256": info["sha256"]},
         )
         return info
     except (FileNotFoundError, OSError, RuntimeError) as e:
@@ -43,11 +44,14 @@ def crear_backup(
 
 @router.get("/descargar")
 def descargar_backup(
+    filename: str | None = None,
     user: Usuario = Depends(require_permission("backup", "editar")),
     db: Session = Depends(get_db),
 ):
+    info = None
+    response_ready = False
     try:
-        info = backup_service.obtener_ultimo_backup()
+        info = backup_service.preparar_descarga_backup(filename)
         registrar_evento(
             db,
             usuario_id=user.id,
@@ -57,15 +61,23 @@ def descargar_backup(
             entidad="backup",
             datos_nuevos={"filename": info["filename"], "size_bytes": info["size_bytes"]},
         )
-        return FileResponse(
+        response = PrivateDownloadResponse(
             path=info["path"],
             filename=info["filename"],
             media_type="application/octet-stream",
+            headers={"Cache-Control": "no-store"},
         )
+        response_ready = True
+        return response
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except (OSError, RuntimeError) as e:
         raise HTTPException(status_code=500, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        if info and not response_ready:
+            remove_download_copy(info["path"])
 
 
 @router.post("/restaurar")
@@ -113,6 +125,7 @@ def verificar_backup(
             datos_nuevos={
                 "filename": result.get("filename"),
                 "restore_mode": result.get("restore_mode"),
+                "restored": result.get("restored", False),
                 "ok": result.get("ok"),
             },
         )
