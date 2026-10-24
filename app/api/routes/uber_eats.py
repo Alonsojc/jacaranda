@@ -23,7 +23,7 @@ _admin = Depends(require_role(RolUsuario.ADMINISTRADOR))
 class SandboxActionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     request_key: UUID
-    accion: Literal["aceptar", "rechazar", "cancelar"]
+    accion: Literal["aceptar", "rechazar", "cancelar", "listo"]
     motivo: Literal["ITEM_ISSUE", "STORE_CLOSED", "POS_NOT_READY", "SPECIAL_INSTRUCTIONS", "TECHNICAL_FAILURE", "OTHER"] | None = None
     instrucciones_revisadas: StrictBool = False
     detalle_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -49,6 +49,9 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
     """Only HMAC-authenticated sandbox events; acknowledge after durable commit."""
     if request.headers.get("content-encoding", "identity").lower() != "identity":
         raise HTTPException(415, "Codificacion no permitida.")
+    environment = request.headers.getlist("x-environment")
+    if environment and (len(environment) != 1 or environment[0].lower() != "sandbox"):
+        raise HTTPException(403, "Solo se reciben eventos de Sandbox.")
     signatures = request.headers.getlist("x-uber-signature")
     if len(signatures) != 1:
         raise HTTPException(401, "Firma de Uber no valida.")

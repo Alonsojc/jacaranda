@@ -60,14 +60,14 @@ def isolated(monkeypatch):
         engine.dispose()
 
 
-def test_bootstrap_and_restart_create_only_the_receipt_table(isolated):
+def test_bootstrap_and_restart_create_only_sandbox_receipt_tables(isolated):
     engine, _ = isolated
     for _ in range(2):
         with TestClient(runtime.app) as client:
             assert client.get("/health").json() == {
                 "status": "ok", "environment": "uber-sandbox", "real_store_enabled": False,
             }
-        assert inspect(engine).get_table_names() == ["uber_sandbox_events"]
+        assert inspect(engine).get_table_names() == ["uber_sandbox_events", "uber_sandbox_store_jobs", "uber_sandbox_stores"]
 
 
 @pytest.mark.parametrize("path", [
@@ -149,7 +149,7 @@ def test_public_signed_replay_is_durable_across_app_restarts(isolated):
         provider.assert_not_called()
     with sessions() as db:
         assert db.query(UberSandboxEvent).count() == 1
-    assert inspect(engine).get_table_names() == ["uber_sandbox_events"]
+    assert inspect(engine).get_table_names() == ["uber_sandbox_events", "uber_sandbox_store_jobs", "uber_sandbox_stores"]
 
 
 def test_storage_failure_does_not_report_ready(isolated):

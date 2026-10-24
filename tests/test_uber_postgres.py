@@ -22,10 +22,14 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.schema import CreateSchema, DropSchema
 
 from app.core.config import settings
-from app.models.uber_eats import UberSandboxEvent, UberSandboxOrder, UberSandboxAction
+from app.models.uber_eats import (
+    UberSandboxEvent, UberSandboxOrder, UberSandboxAction,
+    UberSandboxStore, UberSandboxStoreAction, UberSandboxStoreJob,
+)
 from app.services import uber_order_service as orders
 from app.services import uber_webhook_service as inbox
 from app.services import backup_service
+from app.services import uber_store_service as stores
 
 STORE = "5d8714ab-07bc-4b7f-a0ee-5cbeb9c31594"
 ORDER = "7871d55c-2460-484d-9f24-239416d1d2aa"
@@ -45,7 +49,8 @@ def pg_sessions(monkeypatch):
         conn.execute(CreateSchema(schema))
     engine = create_engine(url, connect_args={"options": f"-csearch_path={schema}"})
     try:
-        for model in (UberSandboxEvent, UberSandboxOrder, UberSandboxAction):
+        for model in (UberSandboxEvent, UberSandboxOrder, UberSandboxAction,
+                      UberSandboxStore, UberSandboxStoreAction, UberSandboxStoreJob):
             model.__table__.create(engine)
         monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_ENABLED", True)
         monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_WEBHOOK_ENABLED", True)
@@ -212,3 +217,63 @@ def test_real_postgres_capture_restores_only_into_owned_synthetic_database(pg_se
             for name in created:
                 conn.execute(text(f'DROP DATABASE "{name}"'))
         control.dispose()
+
+
+def test_store_claim_serializes_concurrent_menu_and_status_commands(pg_sessions, monkeypatch):
+    client_id, store_id = "fictional-client", STORE
+    monkeypatch.setattr(stores, "identity", lambda: (client_id, store_id))
+    with pg_sessions() as db:
+        db.add(UberSandboxStore(client_id=client_id, store_id=store_id, integration_enabled=True))
+        db.commit()
+    started, release = Event(), Event()
+    calls = []
+
+    def network(*args, **kwargs):
+        calls.append(args)
+        started.set()
+        assert release.wait(timeout=10)
+        return {}
+
+    monkeypatch.setattr(stores, "request", network)
+
+    def submit(operation):
+        with pg_sessions() as db:
+            return stores.submit(db, uuid4(), operation, 0, True)
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        first = workers.submit(submit, "menu_publicar")
+        try:
+            assert started.wait(timeout=10)
+            second = workers.submit(submit, "pausar")
+            with pytest.raises(inbox.WebhookError, match="pendiente"):
+                second.result(timeout=10)
+        finally:
+            release.set()
+        assert first.result(timeout=10)["estado"] == "recibida"
+    assert len(calls) == 1
+    with pg_sessions() as db:
+        assert db.query(UberSandboxStoreAction).count() == 1
+
+
+def test_concurrent_store_receipts_make_one_durable_job(pg_sessions, monkeypatch):
+    monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_WEBHOOK_SECRET", SecretStr("synthetic-store-secret"))
+    payload = {
+        "event_type": "store.deprovisioned", "store_id": STORE,
+        "webhook_meta": {"client_id": "fictional-client", "webhook_msg_uuid": str(uuid4()),
+                         "webhook_msg_timestamp": int(time.time())},
+    }
+    raw = json.dumps(payload).encode()
+    signature = hmac.new(b"synthetic-store-secret", raw, hashlib.sha256).hexdigest()
+    barrier = Barrier(2)
+
+    def receive():
+        with pg_sessions() as db:
+            barrier.wait(timeout=10)
+            return inbox.receive_event(db, raw, signature)
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        results = list(workers.map(lambda _: receive(), range(2)))
+    assert sorted(results) == [False, True]
+    with pg_sessions() as db:
+        assert db.query(UberSandboxEvent).count() == db.query(UberSandboxStoreJob).count() == 1
+        assert db.query(UberSandboxStore).one().revoked

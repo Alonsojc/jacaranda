@@ -33,6 +33,7 @@ def management(isolated, monkeypatch):
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_CLIENT_SECRET", SecretStr("synthetic-OAuth-secret"))
     monkeypatch.setattr(api, "_order_token_cache", None)
     monkeypatch.setattr(api, "_token_cache", None)
+    monkeypatch.setattr(api, "_status_token_cache", None)
     return isolated
 
 

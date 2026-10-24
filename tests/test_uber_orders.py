@@ -295,6 +295,36 @@ def test_unexpected_cancel_success_status_is_not_claimed_or_resent(db, receipt):
     network.assert_not_called()
 
 
+def test_ready_uses_empty_body_once_and_does_not_claim_delivery_or_failure(db, receipt):
+    inspect(db, receipt, state="ACCEPTED")
+    key = uuid4()
+    calls = []
+
+    def ready(request):
+        assert request.method == "POST" and request.url.path.endswith("/ready")
+        assert json.loads(request.content) == {}
+        return httpx.Response(200)
+
+    with transport(ready, calls):
+        assert submit(db, action="listo", key=key)["repetida"] is False
+        assert submit(db, action="listo", key=key)["repetida"] is True
+        with pytest.raises(WebhookError, match="ya fue marcado"):
+            submit(db, action="listo")
+    result = inspect(db, receipt, state="ACCEPTED")
+    assert result["listo_confirmado"] is True
+    assert result["pedido"]["state"] == "ACCEPTED"
+    assert len(calls) == 1
+    assert db.query(Venta).count() == 0
+
+
+@pytest.mark.parametrize("state,reviewed", [("OFFERED", True), ("FAILED", True), ("ACCEPTED", False)])
+def test_ready_requires_accepted_reviewed_order(db, receipt, state, reviewed):
+    inspect(db, receipt, state=state)
+    with patch.object(orders, "_request") as network, pytest.raises(WebhookError):
+        submit(db, action="listo", reviewed=reviewed)
+    network.assert_not_called()
+
+
 def cancellation_receipt(db, **changes):
     command = db.query(UberSandboxAction).one()
     when = command.creado_en.replace(tzinfo=timezone.utc) + timedelta(seconds=1)

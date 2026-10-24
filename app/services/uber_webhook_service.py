@@ -8,12 +8,12 @@ import time
 from datetime import timezone
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.uber_eats import UberSandboxEvent
+from app.models.uber_eats import UberSandboxEvent, UberSandboxStore, UberSandboxStoreJob
 
 MAX_BODY_BYTES = 64 * 1024
 MAX_EVENT_AGE_SECONDS = 24 * 60 * 60
@@ -21,6 +21,9 @@ EVENT_TYPES = frozenset({
     "orders.notification", "orders.scheduled.notification", "orders.failure",
     "orders.cancel", "orders.release", "orders.fulfillment_issues.resolved",
     "order.fulfillment_issues.resolved", "delivery.state_changed", "orders.customer_order_edit",
+})
+STORE_EVENT_TYPES = frozenset({
+    "store.provisioned", "store.deprovisioned", "store.menu_refresh_request", "store.status.changed",
 })
 
 
@@ -48,6 +51,35 @@ class _Event(BaseModel):
     event_time: StrictInt
     meta: _Meta
     webhook_meta: _WebhookMeta | None = None
+
+
+class _StoreWebhookMeta(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    client_id: str = Field(min_length=1, max_length=160)
+    webhook_msg_timestamp: StrictInt
+    webhook_msg_uuid: UUID
+
+
+class _StoreEvent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    event_type: str = Field(max_length=80)
+    store_id: UUID
+    perform_refresh_menu: StrictBool = False
+    webhook_meta: _StoreWebhookMeta
+
+
+def store_state(db: Session, client_id: str, store_id: str, lock: bool = False) -> UberSandboxStore:
+    query = db.query(UberSandboxStore).filter_by(client_id=client_id, store_id=store_id)
+    row = (query.populate_existing().with_for_update() if lock else query).first()
+    if row is None:
+        try:
+            with db.begin_nested():
+                row = UberSandboxStore(client_id=client_id, store_id=store_id)
+                db.add(row)
+                db.flush()
+        except IntegrityError:
+            row = (query.populate_existing().with_for_update() if lock else query).one()
+    return row
 
 
 def sandbox_identity() -> tuple[str, str]:
@@ -96,22 +128,39 @@ def receive_event(db: Session, body: bytes, signature: str | None) -> bool:
     verify_signature(body, signature)
     client_id, store_id = sandbox_identity()
     try:
-        event = _Event.model_validate(json.loads(body, object_pairs_hook=_unique_keys))
+        data = json.loads(body, object_pairs_hook=_unique_keys)
+        is_store = isinstance(data, dict) and data.get("event_type") in STORE_EVENT_TYPES
+        if is_store:
+            event = _StoreEvent.model_validate(data)
+            incoming_store = str(event.store_id)
+            incoming_client = event.webhook_meta.client_id
+            event_id = str(event.webhook_meta.webhook_msg_uuid)
+            event_time = event.webhook_meta.webhook_msg_timestamp
+            resource_id = incoming_store
+        else:
+            event = _Event.model_validate(data)
+            incoming_store = str(event.meta.user_id)
+            incoming_client = event.webhook_meta.client_id if event.webhook_meta else None
+            event_id = str(event.event_id)
+            event_time = event.event_time
+            resource_id = str(event.meta.resource_id)
     except (ValueError, ValidationError, UnicodeDecodeError, RecursionError):
         raise WebhookError(400, "Notificacion de Uber no valida.") from None
-    if str(event.meta.user_id) != store_id:
+    if incoming_store != store_id:
         raise WebhookError(403, "El evento no corresponde a la tienda de pruebas.")
-    if event.webhook_meta and event.webhook_meta.client_id not in {None, client_id}:
+    if incoming_client not in {None, client_id}:
         raise WebhookError(403, "El evento no corresponde a la aplicacion de pruebas.")
-    if event.event_type not in EVENT_TYPES:
+    if event.event_type not in EVENT_TYPES | STORE_EVENT_TYPES:
         raise WebhookError(400, "Tipo de notificacion no soportado.")
     # Uber documents milliseconds in event_time; store canonical seconds.
-    timestamp = event.event_time // 1000 if event.event_time >= 10**12 else event.event_time
+    timestamp = event_time // 1000 if event_time >= 10**12 else event_time
     identity = {
-        "event_id": str(event.event_id), "event_type": event.event_type,
+        "event_id": event_id, "event_type": event.event_type,
         "event_time": timestamp, "store_id": store_id,
-        "order_id": str(event.meta.resource_id), "client_id": client_id,
+        "order_id": resource_id, "client_id": client_id,
     }
+    if is_store:
+        identity["perform_refresh_menu"] = event.perform_refresh_menu
     fingerprint = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     existing = db.query(UberSandboxEvent).filter_by(client_id=client_id, event_id=identity["event_id"]).first()
     if existing:
@@ -123,11 +172,12 @@ def receive_event(db: Session, body: bytes, signature: str | None) -> bool:
     # A duplicate insert race must not undo a separately committed receipt.
     try:
         with db.begin_nested():
-            db.add(UberSandboxEvent(
+            receipt = UberSandboxEvent(
                 client_id=client_id, store_id=store_id, event_id=identity["event_id"],
                 event_type=event.event_type, order_id=identity["order_id"],
                 event_time=timestamp, fingerprint=fingerprint,
-            ))
+            )
+            db.add(receipt)
             db.flush()
     except IntegrityError:
         existing = db.query(UberSandboxEvent).filter_by(client_id=client_id, event_id=identity["event_id"]).first()
@@ -135,13 +185,25 @@ def receive_event(db: Session, body: bytes, signature: str | None) -> bool:
             raise
         _same_event(existing, fingerprint)
         return False
+    if is_store:
+        row = store_state(db, client_id, store_id, lock=True)
+        if event.event_type == "store.deprovisioned" and timestamp >= row.lifecycle_event_time:
+            row.revoked = True
+            row.integration_enabled = False
+            row.lifecycle_event_time = timestamp
+            row.revision += 1
+        db.add(UberSandboxStoreJob(
+            client_id=client_id, store_id=store_id, event_id=event_id,
+            needs_menu=event.event_type == "store.menu_refresh_request" or event.perform_refresh_menu,
+        ))
     db.commit()
     return True
 
 
-def list_events(db: Session, limit: int = 30, before_id: int | None = None) -> list[dict]:
+def list_events(db: Session, limit: int = 30, before_id: int | None = None, store_events: bool = False) -> list[dict]:
     client_id, store_id = sandbox_identity()
     query = db.query(UberSandboxEvent).filter_by(client_id=client_id, store_id=store_id)
+    query = query.filter(UberSandboxEvent.event_type.in_(STORE_EVENT_TYPES if store_events else EVENT_TYPES))
     if before_id is not None:
         query = query.filter(UberSandboxEvent.id < before_id)
     return [{

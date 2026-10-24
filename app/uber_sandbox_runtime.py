@@ -2,16 +2,22 @@
 
 import hashlib
 import hmac
+import asyncio
+import json
 import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy import inspect, select
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
+from sqlalchemy import inspect, select, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from app.api.routes.uber_eats import (
     inspect_sandbox_order,
@@ -21,9 +27,12 @@ from app.api.routes.uber_eats import (
     sandbox_order_action,
 )
 from app.core.config import settings
-from app.core.database import engine
-from app.models.uber_eats import UberSandboxAction, UberSandboxEvent, UberSandboxOrder
-from app.services import uber_eats_service
+from app.core.database import SessionLocal, engine, get_db
+from app.models.uber_eats import (
+    UberSandboxAction, UberSandboxEvent, UberSandboxOrder,
+    UberSandboxStore, UberSandboxStoreAction, UberSandboxStoreJob,
+)
+from app.services import uber_eats_service, uber_sandbox_oauth, uber_store_service, uber_webhook_service
 
 
 TEST_APPLICATION_ID = "I2pbZ-jD6Qa7FQzhLUbX3Y5gN12EasPL"
@@ -32,7 +41,7 @@ DATABASE_NAME = "jacaranda_uber_sandbox"
 DATABASE_USER = "jacaranda_sandbox"
 WEBHOOK_PATH = "/api/v1/uber-eats/sandbox/webhook"
 ASSETS = Path(__file__).parent / "sandbox_static"
-MODELS = (UberSandboxEvent, UberSandboxOrder, UberSandboxAction)
+MODELS = (UberSandboxEvent, UberSandboxOrder, UberSandboxAction, UberSandboxStore, UberSandboxStoreAction, UberSandboxStoreJob)
 
 
 def validate_isolation() -> None:
@@ -51,6 +60,10 @@ def validate_isolation() -> None:
             raise RuntimeError("Dedicated private management and TEST OAuth credentials are required.")
     elif settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED:
         raise RuntimeError("Order actions require explicitly enabled private sandbox management.")
+    if settings.UBER_EATS_SANDBOX_STORE_AUTOMATION_ENABLED and not (
+        settings.UBER_EATS_SANDBOX_MANAGEMENT_ENABLED and settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED
+    ):
+        raise RuntimeError("Store automation requires the private TEST management and actions.")
     if (
         uber_eats_service.API_URL != "https://test-api.uber.com"
         or uber_eats_service.TOKEN_URL != "https://sandbox-login.uber.com/oauth/v2/token"
@@ -86,11 +99,42 @@ async def lifespan(app: FastAPI):
         allowed = {model.__tablename__ for model in MODELS}
         if tables - allowed:
             raise RuntimeError("Refusing a database containing non-sandbox tables.")
-        models = MODELS if settings.UBER_EATS_SANDBOX_MANAGEMENT_ENABLED else (UberSandboxEvent,)
+        models = MODELS if settings.UBER_EATS_SANDBOX_MANAGEMENT_ENABLED else (
+            UberSandboxEvent, UberSandboxStore, UberSandboxStoreJob,
+        )
         for model in models:
             model.__table__.create(connection, checkfirst=True)
         connection.execute(select(UberSandboxEvent).limit(0))
-    yield
+        if settings.UBER_EATS_SANDBOX_STORE_AUTOMATION_ENABLED:
+            connection.execute(update(UberSandboxStoreJob).where(
+                UberSandboxStoreJob.state == "processing",
+            ).values(state="pending"))
+    stop = asyncio.Event()
+    worker = asyncio.create_task(store_worker(stop)) if settings.UBER_EATS_SANDBOX_STORE_AUTOMATION_ENABLED else None
+    try:
+        yield
+    finally:
+        stop.set()
+        if worker is not None:
+            await worker
+
+
+def store_tick():
+    with SessionLocal() as db:
+        try:
+            uber_store_service.process_job(db)
+        except Exception:
+            db.rollback()
+            logging.getLogger(__name__).warning("Sandbox store worker paused after an internal error")
+
+
+async def store_worker(stop: asyncio.Event):
+    while not stop.is_set():
+        await asyncio.to_thread(store_tick)
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=2)
+        except TimeoutError:
+            pass
 
 
 app = FastAPI(
@@ -176,6 +220,84 @@ def management_status():
     }
 
 
+class StoreActionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    request_key: UUID
+    accion: Literal["menu_publicar", "item_actualizar", "pausar", "reanudar", "integracion_pausar", "integracion_activar", "vincular"]
+    revision: StrictInt = Field(ge=0)
+    solo_sandbox_confirmado: StrictBool
+    item_id: Literal["jacaranda-sandbox-brownie", "jacaranda-sandbox-galleta"] | None = None
+    precio_centavos: StrictInt | None = Field(default=None, ge=100, le=500)
+    agotado: StrictBool | None = None
+
+
+def store_call(function, *args, **kwargs):
+    try:
+        return function(*args, **kwargs)
+    except uber_webhook_service.WebhookError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from None
+    except uber_store_service.StoreAPIError:
+        raise HTTPException(502, "Uber no confirmo la consulta de pruebas. No se reenviaron cambios.") from None
+    except SQLAlchemyError:
+        raise HTTPException(503, "El almacenamiento de Sandbox no esta disponible.") from None
+
+
+@app.get("/api/v1/uber-eats/sandbox/tiendas", dependencies=[Depends(private_management)])
+def store_discovery():
+    return store_call(uber_store_service.discover_stores)
+
+
+@app.get("/api/v1/uber-eats/sandbox/tienda", dependencies=[Depends(private_management)])
+def store_inspection(db: Session = Depends(get_db)):
+    return store_call(uber_store_service.inspect_store, db)
+
+
+@app.get("/api/v1/uber-eats/sandbox/menu-ficticio", dependencies=[Depends(private_management)])
+def fixture_menu(db: Session = Depends(get_db)):
+    client_id, store_id = uber_store_service.identity()
+    row = uber_webhook_service.store_state(db, client_id, store_id)
+    menu = json.loads(row.menu_json) if row.menu_json else uber_store_service.fixture_menu()
+    return {"entorno": "sandbox", "menu": menu}
+
+
+@app.get("/api/v1/uber-eats/sandbox/tienda/eventos", dependencies=[Depends(private_management)])
+def store_events(db: Session = Depends(get_db)):
+    events = store_call(uber_webhook_service.list_events, db, 30, store_events=True)
+    client_id, store_id = uber_store_service.identity()
+    jobs = db.query(UberSandboxStoreJob).filter_by(client_id=client_id, store_id=store_id).order_by(
+        UberSandboxStoreJob.id.desc(),
+    ).limit(30).all()
+    return {"entorno": "sandbox", "eventos": events,
+            "procesamiento": [{"event_id": job.event_id, "estado": job.state, "intentos": job.attempts} for job in jobs]}
+
+
+@app.post("/api/v1/uber-eats/sandbox/tienda/accion", dependencies=[Depends(private_management)])
+def store_action(data: StoreActionRequest, db: Session = Depends(get_db)):
+    token = store_call(uber_sandbox_oauth.merchant_token, db) if data.accion == "vincular" else None
+    return store_call(uber_store_service.submit, db, data.request_key, data.accion, data.revision,
+                      data.solo_sandbox_confirmado, data.item_id, data.precio_centavos, data.agotado, token)
+
+
+@app.post("/api/v1/uber-eats/sandbox/oauth/iniciar", dependencies=[Depends(private_management)])
+def begin_merchant_authorization(db: Session = Depends(get_db)):
+    return store_call(uber_sandbox_oauth.begin, db)
+
+
+@app.get("/sandbox/oauth/callback")
+def finish_merchant_authorization(request: Request, db: Session = Depends(get_db)):
+    management_enabled()
+    params = request.query_params
+    if params.get("error") or len(params.getlist("code")) != 1 or len(params.getlist("state")) != 1:
+        return HTMLResponse("<h1>Autorizacion no completada</h1><p>Vuelve al panel privado de Sandbox.</p>", status_code=400)
+    try:
+        uber_sandbox_oauth.complete(db, params["code"], params["state"])
+    except uber_webhook_service.WebhookError:
+        return HTMLResponse("<h1>Autorizacion no confirmada</h1><p>Vuelve al panel privado de Sandbox.</p>", status_code=400)
+    except SQLAlchemyError:
+        return HTMLResponse("<h1>Autorizacion no disponible</h1><p>Vuelve al panel privado de Sandbox.</p>", status_code=503)
+    return HTMLResponse("<h1>Cuenta Sandbox autorizada</h1><p>Vuelve al panel privado de Jacaranda Sandbox.</p>")
+
+
 for path, endpoint, method in (
     ("/api/v1/uber-eats/sandbox/eventos", sandbox_events, "GET"),
     ("/api/v1/uber-eats/sandbox/eventos/{event_id}/consultar", inspect_sandbox_order, "POST"),
@@ -198,10 +320,11 @@ def health():
 if __name__ == "__main__":
     import uvicorn
 
-    order_log = logging.getLogger("app.services.uber_order_service")
-    order_log.setLevel(logging.INFO)
-    order_log.addHandler(logging.StreamHandler())
-    order_log.propagate = False
+    for logger_name in ("app.services.uber_order_service", "app.services.uber_store_service"):
+        service_log = logging.getLogger(logger_name)
+        service_log.setLevel(logging.INFO)
+        service_log.addHandler(logging.StreamHandler())
+        service_log.propagate = False
     uvicorn.run(
         "app.uber_sandbox_runtime:app",
         host="0.0.0.0",

@@ -17,6 +17,7 @@ API_URL = "https://test-api.uber.com"
 _token_lock = Lock()
 _token_cache = None
 _order_token_cache = None
+_status_token_cache = None
 
 
 class UberEatsError(Exception):
@@ -89,8 +90,8 @@ def _json_response(response: httpx.Response) -> dict:
 
 
 def _access_token(client: httpx.Client, scope: str = "eats.store") -> str:
-    global _token_cache, _order_token_cache
-    if scope not in {"eats.store", "eats.order"}:
+    global _token_cache, _order_token_cache, _status_token_cache
+    if scope not in {"eats.store", "eats.order", "eats.store.status.write"}:
         raise UberEatsError("Permiso de pruebas no soportado.")
     key = (
         settings.UBER_EATS_SANDBOX_CLIENT_ID.strip(),
@@ -98,7 +99,8 @@ def _access_token(client: httpx.Client, scope: str = "eats.store") -> str:
     )
     # Reutilizar tokens evita el limite de autenticaciones de Uber.
     with _token_lock:
-        cached = _token_cache if scope == "eats.store" else _order_token_cache
+        cached = {"eats.store": _token_cache, "eats.order": _order_token_cache,
+                  "eats.store.status.write": _status_token_cache}[scope]
         if cached and cached[0] == key and cached[2] > monotonic():
             return cached[1]
         data = _json_response(client.post(TOKEN_URL, data={
@@ -115,8 +117,10 @@ def _access_token(client: httpx.Client, scope: str = "eats.store") -> str:
         cached = (key, token, monotonic() + max(0, expires - 60))
         if scope == "eats.store":
             _token_cache = cached
-        else:
+        elif scope == "eats.order":
             _order_token_cache = cached
+        else:
+            _status_token_cache = cached
         return token
 
 

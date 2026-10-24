@@ -12,13 +12,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.uber_eats import UberSandboxAction, UberSandboxEvent, UberSandboxOrder
+from app.models.uber_eats import UberSandboxAction, UberSandboxEvent, UberSandboxOrder, UberSandboxStore
 from app.services import uber_eats_service as api
-from app.services.uber_webhook_service import WebhookError, sandbox_identity
+from app.services.uber_webhook_service import STORE_EVENT_TYPES, WebhookError, sandbox_identity
 
 MAX_RESPONSE_BYTES = 512 * 1024
 MAX_DETAILS_AGE_SECONDS = 120
-_ACTIONS = {"aceptar": "accept", "rechazar": "deny", "cancelar": "cancel"}
+_ACTIONS = {"aceptar": "accept", "rechazar": "deny", "cancelar": "cancel", "listo": "ready"}
 _REASONS = {"ITEM_ISSUE", "STORE_CLOSED", "POS_NOT_READY", "SPECIAL_INSTRUCTIONS", "TECHNICAL_FAILURE", "OTHER"}
 _ERROR_CODES = {"bad_request", "unauthorized", "forbidden", "not_found", "not_implemented", "internal_server_error", "rate_limited"}
 logger = logging.getLogger(__name__)
@@ -107,6 +107,8 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
     ).first()
     if event is None:
         raise WebhookError(404, "Notificacion de pruebas no encontrada.")
+    if event.event_type in STORE_EVENT_TYPES:
+        raise WebhookError(409, "Esta notificacion corresponde a la tienda, no a un pedido.")
     query = _order_query(db, client_id, store_id, event.order_id)
     before = query.first()
     before_revision = before.revision if before else None
@@ -197,6 +199,9 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
         "requiere_conciliacion": pending is not None or regresses,
         "estado_remoto": order["state"],
         "detalle_sha256": snapshot_digest,
+        "listo_confirmado": db.query(UberSandboxAction.id).filter_by(
+            client_id=client_id, store_id=store_id, order_id=event.order_id, action="listo", estado="confirmada",
+        ).first() is not None,
     }
 
 
@@ -209,9 +214,13 @@ def submit_action(
         raise WebhookError(503, "Falta la credencial privada de pruebas.")
     if not settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED:
         raise WebhookError(409, "Las acciones de pruebas estan deshabilitadas.")
-    if action not in _ACTIONS or (action != "aceptar" and reason not in _REASONS):
+    if settings.UBER_EATS_SANDBOX_STORE_AUTOMATION_ENABLED:
+        store = db.query(UberSandboxStore).filter_by(client_id=client_id, store_id=store_id).populate_existing().with_for_update().first()
+        if store and store.revoked:
+            raise WebhookError(409, "La integracion de la tienda esta revocada.")
+    if action not in _ACTIONS or (action in {"rechazar", "cancelar"} and reason not in _REASONS):
         raise WebhookError(422, "Accion o motivo no permitido.")
-    if action == "aceptar" and not instructions_reviewed:
+    if action in {"aceptar", "listo"} and not instructions_reviewed:
         raise WebhookError(422, "Confirma la revision del pedido y sus instrucciones.")
     identity = {"order_id": str(order_id), "action": action, "reason": reason,
                 "reviewed": instructions_reviewed, "details_digest": details_digest}
@@ -231,12 +240,15 @@ def submit_action(
         UberSandboxAction.estado.in_(["enviando", "incierta"])
     ).first():
         raise WebhookError(409, "Hay una operacion sin confirmar; no se reenviara automaticamente.")
+    if action == "listo" and actions.filter_by(order_id=str(order_id), action="listo", estado="confirmada").first():
+        raise WebhookError(409, "El pedido ya fue marcado como listo.")
     if hashlib.sha256(row.snapshot_json.encode()).hexdigest() != details_digest:
         raise WebhookError(409, "El detalle cambio. Revisa de nuevo productos e instrucciones.")
     seen = row.actualizado_en.replace(tzinfo=timezone.utc) if row.actualizado_en.tzinfo is None else row.actualizado_en
     if (datetime.now(timezone.utc) - seen).total_seconds() > MAX_DETAILS_AGE_SECONDS:
         raise WebhookError(409, "Actualiza el pedido antes de enviar una accion.")
-    expected_states = {"aceptar": {"OFFERED", "CREATED"}, "rechazar": {"OFFERED", "CREATED"}, "cancelar": {"ACCEPTED"}}
+    expected_states = {"aceptar": {"OFFERED", "CREATED"}, "rechazar": {"OFFERED", "CREATED"},
+                       "cancelar": {"ACCEPTED"}, "listo": {"ACCEPTED"}}
     if row.state not in expected_states[action]:
         raise WebhookError(409, "El estado del pedido no permite esa accion.")
     snapshot = json.loads(row.snapshot_json)
@@ -264,7 +276,7 @@ def submit_action(
     db.add(command)
     # Persist before crossing the network boundary. A crash must block blind resends.
     db.commit()
-    payload = {"external_reference_id": "jacaranda-sandbox-" + str(request_key)} if action == "aceptar" else {
+    payload = {} if action == "listo" else {"external_reference_id": "jacaranda-sandbox-" + str(request_key)} if action == "aceptar" else {
         "deny_reason" if action == "rechazar" else "cancellation_reason": {
             "type": reason, "info": "Jacaranda Sandbox UBER_TEST integration validation.",
         },
@@ -280,7 +292,7 @@ def submit_action(
         status = f" (HTTP {exc.status_code})" if exc.status_code is not None else ""
         raise WebhookError(502, f"Uber no confirmo la accion{status}. No se ha reenviado.") from None
     command.estado = "confirmada"
-    row.state = "ACCEPTED" if action == "aceptar" else "FAILED"
+    row.state = "ACCEPTED" if action in {"aceptar", "listo"} else "FAILED"
     row.pending_request_key = None
     row.revision += 1
     row.actualizado_en = datetime.now(timezone.utc)
