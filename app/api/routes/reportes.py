@@ -1,15 +1,14 @@
 """Rutas de reportes financieros e impuestos."""
 
-import shutil
 from datetime import date
-from pathlib import Path
 from fastapi import APIRouter, Depends, Query, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.api.file_responses import PrivateDownloadResponse, remove_download_copy
 from app.core.config import settings
 from app.core.time_utils import operation_today
-from app.services import pdf_service
+from app.services import pdf_service, backup_service
 from app.core.database import get_db
 from app.core.dependencies import require_admin_financials, require_permission, require_role
 from app.models.usuario import Usuario, RolUsuario
@@ -299,18 +298,24 @@ def descargar_backup(
     db_url = settings.DATABASE_URL
     if not db_url.startswith("sqlite"):
         raise HTTPException(status_code=400, detail="Backup solo disponible para SQLite")
-    db_path = db_url.replace("sqlite:///", "")
-    src = Path(db_path)
-    if not src.exists():
-        raise HTTPException(status_code=404, detail="Base de datos no encontrada")
+    try:
+        info = backup_service.crear_backup()
+        info = backup_service.preparar_descarga_backup(info["filename"])
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Base de datos no encontrada") from None
+    except (OSError, RuntimeError):
+        raise HTTPException(status_code=500, detail="No se pudo crear un respaldo consistente") from None
     hoy = operation_today().isoformat()
-    backup_path = Path(f"/tmp/jacaranda_backup_{hoy}.db")
-    shutil.copy2(str(src), str(backup_path))
-    return FileResponse(
-        path=str(backup_path),
-        filename=f"jacaranda_backup_{hoy}.db",
-        media_type="application/octet-stream",
-    )
+    try:
+        return PrivateDownloadResponse(
+            path=info["path"],
+            filename=f"jacaranda_backup_{hoy}.db",
+            media_type="application/octet-stream",
+            headers={"Cache-Control": "no-store"},
+        )
+    except Exception:
+        remove_download_copy(info["path"])
+        raise
 
 
 # ─── PDF Exports ──────────────────────────────────────────────────

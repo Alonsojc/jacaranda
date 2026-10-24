@@ -4,15 +4,12 @@ Registro de eventos, detección de anomalías y respaldo de base de datos.
 """
 
 import json
-import os
-import shutil
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
 from sqlalchemy import func, and_, extract
 from sqlalchemy.orm import Session
 
-from app.core.time_utils import operation_now
 from app.models.auditoria import LogAuditoria
 from app.core.config import settings
 
@@ -363,35 +360,13 @@ def respaldar_base_datos(db: Session) -> dict:
     Crea una copia de respaldo del archivo SQLite con marca de tiempo.
     Retorna información del archivo generado.
     """
-    # Extraer la ruta del archivo SQLite desde la URL de configuración
-    db_url = settings.DATABASE_URL
-    if db_url.startswith("sqlite:///"):
-        db_path = db_url.replace("sqlite:///", "")
-    else:
+    if not settings.DATABASE_URL.startswith("sqlite:///"):
         raise ValueError("El respaldo solo está disponible para bases de datos SQLite")
+    from app.services.backup_service import crear_backup
 
-    # Resolver ruta relativa
-    if not os.path.isabs(db_path):
-        db_path = os.path.join(os.getcwd(), db_path)
-
-    if not os.path.exists(db_path):
-        raise FileNotFoundError(f"Archivo de base de datos no encontrado: {db_path}")
-
-    # Crear directorio de respaldos
-    backup_dir = os.path.join(os.path.dirname(db_path), "backups")
-    os.makedirs(backup_dir, exist_ok=True)
-
-    # Nombre del respaldo con timestamp
-    timestamp = operation_now().strftime("%Y%m%d_%H%M%S")
-    backup_filename = f"jacaranda_backup_{timestamp}.db"
-    backup_path = os.path.join(backup_dir, backup_filename)
-
-    # Copiar el archivo
-    shutil.copy2(db_path, backup_path)
-
-    # Calcular tamaño en MB
-    tamano_bytes = os.path.getsize(backup_path)
-    tamano_mb = round(tamano_bytes / (1024 * 1024), 2)
+    info = crear_backup()
+    backup_filename = info["filename"]
+    tamano_mb = round(info["size_bytes"] / (1024 * 1024), 2)
 
     # Registrar evento de respaldo
     registrar_evento(

@@ -145,5 +145,5 @@ def crear_respaldo(
     try:
         resultado = svc.respaldar_base_datos(db)
         return resultado
-    except (ValueError, FileNotFoundError) as e:
+    except (ValueError, FileNotFoundError, OSError, RuntimeError) as e:
         raise HTTPException(status_code=400, detail=str(e))
