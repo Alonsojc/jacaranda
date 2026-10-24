@@ -305,8 +305,11 @@ def status_notification():
     }
 
 
-def test_status_notification_envelope_is_durable_and_reads_canonical_status(management, monkeypatch):
+@pytest.mark.parametrize("precision", [1, 1000, 1000000, 1000000000])
+def test_status_notification_envelope_is_durable_and_reads_canonical_status(management, monkeypatch, precision):
     payload = status_notification()
+    seconds = int(time.time())
+    payload["event_time"] = seconds * precision
     with TestClient(runtime.app) as client, provider() as remote:
         for _ in range(2):
             response = receive(client, payload)
@@ -315,7 +318,7 @@ def test_status_notification_envelope_is_durable_and_reads_canonical_status(mana
         with management[1]() as db:
             assert db.query(UberSandboxEvent).count() == db.query(UberSandboxStoreJob).count() == 1
             receipt = db.query(UberSandboxEvent).one()
-            assert receipt.event_time == payload["event_time"] // 1000
+            assert receipt.event_time == seconds
             assert receipt.order_id == runtime.TEST_STORE_ID
             db.query(UberSandboxStoreJob).update({"updated_at": datetime.now(timezone.utc) - timedelta(minutes=1)})
             db.commit()
@@ -324,6 +327,17 @@ def test_status_notification_envelope_is_durable_and_reads_canonical_status(mana
             assert db.query(UberSandboxStore).one().online_status == "ONLINE"
             assert not stores.process_job(db)
         assert all(request.method == "GET" for request in remote["calls"])
+
+
+@pytest.mark.parametrize("precision", [1, 1000, 1000000, 1000000000])
+@pytest.mark.parametrize("offset", [-90000, 600])
+def test_status_timestamp_precision_does_not_relax_receipt_window(management, precision, offset):
+    payload = status_notification()
+    payload["event_time"] = (int(time.time()) + offset) * precision
+    with TestClient(runtime.app) as client:
+        assert receive(client, payload).status_code == 400
+    with management[1]() as db:
+        assert db.query(UberSandboxEvent).count() == 0
 
 
 @pytest.mark.parametrize("change,expected", [

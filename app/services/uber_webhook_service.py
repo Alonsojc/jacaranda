@@ -154,6 +154,17 @@ def _log_schema_mismatch(data: object, error: ValidationError) -> None:
     logger.warning("Sandbox schema rejected shape=%s errors=%s", json.dumps(shape, sort_keys=True), json.dumps(errors))
 
 
+def _event_seconds(value: int) -> int:
+    # Store and order transports can use different Unix timestamp precision.
+    # Normalize units, then enforce the same receipt window below.
+    for threshold, divisor in ((10**18, 10**9), (10**15, 10**6), (10**12, 10**3)):
+        if value >= threshold:
+            if divisor > 1000:
+                logger.info("Sandbox event timestamp precision=%s", "nanoseconds" if divisor == 10**9 else "microseconds")
+            return value // divisor
+    return value
+
+
 def receive_event(db: Session, body: bytes, signature: str | None) -> bool:
     if not body or len(body) > MAX_BODY_BYTES:
         raise WebhookError(413 if body else 400, "Tamano de notificacion no permitido.")
@@ -198,8 +209,7 @@ def receive_event(db: Session, body: bytes, signature: str | None) -> bool:
         raise WebhookError(403, "El evento no corresponde a la aplicacion de pruebas.")
     if event.event_type not in EVENT_TYPES | STORE_EVENT_TYPES:
         raise WebhookError(400, "Tipo de notificacion no soportado.")
-    # Uber documents milliseconds in event_time; store canonical seconds.
-    timestamp = event_time // 1000 if event_time >= 10**12 else event_time
+    timestamp = _event_seconds(event_time)
     identity = {
         "event_id": event_id, "event_type": event.event_type,
         "event_time": timestamp, "store_id": store_id,
