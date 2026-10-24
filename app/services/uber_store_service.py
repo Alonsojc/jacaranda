@@ -450,9 +450,13 @@ def process_job(db: Session) -> bool:
                 if row.revoked or not _integration_ready(config):
                     raise StoreAPIError()
                 menu = json.loads(row.menu_json) if row.menu_json else fixture_menu()
-                remote = request("GET", f"/v2/eats/stores/{store_id}/menus")
-                if menu_signature(remote) != menu_signature(menu):
+                previous = db.query(UberSandboxStoreAction).filter_by(
+                    client_id=client_id, store_id=store_id, request_key=job.event_id,
+                ).first()
+                if previous is None:
                     submit(db, UUID(job.event_id), "menu_publicar", row.revision, True)
+                elif previous.state not in {"confirmada", "conciliada"}:
+                    raise StoreAPIError()
                 verified = request("GET", f"/v2/eats/stores/{store_id}/menus")
                 if menu_signature(verified) != menu_signature(menu):
                     raise StoreAPIError()

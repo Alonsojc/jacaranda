@@ -317,6 +317,20 @@ def test_durable_jobs_process_fixture_or_canonical_status_only(management, monke
             assert not stores.process_job(db)
 
 
+def test_menu_refresh_uploads_once_even_when_remote_menu_is_already_identical(management, monkeypatch):
+    with TestClient(runtime.app) as client, provider() as remote:
+        remote["menu"] = stores.fixture_menu()
+        assert receive(client, store_event("store.menu_refresh_request")).status_code == 200
+        monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_STORE_AUTOMATION_ENABLED", True)
+        with management[1]() as db:
+            db.query(UberSandboxStoreJob).update({"updated_at": datetime.now(timezone.utc) - timedelta(minutes=1)})
+            db.commit()
+            assert stores.process_job(db)
+            assert db.query(UberSandboxStoreJob).one().state == "done"
+            assert not stores.process_job(db)
+        assert len([r for r in remote["calls"] if r.method == "PUT"]) == 1
+
+
 def test_merchant_oauth_is_one_use_encrypted_and_test_store_scoped(management):
     with TestClient(runtime.app) as client, provider() as remote:
         first = client.post(BASE + "/oauth/iniciar", headers=AUTH).json()
