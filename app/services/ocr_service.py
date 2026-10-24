@@ -20,6 +20,7 @@ from pypdf.errors import PyPdfError
 from app.core.config import settings
 from app.core.ocr_upload import MAX_OCR_BYTES
 from app.core.time_utils import operation_today
+from app.services.egresos_photo_service import PROMPT_TABLA, TABLE_SCHEMA, validar_tabla_gastos
 
 CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
 CLAUDE_MODEL = "claude-haiku-4-5-20251001"
@@ -95,7 +96,7 @@ def _bloque(data: bytes, mime: str) -> dict:
     }
 
 
-def preparar_documento(data: bytes, mime: str) -> tuple[list[dict], list[str]]:
+def preparar_documento(data: bytes, mime: str, *, tabla: bool = False) -> tuple[list[dict], list[str]]:
     """Orienta fotos sin EXIF, conserva texto legible y limita memoria/paginas."""
     if not data or len(data) > MAX_OCR_BYTES:
         raise ValueError("El ticket esta vacio o supera 20 MB")
@@ -132,7 +133,20 @@ def preparar_documento(data: bytes, mime: str) -> tuple[list[dict], list[str]]:
     if min(image.size) < 250:
         avisos.append("Foto de baja resolucion: revisa los numeros y partidas")
     partes = [image]
-    if image.height > image.width * 3:
+    if tabla and image.height > 450:
+        numero = min(10, math.ceil(image.height / max(350, min(900, image.width * .6))))
+        alto = math.ceil(image.height / numero)
+        gris = image.convert("L")
+        cortes = [0]
+        for i in range(1, numero):
+            destino = i * alto
+            # Prefer the table's horizontal rule so a crop never splits a row.
+            lineas = [y for y in range(max(cortes[-1] + 1, destino - 20), min(image.height, destino + 21))
+                      if sum(p < 90 for p in gris.crop((0, y, image.width, y + 1)).tobytes()) > image.width * .7]
+            cortes.append(min(lineas, key=lambda y: abs(y - destino)) if lineas else destino)
+        cortes.append(image.height)
+        partes = [image.crop((0, max(0, a - 12 if a else 0), image.width, b)) for a, b in zip(cortes[:-1], cortes[1:], strict=True)]
+    elif image.height > image.width * 3:
         # Segmentar tickets largos evita reducir todo el texto a una columna diminuta.
         numero = min(4, math.ceil(image.height / (image.width * 2)))
         alto = math.ceil(image.height / numero)
@@ -142,8 +156,8 @@ def preparar_documento(data: bytes, mime: str) -> tuple[list[dict], list[str]]:
         avisos.append("Ticket largo: verifica que esten todas las partidas, sin duplicados")
     bloques = []
     for parte in partes:
-        escala = min(1, 1568 / max(parte.size), math.sqrt(1_150_000 / (parte.width * parte.height)))
-        if escala < 1:
+        escala = min(2 if tabla else 1, 1568 / max(parte.size), math.sqrt(1_150_000 / (parte.width * parte.height)))
+        if escala != 1:
             parte = parte.resize((max(1, round(parte.width * escala)), max(1, round(parte.height * escala))), Image.Resampling.LANCZOS)
         salida = BytesIO()
         parte.save(salida, format="JPEG", quality=94, subsampling=0, optimize=True)
@@ -259,13 +273,21 @@ def validar_resultado_ocr(data: dict, avisos: list[str] | None = None) -> dict:
 
 
 def extraer_datos_ticket(image_bytes: bytes, content_type: str) -> dict:
+    return _extraer_documento(image_bytes, content_type)
+
+
+def extraer_tabla_gastos(image_bytes: bytes, content_type: str) -> dict:
+    return _extraer_documento(image_bytes, content_type, tabla=True)
+
+
+def _extraer_documento(image_bytes: bytes, content_type: str, *, tabla: bool = False) -> dict:
     if not settings.ANTHROPIC_API_KEY:
         return _error("sin_configurar", "El lector de tickets no esta configurado. Puedes capturar el egreso manualmente")
     if not _OCR_SLOTS.acquire(blocking=False):
         return _error("ocupado", "El lector esta ocupado. Intenta de nuevo en unos momentos", True)
     inicio = time.monotonic()
     try:
-        return _extraer_ticket(image_bytes, content_type)
+        return _extraer_ticket(image_bytes, content_type, tabla=tabla)
     finally:
         _OCR_SLOTS.release()
         logger.info("ocr_finalizado tipo=%s duracion_ms=%d", content_type, int((time.monotonic() - inicio) * 1000))
@@ -275,17 +297,17 @@ def _rechazar_numero_json(value: str):
     raise ValueError("Numero JSON no finito")
 
 
-def _extraer_ticket(image_bytes: bytes, content_type: str) -> dict:
+def _extraer_ticket(image_bytes: bytes, content_type: str, *, tabla: bool = False) -> dict:
     try:
-        bloques, avisos = preparar_documento(image_bytes, content_type)
+        bloques, avisos = preparar_documento(image_bytes, content_type, tabla=tabla)
     except (ValueError, RecursionError) as exc:
         return _error("archivo_invalido", str(exc))
     payload = {
         "model": settings.OCR_MODEL,
-        "max_tokens": 8192,
-        "system": PROMPT_OCR,
-        "output_config": {"format": {"type": "json_schema", "schema": OCR_SCHEMA}},
-        "messages": [{"role": "user", "content": bloques + [{"type": "text", "text": "Lee el ticket completo y marca cualquier dato dudoso."}]}],
+        "max_tokens": 16384 if tabla else 8192,
+        "system": PROMPT_TABLA if tabla else PROMPT_OCR,
+        "output_config": {"format": {"type": "json_schema", "schema": TABLE_SCHEMA if tabla else OCR_SCHEMA}},
+        "messages": [{"role": "user", "content": bloques + [{"type": "text", "text": "Transcribe la tabla completa sin completar datos dudosos." if tabla else "Lee el ticket completo y marca cualquier dato dudoso."}]}],
     }
     try:
         response = httpx.post(CLAUDE_API_URL, json=payload, headers={
@@ -303,7 +325,7 @@ def _extraer_ticket(image_bytes: bytes, content_type: str) -> dict:
         if texto.startswith("```") and texto.endswith("```"):
             texto = re.sub(r"^```(?:json)?\s*|\s*```$", "", texto)
         data = json.loads(texto, parse_constant=_rechazar_numero_json)
-        result = validar_resultado_ocr(data, avisos)
+        result = validar_tabla_gastos(data, avisos) if tabla else validar_resultado_ocr(data, avisos)
         if not result.get("error"):
             result["documento_id"] = hashlib.sha256(image_bytes).hexdigest()
             result["modelo"] = settings.OCR_MODEL
