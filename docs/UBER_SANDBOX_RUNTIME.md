@@ -12,10 +12,11 @@ de la tienda de pruebas; nunca usa sesiones o credenciales del POS.
 - Servicio `uber-sandbox-webhook`, arranque `python -m app.uber_sandbox_runtime`.
 - PostgreSQL privado independiente `uber-sandbox-db`; base
   `jacaranda_uber_sandbox`, usuario `jacaranda_sandbox` y volumen propio.
-- Solo permite `uber_sandbox_events`, `uber_sandbox_orders` y
-  `uber_sandbox_actions`; rechaza una base con otras tablas antes de cualquier
-  DDL. En modo receptor solo crea la primera tabla. No se restaura ningun
-  respaldo operativo en esta base.
+- Solo permite `uber_sandbox_events`, `uber_sandbox_orders`,
+  `uber_sandbox_actions`, `uber_sandbox_stores`, `uber_sandbox_store_actions`
+  y `uber_sandbox_store_jobs`; rechaza una base con otras tablas antes de
+  cualquier DDL. Sin gestion privada crea solo eventos, tiendas y trabajos
+  de tienda. No se restaura ningun respaldo operativo en esta base.
 - El arranque valida entorno, host privado, nombre de base, usuario, aplicacion
   TEST, UUID sandbox y dominios de API/autenticacion exclusivamente sandbox.
 - Por defecto solo publica `POST /api/v1/uber-eats/sandbox/webhook` y `GET /health`.
@@ -143,6 +144,74 @@ No afirmar que la operacion en iPad esta validada solo por recibir un webhook.
 
 Fuente oficial: https://developer.uber.com/docs/eats/guides/webhooks
 Fuente Railway: https://docs.railway.com/infrastructure-as-code
+
+## Evidencia autentica del 24 de octubre de 2026
+
+Esta evidencia corresponde exclusivamente a la aplicacion TEST y la tienda
+aprobada arriba. Las horas son UTC. No acredita aprobacion de produccion.
+
+- Uber envio `store.menu_refresh_request` a las 23:34:44 y 23:34:47. Los eventos
+  `2147a8e4-18d5-49d5-86d8-9f9ee1931fb6` y
+  `6a3d3cd1-e0c0-4aa2-b869-229915341279` recibieron HTTP 200. El worker publico
+  automaticamente el menu ficticio con PUT HTTP 204 y lo verifico con GET 200.
+  Ambos trabajos terminaron en un intento, sin fabricar callbacks propios.
+- El pedido `959208aa-4430-415b-adac-7c7614c47dd1` se creo desde la cuenta TEST
+  con un brownie ficticio y pago `UBER_TEST`, sin tarjeta ni cobro real.
+  `orders.notification` llego a las 23:51:09; accept confirmo 200 a las 23:51:24
+  y ready confirmo 200 a las 23:51:37. Cada accion se envio una sola vez.
+- Un GET posterior a las 23:56:26, con `expand=carts,payment`, confirmo
+  `state=ACCEPTED` y `preparation_status=READY_FOR_HANDOFF`. La respuesta de ready
+  y su registro durable no se confundieron con una entrega al cliente.
+- El resumen privado devolvio 14 trabajos de tienda terminados, uno sustituido
+  por baja anterior y ninguno pendiente, procesando o fallido. Un pedido
+  historico de pruebas seguia en la cola de atencion; no se afirmo que todos
+  los pedidos historicos estuvieran cerrados.
+- Se respondio al caso de Uber 61057984 / solicitud 7A7BCD con las pruebas y
+  los datos de negocio autorizados. El dashboard mantenia la verificacion
+  pendiente y `Create Prod App` deshabilitado; no se proporciono el Client ID
+  TEST como si fuera de produccion. Se pidieron instrucciones y se reitero
+  expresamente no activar ni modificar el restaurante real.
+- Produccion conservo el despliegue
+  `2e23e750-f1d3-4698-b8c7-ce079259780b`, commit
+  `b4b1f4de6bfb846488f00b4a58c4eedf0df2c354`, estado SUCCESS y salud OK.
+  El codigo ejecutado por Sandbox era `71ff8684e0cac763537ee807f257487a0ce1402f`.
+
+### Preparacion del enlace con ventas e inventario
+
+El pedido ficticio tambien permitio revisar el contrato monetario sin guardar
+ventas ni mover existencias. La respuesta de pago del comercio reporto MXN 1.00
+(`gross.amount_e5=100000`), mientras el checkout del consumidor mostraba MXN 27.95
+con entrega y servicio. No se deben copiar importes de la interfaz del consumidor
+al efectivo de caja ni suponer que el total del comercio es la liquidacion neta.
+
+La API actual entrega precios en `payment.payment_detail.item_charges` y su
+`price_breakdown`, no en el item de `carts` leido por el panel. La expansion
+`carts,payment` esta documentada en
+https://developer.uber.com/docs/eats/references/api/order_suite#tag/GetOrder.
+La respuesta de prueba no incluyo `subtotal_including_promos` ni
+`cash_amount_due`; su ausencia no prueba descuento cero ni un medio fiscal de
+pago. No se sustituyeron esos datos por valores del catalogo o supuestos.
+
+Antes de habilitar escritura financiera quedan por implementar y probar:
+
+1. Mapeo explicito del ID de cada item/modificador a productos del POS. Nunca
+   emparejar solo por nombre ni adivinar articulos desconocidos.
+2. Adaptador de importes de Uber con Decimal, moneda y precision verificadas,
+   desglose de impuestos/descuentos y conciliacion de totales. `procesar_venta`
+   usa hoy el precio vigente del catalogo para el canal Uber; no basta con
+   llamarlo directamente para importar un pedido con precios historicos.
+3. Registro unico por aplicacion/tienda/pedido y transaccion atomica para venta,
+   pago externo, ticket e inventario. Repetir un webhook no debe repetir la venta
+   ni la salida de stock; un pago a Uber no debe convertirse en efectivo local.
+4. Manejo auditable de ediciones, cancelaciones y resultados inciertos, sin
+   devolver automaticamente inventario de alimentos ya preparados.
+5. Avisos dentro del POS y prueba fisica de Safari/iPad a pantalla completa,
+   reconexion y respuesta del operador. La interfaz Sandbox no prueba ese paso.
+
+Este enlace no esta activado. Su ensayo debe usar una base local desechable con
+datos ficticios; nunca ampliar la allowlist del receptor con tablas operativas
+ni copiar datos de produccion para ensayarlo. La activacion real requiere una
+coordinacion posterior y autorizacion explicita.
 
 ## Ensayo de desvinculacion
 
