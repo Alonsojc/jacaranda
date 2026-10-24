@@ -36,6 +36,8 @@ def isolated(monkeypatch):
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_ENABLED", True)
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_WEBHOOK_ENABLED", True)
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_ACTIONS_ENABLED", False)
+    monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_MANAGEMENT_ENABLED", False)
+    monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_ADMIN_TOKEN", SecretStr(""))
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_CLIENT_ID", runtime.TEST_APPLICATION_ID)
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_STORE_ID", runtime.TEST_STORE_ID)
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_CLIENT_SECRET", SecretStr(""))

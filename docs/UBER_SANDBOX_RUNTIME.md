@@ -1,8 +1,9 @@
 # Receptor aislado de Jacaranda Sandbox
 
-Este servicio solo recibe webhooks de la aplicacion TEST de Jacaranda. No inicia
-el POS, sus migraciones, usuarios, procesos de negocio ni rutas administrativas.
-No consulta, acepta ni rechaza pedidos y no necesita el Client Secret de OAuth.
+Este servicio recibe webhooks de la aplicacion TEST de Jacaranda. No inicia
+el POS, sus migraciones, usuarios ni procesos de negocio. Por defecto solo recibe
+eventos y no necesita OAuth. La gestion manual es optativa, privada y exclusiva
+de la tienda de pruebas; nunca usa sesiones o credenciales del POS.
 
 ## Aislamiento
 
@@ -11,11 +12,13 @@ No consulta, acepta ni rechaza pedidos y no necesita el Client Secret de OAuth.
 - Servicio `uber-sandbox-webhook`, arranque `python -m app.uber_sandbox_runtime`.
 - PostgreSQL privado independiente `uber-sandbox-db`; base
   `jacaranda_uber_sandbox`, usuario `jacaranda_sandbox` y volumen propio.
-- Solo crea `uber_sandbox_events`; rechaza una base con otras tablas antes de
-  hacer cualquier DDL. No se restaura ningun respaldo operativo en esta base.
+- Solo permite `uber_sandbox_events`, `uber_sandbox_orders` y
+  `uber_sandbox_actions`; rechaza una base con otras tablas antes de cualquier
+  DDL. En modo receptor solo crea la primera tabla. No se restaura ningun
+  respaldo operativo en esta base.
 - El arranque valida entorno, host privado, nombre de base, usuario, aplicacion
-  TEST, UUID sandbox y acciones deshabilitadas.
-- Solo publica `POST /api/v1/uber-eats/sandbox/webhook` y `GET /health`.
+  TEST, UUID sandbox y dominios de API/autenticacion exclusivamente sandbox.
+- Por defecto solo publica `POST /api/v1/uber-eats/sandbox/webhook` y `GET /health`.
   La comprobacion de salud consulta la tabla; no es solo liveness.
 - Las credenciales de PostgreSQL y firma son nuevas y permanecen en variables
   privadas de este entorno. No reutilizar claves de usuarios, OCR, Google,
@@ -49,6 +52,7 @@ DATABASE_URL=${{uber-sandbox-db.DATABASE_URL}}
 UBER_EATS_SANDBOX_ENABLED=true
 UBER_EATS_SANDBOX_WEBHOOK_ENABLED=true
 UBER_EATS_SANDBOX_ACTIONS_ENABLED=false
+UBER_EATS_SANDBOX_MANAGEMENT_ENABLED=false
 UBER_EATS_SANDBOX_CLIENT_ID=I2pbZ-jD6Qa7FQzhLUbX3Y5gN12EasPL
 UBER_EATS_SANDBOX_STORE_ID=b412bb20-cf36-4ada-ba77-fdda96ce8a9e
 UBER_EATS_SANDBOX_WEBHOOK_SECRET=<clave privada exclusiva, nunca en Git>
@@ -58,6 +62,41 @@ En el Developer Dashboard de la aplicacion TEST se configura Primary Webhook y
 Basic HMAC, con esa misma clave en Signing Key. La persona titular introduce y
 guarda la clave; no enviarla por chat ni correo. No configurar una aplicacion
 Production ni activar POS Integration de la tienda real.
+
+## Gestion privada de pedidos de pruebas
+
+Solo despues de preparar y verificar credenciales TEST:
+
+```dotenv
+UBER_EATS_SANDBOX_MANAGEMENT_ENABLED=true
+UBER_EATS_SANDBOX_ADMIN_TOKEN=<clave aleatoria exclusiva de al menos 48 caracteres>
+UBER_EATS_SANDBOX_CLIENT_SECRET=<Client Secret de la aplicacion TEST>
+UBER_EATS_SANDBOX_ACTIONS_ENABLED=true
+```
+
+La clave administrativa no puede ser la de OAuth ni la del webhook. Guardarla
+solo en variables privadas y en el gestor de la persona titular. La persona
+introduce las credenciales en los servicios correspondientes; nunca en el chat.
+
+La raiz del dominio muestra la bandeja de Sandbox. Todos los datos y acciones
+requieren `Authorization: Bearer` con la clave exclusiva; no acepta la clave en
+URL ni cookies. El navegador solo la mantiene en memoria, la limpia al salir y
+al abandonar la pagina, y no usa localStorage ni credenciales de produccion.
+Las respuestas son no-store, sin CORS, sin terceros y no pueden enmarcarse.
+
+La bandeja reutiliza los servicios de consulta y acciones existentes: lista
+notificaciones, consulta detalles autenticados, conserva instrucciones completas
+y solicita confirmacion manual para aceptar, rechazar o cancelar. El servidor
+verifica tienda/pedido, detalle reciente y su hash antes de actuar. Registra la
+operacion antes de enviarla y bloquea reenvios ante resultados inciertos.
+No crea ventas ni movimientos de existencias. No hay aceptacion automatica.
+
+La prueba con Uber debe confirmar que la cuenta es TEST, la tienda es
+`b412bb20-cf36-4ada-ba77-fdda96ce8a9e` y el medio de pago es exclusivamente
+`UBER_TEST`. Si se ofrece un cobro real o no aparece ese medio, detenerse antes
+de confirmar. Probar recepcion, consulta, aceptacion y rechazo en pedidos
+distintos; registrar evidencia de Uber por separado de las pruebas sinteticas.
+No afirmar que la operacion en iPad esta validada solo por recibir un webhook.
 
 ## Verificacion antes de avisar a Uber
 

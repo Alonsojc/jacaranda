@@ -28,6 +28,8 @@ class SandboxRequestError(Exception):
 
 
 def _request(method: str, order_id: str, payload: dict | None = None, action: str | None = None) -> dict:
+    if api.API_URL != "https://test-api.uber.com" or api.TOKEN_URL != "https://sandbox-login.uber.com/oauth/v2/token":
+        raise SandboxRequestError(False)
     # The webhook's resource_href is never used, even if correctly signed.
     path = f"/v1/delivery/order/{UUID(order_id)}"
     if action:
