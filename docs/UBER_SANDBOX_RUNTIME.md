@@ -137,7 +137,7 @@ evidencia anterior.
 
 La venta queda **pendiente**, con un registro informativo de pago
 `por_conciliar`, monto recibido cero y ticket rotulado ENSAYO. No se cierra una
-venta de caja, no se simula una liquidacion de Uber y no se expide una factura.
+venta de caja, el modo predeterminado no simula una liquidacion de Uber y no se expide una factura.
 Incluso `SUCCEEDED` significa entrega, no conciliacion financiera. El corte
 existente debe seguir mostrando efectivo y ventas cerradas en cero.
 
@@ -167,6 +167,36 @@ instrucciones y mapeo impiden duplicar o sobrescribir un pedido editado. No se
 devuelve automaticamente inventario de alimentos preparados por cancelacion.
 Las pruebas PostgreSQL de duplicados simultaneos, ultimo stock y rollback estan
 incluidas en el gate `postgres-sandbox` de CI.
+
+#### Revision y conciliacion ficticia (25-oct)
+
+`uber_pos_reconciliation` agrega un reporte separado del canal TEST y un ciclo
+de revision sobre la misma base desechable. No agrega rutas, tablas ni acceso a
+produccion, y mantiene intactos los bloqueos de ambos runtimes hospedados.
+
+```sh
+python scripts/rehearse_uber_pos.py --financial-lifecycle --report output/uber-pos/conciliacion-nueva.json
+```
+
+Este modo solo admite el fixture; no se combina con `--order-id`. Observa una
+entrega sintetica, registra una asignacion ficticia de bruto MXN 4.00 menos
+deducciones MXN 1.00 igual a neto MXN 3.00, repite la confirmacion sin duplicar,
+y simula una cancelacion tardia. No estima comisiones, impuestos ni depositos
+reales. La referencia por pedido empieza con `TEST-`, es unica y no se
+sobrescribe; una discrepancia bloquea la conciliacion.
+
+Una edicion de importes/instrucciones, estado regresivo, pedido fallido o aviso
+de cancelacion deja revision pendiente. Conserva el pedido original y cualquier
+liquidacion ficticia previa; nunca recompone stock, modifica las partidas o
+crea pagos de caja. El reporte distingue bruto por conciliar, bruto en revision,
+bruto conciliado de prueba, deducciones y neto. La venta sigue pendiente y el
+corte normal queda en cero incluso despues de conciliar. La revision y la
+auditoria se guardan juntas, con bloqueo transaccional y proteccion de revision.
+
+Esto valida la logica local, no integra aun estos controles en el panel
+hospedado ni acredita una liquidacion bancaria de Uber. La resolucion humana de
+discrepancias, devoluciones parciales y asignaciones de un deposito a varios
+pedidos quedan fuera de este ensayo y no se automatizan.
 
 Este ensayo no habilita importacion automatica en la interfaz hospedada. Antes
 de produccion siguen pendientes el canal externo en los reportes/cortes,

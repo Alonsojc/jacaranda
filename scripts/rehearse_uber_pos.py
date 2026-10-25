@@ -1,6 +1,7 @@
 """Rehearse TEST orders in a fresh in-memory POS; never deploy or post to Uber."""
 
 import argparse
+import copy
 import json
 import os
 import sys
@@ -14,7 +15,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--order-id", type=UUID, help="Optional read-only canonical TEST order lookup.")
     parser.add_argument("--report", type=Path, help="Write a new JSON report; never overwrite an existing file.")
+    parser.add_argument("--financial-lifecycle", action="store_true", help="Exercise delivery, fictional settlement and late cancellation on the fixture only.")
     args = parser.parse_args()
+    if args.financial_lifecycle and args.order_id:
+        parser.error("Fictional lifecycle cannot be combined with an authentic TEST order.")
     if args.report and args.report.exists():
         parser.error("Report exists. Choose a new path; previous evidence is preserved.")
     # Set before importing configuration or models, even under railway run.
@@ -31,6 +35,7 @@ def main() -> int:
     from app.models.usuario import RolUsuario, Usuario
     from app.models.venta import DetalleVenta, PagoVenta, Venta
     from app.services import uber_pos_sandbox_service as pos
+    from app.services import uber_pos_reconciliation as reconciliation
     from app.services.venta_service import resumen_corte_caja
 
     engine = create_engine("sqlite://")
@@ -79,9 +84,36 @@ def main() -> int:
                               stock_movements=movements, audit_events=db.query(LogAuditoria).count(),
                               expected_cash=cut["efectivo_esperado_base"], cash_register_sales=cut["total_ventas"],
                               ticket=pos.rehearsal_ticket(db, first["venta_id"]))
+                if args.financial_lifecycle:
+                    sale_id = first["venta_id"]
+                    steps = {"importado": reconciliation.external_report(db)}
+                    delivered = copy.deepcopy(payload)
+                    delivered["order"]["state"] = "SUCCEEDED"
+                    evidence = datetime.now(timezone.utc)
+                    reconciliation.observe_order(db, sale_id, delivered, operator.id, client_id=pos.TEST_CLIENT_ID,
+                        retrieved_at=evidence, expected_revision=0, reviewed=True)
+                    steps["entregado"] = reconciliation.external_report(db)
+                    result = reconciliation.record_test_settlement(db, sale_id, operator.id, reference="TEST-fixture-allocation",
+                        gross="4.00", deductions="1.00", net="3.00", expected_revision=1, reviewed=True)
+                    replay = reconciliation.record_test_settlement(db, sale_id, operator.id, reference="TEST-fixture-allocation",
+                        gross="4.00", deductions="1.00", net="3.00", expected_revision=1, reviewed=True)
+                    assert replay == result | {"repetida": True}
+                    steps["conciliado_test"] = reconciliation.external_report(db)
+                    reconciliation.observe_order(db, sale_id, delivered, operator.id, client_id=pos.TEST_CLIENT_ID,
+                        retrieved_at=datetime.now(timezone.utc), expected_revision=2, reviewed=True, cancellation_seen=True)
+                    steps["cancelacion_tardia_por_revisar"] = reconciliation.external_report(db)
+                    assert movements == db.query(MovimientoInventario).count()
+                    assert stocks == [product.stock_actual for product in products]
+                    final_cut = resumen_corte_caja(db)
+                    assert final_cut["total_ventas"] == final_cut["efectivo_esperado_base"] == 0
+                    report["financial_lifecycle"] = {"source": "synthetic_fixture_only", "stages": steps,
+                        "settlement_replay": replay, "stock_unchanged": True, "cash_register_sales": "0.00",
+                        "expected_cash": "0.00", "real_settlements": 0, "final_audit_events": db.query(LogAuditoria).count()}
             except pos.RehearsalError as exc:
                 db.rollback()
-                report.update(status="blocked_without_writes", reason=str(exc), sales=db.query(Venta).count(),
+                sales = db.query(Venta).count()
+                report.update(status="blocked_without_writes" if sales == 0 else "incomplete_local_rehearsal",
+                              reason=str(exc), sales=sales,
                               stock_movements=db.query(MovimientoInventario).count())
                 code = 2
     finally:
