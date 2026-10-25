@@ -419,6 +419,7 @@ def test_delivery_and_fictional_settlement_remain_separate_from_cash(db, payload
     assert sale.estado == EstadoVenta.PENDIENTE and sale.monto_recibido == 0 and not sale.facturada
     assert db.query(PagoVenta).one().monto == 4 and db.query(PagoVenta).one().estado == "conciliado_test"
     assert db.query(MovimientoInventario).count() == before_movements
+    assert "ficticia conciliada, sin pago real" in pos.rehearsal_ticket(db, sale_id)["metodo_pago"]
     assert resumen_corte_caja(db)["efectivo_esperado_base"] == 0
     assert resumen_corte_caja(db)["total_ventas"] == 0
 
@@ -445,6 +446,8 @@ def test_changed_or_canceled_order_is_visible_without_restock_or_financial_write
     assert saved["order"] == json.loads(original_details)["order"]
     assert "settlement" not in saved
     assert db.query(PagoVenta).one().estado == "revision_pendiente"
+    with pytest.raises(pos.RehearsalError, match="no se genera otro ticket"):
+        pos.rehearsal_ticket(db, sale_id)
     with pytest.raises(pos.RehearsalError, match="entrega confirmada"):
         settle(db, sale_id, admin_user)
     assert reconciliation.external_report(db)["totales"]["bruto_en_revision"] == "4.00"

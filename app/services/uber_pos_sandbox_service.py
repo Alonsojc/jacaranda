@@ -356,10 +356,13 @@ def rehearsal_ticket(db: Session, venta_id: int) -> dict:
     sale = db.get(Venta, venta_id)
     if not sale or sale.pago_proveedor != PROVIDER or sale.estado != EstadoVenta.PENDIENTE:
         raise RehearsalError("Venta de ensayo pendiente no encontrada.")
-    ticket = generar_ticket(db, venta_id)
     saved = json.loads(sale.pago_externo_payload)
+    if saved.get("lifecycle", {}).get("reasons"):
+        raise RehearsalError("El pedido tiene cambios o cancelacion por revisar; no se genera otro ticket.")
+    ticket = generar_ticket(db, venta_id)
     ticket.update(razon_social="Jacaranda Sandbox - ENSAYO", rfc="NO APLICA - ENSAYO",
-                  metodo_pago="Uber TEST - pago y liquidacion no conciliados",
+                  metodo_pago=("Uber TEST - liquidacion ficticia conciliada, sin pago real" if saved.get("settlement")
+                               else "Uber TEST - pago y liquidacion no conciliados"),
                   leyenda_fiscal="ENSAYO. Sin cobro real. No es factura ni comprobante de pago.",
                   instrucciones=saved["order"]["instructions"],
                   instrucciones_articulos=[line["instructions"] for line in saved["order"]["lines"]])
