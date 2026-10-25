@@ -41,6 +41,11 @@ def node(code):
     assert result.returncode == 0, result.stderr
 
 
+def test_photo_tablet_date_column_preserves_space_for_the_full_year():
+    assert "@media(min-width:601px){.eg-import-foto col:nth-child(3){width:170px!important}}" in HTML
+    assert ".eg-import-foto tr{grid-template-columns:26px minmax(0,1fr)}" in HTML
+
+
 def test_selection_defaults_to_ready_rows_and_uses_integer_cents():
     node(r"""
 _egImport=estado();
@@ -211,3 +216,45 @@ def test_import_script_and_worker_share_build_and_all_close_paths_clean_up():
     assert HTML.count("cerrarImportacionEgresos();") >= 3
     assert "localStorage" not in JS and "sessionStorage" not in JS
     assert "timeoutMs:60000" in JS
+
+
+def test_photo_corrections_block_import_until_checked_and_revalidated():
+    node(r"""
+(async()=>{
+  _egImport=estado();_egImport.tipo='foto';
+  field('eg-import-revisado').checked=false;
+  await confirmarExcelEgresos();assert.equal(requests.length,0);
+  field('eg-import-revisado').checked=true;
+  editarFilaFotoEgresos(2,'monto','15.00');
+  assert.equal(_egImport.cambios,true);assert.equal(field('eg-import-revisado').checked,false);
+  field('eg-import-revisado').checked=true;
+  await confirmarExcelEgresos();assert.equal(requests.length,0);
+  const pending=revisarFotoEgresos();
+  assert.equal(requests[0].path,'/egresos/importacion/foto/revisar');
+  assert.equal(requests[0].body.correcciones[0].monto,'15.00');
+  requests[0].resolve(vista());await pending;
+  assert.equal(_egImport.cambios,false);
+  assert.equal(field('eg-import-revisado').checked,false);
+  field('eg-import-revisado').checked=true;
+  const commit=confirmarExcelEgresos();await Promise.resolve();
+  assert.equal(requests[1].body.revision_confirmada,true);
+  requests[1].resolve({importados:1,monto_importado:'15.00',ya_registrados:0});await commit;
+})();
+""")
+
+
+def test_photo_file_and_backend_paths_are_separate_from_single_ticket_ocr():
+    assert "Importar tabla de gastos" in HTML
+    assert "foto/previsualizar" not in JS  # Path is selected from the document mode.
+    assert "estado.tipo === 'foto' ? 'foto/'" in JS
+    assert "eg-import-revision-wrap[hidden]{display:none}" in HTML
+    assert "eg-import-foto" in JS and ".eg-import-foto tr{grid-template-columns:26px minmax(0,1fr)}" in HTML
+    node(r"""
+_egImport=estado();_egImport.tipo='foto';
+configurarArchivoEgresos();
+assert(field('eg-import-file').accept.includes('image/jpeg'));
+assert.equal(field('eg-import-revision-wrap').hidden,false);
+_egImport.pendiente={token:'same-request'};
+cambiarTipoImportacionEgresos('excel');
+assert.equal(_egImport.tipo,'foto');
+""")

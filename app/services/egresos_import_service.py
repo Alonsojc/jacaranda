@@ -235,8 +235,8 @@ def leer_excel(contenido: bytes, opciones: OpcionesImportacion) -> dict:
         wb.close()
 
 
-def clave_fila(huella: str, hoja: str, fila: int) -> str:
-    return "excel-" + hashlib.sha256(json.dumps([huella, hoja, fila], ensure_ascii=True).encode()).hexdigest()
+def clave_fila(huella: str, hoja: str, fila: int, tipo: str = "excel") -> str:
+    return tipo + "-" + hashlib.sha256(json.dumps([huella, hoja, fila], ensure_ascii=True).encode()).hexdigest()
 
 
 def firmar_vista_previa(datos: dict, usuario_id: int) -> str:

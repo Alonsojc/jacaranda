@@ -8,7 +8,7 @@ import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, Field, StrictBool, ValidationError, field_validator, model_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -24,7 +24,7 @@ from app.models.gasto_fijo import GastoFijo
 from app.models.inventario import Proveedor
 from app.models.usuario import Usuario
 from app.services.auditoria_service import registrar_evento
-from app.services.ocr_service import extraer_datos_ticket
+from app.services.ocr_service import extraer_datos_ticket, extraer_tabla_gastos
 from app.services import egresos_import_service as excel_import
 from app.services.resguardo_service import (
     bloquear_resguardo, resumen_resguardo, validar_salida_resguardo,
@@ -221,6 +221,7 @@ class ConfirmarImportacionEgresos(BaseModel):
     token: str = Field(min_length=64, max_length=4_000_000)
     filas: list[int] = Field(min_length=1, max_length=excel_import.MAX_ROWS)
     incluir_duplicados: list[int] = Field(default_factory=list, max_length=excel_import.MAX_ROWS)
+    revision_confirmada: StrictBool = False
 
     @model_validator(mode="after")
     def validar_seleccion(self):
@@ -229,6 +230,19 @@ class ConfirmarImportacionEgresos(BaseModel):
         if not set(self.incluir_duplicados).issubset(self.filas):
             raise ValueError("Los duplicados deben estar seleccionados")
         return self
+
+
+class CorreccionFilaFoto(BaseModel):
+    fila: int = Field(ge=1, le=excel_import.MAX_ROWS)
+    fecha: str | None = Field(max_length=30)
+    proveedor: str | None = Field(max_length=150)
+    monto: str | None = Field(max_length=40)
+    metodo_pago: str | None = Field(max_length=30)
+
+
+class RevisarFotoEgresos(BaseModel):
+    token: str = Field(min_length=64, max_length=4_000_000)
+    correcciones: list[CorreccionFilaFoto] = Field(min_length=1, max_length=150)
 
 
 class ProveedorEgresoCreate(BaseModel):
@@ -904,7 +918,9 @@ def _registrar_egreso(
         modulo="egresos",
         entidad="egreso",
         entidad_id=egreso.id,
-        datos_nuevos={**_snapshot_egreso(egreso), **({"importacion_excel": importacion} if importacion else {})},
+        datos_nuevos={**_snapshot_egreso(egreso), **({
+            "importacion_foto" if importacion.get("tipo") == "foto" else "importacion_excel": importacion,
+        } if importacion else {})},
         commit=False,
     )
     return egreso
@@ -934,6 +950,83 @@ def _coincidencias_excel(db: Session, filas: list[dict]) -> dict:
     existentes = db.query(Egreso).filter(Egreso.activo.is_(True), Egreso.fecha.in_(fechas)).all() if fechas else []
     return {_firma_duplicado({"fecha": e.fecha.isoformat(), "monto": e.monto,
                               "proveedor": e.proveedor, "metodo_pago": e.metodo_pago}): e.id for e in existentes}
+
+
+def _coincidencias_foto(db: Session, filas: list[dict]) -> dict:
+    # A different amount/payment on the same provider/day may be a correction,
+    # not another purchase. Photos require explicit review of that conflict.
+    fechas = {date.fromisoformat(f["datos"]["fecha"]) for f in filas if f.get("datos")}
+    existentes = db.query(Egreso).filter(Egreso.activo.is_(True), Egreso.fecha.in_(fechas)).all() if fechas else []
+    resultado = {}
+    for e in existentes:
+        resultado[("proveedor", e.fecha.isoformat(), excel_import.normalizar(e.proveedor))] = e.id
+        resultado[("monto", e.fecha.isoformat(), Decimal(str(e.monto)))] = e.id
+    return resultado
+
+
+def _conflicto_foto(datos: dict, existentes: dict):
+    return (existentes.get(("proveedor", str(datos["fecha"]), excel_import.normalizar(datos.get("proveedor"))))
+            or existentes.get(("monto", str(datos["fecha"]), Decimal(str(datos["monto"])))))
+
+
+@router.post("/importacion/foto/previsualizar")
+async def previsualizar_foto_egresos(
+    archivo: UploadFile = File(...),
+    opciones: str = Form(default="{}", max_length=10000),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_permission("egresos", "editar")),
+):
+    try:
+        config = excel_import.OpcionesImportacion.model_validate_json(opciones)
+    except ValidationError:
+        raise HTTPException(400, "Opciones de importacion invalidas") from None
+    if excel_import.normalizar(config.categoria) not in CATEGORIAS_EGRESO:
+        raise HTTPException(400, "Categoria predeterminada invalida")
+    nombre = (archivo.filename or "foto").replace("\\", "/").rsplit("/", 1)[-1][:200]
+    contenido, mime = await leer_archivo_ocr(archivo)
+    resultado = await run_in_threadpool(extraer_tabla_gastos, contenido, mime)
+    if resultado.get("error"):
+        raise HTTPException(422, resultado["error"])
+    huella = hashlib.sha256(contenido).hexdigest()
+    return await run_in_threadpool(_construir_vista_excel, resultado, huella, nombre, config, db, user)
+
+
+@router.post("/importacion/foto/revisar")
+def revisar_foto_egresos(
+    data: RevisarFotoEgresos,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_permission("egresos", "editar")),
+):
+    from app.services.egresos_photo_service import validar_tabla_gastos
+
+    try:
+        vista = excel_import.leer_vista_previa(data.token, user.id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+    if vista.get("tipo") != "foto":
+        raise HTTPException(400, "Esta vista previa no corresponde a una foto")
+    cambios = {c.fila: c for c in data.correcciones}
+    filas = {f["fila"]: f for f in vista["filas"]}
+    if len(cambios) != len(data.correcciones) or not set(cambios).issubset(filas):
+        raise HTTPException(400, "Fila de correccion no disponible")
+    resultado = {"tipo": "foto", "hoja": "Foto", "hojas": ["Foto"], "fila_encabezado": 0,
+                 "faltantes": [], "columnas": {}, "opciones_columnas": [], "filas": []}
+    for numero, fila in filas.items():
+        original = fila.get("original", {})
+        salida = {"fila": numero, "datos": {k: v for k, v in fila["datos"].items() if k in excel_import.CAMPOS}, "original": original,
+                  "omitida": fila["estado"] == "omitida", "errores": fila.get("errores", []),
+                  "corregida": fila.get("corregida", False)}
+        if numero in cambios:
+            if fila["estado"] in {"omitida", "registrada"}:
+                raise HTTPException(409, "No se puede corregir una suma ni una fila ya importada")
+            raw = cambios[numero].model_dump(exclude={"fila"})
+            leida = validar_tabla_gastos({"moneda": "MXN", "filas": [
+                {**raw, "legible": True, "es_total": False, "advertencias": []},
+            ]})["filas"][0]
+            salida.update(datos=leida["datos"], errores=leida["errores"], corregida=True)
+        resultado["filas"].append(salida)
+    config = excel_import.OpcionesImportacion(**vista["opciones"])
+    return _construir_vista_excel(resultado, vista["huella"], vista["archivo"], config, db, user)
 
 
 @router.post("/importacion/previsualizar")
@@ -974,6 +1067,7 @@ async def previsualizar_excel_egresos(
 
 
 def _construir_vista_excel(resultado, huella, nombre, config, db, user):
+    tipo = "foto" if resultado.get("tipo") == "foto" else "excel"
     validas = []
     for fila in resultado["filas"]:
         fila["estado"] = "omitida" if fila["omitida"] else "error"
@@ -981,9 +1075,13 @@ def _construir_vista_excel(resultado, huella, nombre, config, db, user):
             continue
         try:
             _validar_fecha_operativa(date.fromisoformat(fila["datos"]["fecha"]))
-            datos = EgresoCreate(**fila["datos"],
-                                 origen="excel", guardar_proveedor=config.guardar_proveedor,
-                                 idempotency_key=excel_import.clave_fila(huella, resultado["hoja"], fila["fila"]))
+            valores = {"categoria": config.categoria, **fila["datos"]}
+            datos = EgresoCreate(**valores,
+                                 origen="ocr" if tipo == "foto" else "excel", guardar_proveedor=config.guardar_proveedor,
+                                 ocr_payload={"tipo": "tabla_gastos", "documento_id": huella,
+                                              "fila": fila["fila"], "corregida": fila.get("corregida", False),
+                                              "original": fila["original"]} if tipo == "foto" else None,
+                                 idempotency_key=excel_import.clave_fila(huella, resultado["hoja"], fila["fila"], tipo))
             fila["datos"] = datos.model_dump(mode="json")
             fila["estado"] = "lista"
             validas.append(fila)
@@ -992,9 +1090,11 @@ def _construir_vista_excel(resultado, huella, nombre, config, db, user):
         except (ValueError, HTTPException) as exc:
             fila["errores"] = [str(exc.detail) if isinstance(exc, HTTPException) else str(exc)]
     coincidencias = _coincidencias_excel(db, validas)
+    conflictos = _coincidencias_foto(db, validas) if tipo == "foto" else {}
     claves = [f["datos"]["idempotency_key"] for f in validas]
     registradas = {e.idempotency_key: e for e in db.query(Egreso).filter(Egreso.idempotency_key.in_(claves)).all()} if claves else {}
     vistas = {}
+    vistas_foto = {}
     for fila in validas:
         datos, firma = fila["datos"], _firma_duplicado(fila["datos"])
         anterior = registradas.get(datos["idempotency_key"])
@@ -1005,9 +1105,21 @@ def _construir_vista_excel(resultado, huella, nombre, config, db, user):
             fila["estado"] = "duplicado"
             fila["errores"] = ["Posible duplicado del egreso #" + str(coincidencias[firma]) if firma in coincidencias
                                else "Coincide con la fila " + str(vistas[firma])]
+        elif (conflicto := _conflicto_foto(datos, conflictos)):
+            fila["estado"] = "duplicado"
+            fila["errores"] = ["Coincide proveedor o importe en la misma fecha que el egreso #" + str(conflicto)
+                               + "; revisa los datos antes de crear otro"]
+        elif tipo == "foto" and firma[:3] in vistas_foto:
+            fila["estado"] = "duplicado"
+            fila["errores"] = ["Misma fecha, proveedor e importe que la fila " + str(vistas_foto[firma[:3]])]
         vistas.setdefault(firma, fila["fila"])
-    token = excel_import.firmar_vista_previa({"archivo": nombre, "huella": huella, "hoja": resultado["hoja"],
-        "filas": [{"fila": f["fila"], "datos": f["datos"], "estado": f["estado"]} for f in validas]}, user.id) if validas else None
+        vistas_foto.setdefault(firma[:3], fila["fila"])
+    token = excel_import.firmar_vista_previa({"archivo": nombre, "huella": huella, "hoja": resultado["hoja"], "tipo": tipo,
+        "opciones": {"categoria": config.categoria, "guardar_proveedor": config.guardar_proveedor},
+        "filas": [{"fila": f["fila"], "datos": f["datos"], "estado": f["estado"],
+                   **({"original": f["original"], "errores": f["errores"] if f["estado"] == "error" else [],
+                       "corregida": f.get("corregida", False)} if tipo == "foto" else {})}
+                  for f in (resultado["filas"] if tipo == "foto" else validas)]}, user.id) if validas or tipo == "foto" else None
     return {**resultado, "archivo": nombre, "token": token, "limite": excel_import.MAX_ROWS,
             "total_listas": str(sum((Decimal(f["datos"]["monto"]) for f in validas if f["estado"] == "lista"), Decimal("0.00")))}
 
@@ -1022,14 +1134,19 @@ def confirmar_excel_egresos(
         vista = excel_import.leer_vista_previa(data.token, user.id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from None
+    if vista.get("tipo") == "foto" and not data.revision_confirmada:
+        raise HTTPException(400, "Confirma la revision de fechas, proveedores, importes y pagos de la foto")
     filas = {f["fila"]: f for f in vista["filas"] if f["estado"] in {"lista", "duplicado"}}
     permitidos = {f for f in filas if filas[f]["estado"] == "duplicado"}
     if not set(data.filas).issubset(filas) or not set(data.incluir_duplicados).issubset(permitidos):
         raise HTTPException(status_code=400, detail="Seleccion no disponible en esta vista previa")
+    if any(f in permitidos and f not in data.incluir_duplicados for f in data.filas):
+        raise HTTPException(409, "Hay posibles duplicados sin aprobacion explicita; no se guardo ninguna fila nueva")
     seleccion = [filas[f] for f in sorted(data.filas)]
     try:
         bloquear_resguardo(db)
         coincidencias = _coincidencias_excel(db, seleccion)
+        conflictos = _coincidencias_foto(db, seleccion) if vista.get("tipo") == "foto" else {}
         importados, repetidos, anulados, ids = 0, 0, 0, []
         total = Decimal("0.00")
         for fila in seleccion:
@@ -1047,8 +1164,10 @@ def confirmar_excel_egresos(
             firma = _firma_duplicado(fila["datos"])
             if firma in coincidencias and fila["fila"] not in data.incluir_duplicados:
                 raise HTTPException(status_code=409, detail=f"La fila {fila['fila']} coincide con otro gasto. Actualiza la vista previa; no se guardo ninguna fila nueva")
+            if _conflicto_foto(fila["datos"], conflictos) and fila["fila"] not in data.incluir_duplicados:
+                raise HTTPException(409, f"La fila {fila['fila']} coincide con el proveedor o importe de otro gasto de la misma fecha. Actualiza la vista previa; no se guardo ninguna fila nueva")
             egreso = _registrar_egreso(captura, db, user, importacion={"archivo": vista["archivo"],
-                "sha256": vista["huella"], "hoja": vista["hoja"], "fila": fila["fila"]})
+                "sha256": vista["huella"], "hoja": vista["hoja"], "fila": fila["fila"], "tipo": vista.get("tipo", "excel")})
             ids.append(egreso.id)
             importados += 1
             total += egreso.monto
