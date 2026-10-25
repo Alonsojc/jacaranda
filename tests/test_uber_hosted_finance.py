@@ -10,7 +10,7 @@ import pytest
 
 from app.core.config import settings
 from app.models.inventario import MovimientoInventario, Producto
-from app.models.uber_eats import UberSandboxEvent
+from app.models.uber_eats import UberSandboxAction, UberSandboxEvent
 from app.models.venta import PagoVenta, Venta
 from app.services import uber_finance_storage as storage
 from app.services import uber_hosted_finance as finance
@@ -99,6 +99,36 @@ def test_unsigned_unknown_order_cannot_be_queried(financial):
     with pytest.raises(pos.RehearsalError, match="autentica"):
         finance.inspect_order(db, db, str(uuid4()))
     assert calls == []
+
+
+@pytest.mark.parametrize("state", ["enviando", "incierta"])
+@pytest.mark.parametrize("settled", [False, True])
+def test_pending_uber_action_blocks_ticket_and_moves_finances_to_review_without_writes(financial, state, settled):
+    db, payload, _ = financial
+    first = submit(db, payload, "registrar")
+    if settled:
+        payload["order"]["state"] = "SUCCEEDED"
+        submit(db, payload, "conciliar", reference="TEST-pending", gross="4.00", deductions="1.00", net="3.00")
+    sale = db.get(Venta, first["venta_id"])
+    original = sale.pago_externo_payload
+    db.add(UberSandboxAction(client_id=pos.TEST_CLIENT_ID, store_id=pos.TEST_STORE_ID,
+        order_id=payload["order"]["id"], request_key=str(uuid4()), fingerprint="a" * 64,
+        action="cancelar", estado=state, creado_en=datetime.now(timezone.utc)))
+    db.commit()
+    with pytest.raises(pos.RehearsalError, match="pendiente"):
+        finance.inspect_order(db, db, sale.pago_externo_id)
+    with pytest.raises(pos.RehearsalError, match="revisar"):
+        finance.ticket(db, db, sale.id)
+    report = finance.report(db, db)
+    assert report["pedidos"][0]["estado"] == "revision_pendiente"
+    assert report["pedidos"][0]["motivos"] == ["accion_uber_por_confirmar"]
+    assert report["totales"]["bruto_en_revision"] == "4.00"
+    for key in ("bruto_por_conciliar", "bruto_conciliado_test", "deducciones_test", "neto_test"):
+        assert report["totales"][key] == "0.00"
+    assert report["efectivo_caja"] == "0.00"
+    assert sale.pago_externo_payload == original
+    assert db.query(MovimientoInventario).count() == 4
+    assert db.query(PagoVenta).count() == 1
 
 
 def test_explicit_synthetic_exercise_has_no_provider_request_and_survives_replay(financial):

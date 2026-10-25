@@ -33,6 +33,13 @@ def sale_for(db: Session, order_id: str):
     return db.query(Venta).filter_by(canal="uber_eats", pago_proveedor=pos.PROVIDER, pago_externo_id=order_id).first()
 
 
+def pending_action(db: Session, order_id: str):
+    return db.query(UberSandboxAction.id).filter_by(client_id=pos.TEST_CLIENT_ID, store_id=pos.TEST_STORE_ID,
+                                                   order_id=order_id).filter(
+        UberSandboxAction.estado.in_(("enviando", "incierta")),
+    ).first() is not None
+
+
 def _utc(value):
     return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
 
@@ -53,10 +60,7 @@ def inspect_order(public: Session, db: Session, order_id: str):
     rows = events(public, order_id)
     if not rows:
         raise pos.RehearsalError("Falta una notificacion autentica de la tienda TEST para este pedido.")
-    if public.query(UberSandboxAction.id).filter_by(client_id=pos.TEST_CLIENT_ID, store_id=pos.TEST_STORE_ID,
-                                                  order_id=order_id).filter(
-        UberSandboxAction.estado.in_(("enviando", "incierta")),
-    ).first():
+    if pending_action(public, order_id):
         raise pos.RehearsalError("Primero verifica la accion de Uber pendiente de confirmar.")
     observed = datetime.now(timezone.utc)
     payload = orders._request("GET", order_id, include_payment=True)
@@ -133,6 +137,8 @@ def report(public: Session, db: Session):
         notices = events(public, row["pedido_id"])
         row["fuente"] = "Uber TEST" if notices else "Simulacion interna"
         warnings = event_warning(sale, notices)
+        if pending_action(public, row["pedido_id"]):
+            warnings.append("accion_uber_por_confirmar")
         if warnings:
             if row["estado"] != "revision_pendiente":
                 key = "bruto_conciliado_test" if row["estado"] == "conciliado_test" else "bruto_por_conciliar"
@@ -155,7 +161,8 @@ def report(public: Session, db: Session):
 def ticket(public: Session, db: Session, sale_id: int):
     pos.validate_database(db)
     sale = db.get(Venta, sale_id)
-    if not sale or event_warning(sale, events(public, sale.pago_externo_id)):
+    if (not sale or pending_action(public, sale.pago_externo_id)
+            or event_warning(sale, events(public, sale.pago_externo_id))):
         raise pos.RehearsalError("El pedido no existe o tiene avisos por revisar.")
     return pos.rehearsal_ticket(db, sale_id)
 

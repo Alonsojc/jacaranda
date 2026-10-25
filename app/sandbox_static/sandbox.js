@@ -31,6 +31,7 @@
     onRecovered: controls,
     onUpdate: function (data) {
       attentionRows = data.pedidos;
+      if (finance) finance.notify(data.pedidos);
       if (viewingAttention) renderPending();
       if (selected && data.pedidos.some(function (row) { return row.pedido_id === selected.pedido.id && row.tipo === 'verificar'; })) {
         selected.acciones_habilitadas = false;

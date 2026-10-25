@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   window.createSandboxFinance = function (options) {
-    var enabled = false, selected = null, orderId = null, loadedAt = 0;
+    var enabled = false, selected = null, orderId = null, loadedAt = 0, pendingNotice = false;
     var base = '/api/v1/uber-eats/sandbox/finanzas';
     function el(id) { return document.getElementById(id); }
     function money(value) { return Number(value).toLocaleString('es-MX', {style: 'currency', currency: 'MXN'}); }
@@ -15,16 +15,22 @@
       el('finance-import').disabled = blocked || !fresh || !reviewed || !selected.registrable || !!selected.venta_id;
       el('finance-observe').disabled = blocked || !fresh || !reviewed || !selected.venta_id;
       el('finance-reconcile').disabled = blocked || !fresh || !reviewed || !selected.venta_id || selected.estado !== 'SUCCEEDED' || selected.cancelacion || !!selected.problema;
-      el('finance-ticket').disabled = blocked || !selected || !selected.venta_id;
+      el('finance-ticket').disabled = blocked || pendingNotice || !selected || !selected.venta_id;
     }
     function reset() {
-      selected = null; orderId = null; loadedAt = 0;
+      selected = null; orderId = null; loadedAt = 0; pendingNotice = false;
       ['finance-totals', 'finance-rows', 'finance-stock', 'finance-items'].forEach(function (id) { el(id).replaceChildren(); });
       ['finance-title', 'finance-state', 'finance-notes', 'finance-problem', 'finance-ticket-text'].forEach(function (id) { el(id).textContent = ''; });
       ['finance-reference', 'finance-gross', 'finance-deductions', 'finance-net'].forEach(function (id) { el(id).value = ''; });
       el('finance-detail').hidden = true; el('finance-ticket-text').hidden = true; el('finance-reviewed').checked = false;
     }
-    function invalidate() { loadedAt = 0; el('finance-reviewed').checked = false; controls(); }
+    function invalidate() { loadedAt = 0; el('finance-reviewed').checked = false; el('finance-ticket-text').hidden = true; controls(); }
+    function notify(rows) {
+      if (orderId && rows.some(function (row) { return row.pedido_id === orderId && row.tipo === 'verificar'; })) {
+        pendingNotice = true; invalidate();
+        el('finance-problem').textContent = 'Accion o aviso de Uber pendiente de verificar.';
+      }
+    }
     function enable(value) {
       enabled = value === true;
       el('tab-finance').hidden = !enabled; el('finance-order-open').hidden = !enabled;
@@ -73,7 +79,7 @@
       selected = null; loadedAt = 0; controls();
       var data = await options.api(base + '/pedidos/' + encodeURIComponent(orderId) + '/consultar', 'POST', {});
       if (epoch !== options.generation()) return;
-      selected = data; loadedAt = Date.now(); el('finance-reviewed').checked = false;
+      selected = data; loadedAt = Date.now(); pendingNotice = false; el('finance-reviewed').checked = false;
       el('finance-title').textContent = 'Pedido ' + orderId.slice(0, 8);
       el('finance-state').textContent = data.estado + (data.venta_id ? ' / Venta TEST #' + data.venta_id : ' / Sin registrar');
       el('finance-problem').textContent = data.cancelacion ? 'Cancelacion o fallo por revisar. Sin reposicion automatica.' : data.problema || '';
@@ -130,9 +136,11 @@
       var id = selected.venta_id;
       run(async function (epoch) {
         var data = await options.api(base + '/ventas/' + id + '/ticket');
-        if (epoch === options.generation()) { el('finance-ticket-text').textContent = JSON.stringify(data, null, 2); el('finance-ticket-text').hidden = false; }
+        if (epoch === options.generation() && !pendingNotice && options.connected()) {
+          el('finance-ticket-text').textContent = JSON.stringify(data, null, 2); el('finance-ticket-text').hidden = false;
+        }
       });
     });
-    return {enable: enable, reset: reset, invalidate: invalidate, controls: controls, open: open, load: function () { run(report); }};
+    return {enable: enable, reset: reset, invalidate: invalidate, notify: notify, controls: controls, open: open, load: function () { run(report); }};
   };
 }());
