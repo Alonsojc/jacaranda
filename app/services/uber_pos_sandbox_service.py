@@ -132,7 +132,7 @@ def plan_order(payload: dict, *, client_id: str) -> SalePlan:
         order_id = str(UUID(order.get("id")))
     except (ValueError, TypeError, AttributeError):
         raise RehearsalError("Pedido de pruebas no valido.") from None
-    if order.get("state") not in {"ACCEPTED", "HANDED_OFF", "SUCCEEDED"}:
+    if not isinstance(order.get("state"), str) or order["state"] not in {"ACCEPTED", "HANDED_OFF", "SUCCEEDED"}:
         raise RehearsalError("El pedido debe estar aceptado y no cancelado ni fallido.")
     try:
         payment = order["payment"]["payment_detail"]
@@ -189,11 +189,11 @@ def plan_order(payload: dict, *, client_id: str) -> SalePlan:
                 raise RehearsalError("Precio unitario y total de partida no coinciden.")
             if "discount" in price and not isinstance(price["discount"], dict):
                 raise RehearsalError("Descuento de partida no valido.")
-            discount = _money(price["discount"].get("total"), zero_tax=before.tax == 0) if "discount" in price else Money(Decimal(0), Decimal(0), Decimal(0))
+            discount = _money(price["discount"].get("total"), zero_tax=before.tax == 0) if "discount" in price else Money(Decimal("0.00"), Decimal("0.00"), Decimal("0.00"))
             net, tax, gross = original.net - discount.net, original.tax - discount.tax, original.gross - discount.gross
             if min(net, tax, gross) < 0 or (net == 0 and tax != 0):
                 raise RehearsalError("Descuento o impuesto de partida no valido.")
-            rate = (tax / net).quantize(Decimal("0.0001")) if net else Decimal(0)
+            rate = (tax / net).quantize(Decimal("0.0001")) if net else Decimal("0.0000")
             if rate > 1 or (net * rate).quantize(CENT) != tax:
                 raise RehearsalError("Impuesto de partida no representable sin alterar importes.")
             request = item.get("customer_request", {})
@@ -248,7 +248,7 @@ def read_test_order(db: Session, order_id: UUID) -> tuple[dict, datetime]:
         raise RehearsalError("La consulta solo permite la identidad Sandbox aprobada.")
     observed = datetime.now(timezone.utc)
     payload = orders._request("GET", str(order_id), include_payment=True)
-    if (not isinstance(payload.get("order"), dict) or payload["order"].get("id") != str(order_id)
+    if (not isinstance(payload, dict) or not isinstance(payload.get("order"), dict) or payload["order"].get("id") != str(order_id)
             or not isinstance(payload["order"].get("store"), dict)
             or payload["order"]["store"].get("id") != TEST_STORE_ID):
         raise RehearsalError("Uber no confirmo el pedido solicitado.")
@@ -268,6 +268,7 @@ def import_order(db: Session, payload: dict, product_mapping: dict[str, int], us
         type(product_mapping.get(line.item_id)) is not int or product_mapping[line.item_id] <= 0 for line in plan.lines
     ):
         raise RehearsalError("Falta el mapeo explicito de un articulo al catalogo de ensayo.")
+    product_mapping = dict(product_mapping)
     normalized = {"order_id": plan.order_id, "client_id": client_id, "store_id": TEST_STORE_ID,
                   "lines": [asdict(line) | {"product_id": product_mapping[line.item_id]} for line in plan.lines],
                   "total": asdict(plan.total), "instructions": plan.instructions, "cash_due": plan.cash_due}

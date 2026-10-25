@@ -239,7 +239,7 @@ def test_malformed_financial_shapes_have_controlled_errors(payload, path, value)
         pos.plan_order(payload, client_id=pos.TEST_CLIENT_ID)
 
 
-@pytest.mark.parametrize("state", ["OFFERED", "CREATED", "FAILED", "UNKNOWN", None])
+@pytest.mark.parametrize("state", ["OFFERED", "CREATED", "FAILED", "UNKNOWN", None, [], {}])
 def test_unaccepted_or_failed_orders_are_blocked(db, payload, catalog, admin_user, state):
     payload["order"]["state"] = state
     with pytest.raises(pos.RehearsalError):
@@ -361,3 +361,19 @@ def test_remote_reader_checks_order_store_before_returning_data(db, payload, mon
     payload["order"]["store"]["id"] = "d757be8e-a500-5e80-a148-8e7182329641"
     with patch.object(orders, "_request", return_value=payload), pytest.raises(pos.RehearsalError):
         pos.read_test_order(db, order_id)
+
+
+def test_equivalent_explicit_zero_discount_is_an_idempotent_replay(db, payload, catalog, admin_user):
+    import_sale(db, payload, catalog, admin_user)
+    payload["order"]["payment"]["payment_detail"]["item_charges"]["price_breakdown"][0]["discount"] = {"total": money(0)}
+    assert import_sale(db, payload, catalog, admin_user)["repetida"] is True
+    assert db.query(Venta).count() == 1 and db.query(MovimientoInventario).count() == 4
+
+
+def test_inactive_operator_cannot_replay_a_sale(db, payload, catalog, admin_user):
+    import_sale(db, payload, catalog, admin_user)
+    admin_user.activo = False
+    db.commit()
+    with pytest.raises(pos.RehearsalError, match="operador"):
+        import_sale(db, payload, catalog, admin_user)
+    assert db.query(Venta).count() == 1
