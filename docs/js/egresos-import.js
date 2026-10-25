@@ -181,7 +181,7 @@ function campoFilaFotoEgresos(f, campo, valor) {
   var label = {fecha:'Fecha',proveedor:'Proveedor',monto:'Monto MXN',metodo_pago:'Forma de pago'}[campo] + ' fila ' + f.fila;
   var attrs = ' data-eg-foto-campo="' + campo + '" aria-label="' + label + '" onchange="editarFilaFotoEgresos(' + f.fila + ',\'' + campo + '\',this.value)"';
   if (campo === 'metodo_pago') {
-    var opciones = ['efectivo','transferencia','tarjeta','credito','debito','bbva','clip','mixto'];
+    var opciones = ['efectivo','transferencia','tarjeta','credito','debito','bbva','clip','mixto','resguardo'];
     return '<select' + attrs + '><option value="">Sin identificar</option>' + opciones.map(function(m) {
       return '<option value="' + m + '"' + (valor === m ? ' selected' : '') + '>' + escHtml(m) + '</option>';
     }).join('') + '</select>';

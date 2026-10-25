@@ -1005,11 +1005,14 @@ def revisar_foto_egresos(
         raise HTTPException(400, str(exc)) from None
     if vista.get("tipo") != "foto":
         raise HTTPException(400, "Esta vista previa no corresponde a una foto")
+    if vista.get("moneda") not in {"MXN", "no_visible", "otra"}:
+        raise HTTPException(409, "La vista previa no conserva la moneda; vuelve a leer la foto")
     cambios = {c.fila: c for c in data.correcciones}
     filas = {f["fila"]: f for f in vista["filas"]}
     if len(cambios) != len(data.correcciones) or not set(cambios).issubset(filas):
         raise HTTPException(400, "Fila de correccion no disponible")
-    resultado = {"tipo": "foto", "hoja": "Foto", "hojas": ["Foto"], "fila_encabezado": 0,
+    resultado = {"tipo": "foto", "moneda": vista["moneda"], "advertencias": vista.get("advertencias", []),
+                 "hoja": "Foto", "hojas": ["Foto"], "fila_encabezado": 0,
                  "faltantes": [], "columnas": {}, "opciones_columnas": [], "filas": []}
     for numero, fila in filas.items():
         original = fila.get("original", {})
@@ -1020,7 +1023,8 @@ def revisar_foto_egresos(
             if fila["estado"] in {"omitida", "registrada"}:
                 raise HTTPException(409, "No se puede corregir una suma ni una fila ya importada")
             raw = cambios[numero].model_dump(exclude={"fila"})
-            leida = validar_tabla_gastos({"moneda": "MXN", "filas": [
+            # Editing a cell never converts the source document's currency.
+            leida = validar_tabla_gastos({"moneda": vista["moneda"], "filas": [
                 {**raw, "legible": True, "es_total": False, "advertencias": []},
             ]})["filas"][0]
             salida.update(datos=leida["datos"], errores=leida["errores"], corregida=True)
@@ -1079,6 +1083,7 @@ def _construir_vista_excel(resultado, huella, nombre, config, db, user):
             datos = EgresoCreate(**valores,
                                  origen="ocr" if tipo == "foto" else "excel", guardar_proveedor=config.guardar_proveedor,
                                  ocr_payload={"tipo": "tabla_gastos", "documento_id": huella,
+                                              "moneda": resultado.get("moneda"),
                                               "fila": fila["fila"], "corregida": fila.get("corregida", False),
                                               "original": fila["original"]} if tipo == "foto" else None,
                                  idempotency_key=excel_import.clave_fila(huella, resultado["hoja"], fila["fila"], tipo))
@@ -1115,6 +1120,7 @@ def _construir_vista_excel(resultado, huella, nombre, config, db, user):
         vistas.setdefault(firma, fila["fila"])
         vistas_foto.setdefault(firma[:3], fila["fila"])
     token = excel_import.firmar_vista_previa({"archivo": nombre, "huella": huella, "hoja": resultado["hoja"], "tipo": tipo,
+        **({"moneda": resultado.get("moneda"), "advertencias": resultado.get("advertencias", [])} if tipo == "foto" else {}),
         "opciones": {"categoria": config.categoria, "guardar_proveedor": config.guardar_proveedor},
         "filas": [{"fila": f["fila"], "datos": f["datos"], "estado": f["estado"],
                    **({"original": f["original"], "errores": f["errores"] if f["estado"] == "error" else [],
@@ -1136,6 +1142,8 @@ def confirmar_excel_egresos(
         raise HTTPException(status_code=400, detail=str(exc)) from None
     if vista.get("tipo") == "foto" and not data.revision_confirmada:
         raise HTTPException(400, "Confirma la revision de fechas, proveedores, importes y pagos de la foto")
+    if vista.get("tipo") == "foto" and vista.get("moneda") not in {"MXN", "no_visible"}:
+        raise HTTPException(400, "No se puede importar sin verificar pesos MXN; vuelve a leer la foto")
     filas = {f["fila"]: f for f in vista["filas"] if f["estado"] in {"lista", "duplicado"}}
     permitidos = {f for f in filas if filas[f]["estado"] == "duplicado"}
     if not set(data.filas).issubset(filas) or not set(data.incluir_duplicados).issubset(permitidos):

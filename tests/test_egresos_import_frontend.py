@@ -243,6 +243,20 @@ def test_photo_corrections_block_import_until_checked_and_revalidated():
 """)
 
 
+def test_photo_payment_selector_displays_and_can_select_resguardo():
+    node(r"""
+_egImport=estado();_egImport.tipo='foto';
+const row=_egImport.vista.filas[0];row.datos.metodo_pago='resguardo';
+renderVistaExcelEgresos(_egImport.vista);
+assert(field('eg-import-tabla').innerHTML.includes('<option value="resguardo" selected>resguardo</option>'));
+editarFilaFotoEgresos(row.fila,'metodo_pago','tarjeta');
+assert.equal(_egImport.correcciones[row.fila].metodo_pago,'tarjeta');
+editarFilaFotoEgresos(row.fila,'metodo_pago','resguardo');
+assert.equal(_egImport.correcciones[row.fila].metodo_pago,'resguardo');
+assert.equal(field('eg-import-confirmar').disabled,true);
+""")
+
+
 def test_photo_file_and_backend_paths_are_separate_from_single_ticket_ocr():
     assert "Importar tabla de gastos" in HTML
     assert "foto/previsualizar" not in JS  # Path is selected from the document mode.
