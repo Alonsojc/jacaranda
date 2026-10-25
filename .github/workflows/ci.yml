@@ -48,7 +48,7 @@ jobs:
         run: |
           pg_dump --version
           psql --version
-          python -m pytest tests/test_uber_postgres.py tests/test_uber_pos_postgres.py -q --tb=short
+          python -m pytest tests/test_uber_postgres.py tests/test_uber_pos_postgres.py tests/test_uber_hosted_finance_postgres.py -q --tb=short
 
   dependency-audit:
     runs-on: ubuntu-latest

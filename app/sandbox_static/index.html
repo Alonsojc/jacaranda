@@ -8,6 +8,7 @@
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/sandbox.css">
   <script src="/attention.js" defer></script>
+  <script src="/finance.js" defer></script>
   <script src="/sandbox.js" defer></script>
 </head>
 <body>
@@ -37,6 +38,7 @@
         <button id="tab-orders" type="button" role="tab" aria-selected="true" aria-controls="orders-panel">Pedidos</button>
         <button id="tab-store" type="button" role="tab" aria-selected="false" aria-controls="store-panel">Tienda</button>
         <button id="tab-menu" type="button" role="tab" aria-selected="false" aria-controls="menu-panel">Men&uacute; ficticio</button>
+        <button id="tab-finance" type="button" role="tab" aria-selected="false" aria-controls="finance-panel" hidden>Finanzas TEST</button>
       </div>
       <section id="orders-panel" role="tabpanel" aria-labelledby="tab-orders">
       <div class="toolbar">
@@ -64,6 +66,7 @@
             <label for="reason">Motivo de rechazo o cancelaci&oacute;n</label>
             <select id="reason"><option value="TECHNICAL_FAILURE">Prueba de integraci&oacute;n</option><option value="ITEM_ISSUE">Producto no disponible</option><option value="SPECIAL_INSTRUCTIONS">Instrucciones especiales</option><option value="STORE_CLOSED">Tienda cerrada</option><option value="POS_NOT_READY">Punto de venta no disponible</option></select>
             <div class="actions"><button id="accept" type="button" disabled>Aceptar prueba</button><button id="ready" type="button" disabled>Listo para recoger</button><button id="deny" type="button" class="danger" disabled>Rechazar prueba</button><button id="cancel" type="button" class="danger" disabled>Cancelar prueba</button></div>
+            <button id="finance-order-open" type="button" hidden>Revisar finanzas TEST</button>
           </div>
         </section>
       </div>
@@ -83,6 +86,27 @@
         <div class="toolbar"><h2>Men&uacute; ficticio</h2><div class="tools"><button id="publish-menu" type="button" disabled>Publicar men&uacute; ficticio</button><button id="reload-menu" type="button" aria-label="Actualizar men&uacute;" title="Actualizar men&uacute;">&#x21bb;</button></div></div>
         <div class="table-scroll"><table class="fixture-items"><thead><tr><th>Producto</th><th>Precio MXN</th><th>Agotado</th><th></th></tr></thead><tbody id="fixture-items"></tbody></table></div>
         <details><summary>Cat&aacute;logo de pruebas</summary><pre id="fixture-detail"></pre></details>
+      </section>
+      <section id="finance-panel" role="tabpanel" aria-labelledby="tab-finance" hidden>
+        <div class="toolbar"><h2>Finanzas TEST</h2><button id="finance-refresh" type="button" aria-label="Actualizar finanzas" title="Actualizar finanzas">&#x21bb;</button></div>
+        <dl id="finance-totals" class="finance-totals"></dl>
+        <div class="table-scroll"><table class="finance-table"><thead><tr><th>Pedido / fuente</th><th>Bruto MXN</th><th>Estado</th><th></th></tr></thead><tbody id="finance-rows"></tbody></table></div>
+        <h3>Inventario ficticio</h3><div id="finance-stock" class="finance-stock"></div>
+        <section id="finance-detail" hidden>
+          <div class="toolbar"><h3 id="finance-title"></h3><button id="finance-reload" type="button">Consultar en Uber TEST</button></div>
+          <p id="finance-state"></p><div id="finance-items"></div><p id="finance-notes"></p><p id="finance-problem" class="error" role="status"></p>
+          <label class="review"><input id="finance-reviewed" type="checkbox">Importes, productos e instrucciones revisados. Solo prueba, sin cobro.</label>
+          <div class="actions"><button id="finance-import" type="button" disabled>Registrar venta TEST</button><button id="finance-observe" type="button" disabled>Registrar revisi&oacute;n</button><button id="finance-ticket" type="button" disabled>Ver ticket TEST</button></div>
+          <form id="finance-settlement" class="finance-settlement">
+            <h3>Liquidaci&oacute;n ficticia</h3>
+            <label>Referencia TEST-<input id="finance-reference" type="text" maxlength="95" required autocomplete="off"></label>
+            <label>Bruto MXN<input id="finance-gross" type="text" readonly></label>
+            <label>Deducciones ficticias MXN<input id="finance-deductions" type="number" min="0" step="0.01" required></label>
+            <label>Neto ficticio MXN<input id="finance-net" type="text" readonly></label>
+            <button id="finance-reconcile" type="submit" disabled>Conciliar prueba</button>
+          </form>
+          <pre id="finance-ticket-text" hidden></pre>
+        </section>
       </section>
     </section>
     <dialog id="confirm-dialog">

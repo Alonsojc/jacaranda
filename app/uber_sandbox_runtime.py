@@ -33,6 +33,8 @@ from app.models.uber_eats import (
     UberSandboxStore, UberSandboxStoreAction, UberSandboxStoreJob,
 )
 from app.services import uber_eats_service, uber_order_service, uber_sandbox_oauth, uber_store_service, uber_webhook_service
+from app.services import uber_finance_storage
+from app.api.routes.uber_sandbox_finance import router as finance_router
 
 
 TEST_APPLICATION_ID = "I2pbZ-jD6Qa7FQzhLUbX3Y5gN12EasPL"
@@ -51,6 +53,8 @@ def validate_isolation() -> None:
         raise RuntimeError("Only the separate uber-sandbox environment is allowed.")
     if not settings.UBER_EATS_SANDBOX_ENABLED or not settings.UBER_EATS_SANDBOX_WEBHOOK_ENABLED:
         raise RuntimeError("Sandbox reception is not enabled.")
+    if settings.UBER_EATS_SANDBOX_FINANCE_ENABLED:
+        uber_finance_storage.validate_configuration()
     if settings.UBER_EATS_SANDBOX_MANAGEMENT_ENABLED:
         token = settings.UBER_EATS_SANDBOX_ADMIN_TOKEN.get_secret_value()
         oauth_secret = settings.UBER_EATS_SANDBOX_CLIENT_SECRET.get_secret_value()
@@ -110,6 +114,8 @@ async def lifespan(app: FastAPI):
                 UberSandboxStoreJob.state == "processing",
             ).values(state="pending"))
     stop = asyncio.Event()
+    if settings.UBER_EATS_SANDBOX_FINANCE_ENABLED:
+        uber_finance_storage.initialize()
     worker = asyncio.create_task(store_worker(stop)) if settings.UBER_EATS_SANDBOX_STORE_AUTOMATION_ENABLED else None
     try:
         yield
@@ -117,6 +123,7 @@ async def lifespan(app: FastAPI):
         stop.set()
         if worker is not None:
             await worker
+        uber_finance_storage.shutdown()
 
 
 def store_tick():
@@ -145,6 +152,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.add_api_route(WEBHOOK_PATH, receive_webhook, methods=["POST"])
+
+
+@app.exception_handler(uber_finance_storage.RehearsalError)
+async def financial_error(request: Request, exc):
+    return JSONResponse({"detail": str(exc)}, status_code=409)
+
+
+@app.exception_handler(SQLAlchemyError)
+async def storage_error(request: Request, exc):
+    return JSONResponse({"detail": "Almacenamiento de pruebas no disponible. Verifica antes de reintentar."}, status_code=503)
 
 
 @app.middleware("http")
@@ -192,6 +209,9 @@ def private_management(request: Request):
         raise HTTPException(401, "Acceso privado de Sandbox requerido.")
 
 
+app.include_router(finance_router, dependencies=[Depends(private_management)])
+
+
 @app.get("/", dependencies=[Depends(management_enabled)])
 def dashboard():
     return FileResponse(ASSETS / "index.html")
@@ -212,6 +232,11 @@ def attention_script():
     return FileResponse(ASSETS / "attention.js", media_type="text/javascript")
 
 
+@app.get("/finance.js", dependencies=[Depends(management_enabled)])
+def finance_script():
+    return FileResponse(ASSETS / "finance.js", media_type="text/javascript")
+
+
 @app.get("/favicon.svg", dependencies=[Depends(management_enabled)])
 def favicon():
     return FileResponse(ASSETS / "favicon.svg", media_type="image/svg+xml")
@@ -222,6 +247,7 @@ def management_status():
     return {
         "entorno": "sandbox", "tienda": "Jacaranda Sandbox", "tienda_real_activada": False,
         "acciones_habilitadas": settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED,
+        "finanzas_habilitadas": settings.UBER_EATS_SANDBOX_FINANCE_ENABLED,
     }
 
 
@@ -322,9 +348,20 @@ def health():
     try:
         with engine.connect() as connection:
             connection.execute(select(UberSandboxEvent.id).limit(0))
-    except SQLAlchemyError:
+        if settings.UBER_EATS_SANDBOX_FINANCE_ENABLED:
+            for db in uber_finance_storage.get_db():
+                from app.models.venta import Venta
+                db.execute(select(Venta.id).limit(0))
+    except (SQLAlchemyError, uber_finance_storage.RehearsalError):
         raise HTTPException(503, "Sandbox storage is not ready.") from None
-    return {"status": "ok", "environment": "uber-sandbox", "real_store_enabled": False}
+    result = {"status": "ok", "environment": "uber-sandbox", "real_store_enabled": False,
+              "finance_enabled": settings.UBER_EATS_SANDBOX_FINANCE_ENABLED}
+    revision = Path(__file__).parent / "sandbox_revision.txt"
+    if revision.is_file():
+        value = revision.read_text().strip()
+        if len(value) == 40 and all(char in "0123456789abcdef" for char in value):
+            result["revision"] = value
+    return result
 
 
 if __name__ == "__main__":

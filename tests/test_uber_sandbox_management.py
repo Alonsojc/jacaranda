@@ -61,6 +61,11 @@ def test_management_requires_its_own_credential_and_no_pos_identity(management):
         assert client.get("/sandbox/estado?token=" + PRIVATE).status_code == 401
         assert client.get("/sandbox/estado", headers=AUTH).json()["tienda_real_activada"] is False
         assert client.get("/api/v1/uber-eats/sandbox/eventos").status_code == 401
+        finance_path = "/api/v1/uber-eats/sandbox/finanzas"
+        assert client.get(finance_path).status_code == 401
+        assert client.get(finance_path, headers=AUTH).status_code == 404
+        assert client.post(finance_path + "/ensayo", content=b"invalid JSON").status_code == 401
+        assert client.get("/finance.js").status_code == 200
         for path in ("/api/v1/auth/login", "/api/v1/punto-de-venta/ventas", "/api/v1/clientes", "/api/v1/uber-eats/preparacion"):
             assert client.get(path, headers=AUTH).status_code == 404
         assert client.get("/sandbox.js").status_code == 200

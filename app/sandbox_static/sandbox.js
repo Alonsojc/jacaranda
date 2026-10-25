@@ -7,12 +7,25 @@
   var ids = {aceptar: 'accept', rechazar: 'deny', cancelar: 'cancel', listo: 'ready'};
   function el(id) { return document.getElementById(id); }
   function status(text, error) { el('status').textContent = text; el('status').className = error ? 'error' : ''; }
+  var finance = window.createSandboxFinance ? window.createSandboxFinance({
+    api: api, status: status, busy: function () { return busy; }, generation: function () { return generation; },
+    connected: function () { return attention.connected(); }, setBusy: function (value) { busy = value; controls(); },
+    show: function () { showPanel('finance'); },
+    confirm: async function (title, id) {
+      el('confirm-title').textContent = title; el('confirm-order').textContent = 'Solo Sandbox, sin cobro real / ' + id.slice(0, 8);
+      el('confirm-submit').className = ''; el('confirm-dialog').showModal();
+      return new Promise(function (resolve) { el('confirm-dialog').addEventListener('close', function () {
+        resolve(el('confirm-dialog').returnValue === 'confirm');
+      }, {once: true}); });
+    }
+  }) : null;
   var attention = window.createSandboxAttention({
     api: api,
     isBusy: function () { return busy; },
     openOrder: function (id, rows) { attentionRows = rows; showPanel('orders'); showPending(); inspect(id); },
     onUnavailable: function () {
       if (selected) selected.acciones_habilitadas = false;
+      if (finance) finance.invalidate();
       storeFresh = false; controls();
     },
     onRecovered: controls,
@@ -49,9 +62,11 @@
       input.disabled = busy || !storeOK || !storeSelected.menu_publicado || storeSelected.revocada;
     });
     attention.syncControls();
+    if (finance) finance.controls();
   }
   function logout() {
     attention.stop();
+    if (finance) finance.reset();
     generation += 1; key = ''; selected = null; eventId = null; beforeId = null; busy = false; viewingOlder = false;
     attentionRows = []; viewingAttention = true;
     el('access-key').value = ''; el('access-form').hidden = false; el('workspace').hidden = true;
@@ -62,7 +77,7 @@
     el('fixture-items').replaceChildren(); el('fixture-detail').textContent = '';
     el('merchant-auth-link').removeAttribute('href'); el('merchant-auth-link').hidden = true;
     panel = 'orders';
-    ['orders', 'store', 'menu'].forEach(function (id) { el(id + '-panel').hidden = id !== panel; el('tab-' + id).setAttribute('aria-selected', String(id === panel)); });
+    ['orders', 'store', 'menu', 'finance'].forEach(function (id) { el(id + '-panel').hidden = id !== panel; el('tab-' + id).setAttribute('aria-selected', String(id === panel)); });
     if (el('confirm-dialog').open) el('confirm-dialog').close('cancel');
     status('Acceso privado'); controls();
   }
@@ -156,6 +171,7 @@
     if (!key || busy) return;
     var current = generation;
     selected = null; eventId = id; busy = true; el('order-detail').hidden = true; controls();
+    if (finance) finance.invalidate();
     status('Consultando pedido...');
     try {
       var data = await api('/api/v1/uber-eats/sandbox/eventos/' + encodeURIComponent(id) + '/consultar', 'POST', {});
@@ -286,13 +302,14 @@
   }
   function showPanel(name) {
     panel = name;
-    ['orders', 'store', 'menu'].forEach(function (id) { el(id + '-panel').hidden = id !== name; el('tab-' + id).setAttribute('aria-selected', String(id === name)); });
+    ['orders', 'store', 'menu', 'finance'].forEach(function (id) { el(id + '-panel').hidden = id !== name; el('tab-' + id).setAttribute('aria-selected', String(id === name)); });
   }
-  ['orders', 'store', 'menu'].forEach(function (name) {
+  ['orders', 'store', 'menu', 'finance'].forEach(function (name) {
     el('tab-' + name).addEventListener('click', function () {
       if (busy) return;
       showPanel(name);
-      if (name !== 'orders') loadStore(); else if (viewingAttention) { renderPending(); attention.refresh(); } else load(false, false);
+      if (name === 'finance') { if (finance) finance.load(); }
+      else if (name !== 'orders') loadStore(); else if (viewingAttention) { renderPending(); attention.refresh(); } else load(false, false);
     });
   });
   el('reload-store').addEventListener('click', loadStore); el('reload-menu').addEventListener('click', loadStore);
@@ -325,13 +342,15 @@
     event.preventDefault(); if (busy) return;
     var current = generation; key = el('access-key').value.trim(); el('access-key').value = ''; busy = true;
     try {
-      await api('/sandbox/estado'); if (current !== generation) return;
+      var access = await api('/sandbox/estado'); if (current !== generation) return;
+      if (finance) finance.enable(access.finanzas_habilitadas);
       el('access-form').hidden = true; el('workspace').hidden = false; el('logout').hidden = false;
       busy = false; status('Sesi\u00f3n de pruebas activa'); showPending(); attention.start();
     } catch (error) { if (current === generation) { key = ''; status(error.message || 'No se pudo entrar.', true); } }
     finally { if (current === generation) { busy = false; controls(); } }
   });
   el('logout').addEventListener('click', logout);
+  el('finance-order-open').addEventListener('click', function () { if (finance && selected) finance.open(selected.pedido.id); });
   el('refresh').addEventListener('click', function () { if (!viewingAttention) load(false, false); attention.refresh(); });
   el('inbox-pending').addEventListener('click', function () { if (!busy) { showPending(); attention.refresh(); } });
   el('inbox-history').addEventListener('click', function () { load(false, false); });

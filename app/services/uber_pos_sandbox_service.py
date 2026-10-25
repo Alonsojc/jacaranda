@@ -1,4 +1,4 @@
-"""Local, disposable POS rehearsal. Never enabled in either deployed runtime."""
+"""TEST POS logic for a disposable database or the dedicated Sandbox schema."""
 
 import hashlib
 import json
@@ -220,7 +220,14 @@ def plan_order(payload: dict, *, client_id: str) -> SalePlan:
 
 
 def validate_database(db: Session) -> None:
-    """Allow no file DB, remote DB, alternate model bind, or deployed runtime."""
+    """Allow only disposable storage or the explicitly isolated hosted schema."""
+    if os.environ.get("JACARANDA_RUNTIME") == "uber-sandbox":
+        from app.core.config import settings
+        if not settings.UBER_EATS_SANDBOX_FINANCE_ENABLED:
+            raise RehearsalError("El enlace de ensayo no esta habilitado en servicios desplegados.")
+        from app.services.uber_finance_storage import validate_session
+        validate_session(db)
+        return
     if os.environ.get("JACARANDA_RUNTIME") != "uber-pos-rehearsal":
         raise RehearsalError("El enlace de ensayo no esta habilitado en servicios desplegados.")
     engine = db.get_bind().engine

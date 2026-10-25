@@ -12,11 +12,12 @@ de la tienda de pruebas; nunca usa sesiones o credenciales del POS.
 - Servicio `uber-sandbox-webhook`, arranque `python -m app.uber_sandbox_runtime`.
 - PostgreSQL privado independiente `uber-sandbox-db`; base
   `jacaranda_uber_sandbox`, usuario `jacaranda_sandbox` y volumen propio.
-- Solo permite `uber_sandbox_events`, `uber_sandbox_orders`,
+- En el esquema publico solo permite `uber_sandbox_events`, `uber_sandbox_orders`,
   `uber_sandbox_actions`, `uber_sandbox_stores`, `uber_sandbox_store_actions`
   y `uber_sandbox_store_jobs`; rechaza una base con otras tablas antes de
   cualquier DDL. Sin gestion privada crea solo eventos, tiendas y trabajos
-  de tienda. No se restaura ningun respaldo operativo en esta base.
+  de tienda. El enlace financiero optativo usa un esquema TEST distinto,
+  descrito mas adelante. No se restaura ningun respaldo operativo en esta base.
 - El arranque valida entorno, host privado, nombre de base, usuario, aplicacion
   TEST, UUID sandbox y dominios de API/autenticacion exclusivamente sandbox.
 - Por defecto solo publica `POST /api/v1/uber-eats/sandbox/webhook` y `GET /health`.
@@ -151,7 +152,8 @@ credenciales de pago y la respuesta cruda no se guardan.
 
 El servicio requiere `JACARANDA_RUNTIME=uber-pos-rehearsal` y verifica la conexion
 de **todos** los modelos antes de escribir. Rechaza SQLite en archivo, bases
-remotas, bindings alternativos y ambos runtimes desplegados. Las pruebas nativas
+remotas y bindings alternativos. El runtime hospedado solo se admite con el
+enlace financiero aislado descrito abajo. Las pruebas nativas
 solo admiten `jacaranda_synthetic` en localhost y un esquema nuevo
 `uber_pos_test_*`. No ampliar la allowlist de las seis tablas del receptor.
 
@@ -171,8 +173,8 @@ incluidas en el gate `postgres-sandbox` de CI.
 #### Revision y conciliacion ficticia (25-oct)
 
 `uber_pos_reconciliation` agrega un reporte separado del canal TEST y un ciclo
-de revision sobre la misma base desechable. No agrega rutas, tablas ni acceso a
-produccion, y mantiene intactos los bloqueos de ambos runtimes hospedados.
+de revision sobre la misma base desechable. No agrega acceso a produccion.
+El panel hospedado reutiliza esta logica mediante el enlace aislado descrito abajo.
 
 ```sh
 python scripts/rehearse_uber_pos.py --financial-lifecycle --report output/uber-pos/conciliacion-nueva.json
@@ -193,8 +195,8 @@ bruto conciliado de prueba, deducciones y neto. La venta sigue pendiente y el
 corte normal queda en cero incluso despues de conciliar. La revision y la
 auditoria se guardan juntas, con bloqueo transaccional y proteccion de revision.
 
-Esto valida la logica local, no integra aun estos controles en el panel
-hospedado ni acredita una liquidacion bancaria de Uber. La resolucion humana de
+Este comando valida la logica local y no acredita una liquidacion bancaria de
+Uber. La resolucion humana de
 discrepancias, devoluciones parciales y asignaciones de un deposito a varios
 pedidos quedan fuera de este ensayo y no se automatizan.
 
@@ -202,6 +204,44 @@ Este ensayo no habilita importacion automatica en la interfaz hospedada. Antes
 de produccion siguen pendientes el canal externo en los reportes/cortes,
 conciliacion de liquidaciones, flujo operativo de ediciones/cancelaciones y
 la validacion fisica del iPad, ademas de la autorizacion de Uber.
+
+#### Finanzas en el Sandbox hospedado
+
+Con `UBER_EATS_SANDBOX_FINANCE_ENABLED=true`, exclusivamente en el runtime y
+entorno `uber-sandbox`, el panel privado incluye la pestana Finanzas TEST.
+La base sigue siendo `jacaranda_uber_sandbox`, con usuario `jacaranda_sandbox`
+y host privado exacto. Las 13 tablas necesarias para el ensayo viven en el
+esquema separado `uber_finance_test`; nunca se agregan al esquema publico del
+receptor. No se ejecutan migraciones, seeds operativos ni tareas del POS real.
+El enlace exige traduccion de esquema y search_path exclusivo, sin fallback a
+public, y rechaza conexiones alternas. Las existencias ficticias se crean una
+sola vez; no se reinician al desplegar.
+
+- Consultar finanzas requiere una notificacion autentica de la tienda TEST y
+  vuelve a obtener el detalle canonico con GET en test-api.uber.com.
+- Registrar venta TEST requiere revisar el detalle y confirmar. El servidor
+  consulta de nuevo y compara la huella de importes, instrucciones, estado y
+  avisos. Un cambio obliga a revisar otra vez. No cobra, factura ni cierra caja.
+- El mapeo del menu hospedado es explicito para brownie y galleta, sin buscar
+  por nombre. Las cantidades descuentan solo los productos y empaques ficticios.
+- Registrar revision conserva cambios/cancelaciones pendientes sin reponer
+  alimentos. Los avisos firmados posteriores bloquean tickets y cambian el
+  reporte a revision incluso antes de una revision manual del operador.
+- Conciliar prueba solo admite una entrega confirmada sin discrepancias,
+  importes exactos y referencia TEST- unica. Es una asignacion ficticia, no un
+  deposito de Uber ni una conciliacion bancaria real.
+- POST privado /api/v1/uber-eats/sandbox/finanzas/ensayo recibe request_key y
+  solo_sandbox_confirmado. Ensaya importacion, entrega ficticia, asignacion y
+  cancelacion tardia, sin enviar solicitudes a Uber. El reporte identifica
+  estas filas como Simulacion interna; no son evidencia de callbacks de Uber.
+
+Las rutas publicas del POS siguen ausentes. No hay puente a la base operativa,
+sincronizacion automatica de ventas reales ni cambios de la tienda real. Para
+publicar, usar solo un artefacto con los archivos versionados del commit validado,
+con railway.json de arranque `python -m app.uber_sandbox_runtime`; nunca subir
+el directorio de trabajo con credenciales o reportes. Verificar el servicio y
+entorno explicitos, revision servida, persistencia, rechazo sin autorizacion y
+que los deployments de produccion no cambiaron. No mergear este PR a main.
 
 Vista local con datos ficticios y sin red saliente:
 `python scripts/preview_uber_sandbox.py --port 8767`.

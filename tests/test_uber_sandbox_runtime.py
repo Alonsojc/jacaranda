@@ -65,7 +65,7 @@ def test_bootstrap_and_restart_create_only_sandbox_receipt_tables(isolated):
     for _ in range(2):
         with TestClient(runtime.app) as client:
             assert client.get("/health").json() == {
-                "status": "ok", "environment": "uber-sandbox", "real_store_enabled": False,
+                "status": "ok", "environment": "uber-sandbox", "real_store_enabled": False, "finance_enabled": False,
             }
         assert inspect(engine).get_table_names() == ["uber_sandbox_events", "uber_sandbox_store_jobs", "uber_sandbox_stores"]
 
