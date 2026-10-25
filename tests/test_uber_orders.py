@@ -106,6 +106,15 @@ def test_inspection_preserves_all_instructions_omits_contacts_and_never_writes_s
     assert db.query(UberSandboxEvent).one().estado == "consultado"
 
 
+def test_opt_in_financial_expansion_is_still_read_only_and_test_only(db):
+    calls = []
+    with transport(lambda request: httpx.Response(200, json=details()), calls):
+        orders._request("GET", ORDER, include_payment=True)
+    assert len(calls) == 2
+    assert str(calls[1].url) == f"https://test-api.uber.com/v1/delivery/order/{ORDER}?expand=carts%2Cpayment"
+    assert calls[1].method == "GET" and db.query(Venta).count() == 0
+
+
 @pytest.mark.parametrize("overrides", [{"id": str(uuid4())}, {"store": {"id": str(uuid4())}}, {"store": None}, {"state": []}])
 def test_wrong_or_incomplete_order_response_is_not_trusted(db, receipt, overrides):
     with pytest.raises(WebhookError) as failure:

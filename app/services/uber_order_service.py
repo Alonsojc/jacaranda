@@ -33,7 +33,8 @@ class SandboxRequestError(Exception):
         super().__init__("No se pudo confirmar la operacion de pruebas con Uber.")
 
 
-def _request(method: str, order_id: str, payload: dict | None = None, action: str | None = None) -> dict:
+def _request(method: str, order_id: str, payload: dict | None = None, action: str | None = None,
+             *, include_payment: bool = False) -> dict:
     if api.API_URL != "https://test-api.uber.com" or api.TOKEN_URL != "https://sandbox-login.uber.com/oauth/v2/token":
         raise SandboxRequestError(False)
     # The webhook's resource_href is never used, even if correctly signed.
@@ -50,7 +51,7 @@ def _request(method: str, order_id: str, payload: dict | None = None, action: st
                 with client.stream(
                     method, api.API_URL + path,
                     headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
-                    params={"expand": "carts"} if method == "GET" else None,
+                    params={"expand": "carts,payment" if include_payment else "carts"} if method == "GET" else None,
                     json=payload if method == "POST" else None,
                 ) as response:
                     if response.status_code == 401:

@@ -116,6 +116,63 @@ Esta comprobacion cubre el panel Sandbox con la pagina visible. Safari en un iPa
 fisico, integracion de avisos en las secciones de caja y registro automatico de
 ventas/inventario siguen siendo etapas distintas; no se habilitan aqui.
 
+### Ensayo local de ventas e inventario
+
+`scripts/rehearse_uber_pos.py` conecta el formato de pedidos TEST con los modelos
+de ventas, el servicio de movimientos de inventario/empaque y el generador de
+tickets existentes. El destino es siempre una base SQLite nueva en memoria;
+no usa la base del receptor ni la del POS. No publica rutas HTTP ni cambia
+flags, migraciones, menus o despliegues operativos.
+
+```sh
+python scripts/rehearse_uber_pos.py --report output/uber-pos/ensayo-nuevo.json
+```
+
+El fixture contiene dos productos ficticios y tres piezas: total de MXN 4.00,
+stock 10/10 que pasa a 8/9 y empaques 20 que pasan a 17. Los precios vigentes
+ficticios del catalogo son diferentes para comprobar que no sustituyen a los
+precios del pedido. La repeticion debe devolver la misma venta y no volver a
+descontar stock. El reporte se crea con escritura exclusiva, sin sobrescribir
+evidencia anterior.
+
+La venta queda **pendiente**, con un registro informativo de pago
+`por_conciliar`, monto recibido cero y ticket rotulado ENSAYO. No se cierra una
+venta de caja, no se simula una liquidacion de Uber y no se expide una factura.
+Incluso `SUCCEEDED` significa entrega, no conciliacion financiera. El corte
+existente debe seguir mostrando efectivo y ventas cerradas en cero.
+
+La importacion exige aplicacion/tienda TEST exactas, detalle reciente, revision
+explicita, cantidades por pieza, mapeo por ID y conciliacion exacta de MXN/E5,
+partidas, descuentos e impuestos. No usa nombres, precios del catalogo ni montos
+formateados para adivinar datos. Cargos, propinas o ajustes no distribuidos,
+efectivo pendiente, modificadores sin mapeo y datos incompletos se bloquean.
+Las instrucciones y alergias se conservan completas; contactos de cliente,
+credenciales de pago y la respuesta cruda no se guardan.
+
+El servicio requiere `JACARANDA_RUNTIME=uber-pos-rehearsal` y verifica la conexion
+de **todos** los modelos antes de escribir. Rechaza SQLite en archivo, bases
+remotas, bindings alternativos y ambos runtimes desplegados. Las pruebas nativas
+solo admiten `jacaranda_synthetic` en localhost y un esquema nuevo
+`uber_pos_test_*`. No ampliar la allowlist de las seis tablas del receptor.
+
+Para un ensayo canonico, la opcion `--order-id <UUID_TEST>` hace exclusivamente
+GET con `expand=carts,payment` usando la credencial TEST ya autorizada. No acepta,
+cancela, marca listo ni cobra pedidos. Un pedido ofrecido, cancelado o fallido
+se rechaza sin venta ni movimientos. Las pruebas sinteticas y las lecturas
+autenticas deben quedar identificadas por separado en sus reportes.
+
+La transaccion local registra venta, partidas, pago informativo, movimientos y
+auditoria juntos. La identidad aplicacion/tienda/pedido y su huella de importes,
+instrucciones y mapeo impiden duplicar o sobrescribir un pedido editado. No se
+devuelve automaticamente inventario de alimentos preparados por cancelacion.
+Las pruebas PostgreSQL de duplicados simultaneos, ultimo stock y rollback estan
+incluidas en el gate `postgres-sandbox` de CI.
+
+Este ensayo no habilita importacion automatica en la interfaz hospedada. Antes
+de produccion siguen pendientes el canal externo en los reportes/cortes,
+conciliacion de liquidaciones, flujo operativo de ediciones/cancelaciones y
+la validacion fisica del iPad, ademas de la autorizacion de Uber.
+
 Vista local con datos ficticios y sin red saliente:
 `python scripts/preview_uber_sandbox.py --port 8767`.
 Solo escucha en `127.0.0.1`; la clave de fixture es `local-fixture-only` y no sirve
