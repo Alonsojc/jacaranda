@@ -42,7 +42,7 @@ def node(code):
 
 
 def test_photo_tablet_date_column_preserves_space_for_the_full_year():
-    assert "@media(min-width:601px){.eg-import-foto td:nth-child(3){min-width:160px}}" in HTML
+    assert "@media(min-width:601px){.eg-import-foto col:nth-child(3){width:170px!important}}" in HTML
     assert ".eg-import-foto tr{grid-template-columns:26px minmax(0,1fr)}" in HTML
 
 
