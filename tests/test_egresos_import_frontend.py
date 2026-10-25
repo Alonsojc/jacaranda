@@ -41,6 +41,11 @@ def node(code):
     assert result.returncode == 0, result.stderr
 
 
+def test_photo_tablet_date_column_preserves_space_for_the_full_year():
+    assert "@media(min-width:601px){.eg-import-foto td:nth-child(3){min-width:160px}}" in HTML
+    assert ".eg-import-foto tr{grid-template-columns:26px minmax(0,1fr)}" in HTML
+
+
 def test_selection_defaults_to_ready_rows_and_uses_integer_cents():
     node(r"""
 _egImport=estado();
