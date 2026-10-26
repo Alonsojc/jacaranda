@@ -88,6 +88,28 @@ assert.equal(saved.get(_notifStorageKey),'[]');assert.equal(reads.length,0);
 """)
 
 
+def test_badge_and_panel_count_all_visible_priorities_and_remain_in_sync():
+    node(r"""
+const rows=data();
+rows.productos_sin_costo=[{id:2,nombre:'Costo de prueba',razon:'Costo cero',severidad:'media'},
+                         {id:3,nombre:'Otro aviso',razon:'Revisar',severidad:'baja'}];
+actualizarNotificaciones(rows,false);
+assert.equal(badge().textContent,3);
+assert.equal(document.getElementById('notif-count').textContent,'3 avisos');
+descartarNotificacion(claveNotificacion(_notifCache[1]));
+assert.equal(badge().textContent,2);
+assert.equal(document.getElementById('notif-count').textContent,'2 avisos');
+descartarNotificacion(claveNotificacion(_notifCache[0]));
+assert.equal(badge().textContent,1);assert.equal(badge().style.display,'inline-block');
+assert.equal(document.getElementById('notif-count').textContent,'1 aviso');
+assert(document.getElementById('notif-list').innerHTML.includes('notif-baja'));
+restaurarNotificaciones();assert.equal(badge().textContent,3);
+descartarTodasNotificaciones();assert.equal(badge().textContent,0);
+assert.equal(badge().style.display,'none');
+assert.equal(document.getElementById('notif-count').textContent,'0 avisos');
+""")
+
+
 def test_changed_alert_and_resolved_then_recurring_alert_reappear():
     node(r"""
 actualizarNotificaciones(data(),false);descartarTodasNotificaciones();
