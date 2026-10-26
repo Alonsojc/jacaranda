@@ -80,7 +80,7 @@ vm.createContext(context);vm.runInContext(SOURCE,context);vm.runInContext(INVALI
 def test_sandbox_module_is_cached_and_disabled_by_default():
     html = Path("docs/index.html").read_text()
     worker = Path("docs/sw.js").read_text()
-    assert "js/uber-sandbox.js?v=jacaranda-v125" in html
-    assert "./js/uber-sandbox.js?v=jacaranda-v125" in worker
+    assert "js/uber-sandbox.js?v=jacaranda-v128" in html
+    assert "./js/uber-sandbox.js?v=jacaranda-v128" in worker
     assert "UBER_EATS_SANDBOX_WEBHOOK_ENABLED=false" in Path(".env.example").read_text()
     assert "UBER_EATS_SANDBOX_ACTIONS_ENABLED=false" in Path(".env.example").read_text()

@@ -14,7 +14,7 @@ from app.models.auditoria import LogAuditoria
 from app.models.egreso import Egreso
 from app.models.inventario import Proveedor
 from app.models.usuario import RolUsuario
-from app.services import egresos_photo_service as photos, ocr_service as ocr
+from app.services import egresos_import_service as imports, egresos_photo_service as photos, ocr_service as ocr
 
 PATH = "/api/v1/egresos/importacion/"
 
@@ -134,6 +134,57 @@ def test_incomplete_rows_preserve_other_legible_cells_for_manual_review():
     assert incomplete["datos"]["fecha"] == "2026-09-01"
     assert incomplete["datos"]["proveedor"] == "Proveedor sintetico"
     assert incomplete["datos"]["metodo_pago"] == "credito"
+
+
+@pytest.mark.parametrize("correction", [{"proveedor": "Corregido"}, {"monto": "190.25"}, {"metodo_pago": "efectivo"}])
+def test_foreign_currency_stays_blocked_after_repeated_corrections(client, auth_headers, db, monkeypatch, correction):
+    view = preview(client, auth_headers, monkeypatch, moneda="otra")
+    for _ in range(2):
+        changed = {"fila": 1, "fecha": "2026-09-01", "proveedor": "Proveedor sintetico",
+                   "monto": "178.49", "metodo_pago": "tarjeta", **correction}
+        response = client.post(PATH + "foto/revisar", headers=auth_headers,
+                               json={"token": view["token"], "correcciones": [changed]})
+        assert response.status_code == 200, response.text
+        view = response.json()
+        assert view["moneda"] == "otra"
+        assert view["filas"][0]["estado"] == "error"
+        assert "Moneda distinta de MXN" in " ".join(view["filas"][0]["errores"])
+        assert confirm(client, auth_headers, view, filas=[1]).status_code == 400
+    assert db.query(Egreso).count() == db.query(Proveedor).count() == 0
+
+
+@pytest.mark.parametrize("currency", ["MXN", "no_visible"])
+def test_photo_currency_and_warnings_survive_review_and_audit(client, auth_headers, db, monkeypatch, currency):
+    view = preview(client, auth_headers, monkeypatch, moneda=currency)
+    warnings = view["advertencias"]
+    response = client.post(PATH + "foto/revisar", headers=auth_headers,
+        json={"token": view["token"], "correcciones": [{"fila": 1, "fecha": "2026-09-01",
+              "proveedor": "Corregido", "monto": "190.25", "metodo_pago": "tarjeta"}]})
+    assert response.status_code == 200, response.text
+    revised = response.json()
+    assert revised["moneda"] == currency and revised["advertencias"] == warnings
+    assert confirm(client, auth_headers, revised).json()["importados"] == 1
+    assert json.loads(db.query(Egreso).one().ocr_payload)["moneda"] == currency
+
+
+def test_old_photo_preview_without_currency_requires_rereading(client, auth_headers, db, admin_user, monkeypatch):
+    view = preview(client, auth_headers, monkeypatch)
+    legacy = imports.leer_vista_previa(view["token"], admin_user.id)
+    legacy.pop("moneda")
+    view["token"] = imports.firmar_vista_previa(legacy, admin_user.id)
+    response = client.post(PATH + "foto/revisar", headers=auth_headers,
+        json={"token": view["token"], "correcciones": [{"fila": 1, "fecha": "2026-09-01",
+              "proveedor": "Corregido", "monto": "190.25", "metodo_pago": "tarjeta"}]})
+    assert response.status_code == 409
+    assert confirm(client, auth_headers, view, filas=[1]).status_code == 400
+    assert db.query(Egreso).count() == db.query(Proveedor).count() == 0
+
+
+def test_resguardo_photo_preview_preserves_payment_without_writing(client, auth_headers, db, monkeypatch):
+    view = preview(client, auth_headers, monkeypatch, [row(metodo_pago="RESGUARDO")])
+    assert view["filas"][0]["estado"] == "lista"
+    assert view["filas"][0]["datos"]["metodo_pago"] == "resguardo"
+    assert db.query(Egreso).count() == db.query(Proveedor).count() == 0
 
 
 def test_photo_permission_mime_and_options_checks(client, auth_headers, db, admin_user, monkeypatch):
