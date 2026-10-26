@@ -417,12 +417,20 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 @media(max-width:900px){.r4{grid-template-columns:1fr 1fr}.r5{grid-template-columns:repeat(3,1fr)}.r2,.r3{grid-template-columns:1fr}.pos-grid{grid-template-columns:1fr}.pos-prods{max-height:none}.prods{grid-template-columns:repeat(3,1fr)}.nav-links{flex-wrap:wrap;gap:.15rem}.nav-links a{padding:.4rem .55rem;font-size:.73rem}.pmt{grid-template-columns:1fr!important}#pos-btn-prods{display:block!important}.tkt{position:sticky;bottom:0;z-index:10}#cafeteria .caf-account{position:static;bottom:auto;z-index:auto}table{font-size:.75rem}th,td{padding:.3rem .4rem!important}}
 @media(max-width:600px){.prods{grid-template-columns:repeat(2,1fr)}.qty-btn{width:36px;height:36px;font-size:1.1rem}.cobrar{padding:1rem;font-size:1rem}.pi-body{padding:.5rem}.pi-img,.pi-noimg{height:70px}.frow{grid-template-columns:1fr}.wrap{width:min(100% - 1.2rem,1240px);padding:.8rem 0 1rem}nav{padding:.5rem .8rem}.pbtn{padding:.9rem .5rem;font-size:.85rem}.ti{padding:.45rem 0;font-size:.85rem}.tkt h3{font-size:1rem}.card{padding:.8rem;border-radius:10px;overflow-x:auto;-webkit-overflow-scrolling:touch}.tab{padding:.5rem .8rem;font-size:.78rem;min-height:40px;white-space:nowrap}.kpi .n{font-size:1.3rem}.kpi .l{font-size:.7rem}h2{font-size:1.1rem;margin-bottom:.7rem}.page-header{gap:.6rem}.page-actions{width:100%;justify-content:flex-start}.page-actions .limpiar,.page-actions .cobrar{flex:1 1 auto}.cafeteria-tools{justify-content:stretch;margin:.1rem 0 .8rem}.cafeteria-tools .limpiar{flex:1 1 auto}.page-toolbar{gap:.45rem}.page-toolbar .section-tabs{flex-basis:100%}.srow{padding:.5rem 0;font-size:.82rem;min-height:36px}.badge{padding:.25rem .5rem;font-size:.72rem}}
 @media(max-width:420px){.prods{grid-template-columns:1fr 1fr}.pi .pn{font-size:.78rem}.pi .pp{font-size:1rem}.nav-links a{padding:.35rem .4rem;font-size:.68rem}.r4{grid-template-columns:1fr}.card{margin-bottom:.6rem}}
-.notif-panel{position:fixed;top:50px;right:10px;width:360px;max-height:500px;background:#fff;border:1px solid var(--brd);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:100;overflow-y:auto;display:none}
-.notif-panel.on{display:block}
+.notif-panel{position:fixed;top:50px;right:10px;width:360px;max-height:calc(100vh - 76px);max-height:min(600px,calc(100dvh - 76px));background:#fff;border:1px solid var(--brd);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:100;overflow:hidden;display:none}
+.notif-panel.on{display:flex;flex-direction:column}
+.notif-panel>div{flex-shrink:0}
+.notif-panel #notif-list{overflow-y:auto;min-height:0;flex:1 1 auto;overscroll-behavior:contain}
+.notif-actions{display:flex;flex-wrap:wrap;gap:.4rem;padding:.45rem .8rem;border-bottom:1px solid var(--brd);align-items:center}
+.notif-actions .limpiar{width:auto;padding:.4rem .55rem;min-height:44px;font-size:.75rem}
+.notif-count{flex:1;color:var(--mut);font-size:.75rem;min-width:3rem}
+.notif-dismiss{width:44px;height:44px;min-height:44px;flex:0 0 44px;border:0;border-radius:6px;background:transparent;color:var(--mut);font-size:1.25rem;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.notif-dismiss:hover{background:var(--bg2);color:var(--txt)}
+.notif-dismiss:focus-visible{outline:2px solid var(--v);outline-offset:-2px}
 .notif-item{padding:.6rem .8rem;border-bottom:1px solid var(--bg2);font-size:.82rem;display:flex;gap:.5rem;align-items:flex-start}
 .notif-item:last-child{border-bottom:none}
 .notif-item .ni-icon{font-size:1.1rem;flex-shrink:0;margin-top:.1rem}
-.notif-item .ni-body{flex:1}
+.notif-item .ni-body{flex:1;min-width:0;overflow-wrap:anywhere}
 .notif-item .ni-title{font-weight:600;font-size:.8rem}
 .notif-item .ni-msg{color:var(--mut);font-size:.75rem;margin-top:.1rem}
 .notif-alta{border-left:3px solid #ef4444}
@@ -547,6 +555,14 @@ h2{font-size:1.1rem}
 .corte-date-tools{display:flex;align-items:center;gap:.4rem}
 .day-arrow{width:44px;height:44px;flex:0 0 44px;padding:0;border:1px solid var(--brd);border-radius:8px;background:#fff;color:var(--dk);font-size:1.2rem;cursor:pointer}
 .corte-heading{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.8rem;flex-wrap:wrap}
+.corte-ventas-card{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.corte-ventas-card h3{margin-bottom:.25rem}
+.corte-ventas-fecha{font-size:.78rem;color:var(--mut);margin-bottom:.8rem;overflow-wrap:anywhere}
+#c-ventas-list{flex:1 1 0;min-height:0;overflow-y:auto;overflow-x:hidden;padding-right:.35rem;scrollbar-gutter:stable}
+#c-ventas-list .srow{display:grid;grid-template-columns:minmax(0,1fr) max-content;align-items:start}
+.corte-venta-detalle{min-width:0;overflow-wrap:anywhere}
+.corte-venta-total{white-space:nowrap}
+@media(max-width:900px){#c-ventas-list{flex:none;overflow:visible;padding-right:0;scrollbar-gutter:auto}}
 .ticket-edit-modes{display:flex;gap:0;border:1px solid var(--brd);border-radius:8px;overflow:hidden;margin:.8rem 0}
 .ticket-edit-modes label{flex:1;display:flex;align-items:center;justify-content:center;gap:.4rem;min-height:44px;padding:.5rem;font-weight:600;cursor:pointer}
 .ticket-edit-modes label:has(input:checked){background:#f5eeeb;color:var(--dk)}
@@ -699,8 +715,8 @@ table.tbl th,table.tbl td{font-size:.8rem}
 @media(max-width:600px){.eg-import-table{display:block;min-width:0;width:100%}.eg-import-table thead{display:none}.eg-import-table tbody{display:block}.eg-import-table tr{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:.1rem .25rem;border-bottom:1px solid var(--brd);padding:.6rem 0}.eg-import-table td{border:0;padding:.15rem .2rem;text-align:left}.eg-import-table td:nth-child(1){grid-column:1;grid-row:1 / 6}.eg-import-table td:nth-child(2){grid-column:2;grid-row:1;font-size:.72rem;color:var(--mut)}.eg-import-table td:nth-child(2)::before{content:'Fila '}.eg-import-table td:nth-child(3){grid-column:3;grid-row:1;font-size:.72rem;text-align:right}.eg-import-table td:nth-child(4){grid-column:2 / 4;grid-row:2;min-width:0;max-width:none}.eg-import-table td:nth-child(5){grid-column:3;grid-row:3;text-align:right;font-weight:700}.eg-import-table td:nth-child(6){grid-column:2;grid-row:3}.eg-import-table td:nth-child(7){grid-column:2 / 4;grid-row:4;font-size:.75rem;color:var(--mut)}.eg-import-table td:nth-child(7)::before{content:'Categoria: '}.eg-import-table td:nth-child(8){grid-column:2 / 4;grid-row:5}.eg-import-nota{max-width:none}}
 @media(max-width:600px){.eg-import-foto tr{grid-template-columns:26px minmax(0,1fr)}.eg-import-foto td:nth-child(n+2){grid-column:2;min-width:0;text-align:left;white-space:normal}.eg-import-foto td:nth-child(1){grid-row:1 / 8}.eg-import-foto td:nth-child(2){grid-row:1}.eg-import-foto td:nth-child(3){grid-row:2}.eg-import-foto td:nth-child(4){grid-row:3}.eg-import-foto td:nth-child(5){grid-row:4}.eg-import-foto td:nth-child(6){grid-row:5}.eg-import-foto td:nth-child(7){grid-row:6}.eg-import-foto td:nth-child(8){grid-row:7}.eg-import-foto td:nth-child(3)::before{content:'Fecha'}.eg-import-foto td:nth-child(4)::before{content:'Proveedor'}.eg-import-foto td:nth-child(5)::before{content:'Monto MXN'}.eg-import-foto td:nth-child(6)::before{content:'Forma de pago'}.eg-import-foto td:nth-child(n+3):nth-child(-n+6)::before{display:block;font-size:.72rem;font-weight:400;color:var(--mut);margin-bottom:.2rem}}
 </style>
-<script defer src="js/jacaranda-core.js?v=jacaranda-v126"></script>
-<script defer src="js/egresos-import.js?v=jacaranda-v126"></script>
+<script defer src="js/jacaranda-core.js?v=jacaranda-v127"></script>
+<script defer src="js/egresos-import.js?v=jacaranda-v127"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 </head>
@@ -773,15 +789,20 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <a onclick="confirmarCerrarSesion()" id="btn-logout" style="display:none;cursor:pointer;color:var(--mut);font-size:.78rem;padding:.5rem .6rem" title="Cerrar sesi&oacute;n">&#9211;</a>
 </div>
 </nav>
-<div class="notif-panel" id="notif-panel">
+<div class="notif-panel" id="notif-panel" role="region" aria-label="Notificaciones">
 <div style="padding:.7rem .8rem;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;align-items:center">
 <strong style="font-size:.85rem">Notificaciones</strong>
-<a onclick="toggleNotifPanel()" style="cursor:pointer;font-size:1rem;color:var(--mut)">&times;</a>
+<button type="button" class="notif-dismiss" onclick="toggleNotifPanel()" title="Cerrar notificaciones" aria-label="Cerrar notificaciones">&times;</button>
 </div>
 <div style="padding:.7rem .8rem;border-bottom:1px solid var(--brd);display:grid;gap:.45rem">
 <button type="button" class="limpiar" style="padding:.45rem .7rem;font-size:.78rem" onclick="activarPushManual()">Activar en este dispositivo</button>
 <button type="button" class="limpiar" style="padding:.45rem .7rem;font-size:.78rem" onclick="probarPushManual()">Probar push</button>
 <div id="notif-push-status" style="font-size:.72rem;color:var(--mut);line-height:1.35"></div>
+</div>
+<div class="notif-actions">
+<span class="notif-count" id="notif-count" role="status"></span>
+<button type="button" class="limpiar" id="notif-descartar-todas" onclick="descartarTodasNotificaciones()" disabled>Descartar todas</button>
+<button type="button" class="limpiar" id="notif-restaurar" onclick="restaurarNotificaciones()" disabled>Restaurar</button>
 </div>
 <div id="notif-list"><div class="notif-item"><div class="ni-body" style="text-align:center;color:var(--mut)">Sin alertas</div></div></div>
 </div>
@@ -1300,9 +1321,10 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 </div>
 </div>
-<div class="card">
+<div class="card corte-ventas-card">
 <h3>Ventas del turno</h3>
-<div id="c-ventas-list" style="max-height:300px;overflow-y:auto">
+<p class="corte-ventas-fecha" id="c-ventas-fecha"></p>
+<div id="c-ventas-list">
 <p style="color:var(--mut);text-align:center;padding:1rem;font-size:.85rem">Cargando ventas...</p>
 </div>
 </div>
@@ -3245,7 +3267,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v126';
+var APP_BUILD = 'jacaranda-v127';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -9663,6 +9685,8 @@ function toggleNotifPanel() {
   var panel = document.getElementById('notif-panel');
   panel.classList.toggle('on');
   if (panel.classList.contains('on')) {
+    cargarDescartadasNotificaciones();
+    mostrarNotificacionesActuales();
     cargarNotificaciones();
     cargarEstadoPush();
   }
@@ -9670,9 +9694,12 @@ function toggleNotifPanel() {
 
 function cargarNotificaciones() {
   if (!TOKEN || ['ver', 'editar'].indexOf((window._permisos || {}).dash) < 0) return Promise.resolve();
-  return dashGet('/reportes/alertas').then(function(data) {
+  var version = _versionSesion;
+  return api('GET', '/reportes/alertas', null, false, null, version, {silenciosa: true}).then(function(data) {
+    if (version !== _versionSesion) return;
     actualizarNotificaciones(data, false);
   }).catch(function() {
+    if (version !== _versionSesion) return;
     document.getElementById('notif-list').innerHTML = '<div class="notif-item" role="status">No se pudieron actualizar las alertas.</div>';
   });
 }
@@ -9684,7 +9711,9 @@ function normalizarNotificaciones(data) {
   }
   var alertas = [];
   function agregar(item, tipo, titulo, mensaje) {
-    alertas.push({tipo: tipo, prioridad: item.severidad === 'critica' ? 'alta' : item.severidad || 'baja', titulo: titulo, mensaje: mensaje});
+    var referencia = [item.tipo || '', item.id != null ? item.id : item.pedido_id != null ? item.pedido_id : item.lote || item.nombre || ''];
+    if (tipo === 'merma') referencia.push(fechaHoyISO());
+    alertas.push({tipo: tipo, referencia: JSON.stringify(referencia), prioridad: item.severidad === 'critica' ? 'alta' : item.severidad || 'baja', titulo: titulo, mensaje: mensaje});
   }
   data.stock_bajo.forEach(function(a) {
     agregar(a, 'stock_bajo', (a.stock_actual <= 0 ? 'Agotado: ' : 'Stock bajo: ') + a.nombre,
@@ -9705,30 +9734,115 @@ function normalizarNotificaciones(data) {
   return alertas;
 }
 
-function actualizarNotificaciones(data, avisar) {
-  var alertas = normalizarNotificaciones(data);
-  var altas = alertas.filter(function(a) { return a.prioridad === 'alta'; });
+var _notifDescartadas = {};
+var _notifStorageKey = null;
+function claveNotificacion(a) {
+  return JSON.stringify([a.tipo || '', a.referencia || a.id || '', a.prioridad || 'baja', a.titulo || '', a.mensaje || '']);
+}
+
+function cargarDescartadasNotificaciones() {
+  var usuario = typeof _currentUser !== 'undefined' && _currentUser;
+  var key = usuario && usuario.id != null ? 'jc_notif_descartadas_v1:' + API_URL + ':' + usuario.id : '';
+  if (key === _notifStorageKey) return;
+  _notifStorageKey = key;
+  _notifDescartadas = {};
+  _notifCache = [];
+  if (!key) return;
+  try {
+    var guardadas = JSON.parse(localStorage.getItem(key) || '[]');
+    if (!Array.isArray(guardadas)) return;
+    guardadas.slice(0, 2000).forEach(function(clave) {
+      if (typeof clave === 'string') _notifDescartadas[clave] = true;
+    });
+  } catch(e) {}
+}
+
+function guardarDescartadasNotificaciones(avisarError) {
+  if (!_notifStorageKey) return;
+  try {
+    localStorage.setItem(_notifStorageKey, JSON.stringify(Object.keys(_notifDescartadas)));
+  } catch(e) {
+    if (avisarError) toast('Avisos descartados solo durante esta sesi\u00f3n: no se pudo guardar la preferencia.', true);
+  }
+}
+
+function notificacionVisible(a) {
+  return !_notifDescartadas[claveNotificacion(a)];
+}
+
+function mostrarNotificacionesActuales() {
+  var visibles = _notifCache.filter(notificacionVisible);
+  var altas = visibles.filter(function(a) { return a.prioridad === 'alta'; });
   var badge = document.getElementById('notif-badge');
   badge.textContent = altas.length;
   badge.style.display = altas.length ? 'inline-block' : 'none';
-  if (avisar && altas.length > _notifCache.filter(function(a) { return a.prioridad === 'alta'; }).length) {
-    enviarNotifLocal('Jacaranda - Alerta', altas[0].titulo + ': ' + altas[0].mensaje);
-  }
+  var descartadas = _notifCache.length - visibles.length;
+  document.getElementById('notif-count').textContent = visibles.length + (visibles.length === 1 ? ' aviso' : ' avisos');
+  document.getElementById('notif-descartar-todas').disabled = !visibles.length;
+  var restaurar = document.getElementById('notif-restaurar');
+  restaurar.disabled = !descartadas;
+  restaurar.textContent = descartadas ? 'Restaurar (' + descartadas + ')' : 'Restaurar';
+  renderNotificaciones(visibles);
+}
+
+function descartarNotificacion(clave) {
+  cargarDescartadasNotificaciones();
+  var visibles = _notifCache.filter(notificacionVisible);
+  var index = visibles.findIndex(function(a) { return claveNotificacion(a) === clave; });
+  if (index < 0) return;
+  _notifDescartadas[clave] = true;
+  guardarDescartadasNotificaciones(true);
+  mostrarNotificacionesActuales();
+  var botones = document.querySelectorAll('#notif-list .notif-dismiss');
+  var siguiente = botones[Math.min(index, botones.length - 1)] || document.getElementById('notif-restaurar');
+  if (siguiente) siguiente.focus({preventScroll: true});
+}
+
+function descartarTodasNotificaciones() {
+  cargarDescartadasNotificaciones();
+  _notifCache.forEach(function(a) { _notifDescartadas[claveNotificacion(a)] = true; });
+  guardarDescartadasNotificaciones(true);
+  mostrarNotificacionesActuales();
+  document.getElementById('notif-restaurar').focus({preventScroll: true});
+}
+
+function restaurarNotificaciones() {
+  cargarDescartadasNotificaciones();
+  _notifDescartadas = {};
+  guardarDescartadasNotificaciones(true);
+  mostrarNotificacionesActuales();
+  document.getElementById('notif-descartar-todas').focus({preventScroll: true});
+}
+
+function actualizarNotificaciones(data, avisar) {
+  var alertas = normalizarNotificaciones(data);
+  cargarDescartadasNotificaciones();
+  var anteriores = new Set(_notifCache.filter(notificacionVisible).map(claveNotificacion));
+  var activas = new Set(alertas.map(claveNotificacion));
+  var cambio = false;
+  Object.keys(_notifDescartadas).forEach(function(clave) {
+    if (!activas.has(clave)) { delete _notifDescartadas[clave]; cambio = true; }
+  });
+  if (cambio) guardarDescartadasNotificaciones(false);
   _notifCache = alertas;
-  renderNotificaciones(alertas);
+  mostrarNotificacionesActuales();
+  var nueva = alertas.find(function(a) { return a.prioridad === 'alta' && notificacionVisible(a) && !anteriores.has(claveNotificacion(a)); });
+  if (avisar && nueva) enviarNotifLocal('Jacaranda - Alerta', nueva.titulo + ': ' + nueva.mensaje);
 }
 
 function renderNotificaciones(alertas) {
   var h = '';
   if (!alertas.length) {
-    h = '<div class="notif-item"><div class="ni-body" style="text-align:center;color:var(--mut)">Sin alertas activas</div></div>';
+    h = '<div class="notif-item"><div class="ni-body" style="text-align:center;color:var(--mut)">' + (_notifCache.length ? 'No hay avisos nuevos' : 'Sin alertas activas') + '</div></div>';
   } else {
     for (var i = 0; i < alertas.length; i++) {
       var a = alertas[i];
-      h += '<div class="notif-item notif-' + a.prioridad + '">';
+      var prioridad = ['alta', 'media', 'baja'].indexOf(a.prioridad) >= 0 ? a.prioridad : 'baja';
+      h += '<div class="notif-item notif-' + prioridad + '">';
       h += '<div class="ni-icon">' + escHtml(a.icono || '📌') + '</div>';
       h += '<div class="ni-body"><div class="ni-title">' + escHtml(a.titulo) + '</div>';
-      h += '<div class="ni-msg">' + escHtml(a.mensaje) + '</div></div></div>';
+      h += '<div class="ni-msg">' + escHtml(a.mensaje) + '</div></div>';
+      h += '<button type="button" class="notif-dismiss" data-notif-clave="' + escHtml(claveNotificacion(a)) + '" onclick="descartarNotificacion(this.dataset.notifClave)" title="Descartar aviso" aria-label="' + escHtml('Descartar aviso: ' + a.titulo) + '">&#215;</button></div>';
     }
   }
   document.getElementById('notif-list').innerHTML = h;
@@ -9960,7 +10074,9 @@ function iniciarNotifPeriodicas() {
   if (_notifInterval) clearInterval(_notifInterval);
   _notifInterval = setInterval(function() {
     if (!TOKEN || document.hidden || ['ver', 'editar'].indexOf((window._permisos || {}).dash) < 0) return;
+    var version = _versionSesion;
     api('GET', '/reportes/alertas', null, false, null, null, {silenciosa: true}).then(function(data) {
+      if (version !== _versionSesion) return;
       actualizarNotificaciones(data, true);
     }).catch(function(e){ console.warn('Error cargando datos:', e); });
   }, 300000); // 5 min
@@ -12650,6 +12766,7 @@ function cargarCorte() {
   var fechaInput = document.getElementById('c-fecha');
   if (!fechaInput.value) fechaInput.value = fechaHoyISO();
   var hoy = fechaInput.value;
+  document.getElementById('c-ventas-fecha').textContent = textoFechaVentasCorte(hoy);
   var seq = ++_corteCargaSeq, version = _versionSesion;
   _corteVistaLista = false;
   _resumenCorteVista = null;
@@ -12708,12 +12825,12 @@ function cargarCorte() {
       }
       var hora = v.fecha ? formatearInstanteOperacion(v.fecha, {hour:'2-digit',minute:'2-digit'}) : '';
       h += '<div class="srow" style="cursor:pointer" onclick="verTicket(' + v.id + ',' + (v.estado==='cancelada') + ')">';
-      h += '<span style="min-width:0"><span>' + escHtml(v.folio) + ' &bull; ' + hora + ' &bull; ' + escHtml(met) + estado + '</span>';
+      h += '<span class="corte-venta-detalle"><span>' + escHtml(v.folio) + ' &bull; ' + hora + ' &bull; ' + escHtml(met) + estado + '</span>';
       var ref = referenciaPagoVenta(v);
       h += '<br><small style="color:var(--mut);font-size:.75rem;line-height:1.25">' + escHtml(resumenProductosVenta(v)) + '</small>';
       if (ref) h += '<br><small style="color:var(--v);font-size:.72rem;line-height:1.25">Ref: ' + escHtml(ref) + '</small>';
       h += '</span>';
-      h += '<span style="font-weight:600' + (v.estado==='cancelada'?';text-decoration:line-through;color:var(--mut)':'') + '">$' + fmt(tot) + '</span></div>';
+      h += '<span class="corte-venta-total" style="font-weight:600' + (v.estado==='cancelada'?';text-decoration:line-through;color:var(--mut)':'') + '">$' + fmt(tot) + '</span></div>';
     }
     if (!h) h = '<p style="color:var(--mut);text-align:center;padding:.5rem;font-size:.85rem">Sin ventas en este turno</p>';
     document.getElementById('c-ventas-list').innerHTML = h;
@@ -12763,6 +12880,13 @@ function cargarCorte() {
     hvfi.value = fechaDiasAntesISO(7);
   }
   return carga;
+}
+
+function textoFechaVentasCorte(fecha) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '')) return '';
+  var dia = new Date(fecha + 'T12:00:00Z');
+  if (!Number.isFinite(dia.getTime()) || dia.toISOString().slice(0, 10) !== fecha) return '';
+  return new Intl.DateTimeFormat('es-MX', {weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(dia);
 }
 
 function mostrarResumenCorte(fecha, r) {
