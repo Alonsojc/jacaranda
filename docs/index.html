@@ -9695,7 +9695,7 @@ function toggleNotifPanel() {
 function cargarNotificaciones() {
   if (!TOKEN || ['ver', 'editar'].indexOf((window._permisos || {}).dash) < 0) return Promise.resolve();
   var version = _versionSesion;
-  return dashGet('/reportes/alertas').then(function(data) {
+  return api('GET', '/reportes/alertas', null, false, null, version, {silenciosa: true}).then(function(data) {
     if (version !== _versionSesion) return;
     actualizarNotificaciones(data, false);
   }).catch(function() {

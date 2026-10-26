@@ -32,7 +32,10 @@ const localStorage={
 function toast(...args){errors.push(args);}
 function enviarNotifLocal(...args){pushes.push(args);}
 function fechaHoyISO(){return '2026-10-25';}
-function dashGet(path){return new Promise((resolve,reject)=>reads.push({path,resolve,reject}));}
+function dashGet(){throw new Error('Panel must not replay the dashboard cache');}
+function api(method,path,body,critical,unused,version,options){
+  return new Promise((resolve,reject)=>reads.push({method,path,version,options,resolve,reject}));
+}
 function stock(id=1,qty=0,name='Producto de prueba',tipo='producto') {
   return {id,nombre:name,tipo,stock_actual:qty,stock_minimo:2,unidad:'pz',severidad:qty<=0?'critica':'alta'};
 }
@@ -169,6 +172,24 @@ def test_failed_or_stale_reads_do_not_prune_dismissals_or_replace_current_user()
   actualizarNotificaciones(data([stock(2)]),false);
   reads[1].resolve(data([]));await load;assert.equal(_notifCache.length,1);
   assert.equal(_notifCache[0].titulo,'Agotado: Producto de prueba');
+})().catch(e=>{console.error(e);process.exitCode=1;});
+""")
+
+
+def test_reopening_after_a_fresh_poll_does_not_restore_a_dismissed_alert():
+    node(r"""
+(async()=>{
+  actualizarNotificaciones(data(),false);
+  actualizarNotificaciones(data([stock(1,-1)]),true);
+  descartarTodasNotificaciones();
+  const key=claveNotificacion(_notifCache[0]);
+  const load=cargarNotificaciones();
+  assert.equal(reads[0].method,'GET');assert.equal(reads[0].path,'/reportes/alertas');
+  assert.equal(reads[0].options.silenciosa,true);
+  reads[0].resolve(data([stock(1,-1)]));await load;
+  assert.equal(visible().length,0);assert(_notifDescartadas[key]);
+  actualizarNotificaciones(data([stock(1,-1)]),true);
+  assert.equal(visible().length,0);assert.equal(pushes.length,1);
 })().catch(e=>{console.error(e);process.exitCode=1;});
 """)
 
