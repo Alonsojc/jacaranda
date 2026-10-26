@@ -555,6 +555,14 @@ h2{font-size:1.1rem}
 .corte-date-tools{display:flex;align-items:center;gap:.4rem}
 .day-arrow{width:44px;height:44px;flex:0 0 44px;padding:0;border:1px solid var(--brd);border-radius:8px;background:#fff;color:var(--dk);font-size:1.2rem;cursor:pointer}
 .corte-heading{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.8rem;flex-wrap:wrap}
+.corte-ventas-card{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.corte-ventas-card h3{margin-bottom:.25rem}
+.corte-ventas-fecha{font-size:.78rem;color:var(--mut);margin-bottom:.8rem;overflow-wrap:anywhere}
+#c-ventas-list{flex:1 1 0;min-height:0;overflow-y:auto;overflow-x:hidden;padding-right:.35rem;scrollbar-gutter:stable}
+#c-ventas-list .srow{display:grid;grid-template-columns:minmax(0,1fr) max-content;align-items:start}
+.corte-venta-detalle{min-width:0;overflow-wrap:anywhere}
+.corte-venta-total{white-space:nowrap}
+@media(max-width:900px){#c-ventas-list{flex:none;overflow:visible;padding-right:0;scrollbar-gutter:auto}}
 .ticket-edit-modes{display:flex;gap:0;border:1px solid var(--brd);border-radius:8px;overflow:hidden;margin:.8rem 0}
 .ticket-edit-modes label{flex:1;display:flex;align-items:center;justify-content:center;gap:.4rem;min-height:44px;padding:.5rem;font-weight:600;cursor:pointer}
 .ticket-edit-modes label:has(input:checked){background:#f5eeeb;color:var(--dk)}
@@ -1313,9 +1321,10 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 </div>
 </div>
-<div class="card">
+<div class="card corte-ventas-card">
 <h3>Ventas del turno</h3>
-<div id="c-ventas-list" style="max-height:300px;overflow-y:auto">
+<p class="corte-ventas-fecha" id="c-ventas-fecha"></p>
+<div id="c-ventas-list">
 <p style="color:var(--mut);text-align:center;padding:1rem;font-size:.85rem">Cargando ventas...</p>
 </div>
 </div>
@@ -12757,6 +12766,7 @@ function cargarCorte() {
   var fechaInput = document.getElementById('c-fecha');
   if (!fechaInput.value) fechaInput.value = fechaHoyISO();
   var hoy = fechaInput.value;
+  document.getElementById('c-ventas-fecha').textContent = textoFechaVentasCorte(hoy);
   var seq = ++_corteCargaSeq, version = _versionSesion;
   _corteVistaLista = false;
   _resumenCorteVista = null;
@@ -12815,12 +12825,12 @@ function cargarCorte() {
       }
       var hora = v.fecha ? formatearInstanteOperacion(v.fecha, {hour:'2-digit',minute:'2-digit'}) : '';
       h += '<div class="srow" style="cursor:pointer" onclick="verTicket(' + v.id + ',' + (v.estado==='cancelada') + ')">';
-      h += '<span style="min-width:0"><span>' + escHtml(v.folio) + ' &bull; ' + hora + ' &bull; ' + escHtml(met) + estado + '</span>';
+      h += '<span class="corte-venta-detalle"><span>' + escHtml(v.folio) + ' &bull; ' + hora + ' &bull; ' + escHtml(met) + estado + '</span>';
       var ref = referenciaPagoVenta(v);
       h += '<br><small style="color:var(--mut);font-size:.75rem;line-height:1.25">' + escHtml(resumenProductosVenta(v)) + '</small>';
       if (ref) h += '<br><small style="color:var(--v);font-size:.72rem;line-height:1.25">Ref: ' + escHtml(ref) + '</small>';
       h += '</span>';
-      h += '<span style="font-weight:600' + (v.estado==='cancelada'?';text-decoration:line-through;color:var(--mut)':'') + '">$' + fmt(tot) + '</span></div>';
+      h += '<span class="corte-venta-total" style="font-weight:600' + (v.estado==='cancelada'?';text-decoration:line-through;color:var(--mut)':'') + '">$' + fmt(tot) + '</span></div>';
     }
     if (!h) h = '<p style="color:var(--mut);text-align:center;padding:.5rem;font-size:.85rem">Sin ventas en este turno</p>';
     document.getElementById('c-ventas-list').innerHTML = h;
@@ -12870,6 +12880,13 @@ function cargarCorte() {
     hvfi.value = fechaDiasAntesISO(7);
   }
   return carga;
+}
+
+function textoFechaVentasCorte(fecha) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '')) return '';
+  var dia = new Date(fecha + 'T12:00:00Z');
+  if (!Number.isFinite(dia.getTime()) || dia.toISOString().slice(0, 10) !== fecha) return '';
+  return new Intl.DateTimeFormat('es-MX', {weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(dia);
 }
 
 function mostrarResumenCorte(fecha, r) {

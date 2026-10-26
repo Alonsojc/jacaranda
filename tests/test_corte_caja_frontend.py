@@ -1,5 +1,6 @@
 """Regresiones de las acciones de corte de caja desde iPad/iPhone."""
 
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -178,8 +179,10 @@ total_ventas_transferencia:0,total_ventas_clip:0,total_ventas_bbva:0,total_venta
 async function run() {
   document.getElementById('c-fecha').value='2026-10-05';
   let old=cargarCorte();
+  assert.equal(fields['c-ventas-fecha'].textContent,'lunes, 5 de octubre de 2026');
   assert.equal(fields['btn-imprimir-corte'].disabled,true);
   fields['c-fecha'].value='2026-10-06'; let latest=cargarCorte();
+  assert.equal(fields['c-ventas-fecha'].textContent,'martes, 6 de octubre de 2026');
   requests[2].resolve([]); await Promise.resolve();
   assert.equal(_corteVistaLista,false);
   requests[3].resolve(summary('2026-10-06',502.5)); assert.equal(await latest,true);
@@ -187,6 +190,7 @@ async function run() {
   assert.equal(fields['btn-imprimir-corte'].disabled,false);
   requests[0].resolve([]); requests[1].resolve(summary('2026-10-05',900)); await old;
   assert.equal(_efTotal,502.5);
+  assert.equal(fields['c-ventas-fecha'].textContent,'martes, 6 de octubre de 2026');
   latest=cargarCorte(); requests[4].resolve([]); requests[5].reject(new Error('offline')); assert.equal(await latest,false);
   assert.equal(_corteVistaLista,false); assert.equal(_efTotal,null);
   assert.equal(fields['btn-corte'].disabled,true);
@@ -199,6 +203,37 @@ run().catch(e=>{console.error(e);process.exit(1)});
 """
     result = subprocess.run([node, "-e", js], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("tz", ["UTC", "America/Mexico_City", "Pacific/Auckland"])
+def test_shift_sales_heading_uses_selected_calendar_day_in_every_timezone(tz):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node required")
+    start = HTML.index("function textoFechaVentasCorte")
+    helper = HTML[start:HTML.index("function mostrarResumenCorte", start)]
+    script = "const assert=require('node:assert/strict');\n" + helper + r"""
+assert.equal(textoFechaVentasCorte('2026-10-25'),'domingo, 25 de octubre de 2026');
+assert.equal(textoFechaVentasCorte('2028-02-29'),'martes, 29 de febrero de 2028');
+assert.equal(textoFechaVentasCorte('2027-01-01'),'viernes, 1 de enero de 2027');
+for(const invalid of ['',null,'2026-02-31','2026-10-25T00:00:00Z','not-a-date']) {
+  assert.equal(textoFechaVentasCorte(invalid),'');
+}
+"""
+    result = subprocess.run([node, "-e", script], capture_output=True, text=True,
+                            env={**os.environ, "TZ": tz}, timeout=10)
+    assert result.returncode == 0, result.stderr
+
+
+def test_shift_sales_list_fills_its_column_and_wraps_without_hiding_amounts():
+    assert '<div class="card corte-ventas-card">' in HTML
+    assert '<div id="c-ventas-list">' in HTML
+    assert 'id="c-ventas-list" style="max-height:300px' not in HTML
+    assert '#c-ventas-list{flex:1 1 0;min-height:0;overflow-y:auto' in HTML
+    assert 'grid-template-columns:minmax(0,1fr) max-content' in HTML
+    assert '.corte-venta-detalle{min-width:0;overflow-wrap:anywhere}' in HTML
+    assert '.corte-venta-total{white-space:nowrap}' in HTML
+    assert '@media(max-width:900px){#c-ventas-list{flex:none;overflow:visible' in HTML
 
 
 def test_current_cut_math_and_preview_are_not_saved_or_copied():
