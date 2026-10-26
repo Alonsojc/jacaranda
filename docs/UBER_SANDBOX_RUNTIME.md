@@ -1,5 +1,9 @@
 # Receptor aislado de Jacaranda Sandbox
 
+La comprobacion actual y la prueba fisica pendiente del iPad estan en
+[UBER_IPAD_SANDBOX_CHECKLIST.md](UBER_IPAD_SANDBOX_CHECKLIST.md). Las secciones
+fechadas de evidencia de este documento conservan resultados historicos.
+
 Este servicio recibe webhooks de la aplicacion TEST de Jacaranda. No inicia
 el POS, sus migraciones, usuarios ni procesos de negocio. Por defecto solo recibe
 eventos y no necesita OAuth. La gestion manual es optativa, privada y exclusiva
