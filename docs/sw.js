@@ -1,13 +1,13 @@
 // Jacaranda Service Worker — Offline support
-const CACHE_NAME = 'jacaranda-v128';
+const CACHE_NAME = 'jacaranda-v129';
 const SHELL_WAIT_MS = 1800;
 const STATIC_FETCH_TIMEOUT_MS = 12000;
 const STATIC_ASSETS = [
   './',
   './index.html',
   './favicon.svg',
-  './js/jacaranda-core.js?v=jacaranda-v128',
-  './js/egresos-import.js?v=jacaranda-v128',
+  './js/jacaranda-core.js?v=jacaranda-v129',
+  './js/egresos-import.js?v=jacaranda-v129',
   './manifest.json',
 ];
 
