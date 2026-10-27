@@ -70,6 +70,21 @@ def test_bootstrap_and_restart_create_only_sandbox_receipt_tables(isolated):
         assert inspect(engine).get_table_names() == ["uber_sandbox_events", "uber_sandbox_store_jobs", "uber_sandbox_stores"]
 
 
+@pytest.mark.parametrize("kind", ["orders.cancel", "orders.failure"])
+def test_receive_only_runtime_acknowledges_terminal_receipts_without_order_tables(isolated, kind):
+    engine, sessions = isolated
+    raw = json.dumps({
+        "event_id": str(uuid4()), "event_type": kind, "event_time": int(time.time()),
+        "meta": {"user_id": runtime.TEST_STORE_ID, "resource_id": str(uuid4())},
+    }).encode()
+    signature = hmac.new(SECRET.encode(), raw, hashlib.sha256).hexdigest()
+    with TestClient(runtime.app) as client:
+        assert client.post(runtime.WEBHOOK_PATH, content=raw, headers={"X-Uber-Signature": signature}).status_code == 200
+    with sessions() as db:
+        assert db.query(UberSandboxEvent).one().event_type == kind
+    assert inspect(engine).get_table_names() == ["uber_sandbox_events", "uber_sandbox_store_jobs", "uber_sandbox_stores"]
+
+
 @pytest.mark.parametrize("path", [
     "/api/v1/auth/login", "/api/v1/punto-de-venta/ventas", "/api/v1/clientes",
     "/api/v1/inventario/productos", "/api/v1/uber-eats/preparacion",

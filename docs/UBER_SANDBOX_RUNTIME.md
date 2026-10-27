@@ -97,6 +97,32 @@ verifica tienda/pedido, detalle reciente y su hash antes de actuar. Registra la
 operacion antes de enviarla y bloquea reenvios ante resultados inciertos.
 No crea ventas ni movimientos de existencias. No hay aceptacion automatica.
 
+### Cancelaciones y avisos finales (27-oct)
+
+Segun la aclaracion del equipo de Uber en el caso 61057984, `POST
+/v1/delivery/order/{id}/cancel` devuelve HTTP 200 con `{}` cuando recibe la
+solicitud correctamente. El panel registra `pendiente_aviso`, conserva la clave
+idempotente y bloquea otra accion; no lo presenta como cancelacion confirmada.
+Un timeout, cuerpo inesperado o HTTP distinto de 200 conserva su resultado
+incierto sin reenvios automaticos, aunque se reinicie el servicio.
+
+Un `orders.cancel` firmado confirma que no se debe preparar ni entregar el
+pedido aunque el GET siga devolviendo `SUCCEEDED`. `orders.failure` es la
+alternativa de la version nueva; no se exige recibir ambos eventos. Un aviso
+valido de la aplicacion/tienda/pedido TEST normaliza el estado local a `FAILED`,
+conservando la respuesta original para auditoria. Solo concilia la cancelacion
+pendiente con la misma clave y evidencia posterior a su registro; no libera
+una aceptacion incierta ni otra operacion. La bandeja lo mantiene por verificar
+hasta revisar el aviso. Una consulta tardia o un POST concurrente no pueden
+volver a habilitarlo. Si el GET no esta disponible, el aviso sigue siendo
+autoritativo y el panel identifica que falta detalle actualizado.
+
+Sin aviso firmado, un GET `FAILED` puede indicar fallo o falta de cumplimiento,
+pero no demuestra por si solo el resultado de una solicitud de cancelacion.
+La revision financiera permanece separada: ningun aviso repone alimentos,
+registra efectivo ni confirma una liquidacion. Esta implementacion no habilita
+produccion ni sustituye la prueba fisica pendiente del iPad.
+
 ### Avisos y recuperacion
 
 `GET /api/v1/uber-eats/sandbox/atencion` consulta solo el inbox privado y los

@@ -27,14 +27,14 @@ class Element {
   addEventListener(n,f){this.events[n]=f;}
 }
 const elements={}; const el=id=>elements[id]||(elements[id]=new Element());
-const calls=[]; let admin=true;
+const calls=[]; let admin=true,actionState='confirmada';
 const evt={id:1,event_id:'event-uuid',pedido_id:'order-uuid',tipo:'<img src=x onerror=alert(1)>',estado:'recibido',recibido_en:'2026-10-21T18:00:00Z'};
 const details={pedido:{id:'order-uuid',display_id:'TEST',state:'OFFERED',carts:[{items:[{title:'<script>attack</script>'}]}],store_instructions:'Alergia: nueces'},detalle_sha256:'a'.repeat(64),acciones_habilitadas:true,requiere_conciliacion:false};
 const window={esAdminActual:()=>admin,crypto:{randomUUID:()=> 'request-uuid'},api:async(method,path,data)=>{
   calls.push({method,path,data});
   if(path.includes('/eventos?'))return {eventos:[evt]};
   if(path.endsWith('/consultar'))return structuredClone(details);
-  return {estado:'confirmada'};
+  return {estado:actionState};
 }};
 const document={getElementById:el,createElement:()=>new Element()};
 const context=window;Object.assign(context,{window,document,Date,JSON,encodeURIComponent,
@@ -58,6 +58,17 @@ vm.createContext(context);vm.runInContext(SOURCE,context);vm.runInContext(INVALI
   assert.equal(calls.filter(c=>c.path.endsWith('/accion')).length,1);
   assert.equal(calls.at(-1).data.detalle_sha256,details.detalle_sha256);
   assert(el('uber-sandbox-aceptar').disabled);
+  details.pedido.state='ACCEPTED';row.children[4].children[0].events.click();await new Promise(setImmediate);
+  actionState='pendiente_aviso';await window.accionUberSandbox('cancelar');
+  assert(el('uber-sandbox-estado').textContent.includes('Falta el aviso firmado'));
+  assert(el('uber-sandbox-cancelar').disabled);
+  details.pedido.state='FAILED';details.evento_final={tipo:'orders.cancel'};details.estado_remoto='SUCCEEDED';
+  details.acciones_habilitadas=false;details.detalle_disponible=false;
+  row.children[4].children[0].events.click();await new Promise(setImmediate);
+  assert(el('uber-sandbox-pedido-titulo').textContent.includes('Cancelado - aviso firmado'));
+  assert(el('uber-sandbox-estado').textContent.includes('No preparar ni entregar'));
+  assert(el('uber-sandbox-estado').textContent.includes('detalle actualizado no esta disponible'));
+  assert(el('uber-sandbox-aceptar').disabled&&el('uber-sandbox-cancelar').disabled);
   admin=false; window.invalidarTareasSesion();
   assert(el('modal-uber-preparacion').closed);
   assert(el('uber-sandbox-pedido').hidden);

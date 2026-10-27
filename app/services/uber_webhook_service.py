@@ -11,11 +11,15 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, ValidationError
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.uber_eats import UberSandboxEvent, UberSandboxStore, UberSandboxStoreJob
+from app.models.uber_eats import (
+    PENDING_ORDER_ACTION_STATES, UberSandboxAction, UberSandboxEvent, UberSandboxOrder,
+    UberSandboxStore, UberSandboxStoreJob,
+)
 
 MAX_BODY_BYTES = 64 * 1024
 MAX_EVENT_AGE_SECONDS = 24 * 60 * 60
@@ -28,6 +32,7 @@ EVENT_TYPES = frozenset({
 STORE_EVENT_TYPES = frozenset({
     "store.provisioned", "store.deprovisioned", "store.menu_refresh_request", "store.status.changed",
 })
+TERMINAL_ORDER_EVENT_TYPES = frozenset({"orders.cancel", "orders.failure"})
 
 
 class WebhookError(Exception):
@@ -165,6 +170,45 @@ def _event_seconds(value: int) -> int:
     return value
 
 
+def terminal_order_notice(db: Session, client_id: str, store_id: str, order_id: str):
+    return db.query(UberSandboxEvent).filter_by(
+        client_id=client_id, store_id=store_id, order_id=order_id,
+    ).filter(UberSandboxEvent.event_type.in_(TERMINAL_ORDER_EVENT_TYPES)).order_by(
+        UberSandboxEvent.id.desc(),
+    ).first()
+
+
+def apply_terminal_order_notice(db: Session, row: UberSandboxOrder, notice: UberSandboxEvent) -> None:
+    if ((row.client_id, row.store_id, row.order_id) != (notice.client_id, notice.store_id, notice.order_id)
+            or notice.event_type not in TERMINAL_ORDER_EVENT_TYPES):
+        raise WebhookError(409, "El aviso no corresponde a este pedido de pruebas.")
+    pending = db.query(UberSandboxAction).filter_by(
+        client_id=row.client_id, store_id=row.store_id, order_id=row.order_id,
+        request_key=row.pending_request_key, action="cancelar",
+    ).filter(UberSandboxAction.estado.in_(PENDING_ORDER_ACTION_STATES)).first() if row.pending_request_key else None
+    reconciles = False
+    if pending:
+        created = pending.creado_en.replace(tzinfo=timezone.utc) if pending.creado_en.tzinfo is None else pending.creado_en
+        received = notice.recibido_en.replace(tzinfo=timezone.utc) if notice.recibido_en.tzinfo is None else notice.recibido_en
+        reconciles = received >= created and notice.event_time >= int(created.timestamp())
+    if row.state == "FAILED" and not reconciles:
+        return
+    values = {"state": "FAILED", "revision": UberSandboxOrder.revision + 1}
+    if reconciles:
+        values["pending_request_key"] = None
+    # A signed terminal notice wins over stale GETs, without overwriting a concurrent claim.
+    changed = db.execute(update(UberSandboxOrder).where(
+        UberSandboxOrder.id == row.id, UberSandboxOrder.revision == row.revision,
+        UberSandboxOrder.pending_request_key == row.pending_request_key,
+    ).values(**values).execution_options(synchronize_session=False))
+    if changed.rowcount != 1:
+        raise WebhookError(409, "El pedido cambio durante la confirmacion. Vuelve a consultarlo.")
+    if reconciles:
+        pending.estado = "conciliada"
+        db.flush([pending])
+    db.refresh(row)
+
+
 def receive_event(db: Session, body: bytes, signature: str | None) -> bool:
     if not body or len(body) > MAX_BODY_BYTES:
         raise WebhookError(413 if body else 400, "Tamano de notificacion no permitido.")
@@ -241,6 +285,13 @@ def receive_event(db: Session, body: bytes, signature: str | None) -> bool:
             raise
         _same_event(existing, fingerprint)
         return False
+    if (not is_store and event.event_type in TERMINAL_ORDER_EVENT_TYPES
+            and (settings.UBER_EATS_SANDBOX_MANAGEMENT_ENABLED or settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED)):
+        order = db.query(UberSandboxOrder).filter_by(
+            client_id=client_id, store_id=store_id, order_id=resource_id,
+        ).populate_existing().with_for_update().first()
+        if order is not None:
+            apply_terminal_order_notice(db, order, receipt)
     if is_store:
         row = store_state(db, client_id, store_id, lock=True)
         if event.event_type == "store.deprovisioned" and timestamp >= row.lifecycle_event_time:

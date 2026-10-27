@@ -125,7 +125,7 @@ def test_wrong_or_incomplete_order_response_is_not_trusted(db, receipt, override
 
 @pytest.mark.parametrize("action,reason,status,state", [
     ("aceptar", None, 200, "OFFERED"), ("rechazar", "SPECIAL_INSTRUCTIONS", 200, "OFFERED"),
-    ("cancelar", "ITEM_ISSUE", 204, "ACCEPTED"),
+    ("cancelar", "ITEM_ISSUE", 200, "ACCEPTED"),
 ])
 def test_explicit_actions_use_documented_endpoints_once(db, receipt, action, reason, status, state):
     inspect(db, receipt, state=state)
@@ -143,13 +143,14 @@ def test_explicit_actions_use_documented_endpoints_once(db, receipt, action, rea
             assert data["deny_reason" if action == "rechazar" else "cancellation_reason"]["info"] == (
                 "Jacaranda Sandbox UBER_TEST integration validation."
             )
-        return httpx.Response(status)
+        return httpx.Response(status, json={})
 
     with transport(handler, calls):
         assert submit(db, action, key, reason)["repetida"] is False
         assert submit(db, action, key, reason)["repetida"] is True
     assert len(calls) == 1
-    assert db.query(UberSandboxAction).one().estado == "confirmada"
+    assert db.query(UberSandboxAction).one().estado == ("pendiente_aviso" if action == "cancelar" else "confirmada")
+    assert bool(db.query(UberSandboxOrder).one().pending_request_key) == (action == "cancelar")
     assert db.query(Venta).count() == 0
 
 
@@ -291,9 +292,11 @@ def test_success_response_with_unconfirmed_denial_does_not_reopen_order(db, rece
     network.assert_not_called()
 
 
-def test_unexpected_cancel_success_status_is_not_claimed_or_resent(db, receipt):
+@pytest.mark.parametrize("status,body", [(204, b""), (200, b""), (200, b"not-json"), (200, b'[]'),
+                                         (200, b'{"code":"bad_request"}'), (200, b'{"success":true}')])
+def test_unexpected_cancel_response_is_not_claimed_or_resent(db, receipt, status, body):
     inspect(db, receipt, state="ACCEPTED")
-    with transport(lambda r: httpx.Response(200)), pytest.raises(WebhookError, match="HTTP 200"):
+    with transport(lambda r: httpx.Response(status, content=body)), pytest.raises(WebhookError, match=f"HTTP {status}"):
         submit(db, action="cancelar", reason="OTHER")
     result = inspect(db, receipt, state="SUCCEEDED")
     assert result["pedido"]["state"] == "ACCEPTED"
@@ -347,20 +350,23 @@ def cancellation_receipt(db, **changes):
     db.commit()
 
 
-def test_late_failed_order_and_signed_cancellation_reconcile_without_another_post(db, receipt):
+@pytest.mark.parametrize("remote", ["SUCCEEDED", "ACCEPTED", "OFFERED", "FAILED"])
+@pytest.mark.parametrize("kind", ["orders.cancel", "orders.failure"])
+def test_signed_terminal_notice_wins_over_get_without_another_post(db, receipt, remote, kind):
     original = inspect(db, receipt, state="ACCEPTED")
     key = uuid4()
-    with transport(lambda r: httpx.Response(200)), pytest.raises(WebhookError, match="HTTP 200"):
-        submit(db, action="cancelar", key=key, reason="ITEM_ISSUE")
-    cancellation_receipt(db)
+    with transport(lambda r: httpx.Response(200, json={})):
+        assert submit(db, action="cancelar", key=key, reason="ITEM_ISSUE")["estado"] == "pendiente_aviso"
+    cancellation_receipt(db, event_type=kind)
     db.expire_all()
     calls = []
-    with transport(lambda r: httpx.Response(200, json=details(state="FAILED", status="COMPLETED")), calls):
+    with transport(lambda r: httpx.Response(200, json=details(state=remote, status="COMPLETED")), calls):
         result = orders.inspect_order(db, UUID(receipt.event_id))
         replay = orders.submit_action(
             db, UUID(ORDER), key, "cancelar", "ITEM_ISSUE", True, original["detalle_sha256"],
         )
-    assert result["pedido"]["state"] == result["estado_remoto"] == "FAILED"
+    assert result["pedido"]["state"] == "FAILED" and result["estado_remoto"] == remote
+    assert result["evento_final"]["tipo"] == kind and not result["acciones_habilitadas"]
     assert result["requiere_conciliacion"] is False
     assert db.query(UberSandboxOrder).one().pending_request_key is None
     assert db.query(UberSandboxAction).one().estado == "conciliada"
@@ -374,13 +380,12 @@ def test_late_failed_order_and_signed_cancellation_reconcile_without_another_pos
 
 @pytest.mark.parametrize("change", [
     "missing", "other-client", "other-store", "other-order", "wrong-type", "old-event", "old-receipt",
-    "in-flight", "acceptance", "wrong-request", "succeeded", "offered",
+    "acceptance", "wrong-request",
 ])
 def test_cancellation_reconciliation_requires_correlated_final_evidence(db, receipt, change):
     inspect(db, receipt, state="ACCEPTED" if change != "acceptance" else "OFFERED")
     action = "aceptar" if change == "acceptance" else "cancelar"
-    status = 500 if action == "aceptar" else 200
-    with transport(lambda r: httpx.Response(status)), pytest.raises(WebhookError):
+    with transport(lambda r: httpx.Response(500)), pytest.raises(WebhookError):
         submit(db, action=action, reason=None if action == "aceptar" else "ITEM_ISSUE")
     command = db.query(UberSandboxAction).one()
     before = command.creado_en.replace(tzinfo=timezone.utc) - timedelta(seconds=1)
@@ -394,17 +399,83 @@ def test_cancellation_reconciliation_requires_correlated_final_evidence(db, rece
             "old-receipt": {"recibido_en": before},
         }.get(change, {})
         cancellation_receipt(db, **overrides)
-    if change == "in-flight":
-        command.estado = "enviando"
-    elif change == "wrong-request":
+    if change == "wrong-request":
         db.query(UberSandboxOrder).one().pending_request_key = str(uuid4())
     db.commit()
-    remote = {"succeeded": "SUCCEEDED", "offered": "OFFERED"}.get(change, "FAILED")
-    result = inspect(db, receipt, state=remote)
-    assert result["pedido"]["state"] == ("OFFERED" if action == "aceptar" else "ACCEPTED")
+    result = inspect(db, receipt, state="FAILED")
+    authoritative = change in {"old-event", "old-receipt", "acceptance", "wrong-request"}
+    assert result["pedido"]["state"] == ("FAILED" if authoritative else "ACCEPTED")
     assert result["requiere_conciliacion"] and not result["acciones_habilitadas"]
-    assert command.estado == ("enviando" if change == "in-flight" else "incierta")
+    assert command.estado == "incierta"
     assert db.query(UberSandboxOrder).one().pending_request_key
+
+
+def test_cancel_ack_remains_pending_after_restart_and_failed_get_without_notice(db, receipt):
+    original = inspect(db, receipt, state="ACCEPTED")
+    key = uuid4()
+    with transport(lambda r: httpx.Response(200, json={})):
+        assert submit(db, "cancelar", key, "OTHER")["estado"] == "pendiente_aviso"
+    db.expire_all()
+    result = inspect(db, receipt, state="FAILED")
+    assert result["requiere_conciliacion"] and not result["acciones_habilitadas"]
+    assert result["pedido"]["state"] == "ACCEPTED" and result["evento_final"] is None
+    with patch.object(orders, "_request") as network:
+        assert orders.submit_action(db, UUID(ORDER), key, "cancelar", "OTHER", True,
+                                    original["detalle_sha256"])["repetida"] is True
+        with pytest.raises(WebhookError, match="sin confirmar"):
+            submit(db, "cancelar", reason="OTHER")
+    network.assert_not_called()
+
+
+@pytest.mark.parametrize("has_snapshot", [True, False])
+def test_signed_terminal_notice_remains_authoritative_when_get_is_unavailable(db, receipt, has_snapshot):
+    if has_snapshot:
+        inspect(db, receipt, state="ACCEPTED")
+    notice = UberSandboxEvent(
+        client_id="fictional-client", store_id=STORE, order_id=ORDER, event_id=str(uuid4()),
+        event_type="orders.cancel", event_time=int(time.time()), fingerprint="1" * 64,
+    )
+    db.add(notice)
+    db.commit()
+    with transport(lambda r: httpx.Response(404)):
+        result = orders.inspect_order(db, UUID(notice.event_id))
+    assert result["pedido"]["state"] == "FAILED" and result["evento_final"]["tipo"] == "orders.cancel"
+    assert result["detalle_disponible"] is False and result["estado_remoto"] is None
+    assert not result["acciones_habilitadas"] and not result["requiere_conciliacion"]
+    assert bool(result["pedido"].get("carts")) == has_snapshot
+    assert db.query(Venta).count() == 0
+
+
+def test_missing_get_without_terminal_notice_is_still_unresolved(db, receipt):
+    with transport(lambda r: httpx.Response(404)), pytest.raises(WebhookError, match="No se pudo consultar"):
+        orders.inspect_order(db, UUID(receipt.event_id))
+    assert db.query(UberSandboxOrder).count() == 0
+
+
+@pytest.mark.parametrize("action", ["aceptar", "listo", "cancelar"])
+@pytest.mark.parametrize("status", [200, 500])
+def test_terminal_notice_during_post_never_resurrects_order_or_resends(db, receipt, action, status):
+    inspect(db, receipt, state="OFFERED" if action == "aceptar" else "ACCEPTED")
+
+    def response(request):
+        cancellation_receipt(db)
+        return httpx.Response(status, json={})
+
+    with transport(response):
+        if action != "cancelar" and status == 500:
+            with pytest.raises(WebhookError):
+                submit(db, action, reason="OTHER" if action == "cancelar" else None)
+        else:
+            result = submit(db, action, reason="OTHER" if action == "cancelar" else None)
+            assert result["estado"] == ("conciliada" if action == "cancelar" else "confirmada")
+    assert db.query(UberSandboxOrder).one().state == "FAILED"
+    assert db.query(UberSandboxAction).one().estado == (
+        "conciliada" if action == "cancelar" else "confirmada" if status == 200 else "incierta")
+    inspected = inspect(db, receipt, state="SUCCEEDED")
+    assert inspected["pedido"]["state"] == "FAILED" and not inspected["acciones_habilitadas"]
+    with patch.object(orders, "_request") as network, pytest.raises(WebhookError):
+        submit(db, action, reason="OTHER" if action == "cancelar" else None)
+    network.assert_not_called()
 
 
 def test_sqlite_inspection_cannot_overwrite_concurrently_confirmed_acceptance(tmp_path, monkeypatch):

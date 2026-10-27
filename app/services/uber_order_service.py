@@ -12,9 +12,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased
 
 from app.core.config import settings
-from app.models.uber_eats import UberSandboxAction, UberSandboxEvent, UberSandboxOrder, UberSandboxStore
+from app.models.uber_eats import PENDING_ORDER_ACTION_STATES, UberSandboxAction, UberSandboxEvent, UberSandboxOrder, UberSandboxStore
 from app.services import uber_eats_service as api
-from app.services.uber_webhook_service import STORE_EVENT_TYPES, WebhookError, sandbox_identity
+from app.services.uber_webhook_service import (
+    STORE_EVENT_TYPES, TERMINAL_ORDER_EVENT_TYPES, WebhookError,
+    apply_terminal_order_notice, sandbox_identity, terminal_order_notice,
+)
 
 MAX_RESPONSE_BYTES = 512 * 1024
 MAX_DETAILS_AGE_SECONDS = 120
@@ -78,14 +81,13 @@ def _request(method: str, order_id: str, payload: dict | None = None, action: st
                         "Uber sandbox response method=%s action=%s http=%s bytes=%s code=%s request_id=%s fields=%s",
                         method, action or "consultar", response.status_code, len(body), code or "-", request_id, ",".join(fields) or "-",
                     )
-                    expected = 204 if action == "cancelar" else 200
-                    if response.status_code != expected:
+                    if response.status_code != 200:
                         raise SandboxRequestError(
                             method == "POST" and not 400 <= response.status_code < 500,
                             response.status_code,
                         )
                     if method == "POST":
-                        if code is not None:
+                        if code is not None or (action == "cancelar" and (not body or data != {})):
                             raise SandboxRequestError(True, response.status_code)
                         return {}
                     if not isinstance(data, dict):
@@ -115,7 +117,7 @@ def attention_orders(db: Session) -> dict:
     pending = db.query(UberSandboxAction.id).filter(
         UberSandboxAction.client_id == client_id, UberSandboxAction.store_id == store_id,
         UberSandboxAction.order_id == UberSandboxEvent.order_id,
-        UberSandboxAction.estado.in_(("enviando", "incierta")),
+        UberSandboxAction.estado.in_(PENDING_ORDER_ACTION_STATES),
     ).exists()
     pending = or_(pending, UberSandboxOrder.pending_request_key.is_not(None))
     ready = db.query(UberSandboxAction.id).filter(
@@ -132,7 +134,7 @@ def attention_orders(db: Session) -> dict:
             and_(change.event_type.not_in(("orders.cancel", "orders.failure")),
                  change.recibido_en > UberSandboxOrder.actualizado_en),
             and_(change.event_type.in_(("orders.cancel", "orders.failure")),
-                 UberSandboxOrder.state.not_in(("FAILED", "SUCCEEDED")))),
+                 or_(change.estado != "consultado", UberSandboxOrder.state != "FAILED"))),
     ).exists()
     kind = case(
         (or_(pending, changed), "verificar"),
@@ -173,7 +175,7 @@ def _unseen_order_change(db: Session, row: UberSandboxOrder) -> bool:
         or_(and_(UberSandboxEvent.event_type.not_in(("orders.cancel", "orders.failure")),
                  UberSandboxEvent.recibido_en > row.actualizado_en),
             and_(UberSandboxEvent.event_type.in_(("orders.cancel", "orders.failure")),
-                 row.state not in {"FAILED", "SUCCEEDED"})),
+                 or_(UberSandboxEvent.estado != "consultado", row.state != "FAILED"))),
     ).first() is not None
 
 
@@ -192,26 +194,36 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
     before = query.first()
     before_revision = before.revision if before else None
     read_started_at = datetime.now(timezone.utc)
+    remote_state = None
+    details_available = True
     try:
         data = _request("GET", event.order_id)
     except SandboxRequestError:
-        raise WebhookError(502, "No se pudo consultar el pedido de pruebas. Intenta de nuevo.") from None
-    order = data.get("order")
-    if not isinstance(order, dict) or not isinstance(order.get("store"), dict):
-        raise WebhookError(502, "Uber no confirmo la identidad del pedido.")
-    try:
-        matches = str(UUID(order.get("id"))) == event.order_id and str(UUID(order["store"].get("id"))) == store_id
-    except (ValueError, TypeError, AttributeError):
-        matches = False
-    if not matches:
-        raise WebhookError(502, "Uber no confirmo la identidad del pedido.")
-    if not isinstance(order.get("state"), str) or len(order["state"]) > 40:
-        raise WebhookError(502, "Uber no confirmo el estado del pedido.")
-    # Omit customers, addresses, phone numbers, payment credentials and support contacts.
-    snapshot = {key: order[key] for key in (
-        "id", "display_id", "state", "status", "carts", "store_instructions",
-    ) if key in order}
-    encoded = json.dumps(snapshot, ensure_ascii=True)
+        if terminal_order_notice(db, client_id, store_id, event.order_id) is None:
+            raise WebhookError(502, "No se pudo consultar el pedido de pruebas. Intenta de nuevo.") from None
+        details_available = False
+    if details_available:
+        order = data.get("order")
+        if not isinstance(order, dict) or not isinstance(order.get("store"), dict):
+            raise WebhookError(502, "Uber no confirmo la identidad del pedido.")
+        try:
+            matches = str(UUID(order.get("id"))) == event.order_id and str(UUID(order["store"].get("id"))) == store_id
+        except (ValueError, TypeError, AttributeError):
+            matches = False
+        if not matches:
+            raise WebhookError(502, "Uber no confirmo la identidad del pedido.")
+        if not isinstance(order.get("state"), str) or len(order["state"]) > 40:
+            raise WebhookError(502, "Uber no confirmo el estado del pedido.")
+        remote_state = order["state"]
+        # Omit customers, addresses, phone numbers, payment credentials and support contacts.
+        snapshot = {key: order[key] for key in (
+            "id", "display_id", "state", "status", "carts", "store_instructions",
+        ) if key in order}
+        encoded = json.dumps(snapshot, ensure_ascii=True)
+    else:
+        encoded = before.snapshot_json if before else json.dumps({"id": event.order_id, "state": "FAILED"})
+    terminal = terminal_order_notice(db, client_id, store_id, event.order_id)
+    effective_state = "FAILED" if terminal else remote_state
     row = query.populate_existing().with_for_update().first()
     created = False
     if row is None:
@@ -219,7 +231,7 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
             with db.begin_nested():
                 row = UberSandboxOrder(
                     client_id=client_id, store_id=store_id, order_id=event.order_id,
-                    state=order["state"], snapshot_json=encoded,
+                    state=effective_state, snapshot_json=encoded,
                     actualizado_en=read_started_at,
                 )
                 db.add(row)
@@ -227,58 +239,47 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
                 created = True
         except IntegrityError:
             row = query.populate_existing().with_for_update().one()
-    pending = db.query(UberSandboxAction).filter_by(
-        client_id=client_id, store_id=store_id, order_id=event.order_id,
-    ).filter(UberSandboxAction.estado.in_(["enviando", "incierta"])).first()
-    rank = {"CREATED": 0, "OFFERED": 0, "ACCEPTED": 1, "HANDED_OFF": 2, "SUCCEEDED": 3, "FAILED": 3}
-    regresses = rank.get(order["state"], -1) < rank.get(row.state, -1) or (
-        row.state in {"FAILED", "SUCCEEDED"} and row.state != order["state"]
-    )
     changed = not created and row.revision != before_revision
-    reconciles = False
-    if (
-        pending is not None and pending.estado == "incierta" and pending.action == "cancelar"
-        and row.pending_request_key == pending.request_key and order["state"] == "FAILED"
-    ):
-        # A late terminal GET plus a signed cancellation can resolve an uncertain
-        # request without treating its HTTP acknowledgement as confirmation.
-        created_at = pending.creado_en.replace(tzinfo=timezone.utc) if pending.creado_en.tzinfo is None else pending.creado_en
-        reconciles = db.query(UberSandboxEvent.id).filter_by(
-            client_id=client_id, store_id=store_id, order_id=event.order_id, event_type="orders.cancel",
-        ).filter(
-            UberSandboxEvent.recibido_en >= created_at,
-            UberSandboxEvent.event_time >= int(created_at.timestamp()),
-        ).first() is not None
-    if (pending is None or reconciles) and not changed and not regresses:
+    if terminal:
+        apply_terminal_order_notice(db, row, terminal)
+    pending = db.query(UberSandboxAction).populate_existing().filter_by(
+        client_id=client_id, store_id=store_id, order_id=event.order_id,
+    ).filter(UberSandboxAction.estado.in_(PENDING_ORDER_ACTION_STATES)).first()
+    rank = {"CREATED": 0, "OFFERED": 0, "ACCEPTED": 1, "HANDED_OFF": 2, "SUCCEEDED": 3, "FAILED": 3}
+    regresses = rank.get(effective_state, -1) < rank.get(row.state, -1) or (
+        row.state in {"FAILED", "SUCCEEDED"} and row.state != effective_state
+    )
+    if pending is None and not changed and not regresses and details_available:
         values = {
-            "state": order["state"], "snapshot_json": encoded,
+            "state": effective_state, "snapshot_json": encoded,
             "actualizado_en": read_started_at, "revision": UberSandboxOrder.revision + 1,
         }
-        if reconciles:
-            values["pending_request_key"] = None
         # SQLite ignores FOR UPDATE; the version predicate must protect this write too.
         refreshed = db.execute(update(UberSandboxOrder).where(
             UberSandboxOrder.id == row.id,
             UberSandboxOrder.revision == row.revision,
-            UberSandboxOrder.pending_request_key == pending.request_key if reconciles else
             UberSandboxOrder.pending_request_key.is_(None),
         ).values(**values).execution_options(synchronize_session=False))
         changed = refreshed.rowcount != 1
-        if reconciles and not changed:
-            pending.estado = "conciliada"
-            pending = None
     db.refresh(row)
     snapshot = json.loads(row.snapshot_json)
     snapshot["state"] = row.state
     snapshot_digest = hashlib.sha256(row.snapshot_json.encode()).hexdigest()
     event.estado = "consultado"
+    if terminal:
+        db.query(UberSandboxEvent).filter_by(
+            client_id=client_id, store_id=store_id, order_id=event.order_id,
+        ).filter(UberSandboxEvent.event_type.in_(TERMINAL_ORDER_EVENT_TYPES),
+                 UberSandboxEvent.id <= terminal.id).update({"estado": "consultado"}, synchronize_session=False)
     db.commit()
     needs_review = _unseen_order_change(db, row)
     return {
         "entorno": "sandbox", "pedido": snapshot,
-        "acciones_habilitadas": settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED and pending is None and not changed and not regresses and not needs_review,
+        "acciones_habilitadas": settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED and terminal is None and pending is None and not changed and not regresses and not needs_review,
         "requiere_conciliacion": pending is not None or regresses or needs_review,
-        "estado_remoto": order["state"],
+        "estado_remoto": remote_state,
+        "evento_final": {"tipo": terminal.event_type, "event_id": terminal.event_id} if terminal else None,
+        "detalle_disponible": details_available,
         "detalle_sha256": snapshot_digest,
         "listo_confirmado": db.query(UberSandboxAction.id).filter_by(
             client_id=client_id, store_id=store_id, order_id=event.order_id, action="listo", estado="confirmada",
@@ -315,13 +316,13 @@ def submit_action(
     if existing:
         if existing.fingerprint != fingerprint:
             raise WebhookError(409, "La clave de la operacion ya tiene otros datos.")
-        if existing.estado in {"confirmada", "conciliada"}:
+        if existing.estado in {"confirmada", "conciliada", "pendiente_aviso"}:
             return {"entorno": "sandbox", "estado": existing.estado, "repetida": True}
         raise WebhookError(409, "Operacion registrada. Revisa su resultado antes de volver a enviarla.")
     if _unseen_order_change(db, row):
         raise WebhookError(409, "Llego un cambio del pedido. Actualiza y revisa su estado antes de continuar.")
     if actions.filter_by(order_id=str(order_id)).filter(
-        UberSandboxAction.estado.in_(["enviando", "incierta"])
+        UberSandboxAction.estado.in_(PENDING_ORDER_ACTION_STATES)
     ).first():
         raise WebhookError(409, "Hay una operacion sin confirmar; no se reenviara automaticamente.")
     if action == "listo" and actions.filter_by(order_id=str(order_id), action="listo", estado="confirmada").first():
@@ -368,18 +369,48 @@ def submit_action(
     try:
         _request("POST", str(order_id), payload, action)
     except SandboxRequestError as exc:
-        command.estado = "incierta" if exc.uncertain else "rechazada"
+        row = _order_query(db, client_id, store_id, str(order_id)).populate_existing().with_for_update().one()
+        db.refresh(command)
+        terminal = terminal_order_notice(db, client_id, store_id, str(order_id))
+        if terminal:
+            apply_terminal_order_notice(db, row, terminal)
+        if command.estado == "conciliada":
+            db.commit()
+            return {"entorno": "sandbox", "estado": "conciliada", "repetida": False}
+        values = {"revision": UberSandboxOrder.revision + 1}
         if not exc.uncertain:
-            row.pending_request_key = None
-        row.revision += 1
+            values["pending_request_key"] = None
+        db.execute(update(UberSandboxOrder).where(
+            UberSandboxOrder.id == row.id, UberSandboxOrder.pending_request_key == str(request_key),
+        ).values(**values).execution_options(synchronize_session=False))
+        db.execute(update(UberSandboxAction).where(
+            UberSandboxAction.id == command.id, UberSandboxAction.estado == "enviando",
+        ).values(estado="incierta" if exc.uncertain else "rechazada").execution_options(synchronize_session=False))
         db.commit()
+        db.refresh(command)
+        if command.estado == "conciliada":
+            return {"entorno": "sandbox", "estado": "conciliada", "repetida": False}
         status = f" (HTTP {exc.status_code})" if exc.status_code is not None else ""
         raise WebhookError(502, f"Uber no confirmo la accion{status}. No se ha reenviado.") from None
-    command.estado = "confirmada"
-    row.state = "ACCEPTED" if action in {"aceptar", "listo"} else "FAILED"
-    row.pending_request_key = None
-    row.revision += 1
-    # Edits received while Uber was confirming must remain unreviewed.
-    row.actualizado_en = action_started_at
+    row = _order_query(db, client_id, store_id, str(order_id)).populate_existing().with_for_update().one()
+    db.refresh(command)
+    terminal = terminal_order_notice(db, client_id, store_id, str(order_id))
+    if terminal:
+        apply_terminal_order_notice(db, row, terminal)
+    values = {"revision": UberSandboxOrder.revision + 1, "actualizado_en": action_started_at}
+    if action != "cancelar":
+        # Preserve a terminal callback committed after the last read, including on SQLite.
+        values["state"] = case(
+            (UberSandboxOrder.state == "FAILED", "FAILED"),
+            else_="FAILED" if terminal or action == "rechazar" else "ACCEPTED",
+        )
+        values["pending_request_key"] = None
+    db.execute(update(UberSandboxOrder).where(
+        UberSandboxOrder.id == row.id, UberSandboxOrder.pending_request_key == str(request_key),
+    ).values(**values).execution_options(synchronize_session=False))
+    db.execute(update(UberSandboxAction).where(
+        UberSandboxAction.id == command.id, UberSandboxAction.estado == "enviando",
+    ).values(estado="pendiente_aviso" if action == "cancelar" else "confirmada").execution_options(synchronize_session=False))
     db.commit()
-    return {"entorno": "sandbox", "estado": "confirmada", "repetida": False}
+    db.refresh(command)
+    return {"entorno": "sandbox", "estado": command.estado, "repetida": False}

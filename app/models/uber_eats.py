@@ -7,6 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 
+PENDING_ORDER_ACTION_STATES = ("enviando", "incierta", "pendiente_aviso")
+
 
 class UberSandboxEvent(Base):
     __tablename__ = "uber_sandbox_events"

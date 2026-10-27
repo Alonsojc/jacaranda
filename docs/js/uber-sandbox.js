@@ -91,12 +91,17 @@
       var data = await window.api('POST', '/uber-eats/sandbox/eventos/' + encodeURIComponent(eventId) + '/consultar', {}, false, null, null, {silenciosa: true});
       if (current !== generation || !allowed()) return;
       selected = data;
-      el('uber-sandbox-pedido-titulo').textContent = 'Prueba ' + (data.pedido.display_id || data.pedido.id) + ' - ' + data.pedido.state;
+      el('uber-sandbox-pedido-titulo').textContent = 'Prueba ' + (data.pedido.display_id || data.pedido.id) + ' - ' +
+        (data.evento_final ? (data.evento_final.tipo === 'orders.cancel' ? 'Cancelado' : 'Finalizado por Uber') +
+          ' - aviso firmado de Uber' : data.pedido.state);
       el('uber-sandbox-instrucciones').textContent = data.pedido.store_instructions || 'Sin instrucciones generales.';
       el('uber-sandbox-detalle').textContent = JSON.stringify(data.pedido, null, 2);
       el('uber-sandbox-revisado').checked = false;
       el('uber-sandbox-pedido').hidden = false;
-      status(data.requiere_conciliacion ? 'Operacion sin confirmar. No se reenviara automaticamente.' :
+      status(data.evento_final ? 'No preparar ni entregar. Aviso firmado de Uber confirmado.' +
+        (data.detalle_disponible === false ? ' El detalle actualizado no esta disponible.' : '') +
+        (data.requiere_conciliacion ? ' Queda una operacion por conciliar; no se reenviara.' : '') :
+        data.requiere_conciliacion ? 'Operacion sin confirmar. No se reenviara automaticamente.' :
         (data.acciones_habilitadas ? 'Pedido de prueba pendiente de revision.' : 'Acciones de pruebas deshabilitadas.'));
     } catch (error) {
       if (current === generation) status(error.message || 'No se pudo consultar el pedido.');
@@ -121,8 +126,11 @@
     controls();
     status('Enviando accion de prueba...');
     try {
-      await window.api('POST', '/uber-eats/sandbox/pedidos/' + encodeURIComponent(orderId) + '/accion', data, false, null, null, {silenciosa: true});
-      if (current === generation) status('Accion de prueba confirmada por Uber. Actualiza el pedido antes de otra accion.');
+      var result = await window.api('POST', '/uber-eats/sandbox/pedidos/' + encodeURIComponent(orderId) + '/accion', data, false, null, null, {silenciosa: true});
+      if (current === generation) status(result.estado === 'pendiente_aviso' ?
+        'Uber recibio la solicitud de cancelacion. Falta el aviso firmado; no se reenviara.' :
+        result.estado === 'conciliada' ? 'Cancelacion confirmada por aviso firmado de Uber. No preparar ni entregar.' :
+        'Accion de prueba confirmada por Uber. Actualiza el pedido antes de otra accion.');
     } catch (error) {
       if (current === generation) status(error.message || 'Resultado sin confirmar. Revisa el pedido antes de otra accion.');
     } finally {

@@ -146,8 +146,8 @@
   function render(data) {
     var order = data.pedido;
     el('order-title').textContent = 'Pedido ' + (order.display_id || order.id.slice(0, 8));
-    el('order-state').textContent = order.state + (data.estado_remoto && data.estado_remoto !== order.state ?
-      ' (Uber: ' + data.estado_remoto + ')' : '');
+    el('order-state').textContent = data.evento_final ?
+      (data.evento_final.tipo === 'orders.cancel' ? 'Cancelado' : 'Finalizado por Uber') + ' - aviso firmado de Uber' : order.state;
     el('instructions').textContent = order.store_instructions || 'Sin instrucciones generales';
     el('raw-detail').textContent = JSON.stringify(order, null, 2);
     el('items').replaceChildren();
@@ -178,7 +178,10 @@
       var data = await api('/api/v1/uber-eats/sandbox/eventos/' + encodeURIComponent(id) + '/consultar', 'POST', {});
       if (current !== generation) return;
       selected = data; render(data);
-      status(data.requiere_conciliacion ? 'Resultado pendiente de confirmar. No se reenviara la accion.' :
+      status(data.evento_final ? 'No preparar ni entregar. Aviso firmado de Uber confirmado.' +
+        (data.detalle_disponible === false ? ' El detalle actualizado no esta disponible.' : '') +
+        (data.requiere_conciliacion ? ' Queda una operacion por conciliar; no se reenviara.' : '') :
+        data.requiere_conciliacion ? 'Resultado pendiente de confirmar. No se reenviara la accion.' :
         (data.acciones_habilitadas ? 'Pedido de Sandbox actualizado' : 'Acciones de Sandbox deshabilitadas'));
     } catch (error) { if (current === generation) status(error.message || 'No se pudo consultar el pedido.', true); }
     finally { if (current === generation) { busy = false; controls(); } }
@@ -200,11 +203,14 @@
     if (!confirmed) { busy = false; controls(); return; }
     try {
       status('Enviando accion de Sandbox...');
-      await api('/api/v1/uber-eats/sandbox/pedidos/' + encodeURIComponent(orderId) + '/accion', 'POST', {
+      var result = await api('/api/v1/uber-eats/sandbox/pedidos/' + encodeURIComponent(orderId) + '/accion', 'POST', {
         request_key: window.crypto.randomUUID(), accion: name, motivo: name === 'aceptar' || name === 'listo' ? null : reason,
         instrucciones_revisadas: reviewed, detalle_sha256: digest
       });
-      if (current === generation) status('Uber recibio la solicitud de Sandbox. Actualiza para verificar el estado.');
+      if (current === generation) status(result.estado === 'pendiente_aviso' ?
+        'Uber recibio la solicitud de cancelacion. Falta el aviso firmado; no se reenviara.' :
+        result.estado === 'conciliada' ? 'Cancelacion confirmada por aviso firmado de Uber. No preparar ni entregar.' :
+        'Uber recibio la solicitud de Sandbox. Actualiza para verificar el estado.');
     } catch (error) { if (current === generation) status(error.message || 'Resultado sin confirmar. No se reenviara la accion.', true); }
     finally { if (current === generation) { if (selected) selected.acciones_habilitadas = false; busy = false; controls(); attention.refresh(); } }
   }

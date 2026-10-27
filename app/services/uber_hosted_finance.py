@@ -12,7 +12,7 @@ from uuid import UUID, uuid5, NAMESPACE_URL
 from sqlalchemy.orm import Session
 
 from app.models.inventario import Ingrediente, MovimientoInventario, Producto
-from app.models.uber_eats import UberSandboxAction, UberSandboxEvent
+from app.models.uber_eats import PENDING_ORDER_ACTION_STATES, UberSandboxAction, UberSandboxEvent
 from app.models.venta import Venta
 from app.services import uber_finance_storage as storage
 from app.services import uber_order_service as orders
@@ -36,7 +36,7 @@ def sale_for(db: Session, order_id: str):
 def pending_action(db: Session, order_id: str):
     return db.query(UberSandboxAction.id).filter_by(client_id=pos.TEST_CLIENT_ID, store_id=pos.TEST_STORE_ID,
                                                    order_id=order_id).filter(
-        UberSandboxAction.estado.in_(("enviando", "incierta")),
+        UberSandboxAction.estado.in_(PENDING_ORDER_ACTION_STATES),
     ).first() is not None
 
 

@@ -23,6 +23,16 @@ ni acredita que se haya probado ya en un iPad fisico.
 Estas pruebas de navegador usan datos ficticios y no certifican el audio,
 las restricciones de Safari o el comportamiento de un iPad concreto.
 
+## Aclaracion de cancelaciones (27-oct)
+
+Uber confirmo que HTTP 200 `{}` es el acuse de la solicitud de cancelacion y que
+el aviso firmado `orders.cancel` es la confirmacion autoritativa, incluso si el
+GET mantiene `SUCCEEDED`. El codigo de Sandbox incorpora espera de aviso,
+deduplicacion y bloqueo de preparacion/entrega sin exigir GET `FAILED` ni un
+segundo evento `orders.failure`. No cambia el resultado historico del 25-oct.
+Las pruebas automatizadas usan fixtures; no acreditan otra compra UBER_TEST ni
+la prueba fisica de Safari. No se crea ni conecta una aplicacion de produccion.
+
 ## Prueba fisica pendiente
 
 1. Anotar modelo de iPad, version de iPadOS y si se usa Safari o acceso desde
@@ -49,6 +59,10 @@ las restricciones de Safari o el comportamiento de un iPad concreto.
    el estado del sonido antes de seguir. No prometer audio ni ejecucion continua
    mientras Safari esta suspendido. Conservar evidencia y marcar cada paso como
    aprobado, fallido o no probado.
+9. En un pedido exclusivamente TEST, cancelar una vez. El acuse debe indicar
+   espera de aviso; el aviso firmado debe bloquear preparacion/entrega y quedar
+   visible hasta revisarlo, incluso con GET `SUCCEEDED`. No reenviar la accion
+   ni reponer inventario o registrar efectivo automaticamente.
 
 ## Antes de cualquier uso real
 

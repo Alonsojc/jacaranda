@@ -101,7 +101,7 @@ def test_unsigned_unknown_order_cannot_be_queried(financial):
     assert calls == []
 
 
-@pytest.mark.parametrize("state", ["enviando", "incierta"])
+@pytest.mark.parametrize("state", ["enviando", "incierta", "pendiente_aviso"])
 @pytest.mark.parametrize("settled", [False, True])
 def test_pending_uber_action_blocks_ticket_and_moves_finances_to_review_without_writes(financial, state, settled):
     db, payload, _ = financial

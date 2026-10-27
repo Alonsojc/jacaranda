@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import time
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
@@ -15,7 +16,7 @@ from sqlalchemy.exc import OperationalError
 from app.core.config import settings
 from app.core.dependencies import get_current_user
 from app.models.inventario import Producto
-from app.models.uber_eats import UberSandboxEvent
+from app.models.uber_eats import UberSandboxAction, UberSandboxEvent, UberSandboxOrder
 from app.models.usuario import Usuario, RolUsuario
 from app.models.venta import Venta
 from app.services import uber_webhook_service as inbox
@@ -86,6 +87,50 @@ def test_replays_do_not_insert_twice_even_if_json_format_changes(client, db):
     assert send(client, payload).status_code == 200
     assert send(client, json.dumps(payload, indent=4).encode()).status_code == 200
     assert db.query(UberSandboxEvent).count() == 1
+
+
+@pytest.mark.parametrize("kind", ["orders.cancel", "orders.failure"])
+@pytest.mark.parametrize("state", ["ACCEPTED", "SUCCEEDED"])
+def test_signed_terminal_notice_stops_fulfillment_without_business_mutations(client, db, kind, state, monkeypatch):
+    monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_ACTIONS_ENABLED", True)
+    row = UberSandboxOrder(client_id="fictional-client", store_id=STORE, order_id=ORDER,
+                           state=state, snapshot_json='{"carts":[]}', revision=4,
+                           actualizado_en=datetime.now(timezone.utc))
+    product = Producto(codigo="CANCEL-SYNTH", nombre="Fixture", precio_unitario=10, stock_actual=7)
+    db.add_all([row, product])
+    db.commit()
+    payload = event(event_type=kind)
+    with patch("httpx.Client") as network:
+        assert send(client, payload).status_code == 200
+        assert send(client, payload).status_code == 200
+    network.assert_not_called()
+    db.refresh(row)
+    assert row.state == "FAILED" and row.revision == 5
+    assert db.query(UberSandboxEvent).one().estado == "recibido"
+    assert db.query(Venta).count() == 0 and db.get(Producto, product.id).stock_actual == 7
+
+
+@pytest.mark.parametrize("pending_state", ["enviando", "incierta", "pendiente_aviso"])
+def test_terminal_notice_reconciles_only_the_scoped_pending_cancel(client, db, pending_state, monkeypatch):
+    monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_ACTIONS_ENABLED", True)
+    key = str(uuid4())
+    created = datetime.fromtimestamp(REFERENCE_TIME, timezone.utc) - timedelta(seconds=5)
+    row = UberSandboxOrder(client_id="fictional-client", store_id=STORE, order_id=ORDER,
+                           state="ACCEPTED", snapshot_json="{}", pending_request_key=key, actualizado_en=created)
+    command = UberSandboxAction(client_id="fictional-client", store_id=STORE, order_id=ORDER,
+                                request_key=key, action="cancelar", estado=pending_state,
+                                fingerprint="1" * 64, creado_en=created)
+    db.add_all([row, command])
+    db.commit()
+    payload = event(event_type="orders.cancel")
+    body, headers = signed(payload)
+    assert client.post(PATH, content=body, headers={**headers, "X-Uber-Signature": "0" * 64}).status_code == 401
+    db.refresh(row)
+    assert row.state == "ACCEPTED" and row.pending_request_key == key
+    assert send(client, payload).status_code == 200
+    db.refresh(row)
+    db.refresh(command)
+    assert row.state == "FAILED" and row.pending_request_key is None and command.estado == "conciliada"
 
 
 def test_conflicting_event_identity_cannot_overwrite_receipt(client, db):

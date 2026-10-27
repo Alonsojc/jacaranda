@@ -111,8 +111,8 @@ def test_complete_signed_receipt_details_action_and_replay_use_sandbox_only(mana
         assert request.url.host == "test-api.uber.com"
         assert request.url.path.startswith("/v1/delivery/order/" + order_id)
         if request.method == "POST":
-            state = expected
-            return httpx.Response(204 if action == "cancelar" else 200)
+            state = "SUCCEEDED" if action == "cancelar" else expected
+            return httpx.Response(200, json={})
         return httpx.Response(200, json={"order": {
             "id": order_id, "display_id": "SANDBOX", "state": state, "store": {"id": runtime.TEST_STORE_ID},
             "store_instructions": "Prueba: alergia a nueces",
@@ -141,12 +141,21 @@ def test_complete_signed_receipt_details_action_and_replay_use_sandbox_only(mana
             assert client.post(target, json=command, headers=AUTH).status_code == 200
             repeat = client.post(target, json=command, headers=AUTH)
             assert repeat.status_code == 200 and repeat.json()["repetida"]
+            if action == "cancelar":
+                assert repeat.json()["estado"] == "pendiente_aviso"
+                pending = client.post(path, headers=AUTH, json={}).json()
+                assert pending["requiere_conciliacion"] and not pending["acciones_habilitadas"]
+                assert pending["estado_remoto"] == "SUCCEEDED" and pending["pedido"]["state"] == "ACCEPTED"
+                cancel = {**event, "event_id": str(uuid4()), "event_type": "orders.cancel", "event_time": int(time.time())}
+                raw = json.dumps(cancel).encode()
+                signature = hmac.new(SECRET.encode(), raw, hashlib.sha256).hexdigest()
+                assert client.post(runtime.WEBHOOK_PATH, content=raw, headers={"X-Uber-Signature": signature}).status_code == 200
             assert client.post(path, headers=AUTH, json={}).json()["pedido"]["state"] == expected
     assert len([call for call in calls if call[0] == "POST" and call[1] == "test-api.uber.com"]) == 1
     with sessions() as db:
-        assert db.query(UberSandboxEvent).count() == 1
+        assert db.query(UberSandboxEvent).count() == (2 if action == "cancelar" else 1)
         assert db.query(UberSandboxOrder).one().state == expected
-        assert db.query(UberSandboxAction).one().estado == "confirmada"
+        assert db.query(UberSandboxAction).one().estado == ("conciliada" if action == "cancelar" else "confirmada")
     assert set(inspect(engine).get_table_names()) == {model.__tablename__ for model in runtime.MODELS}
 
 

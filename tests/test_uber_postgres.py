@@ -156,7 +156,9 @@ def test_attention_queries_group_orders_and_preserve_unresolved_changes(pg_sessi
             assert data["pedidos"][0]["pedido_id"] == ORDER
 
 
-def test_concurrent_terminal_reads_reconcile_one_uncertain_cancellation(pg_sessions, monkeypatch):
+@pytest.mark.parametrize("pending_state", ["incierta", "pendiente_aviso"])
+@pytest.mark.parametrize("remote", ["FAILED", "SUCCEEDED"])
+def test_concurrent_terminal_reads_reconcile_one_cancellation(pg_sessions, monkeypatch, pending_state, remote):
     event_id, request_key = str(uuid4()), str(uuid4())
     created = datetime.now(timezone.utc) - timedelta(seconds=2)
     with pg_sessions() as db:
@@ -167,7 +169,7 @@ def test_concurrent_terminal_reads_reconcile_one_uncertain_cancellation(pg_sessi
         ))
         db.add(UberSandboxAction(
             client_id="fictional-client", store_id=STORE, order_id=ORDER, request_key=request_key,
-            fingerprint="0" * 64, action="cancelar", estado="incierta", creado_en=created,
+            fingerprint="0" * 64, action="cancelar", estado=pending_state, creado_en=created,
         ))
         db.add(UberSandboxEvent(
             client_id="fictional-client", store_id=STORE, order_id=ORDER, event_id=event_id,
@@ -181,7 +183,7 @@ def test_concurrent_terminal_reads_reconcile_one_uncertain_cancellation(pg_sessi
         calls.append(method)
         assert method == "GET"
         barrier.wait(timeout=10)
-        return {"order": {"id": ORDER, "store": {"id": STORE}, "state": "FAILED", "status": "COMPLETED"}}
+        return {"order": {"id": ORDER, "store": {"id": STORE}, "state": remote, "status": "COMPLETED"}}
 
     monkeypatch.setattr(orders, "_request", network)
 
@@ -197,6 +199,42 @@ def test_concurrent_terminal_reads_reconcile_one_uncertain_cancellation(pg_sessi
     with pg_sessions() as db:
         assert db.query(UberSandboxAction).one().estado == "conciliada"
         assert db.query(UberSandboxOrder).one().pending_request_key is None
+
+
+@pytest.mark.parametrize("action", ["aceptar", "listo", "cancelar"])
+def test_signed_callback_during_post_preserves_terminal_state_across_sessions(pg_sessions, monkeypatch, action):
+    snapshot = json.dumps({"carts": [{"items": [{"id": "fixture", "title": "Ficticio", "quantity": {"amount": 1}}]}]})
+    with pg_sessions() as db:
+        db.add(UberSandboxOrder(
+            client_id="fictional-client", store_id=STORE, order_id=ORDER,
+            state="OFFERED" if action == "aceptar" else "ACCEPTED", snapshot_json=snapshot,
+            actualizado_en=datetime.now(timezone.utc),
+        ))
+        db.commit()
+    calls = []
+
+    def network(method, order_id, payload=None, action=None):
+        calls.append((method, action))
+        raw = json.dumps({
+            "event_id": str(uuid4()), "event_type": "orders.cancel", "event_time": int(time.time()),
+            "meta": {"user_id": STORE, "resource_id": ORDER},
+        }).encode()
+        signature = hmac.new(b"synthetic-pg-secret", raw, hashlib.sha256).hexdigest()
+        with pg_sessions() as callback:
+            assert inbox.receive_event(callback, raw, signature)
+        return {}
+
+    monkeypatch.setattr(orders, "_request", network)
+    with pg_sessions() as db:
+        result = orders.submit_action(db, UUID(ORDER), uuid4(), action,
+                                      "OTHER" if action == "cancelar" else None, True,
+                                      hashlib.sha256(snapshot.encode()).hexdigest())
+    assert result["estado"] == ("conciliada" if action == "cancelar" else "confirmada")
+    assert calls == [("POST", action)]
+    with pg_sessions() as db:
+        row = db.query(UberSandboxOrder).one()
+        assert row.state == "FAILED" and row.pending_request_key is None
+        assert orders.attention_orders(db)["conteos"]["verificar"] == 1
 
 
 def test_real_postgres_capture_restores_only_into_owned_synthetic_database(pg_sessions, monkeypatch, tmp_path):

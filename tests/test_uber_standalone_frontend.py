@@ -29,15 +29,17 @@ const elements={},el=id=>elements[id]??=new Element(),calls=[];
 const store={nombre:'Jacaranda Sandbox',tienda_id:'test-store',revision:1,estado:'ONLINE',revocada:false,
  integracion:{integration_enabled:true},requiere_conciliacion:false,menu_publicado:true,cuenta_autorizada:false,
  items:[{id:'jacaranda-sandbox-brownie',precio_centavos:100,agotado:false}]};
-let delayed=null,unauthorized=false;
+let delayed=null,unauthorized=false,orderDetail=null;
 const window={crypto:{randomUUID:()=> 'synthetic-request'},setTimeout:()=>1,clearTimeout:()=>{},setInterval:()=>{},addEventListener:()=>{},
  fetch:async(path,options)=>{
   calls.push({path,options});let data={};
   if(unauthorized)return {ok:false,status:401,json:async()=>({detail:'Acceso privado requerido'})};
   if(path.endsWith('/tienda'))data=delayed?await delayed:structuredClone(store);
+  else if(path.endsWith('/consultar'))data=structuredClone(orderDetail);
+  else if(path.includes('/pedidos/')&&path.endsWith('/accion'))data={estado:'pendiente_aviso'};
   else if(path.endsWith('/menu-ficticio'))data={menu:{items:[{id:'jacaranda-sandbox-brownie',title:{translations:{es_mx:'<script>fixture</script>'}},price_info:{price:100}}]}};
   else if(path.endsWith('/atencion'))data={entorno:'sandbox',total:0,conteos:{nuevo:0,verificar:0,preparacion:0,programado:0},pedidos:[]};
-  else if(path.includes('/eventos'))data={eventos:[],procesamiento:[]};
+  else if(path.includes('/eventos'))data={eventos:orderDetail?[{id:1,event_id:'fixture-event',pedido_id:'fixture-order',tipo:'orders.notification',estado:'recibido',recibido_en:'2026-10-27T18:00:00Z'}]:[],procesamiento:[]};
   return {ok:true,json:async()=>data};
  }};
 const document={getElementById:el,createElement:()=>new Element(),querySelectorAll:()=>[],hidden:false,addEventListener:()=>{}};
@@ -55,6 +57,19 @@ const flush=async()=>{for(let i=0;i<8;i++)await new Promise(setImmediate);};
  assert.equal(calls.filter(x=>x.path.endsWith('/accion')).length,1);
  const sent=JSON.parse(calls.find(x=>x.path.endsWith('/accion')).options.body);
  assert.equal(sent.accion,'menu_publicar');assert(sent.solo_sandbox_confirmado);
+ orderDetail={pedido:{id:'fixture-order',state:'ACCEPTED',carts:[]},detalle_sha256:'a'.repeat(64),acciones_habilitadas:true,requiere_conciliacion:false};
+ await el('tab-orders').fire('click');await el('inbox-history').fire('click');await flush();
+ await el('events').children[0].fire('click');await flush();assert(!el('cancel').disabled);
+ el('reason').value='OTHER';await el('cancel').fire('click');await flush();
+ await el('confirm-dialog').close('confirm');await flush();
+ assert(el('status').textContent.includes('Falta el aviso firmado'));assert(el('cancel').disabled);
+ orderDetail.pedido.state='FAILED';orderDetail.evento_final={tipo:'orders.cancel'};
+ orderDetail.estado_remoto='SUCCEEDED';orderDetail.acciones_habilitadas=false;orderDetail.detalle_disponible=false;
+ await el('reload-order').fire('click');await flush();
+ assert.equal(el('order-state').textContent,'Cancelado - aviso firmado de Uber');
+ assert(el('status').textContent.includes('No preparar ni entregar'));
+ assert(el('status').textContent.includes('detalle actualizado no esta disponible'));
+ assert(el('accept').disabled&&el('ready').disabled&&el('cancel').disabled);
  let resolve;delayed=new Promise(r=>resolve=r);await el('tab-menu').fire('click');await flush();
  await el('logout').fire('click');const count=calls.length;resolve(store);await flush();
  assert.equal(calls.length,count);assert(el('workspace').hidden);assert.equal(el('store-summary').children.length,0);

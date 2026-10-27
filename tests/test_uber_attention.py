@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 from uuid import UUID, uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app import uber_sandbox_runtime as runtime
@@ -77,7 +78,7 @@ def test_attention_counts_full_queue_but_returns_a_bounded_list(management):
         assert data["total"] == 110 and len(data["pedidos"]) == 100
 
 
-def test_attention_uses_event_time_and_retains_cancellation_until_canonical_resolution(management):
+def test_attention_uses_event_time_and_retains_cancellation_until_reviewed(management):
     with TestClient(runtime.app) as client:
         event = notify(client, timestamp=int(time.time()) - 20)
         order_id = event["meta"]["resource_id"]
@@ -95,10 +96,15 @@ def test_attention_uses_event_time_and_retains_cancellation_until_canonical_reso
             row.state = "FAILED"
             row.actualizado_en = datetime.now(timezone.utc)
             db.commit()
+        assert client.get(BASE + "/atencion", headers=AUTH).json()["total"] == 1
+        with management[1]() as db:
+            db.query(UberSandboxEvent).filter_by(event_id=cancel["event_id"]).update({"estado": "consultado"})
+            db.commit()
         assert client.get(BASE + "/atencion", headers=AUTH).json()["total"] == 0
 
 
-def test_attention_keeps_uncertain_commands_and_hides_resolved_orders(management):
+@pytest.mark.parametrize("pending_state", ["enviando", "incierta", "pendiente_aviso"])
+def test_attention_keeps_uncertain_commands_and_hides_resolved_orders(management, pending_state):
     with TestClient(runtime.app) as client:
         completed = notify(client)
         preparing = notify(client)
@@ -110,7 +116,7 @@ def test_attention_keeps_uncertain_commands_and_hides_resolved_orders(management
             save_order(db, preparing, "ACCEPTED")
             ready_row = save_order(db, ready, "ACCEPTED")
             uncertain_row = save_order(db, uncertain, "SUCCEEDED")
-            for row, action, state in ((ready_row, "listo", "confirmada"), (uncertain_row, "cancelar", "incierta")):
+            for row, action, state in ((ready_row, "listo", "confirmada"), (uncertain_row, "cancelar", pending_state)):
                 db.add(UberSandboxAction(
                     client_id=runtime.TEST_APPLICATION_ID, store_id=runtime.TEST_STORE_ID,
                     order_id=row.order_id, request_key=str(uuid4()), fingerprint="synthetic",
