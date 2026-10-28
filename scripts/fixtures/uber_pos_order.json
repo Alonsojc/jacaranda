@@ -1,0 +1,53 @@
+{
+  "order": {
+    "id": "6bb26a4a-0c21-4554-8d94-cbf248884bdb",
+    "display_id": "ENSAYO",
+    "state": "ACCEPTED",
+    "store": {"id": "b412bb20-cf36-4ada-ba77-fdda96ce8a9e"},
+    "store_instructions": "UBER_TEST. No preparar alimentos ni entregar.",
+    "carts": [{
+      "id": "cart-fixture-only",
+      "special_instructions": "Revisar etiqueta de prueba.",
+      "items": [
+        {"id": "jacaranda-sandbox-brownie", "cart_item_id": "brownie-line",
+         "title": "Brownie ficticio de prueba", "quantity": {"amount": 2, "unit": "PIECE"},
+         "customer_request": {"allergy": "Sin nueces", "special_instructions": "Mantener esta instruccion completa."}},
+        {"id": "jacaranda-sandbox-cookie", "cart_item_id": "cookie-line",
+         "title": "Galleta ficticia de prueba", "quantity": {"amount": 1, "unit": "PIECE"}}
+      ]
+    }],
+    "payment": {"payment_detail": {
+      "currency_code": "MXN",
+      "order_total": {
+        "net": {"amount_e5": 400000, "currency_code": "MXN"},
+        "tax": {"amount_e5": 0, "currency_code": "MXN"},
+        "gross": {"amount_e5": 400000, "currency_code": "MXN"}
+      },
+      "item_charges": {
+        "total": {
+          "net": {"amount_e5": 400000, "currency_code": "MXN"},
+          "tax": {"amount_e5": 0, "currency_code": "MXN"},
+          "gross": {"amount_e5": 400000, "currency_code": "MXN"}
+        },
+        "price_breakdown": [
+          {"cart_item_id": "brownie-line", "price_type": "ITEM", "quantity": {"amount": 2, "unit": "PIECE"},
+           "total": {"gross": {"amount_e5": 200000, "currency_code": "MXN"}},
+           "unit": {"gross": {"amount_e5": 100000, "currency_code": "MXN"}}},
+          {"cart_item_id": "cookie-line", "price_type": "ITEM", "quantity": {"amount": 1, "unit": "PIECE"},
+           "total": {"gross": {"amount_e5": 200000, "currency_code": "MXN"}},
+           "unit": {"gross": {"amount_e5": 200000, "currency_code": "MXN"}}}
+        ]
+      },
+      "fees": {"total": {
+        "net": {"amount_e5": 0, "currency_code": "MXN"},
+        "tax": {"amount_e5": 0, "currency_code": "MXN"},
+        "gross": {"amount_e5": 0, "currency_code": "MXN"}
+      }},
+      "promotions": {"total": {
+        "net": {"amount_e5": 0, "currency_code": "MXN"},
+        "tax": {"amount_e5": 0, "currency_code": "MXN"},
+        "gross": {"amount_e5": 0, "currency_code": "MXN"}
+      }}
+    }}
+  }
+}

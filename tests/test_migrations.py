@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "94c2a8e1d605 (head)"
+ALEMBIC_HEAD = "a6d4e2f8b901 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:
@@ -42,6 +42,7 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path):
         security_columns = {row[1] for row in conn.execute("PRAGMA table_info(configuracion_seguridad)")}
         cafeteria_columns = {row[1] for row in conn.execute("PRAGMA table_info(cafeteria_ventas)")}
         pago_cafeteria_columns = {row[1] for row in conn.execute("PRAGMA table_info(pagos_cafeteria_venta)")}
+        sandbox_columns = {row[1] for row in conn.execute("PRAGMA table_info(uber_sandbox_orders)")}
     finally:
         conn.close()
 
@@ -56,6 +57,7 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path):
     assert {"retiros", "fondo_entregado", "recibido_por"}.issubset(corte_columns)
     assert "fecha_entrega" in cafeteria_columns
     assert "idempotency_key" in pago_cafeteria_columns
+    assert {"revision", "pending_request_key", "snapshot_json"}.issubset(sandbox_columns)
 
 
 def test_alembic_upgrade_head_on_precreated_schema(tmp_path):

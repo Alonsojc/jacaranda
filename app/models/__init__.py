@@ -68,4 +68,8 @@ from app.models.pago_online import (  # noqa: F401
     PagoOnline, EstadoPago, ConektaWebhookEvent, ClipWebhookEvent,
 )
 from app.models.whatsapp import WhatsAppWebhookEvent  # noqa: F401
+from app.models.uber_eats import (  # noqa: F401
+    UberSandboxEvent, UberSandboxOrder, UberSandboxAction,
+    UberSandboxStore, UberSandboxStoreAction, UberSandboxStoreJob,
+)
 from app.models.notificacion import FCMToken  # noqa: F401
