@@ -417,16 +417,19 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
     ingresos_netos = ingresos_brutos - iva_cobrado
 
     # Aggregate in SQL: report latency must not grow by one round trip per line.
-    costo_mostrador = db.query(func.coalesce(func.sum(
+    sin_costo = or_(Producto.costo_produccion.is_(None), Producto.costo_produccion <= 0)
+    costo_mostrador, lineas_mostrador, faltantes_mostrador = db.query(func.coalesce(func.sum(
         DetalleVenta.cantidad * Producto.costo_produccion,
-    ), 0)).select_from(DetalleVenta).join(Venta, Venta.id == DetalleVenta.venta_id).join(
+    ), 0), func.count(DetalleVenta.id), func.coalesce(func.sum(case((sin_costo, 1), else_=0)), 0)
+    ).select_from(DetalleVenta).join(Venta, Venta.id == DetalleVenta.venta_id).outerjoin(
         Producto, Producto.id == DetalleVenta.producto_id,
-    ).filter(filtro_ventas).scalar()
-    costo_cafe = db.query(func.coalesce(func.sum(
+    ).filter(filtro_ventas).one()
+    costo_cafe, lineas_cafe, faltantes_cafe = db.query(func.coalesce(func.sum(
         DetalleCafeteriaVenta.cantidad * Producto.costo_produccion,
-    ), 0)).select_from(DetalleCafeteriaVenta).join(
+    ), 0), func.count(DetalleCafeteriaVenta.id), func.coalesce(func.sum(case((sin_costo, 1), else_=0)), 0)
+    ).select_from(DetalleCafeteriaVenta).join(
         CafeteriaVenta, CafeteriaVenta.id == DetalleCafeteriaVenta.venta_id,
-    ).join(Producto, Producto.id == DetalleCafeteriaVenta.producto_id).filter(filtro_cafe).scalar()
+    ).outerjoin(Producto, Producto.id == DetalleCafeteriaVenta.producto_id).filter(filtro_cafe).one()
     costo_ventas = costo_mostrador + costo_cafe
 
     utilidad_bruta = ingresos_netos - costo_ventas
@@ -451,6 +454,9 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
             Egreso.fecha <= fecha_fin,
         )
     ).all()
+    total_recurrentes = total_gastos_op
+    categorias: dict[str, Decimal] = {}
+    proveedores: dict[str, Decimal] = {}
     for egreso in egresos:
         monto = egreso.monto or ZERO
         concepto = egreso.concepto
@@ -458,6 +464,10 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
             gastos_desglose_decimal.get(concepto, ZERO) + monto
         )
         total_gastos_op += monto
+        categorias[egreso.categoria] = categorias.get(egreso.categoria, ZERO) + monto
+        proveedor = egreso.proveedor or "Sin proveedor"
+        proveedores[proveedor] = proveedores.get(proveedor, ZERO) + monto
+    total_egresos = total_gastos_op - total_recurrentes
 
     # Nómina en el periodo
     nominas = db.query(RegistroNomina).filter(
@@ -509,6 +519,18 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
         concepto: float(monto)
         for concepto, monto in gastos_desglose_decimal.items()
     }
+    notas = ["El costo de ventas usa el costo actual del catálogo; no es un costo histórico congelado."]
+    faltantes = faltantes_mostrador + faltantes_cafe
+    if faltantes:
+        notas.append(f"{faltantes} líneas vendidas no tienen costo positivo registrado. La utilidad puede estar sobreestimada.")
+    if total_recurrentes:
+        notas.append("Los recurrentes son estimaciones prorrateadas, no pagos confirmados. Revisar coincidencias con los egresos capturados.")
+    if total_nomina and categorias.get("nomina", ZERO):
+        notas.append("Hay nómina registrada y egresos de nómina en el periodo; verificar que no correspondan al mismo pago.")
+    if categorias.get("insumos", ZERO):
+        notas.append("Los egresos de insumos se suman a los gastos; revisar su posible coincidencia con el costo de ventas.")
+    if saldo_cafeteria:
+        notas.append("Los ingresos incluyen entregas B2B pendientes de cobro; la utilidad no equivale al efectivo disponible.")
 
     return {
         "periodo": {"inicio": fecha_inicio.isoformat(), "fin": fecha_fin.isoformat()},
@@ -529,6 +551,20 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
         "margen_bruto_pct": round(float(utilidad_bruta / ingresos_netos * 100), 1) if ingresos_netos else 0,
         "gastos_operacion": gastos_desglose,
         "total_gastos_operacion": float(total_gastos_op),
+        "composicion_gastos": {
+            "egresos_registrados": float(total_egresos),
+            "cantidad_egresos": len(egresos),
+            "recurrentes_estimados": float(total_recurrentes),
+            "nomina_registrada": float(total_nomina),
+        },
+        "egresos_por_categoria": {k: float(v) for k, v in sorted(categorias.items(), key=lambda item: (-item[1], item[0]))},
+        "egresos_por_proveedor": {k: float(v) for k, v in sorted(proveedores.items(), key=lambda item: (-item[1], item[0]))},
+        "calidad_datos": {
+            "resultado_estimado": True,
+            "lineas_vendidas": lineas_mostrador + lineas_cafe,
+            "lineas_sin_costo": faltantes,
+            "notas": notas,
+        },
         "mermas": float(mermas),
         "utilidad_operacion": float(utilidad_operacion),
         "utilidad_neta": float(utilidad_neta),
