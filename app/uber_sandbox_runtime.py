@@ -29,11 +29,12 @@ from app.api.routes.uber_eats import (
 from app.core.config import settings
 from app.core.database import SessionLocal, engine, get_db
 from app.models.uber_eats import (
-    UberSandboxAction, UberSandboxEvent, UberSandboxOrder,
+    UberSandboxAction, UberSandboxEvent, UberSandboxOrder, UberSandboxOrderCheck,
     UberSandboxStore, UberSandboxStoreAction, UberSandboxStoreJob,
 )
 from app.services import uber_eats_service, uber_order_service, uber_sandbox_oauth, uber_store_service, uber_webhook_service
 from app.services import uber_finance_storage
+from app.services import uber_order_polling
 from app.api.routes.uber_sandbox_finance import router as finance_router
 
 
@@ -43,7 +44,7 @@ DATABASE_NAME = "jacaranda_uber_sandbox"
 DATABASE_USER = "jacaranda_sandbox"
 WEBHOOK_PATH = "/api/v1/uber-eats/sandbox/webhook"
 ASSETS = Path(__file__).parent / "sandbox_static"
-MODELS = (UberSandboxEvent, UberSandboxOrder, UberSandboxAction, UberSandboxStore, UberSandboxStoreAction, UberSandboxStoreJob)
+MODELS = (UberSandboxEvent, UberSandboxOrder, UberSandboxAction, UberSandboxOrderCheck, UberSandboxStore, UberSandboxStoreAction, UberSandboxStoreJob)
 
 
 def validate_isolation() -> None:
@@ -64,6 +65,8 @@ def validate_isolation() -> None:
             raise RuntimeError("Dedicated private management and TEST OAuth credentials are required.")
     elif settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED:
         raise RuntimeError("Order actions require explicitly enabled private sandbox management.")
+    if settings.UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED and not settings.UBER_EATS_SANDBOX_MANAGEMENT_ENABLED:
+        raise RuntimeError("Order polling requires private TEST management.")
     if settings.UBER_EATS_SANDBOX_STORE_AUTOMATION_ENABLED and not (
         settings.UBER_EATS_SANDBOX_MANAGEMENT_ENABLED and settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED
     ):
@@ -117,12 +120,15 @@ async def lifespan(app: FastAPI):
     if settings.UBER_EATS_SANDBOX_FINANCE_ENABLED:
         uber_finance_storage.initialize()
     worker = asyncio.create_task(store_worker(stop)) if settings.UBER_EATS_SANDBOX_STORE_AUTOMATION_ENABLED else None
+    order_worker = asyncio.create_task(order_poll_worker(stop)) if settings.UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED else None
     try:
         yield
     finally:
         stop.set()
         if worker is not None:
             await worker
+        if order_worker is not None:
+            await order_worker
         uber_finance_storage.shutdown()
 
 
@@ -140,6 +146,24 @@ async def store_worker(stop: asyncio.Event):
         await asyncio.to_thread(store_tick)
         try:
             await asyncio.wait_for(stop.wait(), timeout=2)
+        except TimeoutError:
+            pass
+
+
+def order_poll_tick():
+    with SessionLocal() as db:
+        try:
+            uber_order_polling.process_check(db)
+        except Exception:
+            db.rollback()
+            logging.getLogger(__name__).warning("Sandbox order check paused after an internal error")
+
+
+async def order_poll_worker(stop: asyncio.Event):
+    while not stop.is_set():
+        await asyncio.to_thread(order_poll_tick)
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=5)
         except TimeoutError:
             pass
 
@@ -248,6 +272,7 @@ def management_status():
         "entorno": "sandbox", "tienda": "Jacaranda Sandbox", "tienda_real_activada": False,
         "acciones_habilitadas": settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED,
         "finanzas_habilitadas": settings.UBER_EATS_SANDBOX_FINANCE_ENABLED,
+        "seguimiento_pedidos_habilitado": settings.UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED,
     }
 
 
@@ -355,7 +380,8 @@ def health():
     except (SQLAlchemyError, uber_finance_storage.RehearsalError):
         raise HTTPException(503, "Sandbox storage is not ready.") from None
     result = {"status": "ok", "environment": "uber-sandbox", "real_store_enabled": False,
-              "finance_enabled": settings.UBER_EATS_SANDBOX_FINANCE_ENABLED}
+              "finance_enabled": settings.UBER_EATS_SANDBOX_FINANCE_ENABLED,
+              "order_polling_enabled": settings.UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED}
     revision = Path(__file__).parent / "sandbox_revision.txt"
     if revision.is_file():
         value = revision.read_text().strip()

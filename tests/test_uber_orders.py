@@ -403,8 +403,7 @@ def test_cancellation_reconciliation_requires_correlated_final_evidence(db, rece
         db.query(UberSandboxOrder).one().pending_request_key = str(uuid4())
     db.commit()
     result = inspect(db, receipt, state="FAILED")
-    authoritative = change in {"old-event", "old-receipt", "acceptance", "wrong-request"}
-    assert result["pedido"]["state"] == ("FAILED" if authoritative else "ACCEPTED")
+    assert result["pedido"]["state"] == "FAILED"
     assert result["requiere_conciliacion"] and not result["acciones_habilitadas"]
     assert command.estado == "incierta"
     assert db.query(UberSandboxOrder).one().pending_request_key
@@ -418,7 +417,7 @@ def test_cancel_ack_remains_pending_after_restart_and_failed_get_without_notice(
     db.expire_all()
     result = inspect(db, receipt, state="FAILED")
     assert result["requiere_conciliacion"] and not result["acciones_habilitadas"]
-    assert result["pedido"]["state"] == "ACCEPTED" and result["evento_final"] is None
+    assert result["pedido"]["state"] == "FAILED" and result["evento_final"] is None
     with patch.object(orders, "_request") as network:
         assert orders.submit_action(db, UUID(ORDER), key, "cancelar", "OTHER", True,
                                     original["detalle_sha256"])["repetida"] is True

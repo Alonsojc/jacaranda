@@ -75,6 +75,27 @@ def test_management_requires_its_own_credential_and_no_pos_identity(management):
     assert set(inspect(engine).get_table_names()) == {model.__tablename__ for model in runtime.MODELS}
 
 
+def test_private_poll_worker_starts_without_browser_and_stops_cleanly(management, monkeypatch):
+    from threading import Event
+
+    called = Event()
+    monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED", True)
+    monkeypatch.setattr(runtime, "order_poll_tick", called.set)
+    with TestClient(runtime.app) as client:
+        assert called.wait(2)
+        assert client.get("/health").json()["order_polling_enabled"] is True
+        assert client.get("/sandbox/estado", headers=AUTH).json()["seguimiento_pedidos_habilitado"] is True
+    assert called.is_set()
+
+
+def test_polling_cannot_start_without_private_management(isolated, monkeypatch):
+    monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED", True)
+    with patch.object(runtime.engine, "begin") as connection, pytest.raises(RuntimeError, match="polling"):
+        with TestClient(runtime.app):
+            pass
+    connection.assert_not_called()
+
+
 @pytest.mark.parametrize("change", ["short", "missing_oauth", "shared_webhook", "live_api", "live_auth", "live_store"])
 def test_management_refuses_unsafe_configuration_before_database_connect(management, monkeypatch, change):
     if change == "short":

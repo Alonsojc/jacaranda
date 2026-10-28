@@ -147,7 +147,8 @@
     var order = data.pedido;
     el('order-title').textContent = 'Pedido ' + (order.display_id || order.id.slice(0, 8));
     el('order-state').textContent = data.evento_final ?
-      (data.evento_final.tipo === 'orders.cancel' ? 'Cancelado' : 'Finalizado por Uber') + ' - aviso firmado de Uber' : order.state;
+      (data.evento_final.tipo === 'orders.cancel' ? 'Cancelado' : 'Finalizado por Uber') + ' - aviso firmado de Uber' :
+      order.state === 'FAILED' ? 'Fallido en Uber - consulta de estado' : order.state;
     el('instructions').textContent = order.store_instructions || 'Sin instrucciones generales';
     el('raw-detail').textContent = JSON.stringify(order, null, 2);
     el('items').replaceChildren();
@@ -181,6 +182,8 @@
       status(data.evento_final ? 'No preparar ni entregar. Aviso firmado de Uber confirmado.' +
         (data.detalle_disponible === false ? ' El detalle actualizado no esta disponible.' : '') +
         (data.requiere_conciliacion ? ' Queda una operacion por conciliar; no se reenviara.' : '') :
+        data.pedido.state === 'FAILED' ? 'No preparar ni entregar. Uber reporta un fallo.' +
+        (data.requiere_conciliacion ? ' La operacion pendiente no esta confirmada; no se reenviara.' : '') :
         data.requiere_conciliacion ? 'Resultado pendiente de confirmar. No se reenviara la accion.' :
         (data.acciones_habilitadas ? 'Pedido de Sandbox actualizado' : 'Acciones de Sandbox deshabilitadas'));
     } catch (error) { if (current === generation) status(error.message || 'No se pudo consultar el pedido.', true); }

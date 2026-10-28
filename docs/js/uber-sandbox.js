@@ -93,7 +93,7 @@
       selected = data;
       el('uber-sandbox-pedido-titulo').textContent = 'Prueba ' + (data.pedido.display_id || data.pedido.id) + ' - ' +
         (data.evento_final ? (data.evento_final.tipo === 'orders.cancel' ? 'Cancelado' : 'Finalizado por Uber') +
-          ' - aviso firmado de Uber' : data.pedido.state);
+          ' - aviso firmado de Uber' : data.pedido.state === 'FAILED' ? 'Fallido en Uber - consulta de estado' : data.pedido.state);
       el('uber-sandbox-instrucciones').textContent = data.pedido.store_instructions || 'Sin instrucciones generales.';
       el('uber-sandbox-detalle').textContent = JSON.stringify(data.pedido, null, 2);
       el('uber-sandbox-revisado').checked = false;
@@ -101,6 +101,8 @@
       status(data.evento_final ? 'No preparar ni entregar. Aviso firmado de Uber confirmado.' +
         (data.detalle_disponible === false ? ' El detalle actualizado no esta disponible.' : '') +
         (data.requiere_conciliacion ? ' Queda una operacion por conciliar; no se reenviara.' : '') :
+        data.pedido.state === 'FAILED' ? 'No preparar ni entregar. Uber reporta un fallo.' +
+        (data.requiere_conciliacion ? ' La operacion pendiente no esta confirmada; no se reenviara.' : '') :
         data.requiere_conciliacion ? 'Operacion sin confirmar. No se reenviara automaticamente.' :
         (data.acciones_habilitadas ? 'Pedido de prueba pendiente de revision.' : 'Acciones de pruebas deshabilitadas.'));
     } catch (error) {

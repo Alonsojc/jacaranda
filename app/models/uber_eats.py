@@ -58,6 +58,24 @@ class UberSandboxAction(Base):
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class UberSandboxOrderCheck(Base):
+    __tablename__ = "uber_sandbox_order_checks"
+    __table_args__ = (UniqueConstraint("client_id", "store_id", "order_id", name="uq_uber_order_check"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    client_id: Mapped[str] = mapped_column(String(160))
+    store_id: Mapped[str] = mapped_column(String(36))
+    order_id: Mapped[str] = mapped_column(String(36))
+    next_check_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    lease_key: Mapped[str | None] = mapped_column(String(36))
+    attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+    last_state: Mapped[str | None] = mapped_column(String(40))
+    last_error: Mapped[int | None] = mapped_column(Integer)
+    needs_review: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
 class UberSandboxStore(Base):
     __tablename__ = "uber_sandbox_stores"
     __table_args__ = (UniqueConstraint("client_id", "store_id", name="uq_uber_sandbox_store"),)

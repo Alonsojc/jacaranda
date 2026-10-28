@@ -23,7 +23,7 @@ from sqlalchemy.schema import CreateSchema, DropSchema
 
 from app.core.config import settings
 from app.models.uber_eats import (
-    UberSandboxEvent, UberSandboxOrder, UberSandboxAction,
+    UberSandboxEvent, UberSandboxOrder, UberSandboxAction, UberSandboxOrderCheck,
     UberSandboxStore, UberSandboxStoreAction, UberSandboxStoreJob,
 )
 from app.services import uber_order_service as orders
@@ -49,12 +49,13 @@ def pg_sessions(monkeypatch):
         conn.execute(CreateSchema(schema))
     engine = create_engine(url, connect_args={"options": f"-csearch_path={schema}"})
     try:
-        for model in (UberSandboxEvent, UberSandboxOrder, UberSandboxAction,
+        for model in (UberSandboxEvent, UberSandboxOrder, UberSandboxAction, UberSandboxOrderCheck,
                       UberSandboxStore, UberSandboxStoreAction, UberSandboxStoreJob):
             model.__table__.create(engine)
         monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_ENABLED", True)
         monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_WEBHOOK_ENABLED", True)
         monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_ACTIONS_ENABLED", True)
+        monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED", False)
         monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_CLIENT_ID", "fictional-client")
         monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_STORE_ID", STORE)
         monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_CLIENT_SECRET", SecretStr("synthetic-pg-secret"))
@@ -64,6 +65,55 @@ def pg_sessions(monkeypatch):
         with control.begin() as conn:
             conn.execute(DropSchema(schema, cascade=True))
         control.dispose()
+
+
+def test_poll_lease_survives_other_worker_and_failure_keeps_cancel_pending(pg_sessions, monkeypatch):
+    from app.services import uber_order_polling as polling
+
+    monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED", True)
+    monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_MANAGEMENT_ENABLED", True)
+    now = datetime.now(timezone.utc)
+    key = str(uuid4())
+    with pg_sessions() as db:
+        db.add(UberSandboxEvent(client_id="fictional-client", store_id=STORE, order_id=ORDER,
+                               event_id=str(uuid4()), event_type="orders.notification",
+                               event_time=int(time.time()), fingerprint="0" * 64))
+        db.add(UberSandboxOrder(client_id="fictional-client", store_id=STORE, order_id=ORDER,
+                               state="ACCEPTED", snapshot_json='{}', actualizado_en=now, pending_request_key=key))
+        db.add(UberSandboxAction(client_id="fictional-client", store_id=STORE, order_id=ORDER,
+                                request_key=key, action="cancelar", estado="pendiente_aviso",
+                                fingerprint="0" * 64, creado_en=now))
+        db.commit()
+    entered, release = Event(), Event()
+    calls = []
+
+    def slow_get(method, order_id):
+        calls.append((method, order_id))
+        entered.set()
+        assert release.wait(10)
+        return {"order": {"id": ORDER, "store": {"id": STORE}, "state": "FAILED"}}
+
+    monkeypatch.setattr(orders, "_request", slow_get)
+
+    def tick():
+        with pg_sessions() as db:
+            return polling.process_check(db)
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        first = workers.submit(tick)
+        try:
+            assert entered.wait(5)
+            assert workers.submit(tick).result(timeout=5) is False
+        finally:
+            release.set()
+        assert first.result(timeout=5) is True
+    assert calls == [("GET", ORDER)]
+    with pg_sessions() as db:
+        row = db.query(UberSandboxOrder).one()
+        assert row.state == "FAILED" and row.pending_request_key == key
+        assert db.query(UberSandboxAction).one().estado == "pendiente_aviso"
+        assert db.query(UberSandboxOrderCheck).one().needs_review is True
+        assert orders.attention_orders(db)["conteos"]["verificar"] == 1
 
 
 def test_concurrent_signed_receipts_commit_only_one_identity(pg_sessions, monkeypatch):

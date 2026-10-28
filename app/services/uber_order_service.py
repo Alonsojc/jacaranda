@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased
 
 from app.core.config import settings
-from app.models.uber_eats import PENDING_ORDER_ACTION_STATES, UberSandboxAction, UberSandboxEvent, UberSandboxOrder, UberSandboxStore
+from app.models.uber_eats import PENDING_ORDER_ACTION_STATES, UberSandboxAction, UberSandboxEvent, UberSandboxOrder, UberSandboxOrderCheck, UberSandboxStore
 from app.services import uber_eats_service as api
 from app.services.uber_webhook_service import (
     STORE_EVENT_TYPES, TERMINAL_ORDER_EVENT_TYPES, WebhookError,
@@ -136,6 +136,12 @@ def attention_orders(db: Session) -> dict:
             and_(change.event_type.in_(("orders.cancel", "orders.failure")),
                  or_(change.estado != "consultado", UberSandboxOrder.state != "FAILED"))),
     ).exists()
+    if settings.UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED:
+        changed = or_(changed, db.query(UberSandboxOrderCheck.id).filter(
+            UberSandboxOrderCheck.client_id == client_id, UberSandboxOrderCheck.store_id == store_id,
+            UberSandboxOrderCheck.order_id == UberSandboxEvent.order_id,
+            UberSandboxOrderCheck.needs_review.is_(True),
+        ).exists())
     kind = case(
         (or_(pending, changed), "verificar"),
         (UberSandboxOrder.state == "ACCEPTED", "preparacion"),
@@ -168,6 +174,10 @@ def attention_orders(db: Session) -> dict:
 
 
 def _unseen_order_change(db: Session, row: UberSandboxOrder) -> bool:
+    if settings.UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED and db.query(UberSandboxOrderCheck.id).filter_by(
+        client_id=row.client_id, store_id=row.store_id, order_id=row.order_id, needs_review=True,
+    ).first():
+        return True
     return db.query(UberSandboxEvent.id).filter_by(
         client_id=row.client_id, store_id=row.store_id, order_id=row.order_id,
     ).filter(
@@ -179,7 +189,7 @@ def _unseen_order_change(db: Session, row: UberSandboxOrder) -> bool:
     ).first() is not None
 
 
-def inspect_order(db: Session, event_id: UUID) -> dict:
+def inspect_order(db: Session, event_id: UUID, *, background: bool = False) -> dict:
     client_id, store_id = sandbox_identity()
     if not settings.UBER_EATS_SANDBOX_CLIENT_SECRET.get_secret_value():
         raise WebhookError(503, "Falta la credencial privada de pruebas.")
@@ -198,9 +208,11 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
     details_available = True
     try:
         data = _request("GET", event.order_id)
-    except SandboxRequestError:
+    except SandboxRequestError as exc:
         if terminal_order_notice(db, client_id, store_id, event.order_id) is None:
-            raise WebhookError(502, "No se pudo consultar el pedido de pruebas. Intenta de nuevo.") from None
+            error = WebhookError(502, "No se pudo consultar el pedido de pruebas. Intenta de nuevo.")
+            error.provider_status = exc.status_code
+            raise error from None
         details_available = False
     if details_available:
         order = data.get("order")
@@ -212,7 +224,7 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
             matches = False
         if not matches:
             raise WebhookError(502, "Uber no confirmo la identidad del pedido.")
-        if not isinstance(order.get("state"), str) or len(order["state"]) > 40:
+        if order.get("state") not in ("CREATED", "OFFERED", "ACCEPTED", "HANDED_OFF", "SUCCEEDED", "FAILED"):
             raise WebhookError(502, "Uber no confirmo el estado del pedido.")
         remote_state = order["state"]
         # Omit customers, addresses, phone numbers, payment credentials and support contacts.
@@ -232,7 +244,7 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
                 row = UberSandboxOrder(
                     client_id=client_id, store_id=store_id, order_id=event.order_id,
                     state=effective_state, snapshot_json=encoded,
-                    actualizado_en=read_started_at,
+                    actualizado_en=datetime.fromtimestamp(0, timezone.utc) if background else read_started_at,
                 )
                 db.add(row)
                 db.flush()
@@ -249,24 +261,39 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
     regresses = rank.get(effective_state, -1) < rank.get(row.state, -1) or (
         row.state in {"FAILED", "SUCCEEDED"} and row.state != effective_state
     )
-    if pending is None and not changed and not regresses and details_available:
+    failed = effective_state == "FAILED"
+    if (pending is None or failed) and not changed and not regresses and details_available:
         values = {
-            "state": effective_state, "snapshot_json": encoded,
-            "actualizado_en": read_started_at, "revision": UberSandboxOrder.revision + 1,
+            "state": effective_state, "revision": UberSandboxOrder.revision + 1,
         }
+        if not background:
+            values.update(snapshot_json=encoded, actualizado_en=read_started_at)
         # SQLite ignores FOR UPDATE; the version predicate must protect this write too.
         refreshed = db.execute(update(UberSandboxOrder).where(
             UberSandboxOrder.id == row.id,
             UberSandboxOrder.revision == row.revision,
-            UberSandboxOrder.pending_request_key.is_(None),
+            True if failed else UberSandboxOrder.pending_request_key.is_(None),
         ).values(**values).execution_options(synchronize_session=False))
         changed = refreshed.rowcount != 1
     db.refresh(row)
     snapshot = json.loads(row.snapshot_json)
     snapshot["state"] = row.state
     snapshot_digest = hashlib.sha256(row.snapshot_json.encode()).hexdigest()
-    event.estado = "consultado"
-    if terminal:
+    if settings.UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED:
+        check = db.query(UberSandboxOrderCheck).filter_by(
+            client_id=client_id, store_id=store_id, order_id=event.order_id,
+        ).populate_existing().with_for_update().first()
+        if check:
+            # Background reads never acknowledge an operator's review or authorize an action.
+            if background and row.state == "FAILED" and check.last_state != "FAILED":
+                check.needs_review = True
+            if not background and (check.attempted_at is None or
+                    check.attempted_at.replace(tzinfo=timezone.utc) <= read_started_at):
+                check.needs_review = False
+            check.last_state = row.state
+    if not background:
+        event.estado = "consultado"
+    if terminal and not background:
         db.query(UberSandboxEvent).filter_by(
             client_id=client_id, store_id=store_id, order_id=event.order_id,
         ).filter(UberSandboxEvent.event_type.in_(TERMINAL_ORDER_EVENT_TYPES),
@@ -275,8 +302,8 @@ def inspect_order(db: Session, event_id: UUID) -> dict:
     needs_review = _unseen_order_change(db, row)
     return {
         "entorno": "sandbox", "pedido": snapshot,
-        "acciones_habilitadas": settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED and terminal is None and pending is None and not changed and not regresses and not needs_review,
-        "requiere_conciliacion": pending is not None or regresses or needs_review,
+        "acciones_habilitadas": not background and row.state in {"CREATED", "OFFERED", "ACCEPTED"} and settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED and terminal is None and pending is None and row.pending_request_key is None and not changed and not regresses and not needs_review,
+        "requiere_conciliacion": pending is not None or row.pending_request_key is not None or regresses or needs_review,
         "estado_remoto": remote_state,
         "evento_final": {"tipo": terminal.event_type, "event_id": terminal.event_id} if terminal else None,
         "detalle_disponible": details_available,

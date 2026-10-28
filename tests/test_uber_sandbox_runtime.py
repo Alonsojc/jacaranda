@@ -37,6 +37,7 @@ def isolated(monkeypatch):
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_WEBHOOK_ENABLED", True)
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_ACTIONS_ENABLED", False)
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_MANAGEMENT_ENABLED", False)
+    monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED", False)
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_ADMIN_TOKEN", SecretStr(""))
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_CLIENT_ID", runtime.TEST_APPLICATION_ID)
     monkeypatch.setattr(settings, "UBER_EATS_SANDBOX_STORE_ID", runtime.TEST_STORE_ID)
@@ -66,6 +67,7 @@ def test_bootstrap_and_restart_create_only_sandbox_receipt_tables(isolated):
         with TestClient(runtime.app) as client:
             assert client.get("/health").json() == {
                 "status": "ok", "environment": "uber-sandbox", "real_store_enabled": False, "finance_enabled": False,
+                "order_polling_enabled": False,
             }
         assert inspect(engine).get_table_names() == ["uber_sandbox_events", "uber_sandbox_store_jobs", "uber_sandbox_stores"]
 

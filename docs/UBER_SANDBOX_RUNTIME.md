@@ -123,6 +123,29 @@ La revision financiera permanece separada: ningun aviso repone alimentos,
 registra efectivo ni confirma una liquidacion. Esta implementacion no habilita
 produccion ni sustituye la prueba fisica pendiente del iPad.
 
+### Seguimiento de fallos sin webhook
+
+`UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED=true` habilita, solo en el runtime
+privado de pruebas, consultas canonicas GET de pedidos conocidos por avisos
+firmados. Incluye pedidos aceptados y marcados como listos hasta un estado
+final. No necesita que el navegador permanezca abierto. No acepta, cancela,
+marca listo ni modifica ventas, inventario o liquidaciones automaticamente.
+
+El trabajador hace como maximo una consulta cada cinco segundos, con un
+intervalo minimo de 30 segundos por pedido. Una reserva durable de dos minutos
+evita consultas simultaneas del mismo pedido y permite recuperarse de un
+reinicio. Los errores tienen espera exponencial hasta una hora; un 404 espera
+una hora y permanece visible para revision. Los avisos originales no se
+fabrican, eliminan ni dan por leidos por una consulta en segundo plano.
+
+Un GET `FAILED` detiene las acciones y vuelve a mostrar el pedido como
+"Por verificar", incluso si estaba listo. El panel lo distingue de una
+cancelacion confirmada por aviso firmado. Si existe una accion pendiente, se
+conserva su clave y su estado incierto: no se concilia ni reenvia por el GET.
+Las consultas automaticas tampoco renuevan la revision manual de instrucciones
+ni su vigencia de dos minutos. La tabla `uber_sandbox_order_checks` se crea
+unicamente al iniciar el runtime aislado; no requiere migrar el POS.
+
 ### Avisos y recuperacion
 
 `GET /api/v1/uber-eats/sandbox/atencion` consulta solo el inbox privado y los
