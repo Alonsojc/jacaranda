@@ -765,8 +765,10 @@ table.tbl th,table.tbl td{font-size:.8rem}
 @media(max-width:600px){.eg-import-table{display:block;min-width:0;width:100%}.eg-import-table thead{display:none}.eg-import-table tbody{display:block}.eg-import-table tr{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:.1rem .25rem;border-bottom:1px solid var(--brd);padding:.6rem 0}.eg-import-table td{border:0;padding:.15rem .2rem;text-align:left}.eg-import-table td:nth-child(1){grid-column:1;grid-row:1 / 6}.eg-import-table td:nth-child(2){grid-column:2;grid-row:1;font-size:.72rem;color:var(--mut)}.eg-import-table td:nth-child(2)::before{content:'Fila '}.eg-import-table td:nth-child(3){grid-column:3;grid-row:1;font-size:.72rem;text-align:right}.eg-import-table td:nth-child(4){grid-column:2 / 4;grid-row:2;min-width:0;max-width:none}.eg-import-table td:nth-child(5){grid-column:3;grid-row:3;text-align:right;font-weight:700}.eg-import-table td:nth-child(6){grid-column:2;grid-row:3}.eg-import-table td:nth-child(7){grid-column:2 / 4;grid-row:4;font-size:.75rem;color:var(--mut)}.eg-import-table td:nth-child(7)::before{content:'Categoria: '}.eg-import-table td:nth-child(8){grid-column:2 / 4;grid-row:5}.eg-import-nota{max-width:none}}
 @media(max-width:600px){.eg-import-foto tr{grid-template-columns:26px minmax(0,1fr)}.eg-import-foto td:nth-child(n+2){grid-column:2;min-width:0;text-align:left;white-space:normal}.eg-import-foto td:nth-child(1){grid-row:1 / 8}.eg-import-foto td:nth-child(2){grid-row:1}.eg-import-foto td:nth-child(3){grid-row:2}.eg-import-foto td:nth-child(4){grid-row:3}.eg-import-foto td:nth-child(5){grid-row:4}.eg-import-foto td:nth-child(6){grid-row:5}.eg-import-foto td:nth-child(7){grid-row:6}.eg-import-foto td:nth-child(8){grid-row:7}.eg-import-foto td:nth-child(3)::before{content:'Fecha'}.eg-import-foto td:nth-child(4)::before{content:'Proveedor'}.eg-import-foto td:nth-child(5)::before{content:'Monto MXN'}.eg-import-foto td:nth-child(6)::before{content:'Forma de pago'}.eg-import-foto td:nth-child(n+3):nth-child(-n+6)::before{display:block;font-size:.72rem;font-weight:400;color:var(--mut);margin-bottom:.2rem}}
 </style>
-<script defer src="js/jacaranda-core.js?v=jacaranda-v130"></script>
-<script defer src="js/egresos-import.js?v=jacaranda-v130"></script>
+<script defer src="js/jacaranda-core.js?v=jacaranda-v132"></script>
+<script defer src="js/egresos-import.js?v=jacaranda-v132"></script>
+<link rel="stylesheet" href="css/asistencia.css?v=jacaranda-v132">
+<script defer src="js/asistencia.js?v=jacaranda-v132"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 </head>
@@ -810,6 +812,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
     <a data-pg="ejecutivo" onclick="go('ejecutivo')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#127942; Ejecutivo</a>
     <div class="nav-dd-sep"></div>
     <a data-pg="conta" onclick="go('conta')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">&#128209; Contabilidad</a>
+    <a data-pg="asistencia" onclick="go('asistencia')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE,CONTADOR">Asistencia</a>
     <a data-pg="fiscal" onclick="go('fiscal')" class="nav-role" data-roles="ADMINISTRADOR,CONTADOR">&#127974; Fiscal</a>
     <a data-pg="listas" onclick="go('listas')" class="nav-role" data-roles="ADMINISTRADOR,GERENTE">&#128203; Listas</a>
     <div class="nav-dd-sep"></div>
@@ -1546,6 +1549,48 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 
 <!-- LISTAS (Admin) -->
+<div class="page" id="asistencia">
+  <div class="att-heading">
+    <div><h1>Asistencia</h1><div class="att-caption">Checador CrossChex &middot; <span id="att-timezone">America/Mexico_City</span></div></div>
+    <div class="att-actions">
+      <button type="button" id="att-export" class="att-icon" title="Descargar checadas CSV" aria-label="Descargar checadas CSV" disabled><img src="icons/lucide/download.svg" alt=""></button>
+      <button type="button" id="att-sync" class="att-primary" disabled><img src="icons/lucide/refresh-cw.svg" alt="">Sincronizar</button>
+    </div>
+  </div>
+  <div class="att-connection"><span id="att-status" class="att-status">Conexi&oacute;n pendiente</span><span id="att-last-sync">Sin sincronizaciones</span></div>
+  <div class="att-metrics">
+    <div class="att-metric"><span>Checadas del periodo</span><strong id="att-marks">&mdash;</strong></div>
+    <div class="att-metric"><span>Personas con checadas</span><strong id="att-people">&mdash;</strong></div>
+    <div class="att-metric"><span>Pendientes de vincular</span><strong id="att-pending">&mdash;</strong></div>
+  </div>
+  <form id="att-filters" class="att-filters">
+    <label>Desde<input id="att-from" type="date" required></label>
+    <label>Hasta<input id="att-to" type="date" required></label>
+    <label class="att-search">Persona en el reloj<input id="att-search" type="search" placeholder="Nombre o n&uacute;mero" maxlength="80"></label>
+    <button type="submit">Consultar</button>
+  </form>
+  <div class="att-tabs" id="att-tabs" role="tablist" aria-label="Vista de asistencia">
+    <button type="button" role="tab" aria-selected="true" data-view="diario">Resumen diario</button>
+    <button type="button" role="tab" aria-selected="false" data-view="marcas">Checadas originales</button>
+  </div>
+  <p class="att-feedback" id="att-feedback" role="status" aria-live="polite"></p>
+  <div class="att-table-wrap"><table aria-label="Registros de asistencia"><thead id="att-head"></thead><tbody id="att-body"><tr><td colspan="6" class="att-empty">Sin datos cargados</td></tr></tbody></table></div>
+  <div class="att-pager"><span id="att-range"></span><div class="att-pager-actions">
+    <button type="button" id="att-previous" class="att-icon" title="P&aacute;gina anterior" aria-label="P&aacute;gina anterior" disabled><img src="icons/lucide/chevron-left.svg" alt=""></button>
+    <span id="att-page"></span>
+    <button type="button" id="att-next" class="att-icon" title="P&aacute;gina siguiente" aria-label="P&aacute;gina siguiente" disabled><img src="icons/lucide/chevron-right.svg" alt=""></button>
+  </div></div>
+  <dialog id="att-dialog" aria-labelledby="att-link-title">
+    <form id="att-link-form">
+      <div class="att-heading"><h2 id="att-link-title">Vincular persona</h2><button type="button" class="att-icon" id="att-close-link" aria-label="Cerrar" title="Cerrar"><img src="icons/lucide/x.svg" alt=""></button></div>
+      <p id="att-link-name"></p>
+      <label>Empleado de Jacaranda<select id="att-employee" required></select></label>
+      <label>Motivo<input id="att-reason" required minlength="3" maxlength="300" placeholder="Alta del checador"></label>
+      <p id="att-link-error" role="alert"></p>
+      <div class="att-actions"><button type="button" id="att-cancel-link">Cancelar</button><button type="submit" id="att-save-link" class="att-primary">Vincular</button></div>
+    </form>
+  </dialog>
+</div>
 <div class="page" id="listas">
 <h2>Listas</h2>
 <div class="section-tabs" style="margin-bottom:1rem">
@@ -2422,6 +2467,7 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="mm-section-title">Control y reportes</div>
 <a data-pg="rep" onclick="navegarMobile('rep', event);return false" class="mm-link">&#128202; Reportes</a>
 <a data-pg="conta" onclick="navegarMobile('conta', event);return false" class="mm-link">&#128209; Contabilidad</a>
+<a data-pg="asistencia" onclick="navegarMobile('asistencia', event);return false" class="mm-link">Asistencia</a>
 <a data-pg="cofepris" onclick="navegarMobile('cofepris', event);return false" class="mm-link">&#9879; COFEPRIS</a>
 <a data-pg="merma" onclick="navegarMobile('merma', event);return false" class="mm-link">&#128465; Merma</a>
 <a data-pg="calidad" onclick="navegarMobile('calidad', event);return false" class="mm-link">&#9989; Calidad</a>
@@ -3332,7 +3378,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v130';
+var APP_BUILD = 'jacaranda-v132';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -3484,6 +3530,7 @@ var _pedidoDatosCargados = false;
 
 function invalidarTareasSesion() {
   _versionSesion++;
+  if (typeof resetAsistencia === 'function') resetAsistencia();
   if (typeof cerrarImportacionEgresos === 'function') cerrarImportacionEgresos(true);
   cerrarCamaraEgreso();
   _egresoCapturaPendiente = null;
@@ -4754,6 +4801,7 @@ function cargarPagina(p, opts) {
   if (p === 'inv') return cargarInventarioCompleto(opts);
   if (p === 'corte') return cargarCorte();
   if (p === 'egresos') return initEgresos();
+  if (p === 'asistencia') return initAsistencia();
   if (p === 'listas') return cargarListas();
   if (p === 'rep') return initReportes();
   if (p === 'prod') return cargarProduccion();
@@ -17551,7 +17599,7 @@ var _moduloNombres = {
   conta:'Contabilidad', iapg:'Predicción', cofepris:'COFEPRIS', compras:'Compras',
   sucursales:'Sucursales', merma:'Merma', calidad:'Calidad', crm:'CRM',
   kpis:'KPIs', fiscal:'Fiscal', auditoria:'Auditoría', ejecutivo:'Ejecutivo',
-  deliveryp:'Delivery', papelera:'Papelera', backup:'Respaldos', usuarios:'Usuarios'
+  deliveryp:'Delivery', papelera:'Papelera', backup:'Respaldos', usuarios:'Usuarios', asistencia:'Asistencia'
 };
 
 function descargarBackup() {
