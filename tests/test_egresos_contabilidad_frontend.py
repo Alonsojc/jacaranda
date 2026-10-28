@@ -183,3 +183,59 @@ async function run(){
 run().catch(e=>{console.error(e);process.exit(1)});
 """
     _node(code)
+
+
+def test_expense_search_pagination_and_stale_responses():
+    # Sorting only the visible page would misrepresent the full filtered history.
+    assert 'data-no-sort="true"' in _section('function renderEgresos', 'function abrirEditarEgreso')
+    assert "if (th.closest('[data-no-sort]')) return;" in HTML
+    code = PREAMBLE + r"""
+let _egConsultaSeq=0,_egSkip=0,_egLimit=25,_egTotal=0,_egBuscarTimer,_egresosCache={};
+function renderEgresos(items){fields['eg-list'].innerHTML=items.map(i=>i.concepto).join(',');}
+function fechaHoyISO(){return '2026-01-10';}
+""" + _section("function cargarEgresos()", "function cargarResumenEgresosApi") + r"""
+async function run(){
+  fields['eg-fi']={value:'2026-09-01'};fields['eg-ff']={value:'2026-09-30'};
+  let old=cargarEgresos();fields['eg-buscar'].value='centro';let latest=filtrarEgresos();
+  assert.ok(requests[1].path.includes('buscar=centro'));
+  const rows=Array.from({length:25},()=>({concepto:'visible'}));
+  requests[1].resolve({items:rows,cantidad:31,total:'317.75'});await latest;
+  assert.ok(fields['eg-period-summary'].innerHTML.includes('$317.75'));
+  assert.equal(fields['eg-next'].disabled,false);
+  requests[0].resolve({items:[{concepto:'obsolete'}],cantidad:1,total:999});await old;
+  assert.ok(!fields['eg-list'].innerHTML.includes('obsolete'));
+  let next=paginaEgresos(1);assert.ok(requests[2].path.includes('skip=25'));
+  requests[2].resolve({items:rows.slice(0,6),cantidad:31,total:'317.75'});await next;
+  assert.equal(fields['eg-next'].disabled,true);assert.equal(fields['eg-prev'].disabled,false);
+  let changed=cargarEgresos();filtrarEgresos(true);clearTimeout(_egBuscarTimer);
+  requests[3].resolve({items:[{concepto:'obsolete'}],cantidad:1,total:999});await changed;
+  assert.equal(fields['eg-period-summary'].textContent,'');assert.equal(fields['eg-next'].disabled,true);
+  let fail=cargarEgresos();requests[4].reject(new Error('Desconectado'));await fail;
+  assert.ok(fields['eg-list'].innerHTML.includes('Reintentar'));
+  let period=egresosMes(-1);assert.equal(fields['eg-fi'].value,'2025-12-01');assert.equal(fields['eg-ff'].value,'2025-12-31');
+  requests[5].resolve({items:[],cantidad:0,total:0});await period;
+  let loggedout=cargarEgresos();_versionSesion++;requests[6].resolve({items:rows,cantidad:31,total:999});await loggedout;
+  assert.ok(!fields['eg-period-summary'].innerHTML.includes('$999.00'));
+}
+run().catch(e=>{console.error(e);process.exit(1)});
+"""
+    _node(code)
+
+
+def test_accounting_discloses_estimates_and_escapes_breakdown_labels():
+    code = PREAMBLE + "let _contaSeq={};function validarFechas(){return true;}function puedeVerReporteEgresos(){return true;}\n"
+    code += _section("function iniciarConsultaContable", "function contaSetRango")
+    code += _section("function cargarEdoResultados", "function cargarBalanceGeneral")
+    code += r"""
+async function run(){
+  let p=cargarEdoResultados();requests[0].resolve({ingresos_netos:600,costo_ventas:100,utilidad_bruta:500,utilidad_neta:300,
+    gastos_operacion:{},total_gastos_operacion:200,composicion_gastos:{egresos_registrados:150,recurrentes_estimados:50,nomina_registrada:0,cantidad_egresos:2},
+    calidad_datos:{lineas_sin_costo:3,notas:['<nota>']},egresos_por_categoria:{'<categoria>':150},egresos_por_proveedor:{'<proveedor>':150}});await p;
+  let html=fields['conta-er-content'].innerHTML;
+  assert.ok(html.includes('Resultado estimado'));assert.ok(html.includes('3 líneas sin costo'));
+  assert.ok(html.includes('Recurrentes estimados'));assert.ok(html.includes('Ver 2 egresos'));
+  for(const value of ['<nota>','<categoria>','<proveedor>'])assert.ok(!html.includes(value));
+}
+run().catch(e=>{console.error(e);process.exit(1)});
+"""
+    _node(code)

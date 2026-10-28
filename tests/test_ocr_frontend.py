@@ -123,6 +123,7 @@ assert.equal(fields['eg-monto'].value,'333');assert.equal(_egOcrSeleccionado,-1)
 
 def test_reopening_expenses_preserves_unknown_ocr_date_and_reading_guard():
     code = PREAMBLE + section("function initEgresos()", "function cargarResguardo()") + r"""
+function inicializarFiltrosEgresos(){}
 _egresoOrigen='ocr';_egOcrProcesando=true;fields['eg-fecha']={value:''};
 initEgresos();assert.equal(fields['eg-fecha'].value,'');assert.equal(fields['eg-guardar'].disabled,true);
 _egresoOrigen='manual';_egOcrProcesando=false;

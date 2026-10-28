@@ -136,9 +136,39 @@ def exportar_balance_general(db: Session, fecha_corte: date | None = None) -> By
 
 # ─── Estado de Resultados ────────────────────────────────────────
 
+def _agregar_revision_resultados(wb, data):
+    ws = wb.create_sheet("Base y revisión")
+    ws.append(["RESULTADO ESTIMADO", "Monto"])
+    _style_header_row(ws, 1, 2)
+    fuentes = data["composicion_gastos"]
+    for etiqueta, clave in (("Egresos registrados", "egresos_registrados"),
+                           ("Recurrentes estimados", "recurrentes_estimados"),
+                           ("Nómina registrada", "nomina_registrada")):
+        ws.append([etiqueta, fuentes[clave]])
+        ws.cell(ws.max_row, 2).number_format = _CURRENCY_FMT
+    ws.append(["Líneas vendidas sin costo positivo", data["calidad_datos"]["lineas_sin_costo"]])
+    for nota in data["calidad_datos"]["notas"]:
+        ws.append([nota])
+    for titulo, clave in (("Egresos por categoría", "egresos_por_categoria"),
+                          ("Egresos por proveedor", "egresos_por_proveedor")):
+        ws.append([])
+        ws.append([titulo, "Monto"])
+        _style_header_row(ws, ws.max_row, 2)
+        for etiqueta, monto in data[clave].items():
+            ws.append([etiqueta, monto])
+            # User-supplied labels must remain text, including formula prefixes.
+            ws.cell(ws.max_row, 1).data_type = "s"
+            ws.cell(ws.max_row, 2).number_format = _CURRENCY_FMT
+    ws.column_dimensions["A"].width = 90
+    ws.column_dimensions["B"].width = 22
+    for row in ws.iter_rows():
+        row[0].alignment = Alignment(wrap_text=True, vertical="top")
+
+
 def exportar_estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> BytesIO:
     data = contab_svc.estado_resultados(db, fecha_inicio, fecha_fin)
     wb = Workbook()
+    _agregar_revision_resultados(wb, data)
     ws = wb.active
     ws.title = "Estado de Resultados"
 
@@ -317,6 +347,7 @@ def exportar_reporte_mensual(db: Session, mes: int, anio: int) -> BytesIO:
     ws_er.title = "Estado de Resultados"
 
     data_er = contab_svc.estado_resultados(db, primer_dia, ultimo_dia)
+    _agregar_revision_resultados(wb, data_er)
 
     ws_er.merge_cells("A1:C1")
     ws_er["A1"] = "JACARANDA REPOSTERIA MEXICANA"

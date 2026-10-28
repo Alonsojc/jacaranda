@@ -9,7 +9,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field, StrictBool, ValidationError, field_validator, model_validator
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
@@ -790,6 +790,61 @@ def anular_gasto_fijo_egresos(
     return {"ok": True}
 
 
+def _consulta_egresos(db, fecha_inicio, fecha_fin, categoria, metodo_pago, proveedor_id, activo, buscar=None):
+    if fecha_inicio and fecha_fin and fecha_inicio > fecha_fin:
+        raise HTTPException(status_code=400, detail="La fecha inicial debe ser anterior a la final")
+    query = db.query(Egreso).filter(Egreso.activo.is_(activo))
+    if fecha_inicio:
+        query = query.filter(Egreso.fecha >= fecha_inicio)
+    if fecha_fin:
+        query = query.filter(Egreso.fecha <= fecha_fin)
+    for valor, campo, catalogo, etiqueta, defecto in (
+        (categoria, Egreso.categoria, CATEGORIAS_EGRESO, "Categoría", "operativo"),
+        (metodo_pago, Egreso.metodo_pago, METODOS_PAGO, "Forma de pago", "efectivo"),
+    ):
+        if valor:
+            try:
+                normalizado = _normalizar_catalogo(valor, defecto, catalogo, etiqueta)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+            query = query.filter(campo == normalizado)
+    if proveedor_id:
+        query = query.filter(Egreso.proveedor_id == proveedor_id)
+    if buscar and buscar.strip():
+        termino = buscar.strip().lower()
+        query = query.filter(or_(
+            func.lower(Egreso.concepto).contains(termino, autoescape=True),
+            func.lower(Egreso.proveedor).contains(termino, autoescape=True),
+        ))
+    return query
+
+
+class EgresosConsultaResponse(BaseModel):
+    items: list[EgresoResponse]
+    cantidad: int
+    total: Decimal
+    skip: int
+    limit: int
+
+
+@router.get("/consulta", response_model=EgresosConsultaResponse)
+def consultar_egresos(
+    fecha_inicio: date = Query(),
+    fecha_fin: date = Query(),
+    categoria: str | None = Query(default=None),
+    metodo_pago: str | None = Query(default=None),
+    buscar: str | None = Query(default=None, max_length=120),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=25, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("egresos", "ver")),
+):
+    query = _consulta_egresos(db, fecha_inicio, fecha_fin, categoria, metodo_pago, None, True, buscar)
+    cantidad, total = query.with_entities(func.count(Egreso.id), func.coalesce(func.sum(Egreso.monto), 0)).one()
+    items = query.order_by(Egreso.fecha.desc(), Egreso.id.desc()).offset(skip).limit(limit).all()
+    return {"items": items, "cantidad": cantidad, "total": total, "skip": skip, "limit": limit}
+
+
 @router.get("/", response_model=list[EgresoResponse])
 def listar_egresos(
     fecha_inicio: date | None = Query(default=None),
@@ -803,25 +858,7 @@ def listar_egresos(
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_permission("egresos", "ver")),
 ):
-    query = db.query(Egreso).filter(Egreso.activo.is_(activo))
-    if fecha_inicio:
-        query = query.filter(Egreso.fecha >= fecha_inicio)
-    if fecha_fin:
-        query = query.filter(Egreso.fecha <= fecha_fin)
-    if categoria:
-        try:
-            categoria_normalizada = _normalizar_catalogo(categoria, "operativo", CATEGORIAS_EGRESO, "Categoría")
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        query = query.filter(Egreso.categoria == categoria_normalizada)
-    if metodo_pago:
-        try:
-            metodo_normalizado = _normalizar_catalogo(metodo_pago, "efectivo", METODOS_PAGO, "Forma de pago")
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        query = query.filter(Egreso.metodo_pago == metodo_normalizado)
-    if proveedor_id:
-        query = query.filter(Egreso.proveedor_id == proveedor_id)
+    query = _consulta_egresos(db, fecha_inicio, fecha_fin, categoria, metodo_pago, proveedor_id, activo)
     return query.order_by(Egreso.fecha.desc(), Egreso.id.desc()).offset(skip).limit(limit).all()
 
 
