@@ -118,7 +118,9 @@ def test_weekly_comparison_uses_two_aligned_closed_periods(tz, instant):
   assert.equal(title([]),'');
   const html=field('d-week-compare').innerHTML;
   assert(html.includes('$140.00'));assert(html.includes('$70.00'));assert(html.includes('100.0%'));
-  assert(html.includes('Días completos hasta el'));assert(!html.includes('999999'));
+  assert(html.includes('Días completos hasta el'));assert(html.includes('Vendido hoy'));
+  assert(html.includes('$999999.00'));assert(html.includes('1 ticket &middot; Día en curso'));
+  assert(!JSON.stringify(charts[0].data.datasets).includes('999999'));
   assert.equal(rows[14].fecha,fechaHoyISO());
 })();
 """, tz)
@@ -137,6 +139,38 @@ def test_weekly_tooltip_distinguishes_thursdays_by_the_hovered_bar(tz):
     '7 días anteriores: $28,995.00');
 })();
 """, tz)
+
+
+@pytest.mark.parametrize("case", ["zero", "sales", "missing", "null", "invalid", "no_tickets"])
+def test_today_note_distinguishes_zero_sales_from_missing_data_without_changing_week(case):
+    node(HARNESS + DATES + WEEK + f"const scenario='{case}';" + r"""
+(async()=>{
+  let rows=dailySeries();
+  if(scenario==='missing') rows=rows.slice(0,14);
+  else if(scenario==='zero') rows[14]={...rows[14],total:0,tickets:0};
+  else if(scenario==='sales') rows[14]={...rows[14],total:3730.50,tickets:11};
+  else if(scenario==='null') rows[14]={...rows[14],total:null};
+  else if(scenario==='invalid') rows[14]={...rows[14],total:'invalid'};
+  else if(scenario==='no_tickets') rows[14]={fecha:rows[14].fecha,total:55};
+  const load=cargarComparativoSemanal();calls[0].resolve(rows);await load;
+  assert.equal(calls.length,1);
+  assert.deepEqual(charts[0].data.datasets.map(s=>s.data),[Array(7).fill(20),Array(7).fill(10)]);
+  const html=field('d-week-compare').innerHTML;
+  const note=html.split('class="week-summary-item week-today"')[1].split('</div></div>')[0];
+  assert(note.includes('Vendido hoy &middot; 16 oct'));
+  assert(!note.includes('NaN'));assert(!note.includes('undefined'));
+  if(scenario==='zero') {
+    assert(note.includes('$0.00'));assert(note.includes('0 tickets &middot; Día en curso'));
+  } else if(scenario==='sales') {
+    assert(note.includes('$3730.50'));assert(note.includes('11 tickets &middot; Día en curso'));
+  } else if(scenario==='no_tickets') {
+    assert(note.includes('$55.00'));assert(!note.includes('ticket'));assert(note.includes('Día en curso'));
+  } else {
+    assert(note.includes('>--</strong>'));assert(note.includes('Dato de hoy no disponible'));
+    assert(!note.includes('$0.00'));assert(!note.includes('ticket'));
+  }
+})();
+""")
 
 
 def test_weekly_comparison_ignores_stale_requests_and_waits_for_chart_without_refetch():

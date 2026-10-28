@@ -160,7 +160,7 @@ def test_cut_load_waits_for_both_requests_and_ignores_old_dates():
     js = r"""
 const assert = require('node:assert/strict');
 const fields = {};
-const document = {getElementById: id => fields[id] ||= {value:'',style:{},textContent:'',innerHTML:''}};
+const document = {getElementById: id => fields[id] ||= {value:'',style:{},textContent:'',innerHTML:'',classList:{toggle(){}}}};
 let _corteCargaSeq=0, _corteVistaLista=false, _resumenCorteVista=null, _versionSesion=1;
 let _efTotal=0, _corteVentas=[], _corteActual=null, _totalVentasDia=0;
 function actualizarVisibilidadFinanzasCorte() {}
@@ -200,6 +200,82 @@ async function run() {
   assert.equal(await latest,false);assert.equal(_efTotal,99);assert.equal(_corteVistaLista,true);
 }
 run().catch(e=>{console.error(e);process.exit(1)});
+"""
+    result = subprocess.run([node, "-e", js], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
+def test_cut_payment_cards_keep_total_last_with_responsive_method_colors():
+    start = HTML.index('<div class="row corte-kpis">')
+    cards = HTML[start:HTML.index('<div class="row r2">', start)]
+    fields = [
+        "c-total-ef", "c-total-bbva", "c-total-trans",
+        "c-total-clip", "c-total-tar", "c-total-general",
+    ]
+    positions = [cards.index(f'id="{field}"') for field in fields]
+    assert positions == sorted(positions)
+    assert "corte-kpi-efectivo" in cards
+    assert "corte-kpi-bbva" in cards
+    assert "corte-kpi-transferencia" in cards
+    assert "corte-kpi-total" in cards
+    assert ".corte-kpis{grid-template-columns:repeat(3,minmax(0,1fr))" in HTML
+    assert ".corte-kpis{grid-template-columns:repeat(2,minmax(0,1fr))" in HTML
+    assert ".corte-kpi-efectivo{--corte-color:#7a513d" in HTML
+    assert ".corte-kpi-bbva{--corte-color:#1d4ed8" in HTML
+    assert ".corte-kpi-transferencia{--corte-color:#946200" in HTML
+    assert ".corte-kpi-total{--corte-color:#047857" in HTML
+    assert ".corte-kpi.is-zero,.corte-kpi.is-loading{--corte-color:#6b7280" in HTML
+
+
+def test_cut_payment_cards_clear_loading_and_zero_styles_without_changing_totals():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node required")
+    start = HTML.index("function actualizarKpisCorte")
+    helper = HTML[start:HTML.index("function textoFechaVentasCorte", start)]
+    js = r"""
+const assert = require('node:assert/strict'), fields = {};
+const document = {getElementById(id) {
+  const classes = new Set();
+  return fields[id] ||= {textContent:'',classList:{
+    toggle(cls,on){if(on) classes.add(cls);else classes.delete(cls);},
+    contains(cls){return classes.has(cls);}
+  }};
+}};
+function fmt(n){return Number(n).toFixed(2);}
+""" + helper + r"""
+const summary = {total_ventas_efectivo:1425,total_ventas_bbva:2305,
+  total_ventas_transferencia:0,total_ventas_clip:0,total_ventas_tarjeta:0,total_ventas:3730};
+actualizarKpisCorte(null);
+for(const id of ['ef','bbva','trans','clip','tar','general']) {
+  assert.equal(fields['c-total-'+id].textContent,'--');
+  assert(fields['c-total-'+id+'-card'].classList.contains('is-loading'));
+  assert(!fields['c-total-'+id+'-card'].classList.contains('is-zero'));
+}
+actualizarKpisCorte(summary);
+assert.equal(fields['c-total-ef'].textContent,'$1425.00');
+assert.equal(fields['c-total-bbva'].textContent,'$2305.00');
+assert.equal(fields['c-total-general'].textContent,'$3730.00');
+for(const id of ['ef','bbva','general']) assert(!fields['c-total-'+id+'-card'].classList.contains('is-zero'));
+for(const id of ['trans','clip','tar']) {
+  assert.equal(fields['c-total-'+id].textContent,'$0.00');
+  assert(fields['c-total-'+id+'-card'].classList.contains('is-zero'));
+  assert(!fields['c-total-'+id+'-card'].classList.contains('is-loading'));
+}
+summary.total_ventas_transferencia=125.50;summary.total_ventas=3855.50;
+actualizarKpisCorte(summary);
+assert(!fields['c-total-trans-card'].classList.contains('is-zero'));
+assert.equal(fields['c-total-trans'].textContent,'$125.50');
+assert.equal(fields['c-total-general'].textContent,'$3855.50');
+for(const field of Object.keys(summary)) summary[field]=0;
+actualizarKpisCorte(summary);
+assert(fields['c-total-ef-card'].classList.contains('is-zero'));
+assert(fields['c-total-bbva-card'].classList.contains('is-zero'));
+assert(!fields['c-total-general-card'].classList.contains('is-zero'));
+assert.equal(fields['c-total-general'].textContent,'$0.00');
+actualizarKpisCorte(null);
+assert(!fields['c-total-ef-card'].classList.contains('is-zero'));
+assert(fields['c-total-ef-card'].classList.contains('is-loading'));
 """
     result = subprocess.run([node, "-e", js], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr

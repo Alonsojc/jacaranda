@@ -563,6 +563,32 @@ h2{font-size:1.1rem}
 .corte-venta-detalle{min-width:0;overflow-wrap:anywhere}
 .corte-venta-total{white-space:nowrap}
 @media(max-width:900px){#c-ventas-list{flex:none;overflow:visible;padding-right:0;scrollbar-gutter:auto}}
+.corte-kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:.65rem;margin-bottom:.8rem}
+.corte-kpi{--corte-color:#5c4440;--corte-accent:#a08a84;border-radius:8px;min-height:98px;display:flex;flex-direction:column;justify-content:center;padding:1rem .75rem}
+.corte-kpi::before{background:var(--corte-accent);border-radius:8px 8px 0 0}
+.corte-kpis .corte-kpi .n{color:var(--corte-color);font-size:1.6rem;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;line-height:1.2}
+.corte-kpi .l{color:#76635d}
+.corte-kpi-efectivo{--corte-color:#7a513d;--corte-accent:#9c6b52}
+.corte-kpi-bbva{--corte-color:#1d4ed8;--corte-accent:#3b82f6}
+.corte-kpi-transferencia{--corte-color:#946200;--corte-accent:#eab308}
+.corte-kpi-total{--corte-color:#047857;--corte-accent:#10b981;background:#ecfdf5;border-color:#a7f3d0}
+.corte-kpi.is-zero,.corte-kpi.is-loading{--corte-color:#6b7280;--corte-accent:#d1d5db;background:#f9fafb;border-color:#e5e7eb}
+.corte-kpi.is-zero .l,.corte-kpi.is-loading .l{color:#6b7280}
+.week-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin-bottom:.5rem}
+.week-summary-item{min-width:0;overflow-wrap:anywhere}
+.week-summary-label{font-size:.75rem;color:var(--mut);line-height:1.4}
+.week-summary-value{display:block;font-size:1.05rem;color:var(--v);font-variant-numeric:tabular-nums;line-height:1.5}
+.week-summary-previous .week-summary-value{color:var(--mut)}
+.week-summary-dates{font-size:.72rem;color:var(--mut);line-height:1.4}
+.week-today{border-left:1px solid #d1fae5;padding-left:.9rem}
+.week-today .week-summary-value{color:#047857}
+@media(max-width:600px){
+.corte-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:.55rem}
+.corte-kpis .corte-kpi .n{font-size:1.35rem}
+.corte-kpi{min-height:90px;padding:.85rem .6rem}
+.week-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem}
+.week-today{grid-column:1/-1;border-left:0;border-top:1px solid #d1fae5;padding:.65rem 0 0}
+}
 .ticket-edit-modes{display:flex;gap:0;border:1px solid var(--brd);border-radius:8px;overflow:hidden;margin:.8rem 0}
 .ticket-edit-modes label{flex:1;display:flex;align-items:center;justify-content:center;gap:.4rem;min-height:44px;padding:.5rem;font-weight:600;cursor:pointer}
 .ticket-edit-modes label:has(input:checked){background:#f5eeeb;color:var(--dk)}
@@ -715,8 +741,8 @@ table.tbl th,table.tbl td{font-size:.8rem}
 @media(max-width:600px){.eg-import-table{display:block;min-width:0;width:100%}.eg-import-table thead{display:none}.eg-import-table tbody{display:block}.eg-import-table tr{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:.1rem .25rem;border-bottom:1px solid var(--brd);padding:.6rem 0}.eg-import-table td{border:0;padding:.15rem .2rem;text-align:left}.eg-import-table td:nth-child(1){grid-column:1;grid-row:1 / 6}.eg-import-table td:nth-child(2){grid-column:2;grid-row:1;font-size:.72rem;color:var(--mut)}.eg-import-table td:nth-child(2)::before{content:'Fila '}.eg-import-table td:nth-child(3){grid-column:3;grid-row:1;font-size:.72rem;text-align:right}.eg-import-table td:nth-child(4){grid-column:2 / 4;grid-row:2;min-width:0;max-width:none}.eg-import-table td:nth-child(5){grid-column:3;grid-row:3;text-align:right;font-weight:700}.eg-import-table td:nth-child(6){grid-column:2;grid-row:3}.eg-import-table td:nth-child(7){grid-column:2 / 4;grid-row:4;font-size:.75rem;color:var(--mut)}.eg-import-table td:nth-child(7)::before{content:'Categoria: '}.eg-import-table td:nth-child(8){grid-column:2 / 4;grid-row:5}.eg-import-nota{max-width:none}}
 @media(max-width:600px){.eg-import-foto tr{grid-template-columns:26px minmax(0,1fr)}.eg-import-foto td:nth-child(n+2){grid-column:2;min-width:0;text-align:left;white-space:normal}.eg-import-foto td:nth-child(1){grid-row:1 / 8}.eg-import-foto td:nth-child(2){grid-row:1}.eg-import-foto td:nth-child(3){grid-row:2}.eg-import-foto td:nth-child(4){grid-row:3}.eg-import-foto td:nth-child(5){grid-row:4}.eg-import-foto td:nth-child(6){grid-row:5}.eg-import-foto td:nth-child(7){grid-row:6}.eg-import-foto td:nth-child(8){grid-row:7}.eg-import-foto td:nth-child(3)::before{content:'Fecha'}.eg-import-foto td:nth-child(4)::before{content:'Proveedor'}.eg-import-foto td:nth-child(5)::before{content:'Monto MXN'}.eg-import-foto td:nth-child(6)::before{content:'Forma de pago'}.eg-import-foto td:nth-child(n+3):nth-child(-n+6)::before{display:block;font-size:.72rem;font-weight:400;color:var(--mut);margin-bottom:.2rem}}
 </style>
-<script defer src="js/jacaranda-core.js?v=jacaranda-v128"></script>
-<script defer src="js/egresos-import.js?v=jacaranda-v128"></script>
+<script defer src="js/jacaranda-core.js?v=jacaranda-v129"></script>
+<script defer src="js/egresos-import.js?v=jacaranda-v129"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 </head>
@@ -1278,15 +1304,13 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <button onclick="corteFechaHoy()" style="padding:.4rem .7rem;border:1px solid var(--brd);border-radius:8px;font-size:.78rem;background:#fff;cursor:pointer;font-weight:600;color:var(--v)">Hoy</button>
 </div>
 </div>
-<div class="row r3" style="margin-bottom:.3rem">
-<div class="card kpi g"><div class="n" id="c-total-ef">$0</div><div class="l">Efectivo</div></div>
-<div class="card kpi"><div class="n" id="c-total-tar">$0</div><div class="l">Otra tarjeta</div></div>
-<div class="card kpi a"><div class="n" id="c-total-trans">$0</div><div class="l">Transferencia</div></div>
-</div>
-<div class="row r3" style="margin-bottom:.5rem">
-<div class="card kpi" style="background:#f0fdf4"><div class="n" id="c-total-general" style="color:var(--grn)">$0</div><div class="l">Total ventas</div></div>
-<div class="card kpi"><div class="n" id="c-total-clip">$0</div><div class="l">CLIP</div></div>
-<div class="card kpi"><div class="n" id="c-total-bbva">$0</div><div class="l">BBVA</div></div>
+<div class="row corte-kpis">
+<div class="card kpi corte-kpi corte-kpi-efectivo is-loading" id="c-total-ef-card"><div class="n" id="c-total-ef">--</div><div class="l">Efectivo</div></div>
+<div class="card kpi corte-kpi corte-kpi-bbva is-loading" id="c-total-bbva-card"><div class="n" id="c-total-bbva">--</div><div class="l">BBVA</div></div>
+<div class="card kpi corte-kpi corte-kpi-transferencia is-loading" id="c-total-trans-card"><div class="n" id="c-total-trans">--</div><div class="l">Transferencia</div></div>
+<div class="card kpi corte-kpi is-loading" id="c-total-clip-card"><div class="n" id="c-total-clip">--</div><div class="l">CLIP</div></div>
+<div class="card kpi corte-kpi is-loading" id="c-total-tar-card"><div class="n" id="c-total-tar">--</div><div class="l">Otra tarjeta</div></div>
+<div class="card kpi corte-kpi corte-kpi-total is-loading" id="c-total-general-card"><div class="n" id="c-total-general">--</div><div class="l">Total ventas</div></div>
 </div>
 <div class="row r2">
 <div class="card" style="min-width:0;overflow:hidden">
@@ -3267,7 +3291,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v128';
+var APP_BUILD = 'jacaranda-v129';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -12777,7 +12801,8 @@ function cargarCorte() {
   _efTotal = null;
   document.getElementById('btn-corte').disabled = true;
   document.getElementById('btn-imprimir-corte').disabled = true;
-  ['c-total-ef','c-total-tar','c-total-trans','c-total-general','c-total-clip','c-total-bbva','c-total','c-tickets'].forEach(function(id) {
+  actualizarKpisCorte(null);
+  ['c-total','c-tickets'].forEach(function(id) {
     document.getElementById(id).textContent = '--';
   });
   calcularDiferencia();
@@ -12841,12 +12866,7 @@ function cargarCorte() {
     bbvaTotal = Number(resumen.total_ventas_bbva);
     totalGeneral = Number(resumen.total_ventas);
     tickets = resumen.numero_ventas;
-    document.getElementById('c-total-ef').textContent = '$' + fmt(efTotal);
-    document.getElementById('c-total-tar').textContent = '$' + fmt(tarTotal);
-    document.getElementById('c-total-trans').textContent = '$' + fmt(transTotal);
-    document.getElementById('c-total-general').textContent = '$' + fmt(totalGeneral);
-    document.getElementById('c-total-clip').textContent = '$' + fmt(clipTotal);
-    document.getElementById('c-total-bbva').textContent = '$' + fmt(bbvaTotal);
+    actualizarKpisCorte(resumen);
     document.getElementById('c-total').textContent = '$' + fmt(totalGeneral);
     document.getElementById('c-tickets').textContent = tickets;
     _efTotal = efTotal;
@@ -12879,6 +12899,21 @@ function cargarCorte() {
     hvfi.value = fechaDiasAntesISO(7);
   }
   return carga;
+}
+
+function actualizarKpisCorte(resumen) {
+  var campos = {
+    'c-total-ef':'total_ventas_efectivo', 'c-total-bbva':'total_ventas_bbva',
+    'c-total-trans':'total_ventas_transferencia', 'c-total-clip':'total_ventas_clip',
+    'c-total-tar':'total_ventas_tarjeta', 'c-total-general':'total_ventas'
+  };
+  Object.keys(campos).forEach(function(id) {
+    var monto = resumen ? Number(resumen[campos[id]]) : null;
+    document.getElementById(id).textContent = monto === null ? '--' : '$' + fmt(monto);
+    var tarjeta = document.getElementById(id + '-card');
+    tarjeta.classList.toggle('is-loading', monto === null);
+    tarjeta.classList.toggle('is-zero', monto === 0 && id !== 'c-total-general');
+  });
 }
 
 function textoFechaVentasCorte(fecha) {
@@ -14702,11 +14737,18 @@ function cargarComparativoSemanal() {
 
     // Header con resumen compacto
     var h = '<p style="font-size:.75rem;color:var(--mut);margin-bottom:.6rem">D\u00edas completos hasta el ' + fechaBreve(semanaAct[6].fecha) + '</p>';
-    h += '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;margin-bottom:.5rem">';
-    h += '<div style="min-width:0"><div style="font-size:.72rem;color:var(--mut)">\u00daltimos 7 d\u00edas</div><strong style="font-size:1rem;color:var(--v)">$' + fmt(totalAct) + '</strong>';
-    h += '<div style="font-size:.7rem;color:var(--mut)">' + fechaBreve(semanaAct[0].fecha) + ' - ' + fechaBreve(semanaAct[6].fecha) + '</div></div>';
-    h += '<div style="min-width:0"><div style="font-size:.72rem;color:var(--mut)">7 d\u00edas anteriores</div><strong style="font-size:1rem;color:var(--mut)">$' + fmt(totalAnt) + '</strong>';
-    h += '<div style="font-size:.7rem;color:var(--mut)">' + fechaBreve(semanaAnt[0].fecha) + ' - ' + fechaBreve(semanaAnt[6].fecha) + '</div></div>';
+    h += '<div class="week-summary">';
+    h += '<div class="week-summary-item"><div class="week-summary-label">\u00daltimos 7 d\u00edas</div><strong class="week-summary-value">$' + fmt(totalAct) + '</strong>';
+    h += '<div class="week-summary-dates">' + fechaBreve(semanaAct[0].fecha) + ' - ' + fechaBreve(semanaAct[6].fecha) + '</div></div>';
+    h += '<div class="week-summary-item week-summary-previous"><div class="week-summary-label">7 d\u00edas anteriores</div><strong class="week-summary-value">$' + fmt(totalAnt) + '</strong>';
+    h += '<div class="week-summary-dates">' + fechaBreve(semanaAnt[0].fecha) + ' - ' + fechaBreve(semanaAnt[6].fecha) + '</div></div>';
+    var ventaHoy = dias.find(function(dia) { return dia.fecha === hoy; });
+    var totalHoy = ventaHoy && ventaHoy.total != null && Number.isFinite(Number(ventaHoy.total)) ? Number(ventaHoy.total) : null;
+    var ticketsHoy = ventaHoy && ventaHoy.tickets != null ? Number(ventaHoy.tickets) : null;
+    var ticketsValidos = totalHoy !== null && Number.isInteger(ticketsHoy) && ticketsHoy >= 0;
+    h += '<div class="week-summary-item week-today"><div class="week-summary-label">Vendido hoy &middot; ' + fechaBreve(hoy) + '</div>';
+    h += '<strong class="week-summary-value" id="d-week-hoy-total">' + (totalHoy === null ? '--' : '$' + fmt(totalHoy)) + '</strong>';
+    h += '<div class="week-summary-dates">' + (totalHoy === null ? 'Dato de hoy no disponible' : (ticketsValidos ? ticketsHoy + (ticketsHoy === 1 ? ' ticket &middot; ' : ' tickets &middot; ') : '') + 'D\u00eda en curso') + '</div></div>';
     h += '</div>';
     h += '<span style="display:inline-block;margin-bottom:.6rem;font-size:.85rem;font-weight:700;color:' + color + ';background:' + (cambio > 0 ? '#d1fae5' : cambio < 0 ? '#fee2e2' : '#f3f4f6') + ';padding:.2rem .5rem;border-radius:6px">' + (cambio === null ? 'Sin base previa' : flecha + ' ' + Math.abs(cambio).toFixed(1) + '%') + '</span>';
 
