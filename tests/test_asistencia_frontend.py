@@ -132,6 +132,45 @@ def test_export_uses_loaded_filter_not_unsaved_inputs():
     """)
 
 
+def test_pagination_preserves_applied_filters_until_submit():
+    run_js("""
+      respond=async(m,p)=>p.includes('/estado')?status:{...populated,total:60};
+      await initAsistencia();
+      node('att-from').value='2026-10-27';
+      node('att-search').value='Sofia';
+      node('att-next').listeners.click(); await settle();
+      assert.match(requests.at(-1).path,/desde=2026-10-28/);
+      assert.match(requests.at(-1).path,/buscar=&vista=diario&pagina=2/);
+      node('att-previous').listeners.click(); await settle();
+      assert.match(requests.at(-1).path,/buscar=&vista=diario&pagina=1/);
+      node('att-next').listeners.click(); await settle();
+      node('att-filters').listeners.submit(event); await settle();
+      assert.match(requests.at(-1).path,/desde=2026-10-27/);
+      assert.match(requests.at(-1).path,/buscar=Sofia&vista=diario&pagina=1/);
+    """)
+
+
+def test_link_refresh_preserves_applied_filters_and_page():
+    run_js("""
+      respond=async(m,p)=>p.includes('/estado')?status:
+        p.includes('/empleados')?[{id:1,nombre:'Sofia',numero_empleado:'001'}]:
+        {...populated,total:60};
+      await initAsistencia();
+      node('att-next').listeners.click(); await settle();
+      node('att-from').value='2026-10-27';
+      node('att-search').value='Sofia';
+      node('att-body').listeners.click({target:{closest(){return {dataset:{link:'0'}};}}});
+      await settle();
+      node('att-employee').value='1';
+      node('att-reason').value='Vinculacion verificada';
+      await node('att-link-form').listeners.submit(event);
+      assert.equal(node('att-dialog').open,false);
+      assert.match(requests.at(-1).path,/desde=2026-10-28/);
+      assert.match(requests.at(-1).path,/buscar=&vista=diario&pagina=2/);
+      assert.equal(requests.filter(r=>r.method==='POST').length,1);
+    """)
+
+
 def test_assets_registered_and_privacy_reset_wired():
     html = Path("docs/index.html").read_text()
     sw = Path("docs/sw.js").read_text()

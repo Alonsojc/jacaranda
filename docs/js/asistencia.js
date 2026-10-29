@@ -66,7 +66,7 @@
     var seq = ++state.seq, session = _versionSesion;
     state.busy = true; clearRows(); controls(); message('Cargando checadas...');
     try {
-      state.filters = readFilters();
+      if (reset || !state.filters) state.filters = readFilters();
       var data = await request('GET','/checadas' + query(state.filters) + '&vista=' + state.view + '&pagina=' + state.page);
       if (!current(seq,session)) return;
       if (!Array.isArray(data.items) || !data.resumen) throw new Error('Respuesta no v\u00e1lida. Vuelve a consultar.');
