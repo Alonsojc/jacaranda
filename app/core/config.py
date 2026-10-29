@@ -134,6 +134,14 @@ class Settings(BaseSettings):
     UBER_EATS_SANDBOX_CLIENT_SECRET: SecretStr = SecretStr("")
     UBER_EATS_SANDBOX_STORE_ID: str = ""
 
+    # CrossChex: disabled until the dedicated account and device are verified.
+    CROSSCHEX_ENABLED: bool = False
+    CROSSCHEX_REGION: str = "us"
+    CROSSCHEX_COMPANY_ID: str = ""
+    CROSSCHEX_DEVICE_SERIALS: str = ""
+    CROSSCHEX_API_KEY: SecretStr = SecretStr("")
+    CROSSCHEX_API_SECRET: SecretStr = SecretStr("")
+
     # BBVA API Market (conciliación de pagos)
     BBVA_CLIENT_ID: str = ""
     BBVA_CLIENT_SECRET: str = ""

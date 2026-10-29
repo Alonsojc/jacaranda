@@ -25,7 +25,7 @@ MODULOS_DISPONIBLES = [
     "dash", "pos", "cafeteria", "ped", "inv", "corte", "egresos", "rep", "listas", "prod", "conta",
     "iapg", "cofepris", "compras", "sucursales", "merma", "calidad", "crm",
     "kpis", "fiscal", "auditoria", "ejecutivo", "deliveryp", "papelera",
-    "backup", "usuarios",
+    "backup", "usuarios", "asistencia",
 ]
 
 
@@ -45,7 +45,7 @@ def permisos_default_por_rol(rol: RolUsuario) -> dict:
         return {
             "dash": "ver", "cafeteria": "ver", "rep": "editar", "corte": "ver", "egresos": "editar",
             "compras": "ver", "conta": "editar",
-            "fiscal": "editar", "kpis": "ver",
+            "fiscal": "editar", "kpis": "ver", "asistencia": "ver",
         }
     elif rol in (RolUsuario.PANADERO, RolUsuario.PRODUCCION):
         return {
