@@ -455,10 +455,20 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
         )
     ).all()
     total_recurrentes = total_gastos_op
+    costos_capturados = ZERO
+    egresos_sin_clasificar = ZERO
+    cantidad_costos = cantidad_sin_clasificar = 0
     categorias: dict[str, Decimal] = {}
     proveedores: dict[str, Decimal] = {}
     for egreso in egresos:
         monto = egreso.monto or ZERO
+        if egreso.clasificacion == "costo":
+            costos_capturados += monto
+            cantidad_costos += 1
+            continue
+        if egreso.clasificacion is None:
+            egresos_sin_clasificar += monto
+            cantidad_sin_clasificar += 1
         concepto = egreso.concepto
         gastos_desglose_decimal[concepto] = (
             gastos_desglose_decimal.get(concepto, ZERO) + monto
@@ -520,6 +530,10 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
         for concepto, monto in gastos_desglose_decimal.items()
     }
     notas = ["El costo de ventas usa el costo actual del catálogo; no es un costo histórico congelado."]
+    if cantidad_costos:
+        notas.append("Los costos capturados son compras registradas y no se suman al costo de ventas ni a los gastos; concílialos con inventario y recetas para evitar duplicados.")
+    if cantidad_sin_clasificar:
+        notas.append(f"{cantidad_sin_clasificar} egresos sin clasificar siguen incluidos en gastos; revisa si alguno es costo.")
     faltantes = faltantes_mostrador + faltantes_cafe
     if faltantes:
         notas.append(f"{faltantes} líneas vendidas no tienen costo positivo registrado. La utilidad puede estar sobreestimada.")
@@ -554,6 +568,10 @@ def estado_resultados(db: Session, fecha_inicio: date, fecha_fin: date) -> dict:
         "composicion_gastos": {
             "egresos_registrados": float(total_egresos),
             "cantidad_egresos": len(egresos),
+            "costos_capturados": float(costos_capturados),
+            "cantidad_costos": cantidad_costos,
+            "egresos_sin_clasificar": float(egresos_sin_clasificar),
+            "cantidad_sin_clasificar": cantidad_sin_clasificar,
             "recurrentes_estimados": float(total_recurrentes),
             "nomina_registrada": float(total_nomina),
         },

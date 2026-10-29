@@ -5,7 +5,7 @@ from decimal import Decimal
 import hashlib
 import json
 import re
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field, StrictBool, ValidationError, field_validator, model_validator
@@ -100,6 +100,7 @@ class EgresoBase(BaseModel):
     concepto: str = Field(..., min_length=2, max_length=200)
     monto: Decimal = Field(..., gt=0, le=MAX_MONTO, decimal_places=2)
     categoria: str = Field(default="operativo", max_length=60)
+    clasificacion: Literal["costo", "gasto"] | None = None
     metodo_pago: str = Field(default="efectivo", max_length=30)
     fecha: date | None = None
     proveedor_id: int | None = Field(default=None, gt=0)
@@ -148,6 +149,7 @@ class EgresoUpdate(BaseModel):
     concepto: str | None = Field(default=None, min_length=2, max_length=200)
     monto: Decimal | None = Field(default=None, gt=0, le=MAX_MONTO, decimal_places=2)
     categoria: str | None = Field(default=None, max_length=60)
+    clasificacion: Literal["costo", "gasto"] | None = None
     metodo_pago: str | None = Field(default=None, max_length=30)
     fecha: date | None = None
     proveedor_id: int | None = Field(default=None, gt=0)
@@ -201,6 +203,7 @@ class EgresoResponse(BaseModel):
     concepto: str
     monto: Decimal
     categoria: str
+    clasificacion: Literal["costo", "gasto"] | None = None
     metodo_pago: str
     fecha: date
     proveedor_id: int | None = None
@@ -397,6 +400,7 @@ def _snapshot_egreso(egreso: Egreso) -> dict:
         "concepto": egreso.concepto,
         "monto": float(egreso.monto),
         "categoria": egreso.categoria,
+        "clasificacion": egreso.clasificacion,
         "metodo_pago": egreso.metodo_pago,
         "fecha": egreso.fecha.isoformat() if egreso.fecha else None,
         "proveedor_id": egreso.proveedor_id,
@@ -790,7 +794,7 @@ def anular_gasto_fijo_egresos(
     return {"ok": True}
 
 
-def _consulta_egresos(db, fecha_inicio, fecha_fin, categoria, metodo_pago, proveedor_id, activo, buscar=None):
+def _consulta_egresos(db, fecha_inicio, fecha_fin, categoria, metodo_pago, proveedor_id, activo, buscar=None, clasificacion=None):
     if fecha_inicio and fecha_fin and fecha_inicio > fecha_fin:
         raise HTTPException(status_code=400, detail="La fecha inicial debe ser anterior a la final")
     query = db.query(Egreso).filter(Egreso.activo.is_(activo))
@@ -810,6 +814,10 @@ def _consulta_egresos(db, fecha_inicio, fecha_fin, categoria, metodo_pago, prove
             query = query.filter(campo == normalizado)
     if proveedor_id:
         query = query.filter(Egreso.proveedor_id == proveedor_id)
+    if clasificacion == "sin_clasificar":
+        query = query.filter(Egreso.clasificacion.is_(None))
+    elif clasificacion:
+        query = query.filter(Egreso.clasificacion == clasificacion)
     if buscar and buscar.strip():
         termino = buscar.strip().lower()
         query = query.filter(or_(
@@ -833,13 +841,14 @@ def consultar_egresos(
     fecha_fin: date = Query(),
     categoria: str | None = Query(default=None),
     metodo_pago: str | None = Query(default=None),
+    clasificacion: Literal["costo", "gasto", "sin_clasificar"] | None = Query(default=None),
     buscar: str | None = Query(default=None, max_length=120),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=25, ge=1, le=100),
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_permission("egresos", "ver")),
 ):
-    query = _consulta_egresos(db, fecha_inicio, fecha_fin, categoria, metodo_pago, None, True, buscar)
+    query = _consulta_egresos(db, fecha_inicio, fecha_fin, categoria, metodo_pago, None, True, buscar, clasificacion)
     cantidad, total = query.with_entities(func.count(Egreso.id), func.coalesce(func.sum(Egreso.monto), 0)).one()
     items = query.order_by(Egreso.fecha.desc(), Egreso.id.desc()).offset(skip).limit(limit).all()
     return {"items": items, "cantidad": cantidad, "total": total, "skip": skip, "limit": limit}
@@ -851,6 +860,7 @@ def listar_egresos(
     fecha_fin: date | None = Query(default=None),
     categoria: str | None = Query(default=None),
     metodo_pago: str | None = Query(default=None),
+    clasificacion: Literal["costo", "gasto", "sin_clasificar"] | None = Query(default=None),
     proveedor_id: int | None = Query(default=None, gt=0),
     activo: bool = Query(default=True),
     skip: int = Query(default=0, ge=0),
@@ -858,7 +868,7 @@ def listar_egresos(
     db: Session = Depends(get_db),
     _user: Usuario = Depends(require_permission("egresos", "ver")),
 ):
-    query = _consulta_egresos(db, fecha_inicio, fecha_fin, categoria, metodo_pago, proveedor_id, activo)
+    query = _consulta_egresos(db, fecha_inicio, fecha_fin, categoria, metodo_pago, proveedor_id, activo, clasificacion=clasificacion)
     return query.order_by(Egreso.fecha.desc(), Egreso.id.desc()).offset(skip).limit(limit).all()
 
 
@@ -899,6 +909,16 @@ def iniciar_resguardo(
     return resumen_resguardo(db)
 
 
+def _fingerprint_egreso(data: EgresoCreate) -> str:
+    values = data.model_dump(mode="json", exclude={"idempotency_key"})
+    # Old clients and imports must retain their pre-classification retry fingerprint.
+    if values.get("clasificacion") is None:
+        values.pop("clasificacion", None)
+    return hashlib.sha256(json.dumps(
+        values, sort_keys=True, ensure_ascii=True, separators=(",", ":"),
+    ).encode()).hexdigest()
+
+
 def _registrar_egreso(
     data: EgresoCreate,
     db: Session,
@@ -907,10 +927,7 @@ def _registrar_egreso(
     importacion: dict | None = None,
 ):
     control = bloquear_resguardo(db)
-    fingerprint = hashlib.sha256(json.dumps(
-        data.model_dump(mode="json", exclude={"idempotency_key"}),
-        sort_keys=True, ensure_ascii=True, separators=(",", ":"),
-    ).encode()).hexdigest()
+    fingerprint = _fingerprint_egreso(data)
     if data.idempotency_key:
         anterior = db.query(Egreso).filter_by(idempotency_key=data.idempotency_key).first()
         if anterior:
@@ -936,6 +953,7 @@ def _registrar_egreso(
         concepto=data.concepto,
         monto=data.monto,
         categoria=data.categoria,
+        clasificacion=data.clasificacion,
         metodo_pago=data.metodo_pago,
         fecha=fecha,
         proveedor_id=proveedor_id,
@@ -1198,8 +1216,7 @@ def confirmar_excel_egresos(
             captura = EgresoCreate(**fila["datos"])
             anterior = db.query(Egreso).filter_by(idempotency_key=captura.idempotency_key).first()
             if anterior:
-                fingerprint = hashlib.sha256(json.dumps(captura.model_dump(mode="json", exclude={"idempotency_key"}),
-                    sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode()).hexdigest()
+                fingerprint = _fingerprint_egreso(captura)
                 if anterior.request_fingerprint != fingerprint:
                     raise HTTPException(status_code=409, detail=f"La fila {fila['fila']} ya fue importada con otros datos")
                 repetidos += 1
@@ -1278,6 +1295,7 @@ def actualizar_egreso(
         "concepto",
         "monto",
         "categoria",
+        "clasificacion",
         "metodo_pago",
         "fecha",
         "proveedor_id",

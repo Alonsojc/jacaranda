@@ -770,10 +770,10 @@ table.tbl th,table.tbl td{font-size:.8rem}
 @media(max-width:600px){.eg-import-table{display:block;min-width:0;width:100%}.eg-import-table thead{display:none}.eg-import-table tbody{display:block}.eg-import-table tr{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:.1rem .25rem;border-bottom:1px solid var(--brd);padding:.6rem 0}.eg-import-table td{border:0;padding:.15rem .2rem;text-align:left}.eg-import-table td:nth-child(1){grid-column:1;grid-row:1 / 6}.eg-import-table td:nth-child(2){grid-column:2;grid-row:1;font-size:.72rem;color:var(--mut)}.eg-import-table td:nth-child(2)::before{content:'Fila '}.eg-import-table td:nth-child(3){grid-column:3;grid-row:1;font-size:.72rem;text-align:right}.eg-import-table td:nth-child(4){grid-column:2 / 4;grid-row:2;min-width:0;max-width:none}.eg-import-table td:nth-child(5){grid-column:3;grid-row:3;text-align:right;font-weight:700}.eg-import-table td:nth-child(6){grid-column:2;grid-row:3}.eg-import-table td:nth-child(7){grid-column:2 / 4;grid-row:4;font-size:.75rem;color:var(--mut)}.eg-import-table td:nth-child(7)::before{content:'Categoria: '}.eg-import-table td:nth-child(8){grid-column:2 / 4;grid-row:5}.eg-import-nota{max-width:none}}
 @media(max-width:600px){.eg-import-foto tr{grid-template-columns:26px minmax(0,1fr)}.eg-import-foto td:nth-child(n+2){grid-column:2;min-width:0;text-align:left;white-space:normal}.eg-import-foto td:nth-child(1){grid-row:1 / 8}.eg-import-foto td:nth-child(2){grid-row:1}.eg-import-foto td:nth-child(3){grid-row:2}.eg-import-foto td:nth-child(4){grid-row:3}.eg-import-foto td:nth-child(5){grid-row:4}.eg-import-foto td:nth-child(6){grid-row:5}.eg-import-foto td:nth-child(7){grid-row:6}.eg-import-foto td:nth-child(8){grid-row:7}.eg-import-foto td:nth-child(3)::before{content:'Fecha'}.eg-import-foto td:nth-child(4)::before{content:'Proveedor'}.eg-import-foto td:nth-child(5)::before{content:'Monto MXN'}.eg-import-foto td:nth-child(6)::before{content:'Forma de pago'}.eg-import-foto td:nth-child(n+3):nth-child(-n+6)::before{display:block;font-size:.72rem;font-weight:400;color:var(--mut);margin-bottom:.2rem}}
 </style>
-<script defer src="js/jacaranda-core.js?v=jacaranda-v132"></script>
-<script defer src="js/egresos-import.js?v=jacaranda-v132"></script>
-<link rel="stylesheet" href="css/asistencia.css?v=jacaranda-v132">
-<script defer src="js/asistencia.js?v=jacaranda-v132"></script>
+<script defer src="js/jacaranda-core.js?v=jacaranda-v133"></script>
+<script defer src="js/egresos-import.js?v=jacaranda-v133"></script>
+<link rel="stylesheet" href="css/asistencia.css?v=jacaranda-v133">
+<script defer src="js/asistencia.js?v=jacaranda-v133"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 </head>
@@ -1449,11 +1449,14 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 <div class="row r2">
 <div class="card">
-<h3>Gasto r&aacute;pido del d&iacute;a</h3>
+<h3>Egreso r&aacute;pido del d&iacute;a</h3>
 <div class="frow">
 <div class="fg"><label>Concepto</label><input id="eg-concepto" placeholder="Gas, empaque, flete..."></div>
 <div class="fg"><label>Monto</label><input type="number" id="eg-monto" min="0" step="0.01" placeholder="250.00"></div>
 </div>
+<div class="fg"><label for="eg-clasificacion">Tipo</label><select id="eg-clasificacion">
+<option value="">Selecciona...</option><option value="costo">Costo</option><option value="gasto">Gasto</option>
+</select></div>
 <div class="frow">
 <div class="fg"><label>Categor&iacute;a</label><select id="eg-categoria">
 <option value="operativo">Operativo</option>
@@ -1526,6 +1529,9 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 <div class="eg-toolbar">
 <div class="fg eg-search"><label for="eg-buscar">Concepto o proveedor</label><input id="eg-buscar" type="search" maxlength="120" placeholder="Buscar gastos" oninput="filtrarEgresos(true)"></div>
+<div class="fg"><label for="eg-fclasificacion">Tipo</label><select id="eg-fclasificacion" onchange="filtrarEgresos()">
+<option value="">Todos</option><option value="costo">Costo</option><option value="gasto">Gasto</option><option value="sin_clasificar">Sin clasificar</option>
+</select></div>
 <div class="fg"><label for="eg-fcategoria">Categoría</label><select id="eg-fcategoria" onchange="filtrarEgresos()"></select></div>
 <div class="fg"><label for="eg-fmetodo">Forma de pago</label><select id="eg-fmetodo" onchange="filtrarEgresos()"></select></div>
 <button type="button" class="limpiar" onclick="limpiarFiltrosEgresos()">Limpiar filtros</button>
@@ -2700,6 +2706,9 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div class="fg"><label>Concepto</label><input id="mee-concepto"></div>
 <div class="fg"><label>Monto</label><input type="number" id="mee-monto" min="0" step="0.01"></div>
 </div>
+<div class="fg"><label for="mee-clasificacion">Tipo</label><select id="mee-clasificacion">
+<option value="">Sin clasificar</option><option value="costo">Costo</option><option value="gasto">Gasto</option>
+</select></div>
 <div class="frow">
 <div class="fg"><label>Categor&iacute;a</label><select id="mee-categoria">
 <option value="operativo">Operativo</option>
@@ -3383,7 +3392,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v132';
+var APP_BUILD = 'jacaranda-v133';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -13172,6 +13181,7 @@ function limpiarEgresoForm() {
   document.getElementById('eg-concepto').value = '';
   document.getElementById('eg-monto').value = '';
   document.getElementById('eg-categoria').value = 'operativo';
+  document.getElementById('eg-clasificacion').value = '';
   document.getElementById('eg-metodo').value = 'efectivo';
   document.getElementById('eg-fecha').value = fechaHoyISO();
   document.getElementById('eg-proveedor').value = '';
@@ -13191,6 +13201,7 @@ function datosFormularioEgreso(prefix) {
     concepto: document.getElementById(prefix + '-concepto').value.trim(),
     monto: parseFloat(document.getElementById(prefix + '-monto').value),
     categoria: document.getElementById(prefix + '-categoria').value,
+    clasificacion: document.getElementById(prefix + '-clasificacion').value || null,
     metodo_pago: document.getElementById(prefix + '-metodo').value,
     fecha: document.getElementById(prefix + '-fecha').value || (prefix === 'eg' && _egresoOrigen === 'ocr' ? '' : fechaHoyISO()),
     proveedor: document.getElementById(prefix + '-proveedor').value.trim() || null,
@@ -13201,6 +13212,7 @@ function datosFormularioEgreso(prefix) {
   if (!validarFechaEgreso(data.fecha)) return null;
   if (!data.proveedor) { toast('Escribe proveedor o persona', true); return null; }
   if (!data.metodo_pago) { toast('Selecciona la forma de pago real', true); return null; }
+  if (prefix === 'eg' && !data.clasificacion) { toast('Selecciona si es costo o gasto', true); return null; }
   return data;
 }
 
@@ -13262,7 +13274,7 @@ function cargarEgresos() {
     return Promise.resolve();
   }
   var params = new URLSearchParams({fecha_inicio:fi, fecha_fin:ff, skip:_egSkip, limit:_egLimit});
-  [['buscar','eg-buscar'],['categoria','eg-fcategoria'],['metodo_pago','eg-fmetodo']].forEach(function(pair) {
+  [['buscar','eg-buscar'],['categoria','eg-fcategoria'],['metodo_pago','eg-fmetodo'],['clasificacion','eg-fclasificacion']].forEach(function(pair) {
     var value = document.getElementById(pair[1]).value.trim();
     if (value) params.set(pair[0],value);
   });
@@ -13271,7 +13283,7 @@ function cargarEgresos() {
     _egTotal = data.cantidad;
     if (_egSkip && _egSkip >= _egTotal) { _egSkip = Math.max(0, Math.ceil(_egTotal / _egLimit) - 1) * _egLimit; return cargarEgresos(); }
     renderEgresos(data.items);
-    document.getElementById('eg-period-summary').innerHTML = '<span>' + escHtml(fi) + ' al ' + escHtml(ff) + ' · ' + data.cantidad + ' gastos</span><span>Total filtrado <strong>$' + fmt(data.total) + '</strong></span>';
+    document.getElementById('eg-period-summary').innerHTML = '<span>' + escHtml(fi) + ' al ' + escHtml(ff) + ' · ' + data.cantidad + (data.cantidad === 1 ? ' gasto' : ' gastos') + '</span><span>Total filtrado <strong>$' + fmt(data.total) + '</strong></span>';
     document.getElementById('eg-page-info').textContent = _egTotal ? (_egSkip + 1) + '–' + (_egSkip + data.items.length) + ' de ' + _egTotal + (_egTotal === 1 ? ' gasto' : ' gastos') : '0 gastos';
     document.getElementById('eg-prev').disabled = _egSkip === 0;
     document.getElementById('eg-next').disabled = _egSkip + _egLimit >= _egTotal;
@@ -13317,7 +13329,7 @@ function egresosMes(offset) {
   return filtrarEgresos();
 }
 function limpiarFiltrosEgresos() {
-  ['eg-buscar','eg-fcategoria','eg-fmetodo'].forEach(function(id) { document.getElementById(id).value = ''; });
+  ['eg-buscar','eg-fcategoria','eg-fmetodo','eg-fclasificacion'].forEach(function(id) { document.getElementById(id).value = ''; });
   return filtrarEgresos();
 }
 function paginaEgresos(delta) {
@@ -13585,7 +13597,8 @@ function renderEgresos(items) {
     _egresosCache[e.id] = e;
     var fecha = e.fecha ? new Date(e.fecha + 'T12:00:00').toLocaleDateString('es-MX', {day:'2-digit',month:'short',year:'numeric'}) : '';
     h += '<tr><td>' + escHtml(fecha) + '</td>';
-    h += '<td><strong>' + escHtml(e.concepto) + '</strong>' + (e.origen === 'ocr' ? '<br><small style="color:var(--mut)">OCR</small>' : '') + '</td>';
+    var tipo = e.clasificacion === 'costo' ? 'Costo' : e.clasificacion === 'gasto' ? 'Gasto' : 'Sin clasificar';
+    h += '<td><strong>' + escHtml(e.concepto) + '</strong><br><small style="color:var(--mut)">' + tipo + (e.origen === 'ocr' ? ' · OCR' : '') + '</small></td>';
     h += '<td>' + escHtml(e.proveedor || '-') + '</td>';
     h += '<td>' + escHtml(e.categoria || '') + '</td>';
     h += '<td>' + escHtml(e.metodo_pago || '') + '</td>';
@@ -13606,6 +13619,7 @@ function abrirEditarEgreso(id) {
   document.getElementById('mee-concepto').value = e.concepto || '';
   document.getElementById('mee-monto').value = e.monto || '';
   document.getElementById('mee-categoria').value = e.categoria || 'operativo';
+  document.getElementById('mee-clasificacion').value = e.clasificacion || '';
   document.getElementById('mee-metodo').value = e.metodo_pago || 'efectivo';
   document.getElementById('mee-fecha').value = e.fecha || fechaHoyISO();
   document.getElementById('mee-proveedor').value = e.proveedor || '';
@@ -16818,7 +16832,8 @@ function cargarEdoResultados() {
     h += '<div class="card kpi ' + cls + '"><div class="n">$' + fmt(r.utilidad_neta) + '</div><div class="l">Resultado estimado (' + r.margen_neto_pct + '%)</div></div>';
     h += '</div>';
     var calidad = r.calidad_datos || {};
-    h += '<details class="conta-review"' + (calidad.lineas_sin_costo ? ' open' : '') + '><summary>Base de cálculo' + (calidad.lineas_sin_costo ? ' · ' + Number(calidad.lineas_sin_costo) + ' líneas sin costo' : '') + '</summary>';
+    var fuentes = r.composicion_gastos;
+    h += '<details class="conta-review"' + (calidad.lineas_sin_costo || (fuentes && (fuentes.cantidad_costos || fuentes.cantidad_sin_clasificar)) ? ' open' : '') + '><summary>Base de cálculo' + (calidad.lineas_sin_costo ? ' · ' + Number(calidad.lineas_sin_costo) + ' líneas sin costo' : '') + '</summary>';
     (calidad.notas || ['Costo calculado con el catálogo actual.']).forEach(function(nota) { h += '<p>' + escHtml(nota) + '</p>'; });
     h += '</details><div class="conta-sections">';
     // Left: detalle
@@ -16834,7 +16849,6 @@ function cargarEdoResultados() {
     h += '</section>';
     // Right: gastos desglose
     h += '<section><h3>Origen de los gastos</h3>';
-    var fuentes = r.composicion_gastos;
     if (fuentes) {
       [['Egresos registrados','egresos_registrados'],['Recurrentes estimados','recurrentes_estimados'],['Nómina registrada','nomina_registrada']].forEach(function(pair) {
         h += '<div class="conta-row"><span class="cr-label">' + pair[0] + '</span><span class="cr-val">$' + fmt(fuentes[pair[1]]) + '</span></div>';
@@ -16843,11 +16857,12 @@ function cargarEdoResultados() {
       Object.keys(r.gastos_operacion || {}).forEach(function(k) { h += '<div class="conta-row"><span class="cr-label">' + escHtml(k) + '</span><span class="cr-val">$' + fmt(r.gastos_operacion[k]) + '</span></div>'; });
     }
     h += '<div class="conta-row total"><span class="cr-label">Total gastos</span><span class="cr-val">$' + fmt(r.total_gastos_operacion) + '</span></div>';
+    if (fuentes && fuentes.cantidad_costos) h += '<div class="conta-row"><span class="cr-label">Costos capturados (referencia)</span><span class="cr-val">$' + fmt(fuentes.costos_capturados) + '</span></div>';
     if (fuentes && puedeVerReporteEgresos()) h += '<button type="button" class="limpiar" onclick="contaVerEgresos()">Ver ' + Number(fuentes.cantidad_egresos) + ' egresos del periodo</button>';
     h += '</section></div>';
     if (fuentes) {
       h += '<div class="conta-sections conta-breakdowns">';
-      [['Egresos por categoría','egresos_por_categoria'],['Egresos por proveedor','egresos_por_proveedor']].forEach(function(pair) {
+      [['Gastos por categoría','egresos_por_categoria'],['Gastos por proveedor','egresos_por_proveedor']].forEach(function(pair) {
         h += '<section><h3>' + pair[0] + '</h3>';
         var entries = Object.entries(r[pair[1]] || {});
         if (!entries.length) h += '<p style="color:var(--mut)">Sin egresos registrados en este periodo.</p>';
@@ -16865,7 +16880,7 @@ function contaVerEgresos() {
   inicializarFiltrosEgresos();
   document.getElementById('eg-fi').value = document.getElementById('conta-er-fi').value;
   document.getElementById('eg-ff').value = document.getElementById('conta-er-ff').value;
-  ['eg-buscar','eg-fcategoria','eg-fmetodo'].forEach(function(id) { document.getElementById(id).value = ''; });
+  ['eg-buscar','eg-fcategoria','eg-fmetodo','eg-fclasificacion'].forEach(function(id) { document.getElementById(id).value = ''; });
   _egSkip = 0;
   return go('egresos').then(function() { document.getElementById('eg-history-title').scrollIntoView({block:'start'}); });
 }

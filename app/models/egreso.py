@@ -3,7 +3,7 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -19,6 +19,9 @@ class Egreso(Base):
     concepto: Mapped[str] = mapped_column(String(200), index=True)
     monto: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     categoria: Mapped[str] = mapped_column(String(60), default="operativo", index=True)
+    clasificacion: Mapped[str | None] = mapped_column(
+        String(12), CheckConstraint("clasificacion IS NULL OR clasificacion IN ('costo', 'gasto')", name="ck_egresos_clasificacion"),
+    )
     metodo_pago: Mapped[str] = mapped_column(String(30), default="efectivo", index=True)
     fecha: Mapped[date] = mapped_column(Date, default=operation_today, index=True)
     proveedor_id: Mapped[int | None] = mapped_column(ForeignKey("proveedores.id"), index=True)

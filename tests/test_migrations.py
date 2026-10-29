@@ -6,9 +6,11 @@ import sys
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "a6d8e102c739 (head)"
+ALEMBIC_HEAD = "b3e71a09c442 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:
@@ -70,6 +72,28 @@ def test_alembic_upgrade_head_on_precreated_schema(tmp_path):
     current = _run([sys.executable, "-m", "alembic", "current"], database_url)
 
     assert ALEMBIC_HEAD in current.stdout
+
+
+def test_clasificacion_egresos_preserva_historial_y_valida_tipo(tmp_path):
+    db_path = tmp_path / "legacy_expenses.db"
+    url = f"sqlite:///{db_path}"
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript("""
+            CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY);
+            INSERT INTO alembic_version VALUES ('a6d8e102c739');
+            CREATE TABLE egresos (id INTEGER PRIMARY KEY, concepto TEXT, monto NUMERIC);
+            INSERT INTO egresos VALUES (1, 'Egreso anterior', 120);
+        """)
+    _run([sys.executable, "-m", "alembic", "upgrade", "head"], url)
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT id, concepto, monto, clasificacion FROM egresos").fetchone() == (1, "Egreso anterior", 120, None)
+        conn.execute("UPDATE egresos SET clasificacion = 'costo' WHERE id = 1")
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute("UPDATE egresos SET clasificacion = 'inventado' WHERE id = 1")
+    _run([sys.executable, "-m", "alembic", "downgrade", "a6d8e102c739"], url)
+    _run([sys.executable, "-m", "alembic", "upgrade", "head"], url)
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT clasificacion FROM egresos").fetchone() == ("costo",)
 
 
 def test_resguardo_migration_preserves_expenses_and_does_not_initialize_cash(tmp_path):

@@ -34,6 +34,8 @@ def test_postgres_migration_concurrency_and_payroll_isolation():
         result = subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"],
                                 env=env, capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
+        assert "clasificacion" in {column["name"] for column in inspect(engine).get_columns("egresos")}
+        assert "ck_egresos_clasificacion" in {c["name"] for c in inspect(engine).get_check_constraints("egresos")}
         with Session(engine) as db:
             db.add(Usuario(id=1, nombre="Fixture", email="fixture@example.test", hashed_password="not-a-password"))
             db.commit()
