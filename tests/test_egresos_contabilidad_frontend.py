@@ -189,6 +189,9 @@ def test_expense_search_pagination_and_stale_responses():
     # Sorting only the visible page would misrepresent the full filtered history.
     assert 'data-no-sort="true"' in _section('function renderEgresos', 'function abrirEditarEgreso')
     assert "if (th.closest('[data-no-sort]')) return;" in HTML
+    assert '<div class="eg-pagination" role="navigation" aria-label="Páginas de gastos">' in HTML
+    assert '<nav class="eg-pagination"' not in HTML
+    assert '<span id="eg-page-info" aria-live="polite" aria-atomic="true">' in HTML
     code = PREAMBLE + r"""
 let _egConsultaSeq=0,_egSkip=0,_egLimit=25,_egTotal=0,_egBuscarTimer,_egresosCache={};
 function renderEgresos(items){fields['eg-list'].innerHTML=items.map(i=>i.concepto).join(',');}
@@ -201,11 +204,13 @@ async function run(){
   const rows=Array.from({length:25},()=>({concepto:'visible'}));
   requests[1].resolve({items:rows,cantidad:31,total:'317.75'});await latest;
   assert.ok(fields['eg-period-summary'].innerHTML.includes('$317.75'));
+  assert.equal(fields['eg-page-info'].textContent,'1–25 de 31 gastos');
   assert.equal(fields['eg-next'].disabled,false);
   requests[0].resolve({items:[{concepto:'obsolete'}],cantidad:1,total:999});await old;
   assert.ok(!fields['eg-list'].innerHTML.includes('obsolete'));
   let next=paginaEgresos(1);assert.ok(requests[2].path.includes('skip=25'));
   requests[2].resolve({items:rows.slice(0,6),cantidad:31,total:'317.75'});await next;
+  assert.equal(fields['eg-page-info'].textContent,'26–31 de 31 gastos');
   assert.equal(fields['eg-next'].disabled,true);assert.equal(fields['eg-prev'].disabled,false);
   let changed=cargarEgresos();filtrarEgresos(true);clearTimeout(_egBuscarTimer);
   requests[3].resolve({items:[{concepto:'obsolete'}],cantidad:1,total:999});await changed;
@@ -214,8 +219,12 @@ async function run(){
   assert.ok(fields['eg-list'].innerHTML.includes('Reintentar'));
   let period=egresosMes(-1);assert.equal(fields['eg-fi'].value,'2025-12-01');assert.equal(fields['eg-ff'].value,'2025-12-31');
   requests[5].resolve({items:[],cantidad:0,total:0});await period;
+  assert.equal(fields['eg-page-info'].textContent,'0 gastos');
   let loggedout=cargarEgresos();_versionSesion++;requests[6].resolve({items:rows,cantidad:31,total:999});await loggedout;
   assert.ok(!fields['eg-period-summary'].innerHTML.includes('$999.00'));
+  let single=cargarEgresos();requests[7].resolve({items:[{concepto:'uno'}],cantidad:1,total:1});await single;
+  assert.equal(fields['eg-page-info'].textContent,'1–1 de 1 gasto');
+  assert.equal(fields['eg-prev'].disabled,true);assert.equal(fields['eg-next'].disabled,true);
 }
 run().catch(e=>{console.error(e);process.exit(1)});
 """
