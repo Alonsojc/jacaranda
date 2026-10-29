@@ -111,6 +111,33 @@ run().catch(e=>{console.error(e);process.exit(1)});
     _node(code)
 
 
+def test_expense_form_requires_type_for_new_records_but_preserves_legacy_edits():
+    code = PREAMBLE + r"""
+let _egresoOrigen='manual';
+function fechaHoyISO(){return '2026-10-29';}
+function validarFechaEgreso(){return true;}
+""" + _section("function datosFormularioEgreso", "function guardarEgreso") + r"""
+for (const prefix of ['eg','mee']) {
+  fields[prefix+'-concepto']={value:'Insumo'};
+  fields[prefix+'-monto']={value:'100'};
+  fields[prefix+'-categoria']={value:'insumos'};
+  fields[prefix+'-clasificacion']={value:''};
+  fields[prefix+'-metodo']={value:'efectivo'};
+  fields[prefix+'-fecha']={value:'2026-10-29'};
+  fields[prefix+'-proveedor']={value:'Proveedor'};
+  fields[prefix+'-notas']={value:''};
+}
+assert.equal(datosFormularioEgreso('eg'),null);
+assert.ok(toasts.includes('Selecciona si es costo o gasto'));
+fields['eg-clasificacion'].value='costo';
+assert.equal(datosFormularioEgreso('eg').clasificacion,'costo');
+assert.equal(datosFormularioEgreso('mee').clasificacion,null);
+fields['mee-clasificacion'].value='gasto';
+assert.equal(datosFormularioEgreso('mee').clasificacion,'gasto');
+"""
+    _node(code)
+
+
 def test_camera_stream_is_stopped_on_close_and_late_permission_response():
     code = PREAMBLE + r"""
 let _egCameraState=null,stopped=0,resolveCamera;
@@ -199,8 +226,9 @@ function fechaHoyISO(){return '2026-01-10';}
 """ + _section("function cargarEgresos()", "function cargarResumenEgresosApi") + r"""
 async function run(){
   fields['eg-fi']={value:'2026-09-01'};fields['eg-ff']={value:'2026-09-30'};
-  let old=cargarEgresos();fields['eg-buscar'].value='centro';let latest=filtrarEgresos();
+  let old=cargarEgresos();fields['eg-buscar'].value='centro';fields['eg-fclasificacion'].value='costo';let latest=filtrarEgresos();
   assert.ok(requests[1].path.includes('buscar=centro'));
+  assert.ok(requests[1].path.includes('clasificacion=costo'));
   const rows=Array.from({length:25},()=>({concepto:'visible'}));
   requests[1].resolve({items:rows,cantidad:31,total:'317.75'});await latest;
   assert.ok(fields['eg-period-summary'].innerHTML.includes('$317.75'));

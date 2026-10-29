@@ -80,7 +80,12 @@ def test_accounting_sources_missing_cost_and_exports_preserve_records(db, admin_
         db.add(sale)
     db.commit()
     data = estado_resultados(db, date(2026, 9, 1), date(2026, 9, 1))
-    assert data["composicion_gastos"] == dict(egresos_registrados=140.75, cantidad_egresos=2, recurrentes_estimados=100, nomina_registrada=0)
+    assert data["composicion_gastos"] == dict(
+        egresos_registrados=140.75, cantidad_egresos=2,
+        costos_capturados=0, cantidad_costos=0,
+        egresos_sin_clasificar=140.75, cantidad_sin_clasificar=2,
+        recurrentes_estimados=100, nomina_registrada=0,
+    )
     assert data["total_gastos_operacion"] == 240.75
     assert data["calidad_datos"]["lineas_sin_costo"] == 1
     assert data["calidad_datos"]["lineas_vendidas"] == 1

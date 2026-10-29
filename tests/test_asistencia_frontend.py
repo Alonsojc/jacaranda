@@ -205,6 +205,6 @@ def test_assets_registered_and_privacy_reset_wired():
     assert "if (p === 'asistencia') return initAsistencia();" in html
     assert "if (typeof resetAsistencia === 'function') resetAsistencia();" in html
     for asset in ("css/asistencia.css", "js/asistencia.js"):
-        assert asset + "?v=jacaranda-v132" in html
-        assert asset + "?v=jacaranda-v132" in sw
+        assert asset + "?v=jacaranda-v133" in html
+        assert asset + "?v=jacaranda-v133" in sw
     assert "localStorage" not in SOURCE and "sessionStorage" not in SOURCE

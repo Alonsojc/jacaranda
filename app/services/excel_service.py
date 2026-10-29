@@ -143,7 +143,9 @@ def _agregar_revision_resultados(wb, data):
     fuentes = data["composicion_gastos"]
     for etiqueta, clave in (("Egresos registrados", "egresos_registrados"),
                            ("Recurrentes estimados", "recurrentes_estimados"),
-                           ("Nómina registrada", "nomina_registrada")):
+                           ("Nómina registrada", "nomina_registrada"),
+                           ("Costos capturados (referencia)", "costos_capturados"),
+                           ("Sin clasificar incluidos en gastos", "egresos_sin_clasificar")):
         ws.append([etiqueta, fuentes[clave]])
         ws.cell(ws.max_row, 2).number_format = _CURRENCY_FMT
     ws.append(["Líneas vendidas sin costo positivo", data["calidad_datos"]["lineas_sin_costo"]])
