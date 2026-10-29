@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  var state = {page:1, view:'diario', seq:0, busy:false, total:0, ready:false, rows:[], filters:null, link:null};
+  var state = {page:1, view:'diario', seq:0, connectionSeq:0, busy:false, total:0, ready:false, rows:[], filters:null, link:null};
   function el(id) { return document.getElementById('att-' + id); }
   function esc(value) { return escHtml(String(value == null ? '' : value)); }
   function canEdit() { return (window._permisos || {}).asistencia === 'editar'; }
@@ -76,10 +76,10 @@
     } finally { if (current(seq,session)) { state.busy = false; controls(); } }
   }
   async function connection() {
-    var seq = state.seq, session = _versionSesion;
+    var seq = ++state.connectionSeq, session = _versionSesion;
     try {
       var data = await request('GET','/estado');
-      if (!current(seq,session)) return;
+      if (seq !== state.connectionSeq || session !== _versionSesion) return;
       state.ready = !!data.lista;
       el('status').textContent = data.lista ? 'Conexi\u00f3n configurada' : 'Conexi\u00f3n pendiente';
       el('status').classList.toggle('ready',!!data.lista);
@@ -87,7 +87,7 @@
       el('timezone').textContent = data.zona_horaria || APP_TIMEZONE;
       controls();
     } catch (error) {
-      if (current(seq,session)) { state.ready = false; el('status').textContent = 'Conexi\u00f3n no verificada'; controls(); }
+      if (seq === state.connectionSeq && session === _versionSesion) { state.ready = false; el('status').textContent = 'Conexi\u00f3n no verificada'; controls(); }
     }
   }
   async function sync() {
@@ -146,7 +146,7 @@
     if (session === _versionSesion) await connection();
   };
   window.resetAsistencia = function() {
-    state.seq++; state.busy = false; state.ready = false; state.filters = null; state.link = null; state.page = 1;
+    state.seq++; state.connectionSeq++; state.busy = false; state.ready = false; state.filters = null; state.link = null; state.page = 1;
     if (!el('body')) return;
     clearRows(); el('dialog').close(); el('employee').innerHTML = ''; el('link-name').textContent = '';
     el('reason').value = ''; el('search').value = ''; el('from').value = ''; el('to').value = '';

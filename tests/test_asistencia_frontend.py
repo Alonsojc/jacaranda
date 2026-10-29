@@ -101,6 +101,32 @@ def test_failed_query_clears_previous_private_results():
     """)
 
 
+def test_pending_connection_is_not_invalidated_by_a_records_query():
+    run_js("""
+      let release;
+      respond=(m,p)=>p.includes('/estado')?new Promise(resolve=>release=resolve):Promise.resolve(populated);
+      const loading=initAsistencia(); await settle();
+      node('att-filters').listeners.submit(event); await settle();
+      assert.equal(node('att-sync').disabled,true);
+      release(status); await loading;
+      assert.equal(node('att-sync').disabled,false);
+      assert.equal(node('att-status').textContent,'Conexi\u00f3n configurada');
+    """)
+
+
+def test_logout_discards_pending_connection_status():
+    run_js("""
+      let release;
+      respond=(m,p)=>p.includes('/estado')?new Promise(resolve=>release=resolve):Promise.resolve(populated);
+      const loading=initAsistencia(); await settle();
+      _versionSesion++; resetAsistencia();
+      release(status); await loading;
+      assert.equal(node('att-sync').disabled,true);
+      assert.equal(node('att-status').textContent,'Conexi\u00f3n pendiente');
+      assert.equal(node('att-last-sync').textContent,'');
+    """)
+
+
 def test_sync_rejects_large_range_and_does_not_double_submit():
     run_js("""
       respond=async(m,p)=>p.includes('/estado')?status:populated;
