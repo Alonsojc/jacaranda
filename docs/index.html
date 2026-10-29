@@ -172,9 +172,14 @@ h2{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--dk);margin-
 .eg-toolbar .fg{margin:0;min-width:130px;flex:1}.eg-toolbar .eg-search{flex:2;min-width:190px}
 .eg-toolbar input,.eg-toolbar select{width:100%;min-height:44px;min-width:0}
 .eg-toolbar button,.eg-pagination button{width:auto;min-height:44px;margin:0}
-.eg-period-summary,.eg-pagination{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.7rem 0}
+.eg-period-summary{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.7rem 0}
 .eg-period-summary{border-block:1px solid var(--brd);font-size:.86rem}.eg-period-summary strong{font-size:1rem;color:#a33f35}
-.eg-pagination{justify-content:flex-end}.eg-pagination span{font-size:.8rem;color:var(--mut);margin-right:auto}
+.eg-pagination{display:flex;align-items:center;justify-content:flex-end;gap:.5rem;flex-wrap:wrap;padding:.8rem 0 0}
+.eg-pagination span{font-size:.85rem;color:#6d5b56;margin-right:.25rem}
+.eg-pagination button{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:1px solid var(--brd);border-radius:6px;background:#fff;color:#6d514b;font-size:1.15rem;line-height:1}
+.eg-pagination button:hover:not(:disabled){background:#f5eeeb;border-color:#c4988a}
+.eg-pagination button:focus-visible{outline:2px solid #74554e;outline-offset:2px}
+.eg-pagination button:disabled{color:#aa9b97;background:#f7f5f4;cursor:not-allowed}
 .eg-table-wrap{overflow-x:auto}.eg-history .tbl td{vertical-align:top}.eg-history .tbl th{white-space:nowrap;cursor:default}
 .eg-history .tbl td:nth-child(2){min-width:150px}.eg-history .tbl td:nth-child(6){white-space:nowrap}
 .eg-history .tbl th.actions-th,.eg-history .tbl td.actions-cell{width:210px}
@@ -1527,11 +1532,11 @@ table.tbl th,table.tbl td{font-size:.8rem}
 </div>
 <div id="eg-period-summary" class="eg-period-summary" role="status" aria-live="polite"></div>
 <div id="eg-list" class="eg-table-wrap"><p style="color:var(--mut);font-size:.83rem">Cargando...</p></div>
-<nav class="eg-pagination" aria-label="Páginas de gastos">
-<span id="eg-page-info"></span>
+<div class="eg-pagination" role="navigation" aria-label="Páginas de gastos">
+<span id="eg-page-info" aria-live="polite" aria-atomic="true"></span>
 <button id="eg-prev" type="button" class="limpiar" title="Página anterior" aria-label="Página anterior" onclick="paginaEgresos(-1)" disabled>&larr;</button>
 <button id="eg-next" type="button" class="limpiar" title="Página siguiente" aria-label="Página siguiente" onclick="paginaEgresos(1)" disabled>&rarr;</button>
-</nav>
+</div>
 </section>
 </div>
 
@@ -13267,7 +13272,7 @@ function cargarEgresos() {
     if (_egSkip && _egSkip >= _egTotal) { _egSkip = Math.max(0, Math.ceil(_egTotal / _egLimit) - 1) * _egLimit; return cargarEgresos(); }
     renderEgresos(data.items);
     document.getElementById('eg-period-summary').innerHTML = '<span>' + escHtml(fi) + ' al ' + escHtml(ff) + ' · ' + data.cantidad + ' gastos</span><span>Total filtrado <strong>$' + fmt(data.total) + '</strong></span>';
-    document.getElementById('eg-page-info').textContent = _egTotal ? (_egSkip + 1) + '–' + (_egSkip + data.items.length) + ' de ' + _egTotal : '0 gastos';
+    document.getElementById('eg-page-info').textContent = _egTotal ? (_egSkip + 1) + '–' + (_egSkip + data.items.length) + ' de ' + _egTotal + (_egTotal === 1 ? ' gasto' : ' gastos') : '0 gastos';
     document.getElementById('eg-prev').disabled = _egSkip === 0;
     document.getElementById('eg-next').disabled = _egSkip + _egLimit >= _egTotal;
   }).catch(function(e) {
