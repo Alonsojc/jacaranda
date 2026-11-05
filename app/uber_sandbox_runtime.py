@@ -32,9 +32,11 @@ from app.models.uber_eats import (
     UberSandboxAction, UberSandboxEvent, UberSandboxOrder, UberSandboxOrderCheck,
     UberSandboxStore, UberSandboxStoreAction, UberSandboxStoreJob,
 )
+from app.models.uber_sandbox_push import SandboxPushDelivery, SandboxPushSubscription
 from app.services import uber_eats_service, uber_order_service, uber_sandbox_oauth, uber_store_service, uber_webhook_service
 from app.services import uber_finance_storage
 from app.services import uber_order_polling
+from app.services import uber_sandbox_push
 from app.api.routes.uber_sandbox_finance import router as finance_router
 
 
@@ -45,6 +47,7 @@ DATABASE_USER = "jacaranda_sandbox"
 WEBHOOK_PATH = "/api/v1/uber-eats/sandbox/webhook"
 ASSETS = Path(__file__).parent / "sandbox_static"
 MODELS = (UberSandboxEvent, UberSandboxOrder, UberSandboxAction, UberSandboxOrderCheck, UberSandboxStore, UberSandboxStoreAction, UberSandboxStoreJob)
+PUSH_MODELS = (SandboxPushSubscription, SandboxPushDelivery)
 
 
 def validate_isolation() -> None:
@@ -67,6 +70,10 @@ def validate_isolation() -> None:
         raise RuntimeError("Order actions require explicitly enabled private sandbox management.")
     if settings.UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED and not settings.UBER_EATS_SANDBOX_MANAGEMENT_ENABLED:
         raise RuntimeError("Order polling requires private TEST management.")
+    if settings.UBER_EATS_SANDBOX_PUSH_ENABLED:
+        if not settings.UBER_EATS_SANDBOX_MANAGEMENT_ENABLED:
+            raise RuntimeError("Push requires private TEST management.")
+        uber_sandbox_push.validate_configuration()
     if settings.UBER_EATS_SANDBOX_STORE_AUTOMATION_ENABLED and not (
         settings.UBER_EATS_SANDBOX_MANAGEMENT_ENABLED and settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED
     ):
@@ -103,12 +110,14 @@ async def lifespan(app: FastAPI):
     # Never run the POS lifespan, migrations, seeds, or business background tasks.
     with engine.begin() as connection:
         tables = set(inspect(connection).get_table_names())
-        allowed = {model.__tablename__ for model in MODELS}
+        allowed = {model.__tablename__ for model in MODELS + PUSH_MODELS}
         if tables - allowed:
             raise RuntimeError("Refusing a database containing non-sandbox tables.")
         models = MODELS if settings.UBER_EATS_SANDBOX_MANAGEMENT_ENABLED else (
             UberSandboxEvent, UberSandboxStore, UberSandboxStoreJob,
         )
+        if settings.UBER_EATS_SANDBOX_PUSH_ENABLED:
+            models += PUSH_MODELS
         for model in models:
             model.__table__.create(connection, checkfirst=True)
         connection.execute(select(UberSandboxEvent).limit(0))
@@ -121,6 +130,7 @@ async def lifespan(app: FastAPI):
         uber_finance_storage.initialize()
     worker = asyncio.create_task(store_worker(stop)) if settings.UBER_EATS_SANDBOX_STORE_AUTOMATION_ENABLED else None
     order_worker = asyncio.create_task(order_poll_worker(stop)) if settings.UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED else None
+    push_worker = asyncio.create_task(push_poll_worker(stop)) if settings.UBER_EATS_SANDBOX_PUSH_ENABLED else None
     try:
         yield
     finally:
@@ -129,6 +139,8 @@ async def lifespan(app: FastAPI):
             await worker
         if order_worker is not None:
             await order_worker
+        if push_worker is not None:
+            await push_worker
         uber_finance_storage.shutdown()
 
 
@@ -164,6 +176,25 @@ async def order_poll_worker(stop: asyncio.Event):
         await asyncio.to_thread(order_poll_tick)
         try:
             await asyncio.wait_for(stop.wait(), timeout=5)
+        except TimeoutError:
+            pass
+
+
+def push_tick():
+    with SessionLocal() as db:
+        try:
+            uber_sandbox_push.enqueue(db)
+            uber_sandbox_push.deliver_one(db)
+        except Exception:
+            db.rollback()
+            logging.getLogger(__name__).warning("Sandbox push worker paused after an internal error")
+
+
+async def push_poll_worker(stop: asyncio.Event):
+    while not stop.is_set():
+        await asyncio.to_thread(push_tick)
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=2)
         except TimeoutError:
             pass
 
@@ -209,7 +240,7 @@ async def private_response_headers(request: Request, call_next):
         "Content-Security-Policy": (
             "default-src 'none'; script-src 'self'; style-src 'self'; "
             "img-src 'self'; connect-src 'self'; frame-ancestors 'none'; "
-            "base-uri 'none'; form-action 'self'"
+            "worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'self'"
         ),
     })
     return response
@@ -256,6 +287,26 @@ def attention_script():
     return FileResponse(ASSETS / "attention.js", media_type="text/javascript")
 
 
+@app.get("/push.js", dependencies=[Depends(management_enabled)])
+def push_script():
+    return FileResponse(ASSETS / "push.js", media_type="text/javascript")
+
+
+@app.get("/sandbox-sw.js", dependencies=[Depends(management_enabled)])
+def push_worker_script():
+    return FileResponse(ASSETS / "sandbox-sw.js", media_type="text/javascript")
+
+
+@app.get("/sandbox.webmanifest", dependencies=[Depends(management_enabled)])
+def push_manifest():
+    return FileResponse(ASSETS / "sandbox.webmanifest", media_type="application/manifest+json")
+
+
+@app.get("/sandbox-icon.png", dependencies=[Depends(management_enabled)])
+def push_icon():
+    return FileResponse(ASSETS / "sandbox-icon.png", media_type="image/png")
+
+
 @app.get("/finance.js", dependencies=[Depends(management_enabled)])
 def finance_script():
     return FileResponse(ASSETS / "finance.js", media_type="text/javascript")
@@ -273,7 +324,60 @@ def management_status():
         "acciones_habilitadas": settings.UBER_EATS_SANDBOX_ACTIONS_ENABLED,
         "finanzas_habilitadas": settings.UBER_EATS_SANDBOX_FINANCE_ENABLED,
         "seguimiento_pedidos_habilitado": settings.UBER_EATS_SANDBOX_ORDER_POLLING_ENABLED,
+        "push_habilitado": settings.UBER_EATS_SANDBOX_PUSH_ENABLED,
     }
+
+
+class PushKeys(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    p256dh: str = Field(min_length=1, max_length=128)
+    auth: str = Field(min_length=1, max_length=128)
+
+
+class PushSubscriptionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    endpoint: str = Field(min_length=1, max_length=2048)
+    keys: PushKeys
+    expirationTime: StrictInt | None = None
+
+
+class PushEndpointRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    endpoint: str = Field(min_length=1, max_length=2048)
+
+
+def require_push():
+    if not settings.UBER_EATS_SANDBOX_PUSH_ENABLED:
+        raise HTTPException(404, "Not found")
+
+
+def push_call(function, *args):
+    try:
+        return function(*args)
+    except uber_sandbox_push.PushError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from None
+
+
+@app.get("/api/v1/uber-eats/sandbox/push/config", dependencies=[Depends(private_management), Depends(require_push)])
+def push_config():
+    return {"entorno": "sandbox", "clave_publica": uber_sandbox_push.public_key()}
+
+
+@app.post("/api/v1/uber-eats/sandbox/push/subscription", dependencies=[Depends(private_management), Depends(require_push)])
+def push_subscription(data: PushSubscriptionRequest, db: Session = Depends(get_db)):
+    push_call(uber_sandbox_push.subscribe, db, data.model_dump())
+    return {"entorno": "sandbox", "activa": True}
+
+
+@app.post("/api/v1/uber-eats/sandbox/push/status", dependencies=[Depends(private_management), Depends(require_push)])
+def push_subscription_status(data: PushEndpointRequest, db: Session = Depends(get_db)):
+    return {"entorno": "sandbox", **push_call(uber_sandbox_push.subscription_status, db, data.endpoint)}
+
+
+@app.post("/api/v1/uber-eats/sandbox/push/unsubscribe", dependencies=[Depends(private_management), Depends(require_push)])
+def push_unsubscribe(data: PushEndpointRequest, db: Session = Depends(get_db)):
+    push_call(uber_sandbox_push.unsubscribe, db, data.endpoint)
+    return {"entorno": "sandbox", "activa": False}
 
 
 class StoreActionRequest(BaseModel):

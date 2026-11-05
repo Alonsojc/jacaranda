@@ -1,0 +1,11 @@
+{
+  "id": "/",
+  "name": "Jacaranda Sandbox",
+  "short_name": "Jacaranda TEST",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fcfaf9",
+  "theme_color": "#ffffff",
+  "icons": [{"src": "/sandbox-icon.png", "sizes": "512x512", "type": "image/png"}]
+}
