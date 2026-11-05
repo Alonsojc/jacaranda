@@ -75,6 +75,50 @@ def test_readonly_no_mutations_and_escaped_names():
     """)
 
 
+def test_daily_hours_are_marked_partial_when_a_punch_needs_review():
+    run_js("""
+      const partial={...populated,items:[{...row,segundos_completos:3665,
+        estado_calculo:'revisar',motivos_calculo:['entrada_sin_salida']}]};
+      respond=async(m,p)=>p.includes('/estado')?status:partial;
+      await initAsistencia();
+      assert.match(node('att-head').innerHTML,/Horas registradas/);
+      assert.match(node('att-body').innerHTML,/1 h 1 min 5 s/);
+      assert.match(node('att-body').innerHTML,/Parcial/);
+      assert.match(node('att-body').innerHTML,/Falta salida/);
+      assert.match(node('att-body').innerHTML,/Revisar/);
+    """)
+
+
+def test_original_punches_show_confirmed_type_and_original_code():
+    run_js("""
+      const marks={items:[{...row,fecha:'2026-10-28T15:30:00Z',tipo_original:128,
+        tipo:'entrada',dispositivo:'demo',dispositivo_nombre:'Demo'},
+        {...row,fecha:'2026-10-28T15:31:00Z',tipo_original:129,tipo:'salida'},
+        {...row,fecha:'2026-10-28T15:32:00Z',tipo_original:0,tipo:'desconocido'}],
+        total:3,resumen:{marcas:3,personas:1,sin_vincular:1}};
+      respond=async(m,p)=>p.includes('/estado')?status:p.includes('vista=marcas')?marks:populated;
+      await initAsistencia();
+      node('att-tabs').listeners.click({target:{closest(){return {dataset:{view:'marcas'}};}}});
+      await settle();
+      assert.match(node('att-head').innerHTML,/<th>Tipo<\\/th>/);
+      assert.match(node('att-body').innerHTML,/Entrada/);
+      assert.match(node('att-body').innerHTML,/Salida/);
+      assert.match(node('att-body').innerHTML,/Sin clasificar/);
+      assert.match(node('att-body').innerHTML,/>128<\\/td>/);
+      assert.match(node('att-body').innerHTML,/>129<\\/td>/);
+      assert.match(node('att-body').innerHTML,/>0<\\/td>/);
+    """)
+
+
+def test_older_backend_does_not_display_unverified_hours_as_complete():
+    run_js("""
+      respond=async(m,p)=>p.includes('/estado')?status:populated;
+      await initAsistencia();
+      assert.match(node('att-body').innerHTML,/No disponible/);
+      assert.doesNotMatch(node('att-body').innerHTML,/Pares registrados/);
+    """)
+
+
 def test_logout_ignores_inflight_response_and_does_not_requery_new_session():
     run_js("""
       let release;
@@ -205,6 +249,6 @@ def test_assets_registered_and_privacy_reset_wired():
     assert "if (p === 'asistencia') return initAsistencia();" in html
     assert "if (typeof resetAsistencia === 'function') resetAsistencia();" in html
     for asset in ("css/asistencia.css", "js/asistencia.js"):
-        assert asset + "?v=jacaranda-v133" in html
-        assert asset + "?v=jacaranda-v133" in sw
+        assert asset + "?v=jacaranda-v134" in html
+        assert asset + "?v=jacaranda-v134" in sw
     assert "localStorage" not in SOURCE and "sessionStorage" not in SOURCE

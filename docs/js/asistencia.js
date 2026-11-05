@@ -16,6 +16,36 @@
   function dateLabel(value) {
     return new Intl.DateTimeFormat('es-MX', {timeZone:APP_TIMEZONE, day:'numeric', month:'short', year:'numeric'}).format(new Date(value.length === 10 ? value + 'T12:00:00-06:00' : value));
   }
+  function durationLabel(seconds) {
+    if (!Number.isInteger(seconds) || seconds < 0) return '\u2014';
+    var hours = Math.floor(seconds / 3600), minutes = Math.floor(seconds % 3600 / 60), remainder = seconds % 60;
+    var parts = [];
+    if (hours) parts.push(hours + ' h');
+    if (minutes) parts.push(minutes + ' min');
+    if (remainder || !parts.length) parts.push(remainder + ' s');
+    return parts.join(' ');
+  }
+  function calculationStatus(row) {
+    if (row.estado_calculo === 'sin_incidencias') return '<span class="att-linked">Pares registrados</span>';
+    if (row.estado_calculo !== 'revisar') return '<span class="att-unlinked">No disponible</span>';
+    var labels = {
+      entrada_sin_salida:'Falta salida', salida_sin_entrada:'Falta entrada',
+      entrada_repetida:'Entradas repetidas', codigo_desconocido:'C\u00f3digo sin clasificar',
+      marcas_simultaneas:'Marcas simult\u00e1neas', secuencia_incierta:'Secuencia incierta'
+    };
+    var details = Array.isArray(row.motivos_calculo) ? row.motivos_calculo.map(function(code) {
+      return labels[code] || 'Requiere revisi\u00f3n';
+    }) : [];
+    return '<span class="att-unlinked">Revisar</span>' + (details.length ? '<small>' + esc(details.join(' \u00b7 ')) + '</small>' : '');
+  }
+  function hoursCell(row) {
+    var label = durationLabel(row.segundos_completos);
+    return '<span class="att-time att-duration">' + esc(label) + '</span>' +
+      (row.estado_calculo === 'revisar' && label !== '\u2014' ? '<small>Parcial</small>' : '');
+  }
+  function markType(row) {
+    return row.tipo === 'entrada' ? 'Entrada' : row.tipo === 'salida' ? 'Salida' : 'Sin clasificar';
+  }
   function readFilters() {
     var from = el('from').value, to = el('to').value;
     var days = (Date.parse(to + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 86400000;
@@ -36,7 +66,7 @@
   }
   function clearRows() {
     state.rows = []; state.total = 0;
-    el('body').innerHTML = '<tr><td class="att-empty" colspan="6">Sin datos cargados</td></tr>';
+    el('body').innerHTML = '<tr><td class="att-empty" colspan="' + (state.view === 'diario' ? 8 : 7) + '">Sin datos cargados</td></tr>';
     ['marks','people','pending'].forEach(function(id) { el(id).textContent = '\u2014'; });
     el('range').textContent = ''; el('page').textContent = '';
   }
@@ -47,16 +77,16 @@
     el('pending').textContent = data.resumen.sin_vincular;
     var daily = state.view === 'diario';
     el('head').innerHTML = daily
-      ? '<tr><th>Persona</th><th>D\u00eda</th><th>Primera marca</th><th>\u00daltima marca</th><th>Marcas</th><th>Vinculaci\u00f3n</th></tr>'
-      : '<tr><th>Persona</th><th>Fecha</th><th>Hora</th><th>C\u00f3digo original</th><th>Equipo</th><th>Vinculaci\u00f3n</th></tr>';
+      ? '<tr><th>Persona</th><th>D\u00eda</th><th>Primera marca</th><th>\u00daltima marca</th><th>Horas registradas</th><th>Marcas</th><th>Estado</th><th>Vinculaci\u00f3n</th></tr>'
+      : '<tr><th>Persona</th><th>Fecha</th><th>Hora</th><th>Tipo</th><th>C\u00f3digo original</th><th>Equipo</th><th>Vinculaci\u00f3n</th></tr>';
     el('body').innerHTML = data.items.length ? data.items.map(function(row, index) {
       var person = '<strong>' + esc(row.empleado_nombre || row.nombre_reloj || 'Sin nombre') + '</strong><small>Reloj ' + esc(row.numero_reloj) + '</small>';
       var link = row.empleado_id ? '<span class="att-linked">Vinculada</span>' : (canEdit() ? '<button type="button" class="att-link" data-link="' + index + '">Vincular</button>' : '<span class="att-unlinked">Pendiente</span>');
       var cells = daily
-        ? [['D\u00eda',esc(dateLabel(row.dia))],['Primera marca','<span class="att-time">'+esc(timeLabel(row.primera))+'</span>'],['\u00daltima marca','<span class="att-time">'+esc(timeLabel(row.ultima))+'</span>'],['Marcas',esc(row.marcas)]]
-        : [['Fecha',esc(dateLabel(row.fecha))],['Hora','<span class="att-time">'+esc(timeLabel(row.fecha))+'</span>'],['C\u00f3digo original',esc(row.tipo_original)],['Equipo',esc(row.dispositivo_nombre || 'Sin nombre')+'<small>'+esc(row.dispositivo)+'</small>']];
+        ? [['D\u00eda',esc(dateLabel(row.dia))],['Primera marca','<span class="att-time">'+esc(timeLabel(row.primera))+'</span>'],['\u00daltima marca','<span class="att-time">'+esc(timeLabel(row.ultima))+'</span>'],['Horas registradas',hoursCell(row)],['Marcas',esc(row.marcas)],['Estado',calculationStatus(row)]]
+        : [['Fecha',esc(dateLabel(row.fecha))],['Hora','<span class="att-time">'+esc(timeLabel(row.fecha))+'</span>'],['Tipo',esc(markType(row))],['C\u00f3digo original',esc(row.tipo_original)],['Equipo',esc(row.dispositivo_nombre || 'Sin nombre')+'<small>'+esc(row.dispositivo)+'</small>']];
       return '<tr><td>' + person + '</td>' + cells.map(function(cell) { return '<td data-label="' + esc(cell[0]) + '">' + cell[1] + '</td>'; }).join('') + '<td data-label="Vinculaci\u00f3n">' + link + '</td></tr>';
-    }).join('') : '<tr><td class="att-empty" colspan="6">Sin checadas en este periodo</td></tr>';
+    }).join('') : '<tr><td class="att-empty" colspan="' + (daily ? 8 : 7) + '">Sin checadas en este periodo</td></tr>';
     el('range').textContent = data.total ? ((state.page-1)*25+1) + '\u2013' + Math.min(state.page*25,data.total) + ' de ' + data.total : '0 registros';
     el('page').textContent = state.page + ' / ' + Math.max(1,Math.ceil(data.total/25));
   }

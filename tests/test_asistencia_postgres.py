@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.models.asistencia import ChecadaAsistencia, SincronizacionAsistencia
 from app.models.empleado import RegistroAsistencia, RegistroNomina
 from app.models.usuario import Usuario
-from app.services.asistencia_service import import_records, query_records
+from app.services.asistencia_service import daily_summary, import_records, query_records
 from app.services.crosschex_service import ClockRecord
 
 
@@ -62,5 +62,16 @@ def test_postgres_migration_concurrency_and_payroll_isolation():
             rows = query_records(db, "us:fixture", begin, end)
             assert date.fromisoformat(rows[0]["fecha"][:10]) == date(2026, 10, 28)
             assert rows[0]["fecha"].endswith("-06:00")
+            exit_mark = ClockRecord.model_validate({
+                "checktime": "2026-10-28T10:30:00-06:00", "checktype": 129,
+                "employee": {"workno": "001", "first_name": "Different", "last_name": "Name"},
+                "device": {"serial_number": "FIXTURE", "name": "Test"},
+            })
+            import_records(db, [exit_mark], "us:fixture", begin, end, 0,
+                           SimpleNamespace(id=1, nombre="Fixture"))
+            matched_rows = query_records(db, "us:fixture", begin, end, "Test")
+            assert len(matched_rows) == 2
+            assert daily_summary(matched_rows)[0]["segundos_completos"] == 3600
+            assert db.scalar(select(func.count()).select_from(RegistroNomina)) == 0
     finally:
         engine.dispose()

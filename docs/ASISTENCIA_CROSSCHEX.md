@@ -1,4 +1,4 @@
-# Asistencia CrossChex: primera etapa
+# Asistencia CrossChex
 
 Preparacion local; no habilitar en produccion hasta verificar cuenta, equipo y
 ventana de mantenimiento. No depende de Uber y no modifica ventas o inventario.
@@ -7,8 +7,13 @@ ventana de mantenimiento. No depende de Uber y no modifica ventas o inventario.
 
 - Consulta manual de checadas mediante `authorize.token` y `attendance.record`.
 - Resumen por dia local/persona: primera marca, ultima marca y numero de marcas.
-  No son horas trabajadas: puede haber comidas, salidas, turnos nocturnos o marcas
-  incompletas. Una sola marca no se convierte en entrada/salida completa.
+  Muestra tiempo preliminar de pares entrada/salida completos del mismo dia; las
+  pausas quedan fuera cuando se registran salida y regreso. Los pares incompletos,
+  repetidos, simultaneos, codigos desconocidos y cruces de medianoche se dejan
+  para revision, no se convierten en horas por suposicion.
+- El EP30 de Jacaranda confirmo `128` como entrada y `129` como salida. Otros
+  codigos permanecen sin clasificar, ya que pueden personalizarse en CrossChex.
+  Se conserva y muestra el codigo original sin modificarlo.
 - Vinculacion explicita con un empleado existente de Jacaranda. No se adivina por
   nombre ni se crean empleados automaticamente. El endpoint del selector no
   expone salarios, CURP, RFC ni NSS.
@@ -68,7 +73,7 @@ ventana de mantenimiento. No depende de Uber y no modifica ventas o inventario.
 - La migracion es aditiva. Su downgrade conserva evidencia en vez de eliminarla.
   Desactivar la integracion no borra checadas ni altera la nomina.
 
-## Pendientes despues de la primera validacion real
+## Pendientes
 
 - Sincronizacion automatica con cursor/solapamiento, bloqueo distribuido y alertas.
 - Jornadas/turnos por persona, descansos y turnos nocturnos, tras definir reglas.

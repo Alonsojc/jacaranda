@@ -228,6 +228,78 @@ def test_daily_local_midnight_single_mark_and_search(client, auth_headers, confi
     assert get_records(client, auth_headers, vista="marcas", por_pagina=1, pagina=2).json()["total"] == 3
 
 
+def test_work_time_sums_only_verified_entry_exit_pairs(client, auth_headers, configured, monkeypatch):
+    mock_records(monkeypatch,
+                 raw_record("2026-10-28T15:00:00Z", kind=128),
+                 raw_record("2026-10-28T19:00:00Z", kind=129),
+                 raw_record("2026-10-28T20:00:00Z", kind=128),
+                 raw_record("2026-10-29T00:30:05Z", kind=129))
+    assert sync(client, auth_headers).status_code == 200
+    summary = get_records(client, auth_headers).json()["items"][0]
+    assert summary["segundos_completos"] == 8 * 3600 + 30 * 60 + 5
+    assert summary["estado_calculo"] == "sin_incidencias"
+    assert summary["motivos_calculo"] == []
+    marks = get_records(client, auth_headers, vista="marcas").json()["items"]
+    assert [mark["tipo"] for mark in marks] == ["salida", "entrada", "salida", "entrada"]
+    assert [mark["tipo_original"] for mark in marks] == [129, 128, 129, 128]
+
+
+@pytest.mark.parametrize("marks,seconds,reasons", [
+    ([(9, 0, 128)], None, ["entrada_sin_salida"]),
+    ([(9, 0, 129)], None, ["salida_sin_entrada"]),
+    ([(9, 0, 128), (10, 0, 129), (11, 0, 128)], 3600, ["entrada_sin_salida"]),
+    ([(8, 0, 129), (9, 0, 128), (10, 0, 129)], 3600, ["salida_sin_entrada"]),
+    ([(9, 0, 128), (9, 1, 128), (10, 0, 129)], None, ["entrada_repetida"]),
+    ([(9, 0, 128), (9, 1, 128), (10, 0, 129), (11, 0, 128), (12, 0, 129)],
+     3600, ["entrada_repetida"]),
+    ([(9, 0, 128), (9, 1, 77), (10, 0, 129)], None, ["codigo_desconocido"]),
+    ([(9, 0, 128), (9, 0, 129)], None, ["marcas_simultaneas"]),
+    ([(9, 0, 0), (10, 0, 1)], None, ["codigo_desconocido"]),
+])
+def test_unmatched_ambiguous_or_unverified_marks_never_invent_hours(marks, seconds, reasons):
+    records = [{"fecha": f"2026-10-28T{hour:02d}:{minute:02d}:00-06:00", "tipo_original": kind}
+               for hour, minute, kind in reversed(marks)]
+    result = service.completed_intervals(records)
+    assert result == {"segundos_completos": seconds, "estado_calculo": "revisar", "motivos_calculo": reasons}
+
+
+def test_shift_crossing_midnight_is_flagged_not_counted(client, auth_headers, configured, monkeypatch):
+    mock_records(monkeypatch, raw_record("2026-10-29T05:30:00Z", kind=128),
+                 raw_record("2026-10-29T06:15:00Z", kind=129))
+    assert sync(client, auth_headers, hasta="2026-10-29").status_code == 200
+    items = get_records(client, auth_headers, hasta="2026-10-29").json()["items"]
+    assert [(item["dia"], item["segundos_completos"], item["motivos_calculo"]) for item in items] == [
+        ("2026-10-29", None, ["salida_sin_entrada"]),
+        ("2026-10-28", None, ["entrada_sin_salida"]),
+    ]
+
+
+def test_duration_and_first_last_follow_actual_instants_when_offset_changes():
+    records = [
+        {"fecha": "2022-10-30T01:10:00-06:00", "tipo_original": 129, "numero_reloj": "001",
+         "nombre_reloj": "Prueba", "empleado_id": None, "empleado_nombre": None},
+        {"fecha": "2022-10-30T01:30:00-05:00", "tipo_original": 128, "numero_reloj": "001",
+         "nombre_reloj": "Prueba", "empleado_id": None, "empleado_nombre": None},
+    ]
+    result = service.daily_summary(records)[0]
+    assert result["primera"] == "2022-10-30T01:30:00-05:00"
+    assert result["ultima"] == "2022-10-30T01:10:00-06:00"
+    assert result["segundos_completos"] == 40 * 60
+    assert result["estado_calculo"] == "sin_incidencias"
+
+
+def test_search_keeps_all_marks_for_a_matching_person(client, auth_headers, configured, monkeypatch):
+    entry = raw_record("2026-10-28T15:00:00Z", kind=128)
+    exit_ = raw_record("2026-10-28T16:00:00Z", kind=129)
+    entry["employee"]["first_name"] = "Nombre anterior"
+    exit_["employee"]["first_name"] = "Nombre nuevo"
+    mock_records(monkeypatch, entry, exit_)
+    assert sync(client, auth_headers).status_code == 200
+    body = get_records(client, auth_headers, buscar="anterior").json()
+    assert body["resumen"]["marcas"] == 2
+    assert body["items"][0]["segundos_completos"] == 3600
+
+
 @pytest.mark.parametrize("body", [
     {"desde": "2026-10-29", "hasta": "2026-10-28"},
     {"desde": "2026-10-01", "hasta": "2026-10-08"},
