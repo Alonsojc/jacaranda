@@ -28,8 +28,8 @@ def raw_record(at="2026-10-28T15:30:00+00:00", workno="001", kind=128, serial="D
 
 def page(records, number=1, total=None):
     count = len(records) if total is None else total
-    return {"count": count, "list": records, "page": number, "perPage": 500,
-            "pageCount": (count + 499) // 500}
+    return {"count": count, "list": records, "page": number, "perPage": 200,
+            "pageCount": (count + 199) // 200}
 
 
 @pytest.fixture
@@ -43,7 +43,7 @@ def configured(monkeypatch):
     return cloud.configuration()
 
 
-def mock_cloud(monkeypatch, pages, status=200, envelope=None):
+def mock_cloud(monkeypatch, pages, status=200, envelope=None, raw=False, bad_header=None):
     calls = []
     original_client = httpx.Client
 
@@ -54,9 +54,16 @@ def mock_cloud(monkeypatch, pages, status=200, envelope=None):
             payload = {"token": "fixture-token", "expires": "2026-10-29T00:00:00Z"}
         else:
             payload = pages[body["payload"]["page"] - 1]
-        return httpx.Response(status, json=envelope if envelope is not None else {
-            "code": 200, "error": {}, "data": {"payload": payload},
-        })
+        if envelope is not None:
+            response = envelope
+        elif raw:
+            header = dict(body["header"])
+            if bad_header:
+                header[bad_header] = "incorrect"
+            response = {"header": header, "payload": payload}
+        else:
+            response = {"code": 200, "error": {}, "data": {"payload": payload}}
+        return httpx.Response(status, json=response)
 
     def client_factory(**kwargs):
         assert kwargs == {"follow_redirects": False, "trust_env": False}
@@ -110,14 +117,15 @@ def test_requires_scoped_configuration(configured, monkeypatch, name, value):
 
 
 def test_protocol_pagination_and_device_allowlist(configured, monkeypatch):
-    first = [raw_record((BEGIN + timedelta(minutes=i)).isoformat()) for i in range(500)]
+    first = [raw_record((BEGIN + timedelta(minutes=i)).isoformat()) for i in range(200)]
     second = [raw_record(serial="OTHER-COMPANY")]
-    calls = mock_cloud(monkeypatch, [page(first, total=501), page(second, number=2, total=501)])
+    calls = mock_cloud(monkeypatch, [page(first, total=201), page(second, number=2, total=201)])
     records, omitted = cloud.fetch_records(BEGIN, END, configured)
-    assert len(records) == 500 and omitted == 1
+    assert len(records) == 200 and omitted == 1
     assert calls[0]["payload"] == {"api_key": "test-key", "api_secret": "test-secret"}
     assert calls[1]["authorize"] == {"type": "token", "token": "fixture-token"}
     assert calls[1]["header"]["nameAction"] == "getrecord"
+    assert calls[1]["payload"]["per_page"] == 200
     assert calls[2]["payload"]["page"] == 2
     assert len({c["header"]["requestId"] for c in calls}) == 3
 
@@ -159,9 +167,30 @@ def test_empty_provider_response(configured, monkeypatch):
     assert cloud.fetch_records(BEGIN, END, configured) == ([], 0)
 
 
+def test_real_crosschex_wire_envelope_and_empty_page(configured, monkeypatch):
+    calls = mock_cloud(monkeypatch, [page([])], raw=True)
+    assert cloud.fetch_records(BEGIN, END, configured) == ([], 0)
+    assert calls[1]["payload"]["per_page"] == 200
+
+
+def test_real_crosschex_wire_envelope_multiple_pages(configured, monkeypatch):
+    first = [raw_record((BEGIN + timedelta(minutes=i)).isoformat()) for i in range(200)]
+    calls = mock_cloud(monkeypatch, [page(first, total=201), page([raw_record()], number=2, total=201)], raw=True)
+    records, omitted = cloud.fetch_records(BEGIN, END, configured)
+    assert len(records) == 201 and omitted == 0
+    assert [request["payload"]["page"] for request in calls[1:]] == [1, 2]
+
+
+@pytest.mark.parametrize("key", ["nameSpace", "nameAction", "version", "requestId"])
+def test_real_crosschex_wire_envelope_rejects_wrong_header(configured, monkeypatch, key):
+    mock_cloud(monkeypatch, [page([])], raw=True, bad_header=key)
+    with pytest.raises(cloud.CrossChexError):
+        cloud.fetch_records(BEGIN, END, configured)
+
+
 def test_pagination_changes_midstream(configured, monkeypatch):
-    first = [raw_record() for _ in range(500)]
-    mock_cloud(monkeypatch, [page(first, total=501), page([], number=2, total=500)])
+    first = [raw_record() for _ in range(200)]
+    mock_cloud(monkeypatch, [page(first, total=201), page([], number=2, total=200)])
     with pytest.raises(cloud.CrossChexError):
         cloud.fetch_records(BEGIN, END, configured)
 

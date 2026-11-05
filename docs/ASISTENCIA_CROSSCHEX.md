@@ -46,7 +46,7 @@ ventana de mantenimiento. No depende de Uber y no modifica ventas o inventario.
 
 - La integracion permanece desactivada por defecto. La pantalla puede consultarse
   vacia sin tener cuenta ni equipo. No hay trabajo programado ni webhook entrante.
-- Sincronizacion de hasta 7 dias, 500 registros/pagina, hasta 10 paginas. Se valida
+- Sincronizacion de hasta 7 dias, 200 registros/pagina, hasta 10 paginas. Se valida
   toda la respuesta antes de insertar. Si hay demasiados datos, dividir el periodo.
 - Consultas de hasta 31 dias/10,000 marcas. Cualquier error deja el lote sin importar.
   Respuestas parciales o paginacion cambiante requieren reintento; no se presentan

@@ -16,7 +16,7 @@ ENDPOINTS = {
     "eu": "https://api.eu.crosschexcloud.com/",
     "ap": "https://api.ap.crosschexcloud.com/",
 }
-PAGE_SIZE = 500
+PAGE_SIZE = 200
 MAX_PAGES = 10
 MAX_SECONDS = 45
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
@@ -107,9 +107,20 @@ def _request(client, endpoint, namespace, action, payload, deadline, token=None)
                 if len(raw) > MAX_RESPONSE_BYTES or time.monotonic() > deadline:
                     raise CrossChexError("Respuesta demasiado grande o lenta. Reduce el periodo.")
         data = json.loads(raw)
-        if not isinstance(data, dict) or data.get("code") != 200 or data.get("error"):
-            raise CrossChexError("CrossChex rechazó la consulta. Revisa Developer Mode y credenciales.")
-        result = data["data"]["payload"]
+        if not isinstance(data, dict):
+            raise ValueError()
+        if "code" in data:
+            if data.get("code") != 200 or data.get("error"):
+                raise CrossChexError("CrossChex rechazó la consulta. Revisa Developer Mode y credenciales.")
+            result = data["data"]["payload"]
+        else:
+            header = data.get("header")
+            if not isinstance(header, dict) or any(
+                header.get(key) != body["header"][key]
+                for key in ("nameSpace", "nameAction", "version", "requestId")
+            ):
+                raise CrossChexError("CrossChex rechazó la consulta o devolvió una respuesta no verificable.")
+            result = data["payload"]
         if not isinstance(result, dict):
             raise ValueError()
         return result
