@@ -19,6 +19,7 @@
       }, {once: true}); });
     }
   }) : null;
+  var push = window.createSandboxPush ? window.createSandboxPush({api: api}) : null;
   var attention = window.createSandboxAttention({
     api: api,
     isBusy: function () { return busy; },
@@ -67,6 +68,7 @@
   }
   function logout() {
     attention.stop();
+    if (push) push.reset();
     if (finance) finance.reset();
     generation += 1; key = ''; selected = null; eventId = null; beforeId = null; busy = false; viewingOlder = false;
     attentionRows = []; viewingAttention = true;
@@ -354,6 +356,7 @@
     try {
       var access = await api('/sandbox/estado'); if (current !== generation) return;
       if (finance) finance.enable(access.finanzas_habilitadas);
+      if (push) push.start(access.push_habilitado === true);
       el('access-form').hidden = true; el('workspace').hidden = false; el('logout').hidden = false;
       busy = false; status('Sesi\u00f3n de pruebas activa'); showPending(); attention.start();
     } catch (error) { if (current === generation) { key = ''; status(error.message || 'No se pudo entrar.', true); } }

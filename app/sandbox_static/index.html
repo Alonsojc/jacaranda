@@ -4,10 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#ffffff">
   <title>Jacaranda Sandbox</title>
   <link rel="icon" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/sandbox-icon.png">
+  <link rel="manifest" href="/sandbox.webmanifest">
   <link rel="stylesheet" href="/sandbox.css">
   <script src="/attention.js" defer></script>
+  <script src="/push.js" defer></script>
   <script src="/finance.js" defer></script>
   <script src="/sandbox.js" defer></script>
 </head>
@@ -28,6 +32,7 @@
         <div class="attention-tools">
           <div class="connection-status" role="status"><strong id="attention-connection">Conectando bandeja...</strong><span id="attention-updated"></span></div>
           <div><label class="sound-toggle"><input id="attention-sound" type="checkbox">Sonido de pedidos</label><span id="attention-audio-status" role="status"></span></div>
+          <div class="push-controls"><button id="push-toggle" type="button" class="secondary" hidden disabled>Activar notificaciones</button><span id="push-status" role="status"></span></div>
         </div>
         <div id="attention-alert" class="attention-alert" hidden>
           <div role="status" aria-live="polite"><strong id="attention-count"></strong><span id="attention-summary"></span></div>

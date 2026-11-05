@@ -27,6 +27,7 @@ pypdf==6.21.2
 
 # Push notifications
 firebase-admin==7.4.0
+pywebpush==2.5.0
 
 # PDF generation
 reportlab==4.4.10
