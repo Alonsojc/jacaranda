@@ -21,6 +21,23 @@ def test_ticket_modal_only_offers_easy_pos_print():
     assert "thermer://" not in HTML
 
 
+def test_ticket_actions_stay_outside_the_scrollable_details():
+    modal = _segment("<!-- MODAL: Ticket confirmación / ver ticket -->", "<!-- MODAL: Correccion de ticket -->")
+    details, actions = modal.split('<div class="ticket-modal-actions">', 1)
+    assert 'class="ticket-modal-body" id="mt-body" tabindex="0"' in details
+    assert 'id="mt-productos"' in details
+    assert 'onclick="cancelarVentaActual()"' in details
+    assert 'id="mt-easy-pos-print-btn"' in actions
+    assert 'onclick="cerrarModal(\'modal-ticket\')"' in actions
+    assert ".ticket-modal-body{min-height:0;overflow-y:auto;" in HTML
+    assert ".ticket-modal-actions{display:grid;" in HTML
+    for function, next_function in (
+        ("function mostrarTicket(venta)", "var _ultimoTicket = null"),
+        ("function verTicket(ventaId, cancelada)", "async function cancelarVentaActual"),
+    ):
+        assert "document.getElementById('mt-body').scrollTop = 0;" in _segment(function, next_function)
+
+
 def test_product_lines_keep_subtotal_next_to_quantity_and_name():
     assert "fmtQty(producto.cantidad) + 'x  $' + fmt(producto.subtotal)" in HTML
     assert "txt += formatoLineaProductoTicket(p) + '\\n';" in HTML

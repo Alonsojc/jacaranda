@@ -1,15 +1,15 @@
 // Jacaranda Service Worker — Offline support
-const CACHE_NAME = 'jacaranda-v134';
+const CACHE_NAME = 'jacaranda-v135';
 const SHELL_WAIT_MS = 1800;
 const STATIC_FETCH_TIMEOUT_MS = 12000;
 const STATIC_ASSETS = [
   './',
   './index.html',
   './favicon.svg',
-  './js/jacaranda-core.js?v=jacaranda-v134',
-  './js/egresos-import.js?v=jacaranda-v134',
-  './js/asistencia.js?v=jacaranda-v134',
-  './css/asistencia.css?v=jacaranda-v134',
+  './js/jacaranda-core.js?v=jacaranda-v135',
+  './js/egresos-import.js?v=jacaranda-v135',
+  './js/asistencia.js?v=jacaranda-v135',
+  './css/asistencia.css?v=jacaranda-v135',
   './icons/lucide/download.svg',
   './icons/lucide/refresh-cw.svg',
   './icons/lucide/chevron-left.svg',

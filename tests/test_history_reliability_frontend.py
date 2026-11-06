@@ -208,7 +208,9 @@ def test_ticket_read_resets_stale_data_and_ignores_out_of_order_or_closed_modal(
     node(UI_HARNESS + section("function cargaTicketVigente", "function mostrarTicket")
          + section("var _ventaActualId", "async function cancelarVentaActual") + r"""
 (async () => {
+  document.getElementById('mt-body').scrollTop = 200;
   const a = verTicket(1, false);
+  assert.equal(document.getElementById('mt-body').scrollTop, 0);
   assert.equal(_ultimoTicket, null);
   assert.equal(document.getElementById('mt-cancel-wrap').style.display, 'none');
   const b = verTicket(2, true);
