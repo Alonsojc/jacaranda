@@ -2,6 +2,7 @@
 
 from collections import OrderedDict
 from datetime import date, datetime, time, timedelta, timezone
+from itertools import groupby
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -16,6 +17,10 @@ from app.services.auditoria_service import registrar_evento
 from app.services.crosschex_service import record_identity
 
 MAX_QUERY_ROWS = 10000
+
+# These two codes were confirmed with the Jacaranda EP30. Other codes can be
+# customized in CrossChex and must not be inferred as an entry or exit.
+MARK_TYPES = {128: "entrada", 129: "salida"}
 
 
 def period_bounds(start: date, end: date, max_days: int = 31):
@@ -67,10 +72,13 @@ def query_records(db, account, begin, end, search=""):
         ChecadaAsistencia.fecha >= begin, ChecadaAsistencia.fecha < end,
     )
     if search:
-        stmt = stmt.where(
+        matching_people = select(ChecadaAsistencia.numero_reloj).where(
+            ChecadaAsistencia.cuenta == account,
+            ChecadaAsistencia.fecha >= begin, ChecadaAsistencia.fecha < end,
             ChecadaAsistencia.numero_reloj.contains(search, autoescape=True)
-            | ChecadaAsistencia.nombre_reloj.icontains(search, autoescape=True)
+            | ChecadaAsistencia.nombre_reloj.icontains(search, autoescape=True),
         )
+        stmt = stmt.where(ChecadaAsistencia.numero_reloj.in_(matching_people))
     rows = db.scalars(stmt.order_by(ChecadaAsistencia.fecha.desc(), ChecadaAsistencia.id.desc())
                       .limit(MAX_QUERY_ROWS + 1)).all()
     if len(rows) > MAX_QUERY_ROWS:
@@ -87,13 +95,69 @@ def query_records(db, account, begin, end, search=""):
             "id": row.id, "numero_reloj": row.numero_reloj, "nombre_reloj": row.nombre_reloj,
             "empleado_id": employee_id, "empleado_nombre": employee_name(employee) if employee else None,
             "fecha": operation_datetime(row.fecha).isoformat(), "tipo_original": row.tipo_original,
+            "tipo": MARK_TYPES.get(row.tipo_original, "desconocido"),
             "dispositivo": row.dispositivo, "dispositivo_nombre": row.dispositivo_nombre,
         })
     return result
 
 
+def completed_intervals(records):
+    """Sum unambiguous same-day entry/exit pairs; preserve uncertain evidence."""
+    ordered = sorted(records, key=lambda row: datetime.fromisoformat(row["fecha"]).astimezone(timezone.utc))
+    pending = None
+    uncertain = False
+    seconds = 0
+    pairs = 0
+    reasons = []
+
+    def note(reason):
+        if reason not in reasons:
+            reasons.append(reason)
+
+    for instant, same_time in groupby(
+        ordered, key=lambda row: datetime.fromisoformat(row["fecha"]).astimezone(timezone.utc),
+    ):
+        events = list(same_time)
+        if len(events) > 1:
+            note("marcas_simultaneas")
+            pending = None
+            uncertain = True
+            continue
+        kind = MARK_TYPES.get(events[0]["tipo_original"], "desconocido")
+        if kind == "desconocido":
+            note("codigo_desconocido")
+            pending = None
+            uncertain = True
+        elif kind == "entrada":
+            if uncertain:
+                note("secuencia_incierta")
+            elif pending is not None:
+                note("entrada_repetida")
+                pending = None
+                uncertain = True
+            else:
+                pending = instant
+        elif uncertain:
+            # An exit closes the ambiguous sequence, but not a billable pair.
+            uncertain = False
+        elif pending is None:
+            note("salida_sin_entrada")
+        else:
+            seconds += int((instant - pending).total_seconds())
+            pairs += 1
+            pending = None
+    if pending is not None:
+        note("entrada_sin_salida")
+    return {
+        "segundos_completos": seconds if pairs else None,
+        "estado_calculo": "revisar" if reasons else "sin_incidencias",
+        "motivos_calculo": reasons,
+    }
+
+
 def daily_summary(records):
     days = OrderedDict()
+    group_records = {}
     for record in records:
         key = (record["fecha"][:10], record["numero_reloj"])
         if key not in days:
@@ -102,11 +166,14 @@ def daily_summary(records):
                 "empleado_id": record["empleado_id"], "empleado_nombre": record["empleado_nombre"],
                 "primera": record["fecha"], "ultima": record["fecha"], "marcas": 0,
             }
+            group_records[key] = []
         group = days[key]
+        group_records[key].append(record)
         group["marcas"] += 1
-        group["primera"] = min(group["primera"], record["fecha"])
-        group["ultima"] = max(group["ultima"], record["fecha"])
-    for group in days.values():
+        group["primera"] = min(group["primera"], record["fecha"], key=datetime.fromisoformat)
+        group["ultima"] = max(group["ultima"], record["fecha"], key=datetime.fromisoformat)
+    for key, group in days.items():
         if group["marcas"] == 1:
             group["ultima"] = None
+        group.update(completed_intervals(group_records[key]))
     return list(days.values())

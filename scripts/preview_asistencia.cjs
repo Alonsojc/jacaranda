@@ -44,7 +44,7 @@ if (process.argv.includes('--detach')) {
       function escHtml(v){return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');}
       var names=['Ana Demo','Mar Demo','Persona de prueba con un nombre muy largo','Lucia Demo','Pablo Demo'];
       var marks=flags.empty?[]:Array.from({length:56},function(_,i){return {id:i+1,numero_reloj:String(i%5+1).padStart(3,'0'),nombre_reloj:names[i%5],empleado_id:i%5===2?null:i%5+1,empleado_nombre:null,
-      fecha:'2026-10-28T'+String(8+Math.floor(i/5)).padStart(2,'0')+':'+String(i%5*3).padStart(2,'0')+':00-06:00',tipo_original:i%2?129:128,dispositivo:'DEMO-EP30',dispositivo_nombre:'Mostrador de prueba'};});
+      fecha:'2026-10-28T'+String(8+Math.floor(i/5)).padStart(2,'0')+':'+String(i%5*3).padStart(2,'0')+':00-06:00',tipo_original:i%2?129:128,tipo:i%2?'salida':'entrada',dispositivo:'DEMO-EP30',dispositivo_nombre:'Mostrador de prueba'};});
       function api(method,path,body){return new Promise(function(resolve,reject){setTimeout(function(){
         var u=new URL(path,'http://local');
         if(path.includes('/estado'))return resolve({lista:flags.ready,ultima_sincronizacion:flags.empty?null:'2026-10-28T18:00:00-06:00',zona_horaria:APP_TIMEZONE});
@@ -56,7 +56,8 @@ if (process.argv.includes('--detach')) {
           var filtered=marks.filter(r=>r.fecha.slice(0,10)>=u.searchParams.get('desde')&&r.fecha.slice(0,10)<=u.searchParams.get('hasta')&&(!search||r.nombre_reloj.toLowerCase().includes(search)||r.numero_reloj.includes(search))).slice().reverse();
           var rows=filtered;
           if(u.searchParams.get('vista')==='diario'){
-            var groups={}; filtered.forEach(r=>{var g=groups[r.numero_reloj];if(!g)groups[r.numero_reloj]={...r,dia:'2026-10-28',primera:r.fecha,ultima:r.fecha,marcas:1};else{g.marcas++;g.primera=r.fecha;}});rows=Object.values(groups);
+            var groups={}; filtered.forEach(r=>{var g=groups[r.numero_reloj];if(!g)groups[r.numero_reloj]={...r,dia:'2026-10-28',primera:r.fecha,ultima:r.fecha,marcas:1};else{g.marcas++;g.primera=r.fecha;}});
+            rows=Object.values(groups).map(g=>({...g,segundos_completos:Math.floor(g.marcas/2)*3600,estado_calculo:g.marcas%2?'revisar':'sin_incidencias',motivos_calculo:g.marcas%2?['entrada_sin_salida']:[]}));
           }
           var pg=Number(u.searchParams.get('pagina')||1);
           return resolve({items:rows.slice((pg-1)*25,pg*25),total:rows.length,resumen:{marcas:filtered.length,personas:new Set(filtered.map(r=>r.numero_reloj)).size,sin_vincular:new Set(filtered.filter(r=>!r.empleado_id).map(r=>r.numero_reloj)).size}});
