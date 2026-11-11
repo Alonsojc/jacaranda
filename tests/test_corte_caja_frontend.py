@@ -21,7 +21,7 @@ def test_cash_closing_surface_has_print_and_lifecycle_actions():
     assert "Último corte: turno" in HTML
     assert "Ventas del turno" in HTML
     assert "Registrar corte · Turno" in HTML
-    assert "/punto-de-venta/corte-caja/ventas?fecha=" in HTML
+    assert "/punto-de-venta/corte-caja/vista?fecha=" in HTML
     assert "function apiProtegidaConPasswordAdmin" in HTML
     assert "apiProtegidaConPasswordAdmin('PUT'" in HTML
     assert "apiProtegidaConPasswordAdmin('POST'" in HTML
@@ -151,7 +151,7 @@ assert.ok(!textoCorteParaEasyPos(cut).includes('Retiro a resguardo'));
     assert result.returncode == 0, result.stderr
 
 
-def test_cut_load_waits_for_both_requests_and_ignores_old_dates():
+def test_cut_load_uses_one_matching_snapshot_and_ignores_old_dates():
     node = shutil.which("node")
     if not node:
         pytest.skip("Node required")
@@ -183,20 +183,20 @@ async function run() {
   assert.equal(fields['btn-imprimir-corte'].disabled,true);
   fields['c-fecha'].value='2026-10-06'; let latest=cargarCorte();
   assert.equal(fields['c-ventas-fecha'].textContent,'martes, 6 de octubre de 2026');
-  requests[2].resolve([]); await Promise.resolve();
   assert.equal(_corteVistaLista,false);
-  requests[3].resolve(summary('2026-10-06',502.5)); assert.equal(await latest,true);
+  assert.equal(requests.length,2);
+  requests[1].resolve({ventas:[],resumen:summary('2026-10-06',502.5)}); assert.equal(await latest,true);
   assert.equal(_efTotal,502.5); assert.equal(fields['mathLast'],502.5);
   assert.equal(fields['btn-imprimir-corte'].disabled,false);
-  requests[0].resolve([]); requests[1].resolve(summary('2026-10-05',900)); await old;
+  requests[0].resolve({ventas:[],resumen:summary('2026-10-05',900)}); await old;
   assert.equal(_efTotal,502.5);
   assert.equal(fields['c-ventas-fecha'].textContent,'martes, 6 de octubre de 2026');
-  latest=cargarCorte(); requests[4].resolve([]); requests[5].reject(new Error('offline')); assert.equal(await latest,false);
+  latest=cargarCorte(); requests[2].reject(new Error('offline')); assert.equal(await latest,false);
   assert.equal(_corteVistaLista,false); assert.equal(_efTotal,null);
   assert.equal(fields['btn-corte'].disabled,true);
   assert.equal(fields['btn-imprimir-corte'].disabled,true);
   latest=cargarCorte();_versionSesion++;_efTotal=99;_corteVistaLista=true;
-  requests[6].resolve([]);requests[7].resolve(summary('2026-10-06',500));
+  requests[3].resolve({ventas:[],resumen:summary('2026-10-06',500)});
   assert.equal(await latest,false);assert.equal(_efTotal,99);assert.equal(_corteVistaLista,true);
 }
 run().catch(e=>{console.error(e);process.exit(1)});

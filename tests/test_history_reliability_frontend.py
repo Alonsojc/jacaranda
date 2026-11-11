@@ -188,6 +188,8 @@ const document = {getElementById: id => fields[id] ||= {
 }};
 let _versionSesion = 1, _ultimoTicket = {folio:'old'}, _mtVentaId, _mtFolio;
 let _histVentas = [{id:999}], _histVentasCargaSeq = 0, _histVentasCargando = false;
+let _histVentasPagina=1, _histVentasConsulta='', _histVentasResumen=null, _histVentasTimer=null;
+function setTimeout(){return 1;} function clearTimeout(){}
 const reads = [], rendered = [], mutations = [];
 function escHtml(v) { return String(v).replace(/</g, '&lt;'); }
 function toast() {}
@@ -249,9 +251,9 @@ def test_history_loading_error_and_latest_request_state_are_recoverable():
   assert.deepEqual(_histVentas, []);
   filtrarHistVentas(); assert.deepEqual(rendered, []);
   const b = cargarHistVentas();
-  reads[0].resolve([{id:1}]); await a;
+  reads[0].resolve({items:[{id:1}]}); await a;
   assert.equal(document.getElementById('hv-consultar').disabled, true);
-  reads[1].resolve([{id:2}]); await b;
+  reads[1].resolve({items:[{id:2}]}); await b;
   assert.deepEqual(_histVentas, [{id:2}]);
   assert.equal(document.getElementById('hv-consultar').disabled, false);
   const c = cargarHistVentas();
@@ -262,7 +264,7 @@ def test_history_loading_error_and_latest_request_state_are_recoverable():
   assert.ok(document.getElementById('hv-list').innerHTML.includes('Reintentar'));
   const d = cargarHistVentas();
   _versionSesion++;
-  reads[3].resolve([{id:3}]); await d;
+  reads[3].resolve({items:[{id:3}]}); await d;
   assert.deepEqual(_histVentas, []);
   assert.equal(document.getElementById('hv-consultar').disabled, false);
 })().catch(e => { console.error(e); process.exitCode = 1; });

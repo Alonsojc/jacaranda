@@ -14,8 +14,10 @@ _engine_options = {
 if settings.DATABASE_URL.startswith("sqlite"):
     _connect_args["check_same_thread"] = False
 else:
+    _connect_args["connect_timeout"] = 5
     _engine_options.update(
         {
+            "pool_timeout": 5,
             "pool_size": settings.DB_POOL_SIZE,
             "max_overflow": settings.DB_MAX_OVERFLOW,
             "pool_recycle": settings.DB_POOL_RECYCLE_SECONDS,

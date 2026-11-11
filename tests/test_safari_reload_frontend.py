@@ -180,6 +180,10 @@ PED_HARNESS = r"""
 const assert=require('node:assert/strict'),fields={},reads=[],rendered=[];
 const document={getElementById:id=>fields[id]||=( {style:{},textContent:'',hidden:true})};
 let _pedCargaSeq=0,_versionSesion=1,_pedidosCache=[{id:9}],_pedidosPendientes=[],_calPedVisible=true;
+let _pedPagina=1,_pedCargando=false,_pedResumen=null,_pedFiltroEstado='';
+fields['ped-buscar']={value:''};
+function actualizarCalendarioPedidos(){}
+function renderPaginador(){}
 function apiLecturaRecuperable(path,options){return new Promise((resolve,reject)=>reads.push({path,options,resolve,reject}));}
 function registrarPedidosConocidos(){}function sincronizarPedidosPendientes(){}
 function renderPedidos(){rendered.push(_pedidosCache.map(p=>p.id));}
@@ -194,7 +198,7 @@ async function run(){
   assert.equal(_pedidosCache[0].id,9);assert.equal(fields['ped-reintentar'].hidden,false);
   assert(fields['ped-datos-estado'].textContent.includes('al d'));
   load=cargarPedidos();assert.equal(fields['ped-reintentar'].hidden,true);
-  reads[1].resolve([{id:10,estado:'recibido'}]);assert.equal(await load,true);
+  reads[1].resolve({items:[{id:10,estado:'recibido'}],total:1,activos:1});assert.equal(await load,true);
   assert.equal(fields['ped-datos-estado'].hidden,true);assert.equal(_pedidosCache[0].id,10);
 }
 """)
@@ -205,9 +209,9 @@ def test_old_orders_response_cannot_replace_newer_data_or_repaint_after_logout()
 async function run(){
   let old=cargarPedidos(),current=cargarPedidos({silenciosa:true});
   assert.equal(reads[1].options.silenciosa,true);
-  reads[1].resolve([{id:10}]);await current;reads[0].resolve([{id:99}]);await old;
+  reads[1].resolve({items:[{id:10}],total:1,activos:1});await current;reads[0].resolve({items:[{id:99}]});await old;
   assert.deepEqual(rendered,[[10]]);
-  old=cargarPedidos();_versionSesion++;reads[2].resolve([{id:88}]);await old;
+  old=cargarPedidos();_versionSesion++;reads[2].resolve({items:[{id:88}]});await old;
   assert.deepEqual(rendered,[[10]]);
 }
 """)
@@ -297,7 +301,7 @@ async function run(){await confirmarCerrarSesion();assert.equal(messages.length,
 ORDER_SYNC_HARNESS = r"""
 const assert=require('node:assert/strict'),requests=[];
 const original={id:'order-1',payload:{idempotency_key:'order-1'}};
-let _versionSesion=1,TOKEN='token',_pedidosPendientes=[original],_calPedVisible=false;
+let _versionSesion=1,TOKEN='token',_pedidosPendientes=[original],_calPedVisible=false,_pedidoSyncPromise=null;
 let stored=JSON.stringify(_pedidosPendientes);
 const localStorage={getItem:()=>stored,setItem:(key,value)=>stored=value};
 function asegurarPropietarioColasVentas(){return true;}function actualizarPropietarioColasVentas(){}
@@ -305,6 +309,8 @@ function verificarPropietarioColasVentas(){}
 function exigirSesionColasVigente(version,token){if(version!==_versionSesion||!TOKEN||!token)throw Error('Session changed');}
 function conBloqueoColasVentas(task){return Promise.resolve().then(()=>task(()=>true));}
 function api(){return new Promise((resolve,reject)=>requests.push({resolve,reject}));}
+function esErrorVentaNoReintentable(e){return e.status>=400&&e.status<500;}
+function mensajeErrorPedido(e){return e.message||'Error';}
 function toast(){}function renderPedidos(){}function cargarPedidos(){}
 async function flush(){for(let i=0;i<10;i++)await Promise.resolve();}
 """

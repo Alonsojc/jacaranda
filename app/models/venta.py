@@ -104,6 +104,7 @@ class Venta(Base):
     fecha: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
     )
+    fecha_cobro_local: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Relaciones
     cliente: Mapped["Cliente | None"] = relationship(back_populates="ventas")  # noqa: F821

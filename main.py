@@ -269,3 +269,17 @@ def root():
 @app.get("/health", tags=["Root"])
 def health():
     return {"status": "ok"}
+
+
+@app.get("/ready", tags=["Root"])
+def ready():
+    from sqlalchemy import text
+    try:
+        with engine.connect() as conn:
+            if conn.dialect.name == "postgresql":
+                conn.execute(text("SET LOCAL statement_timeout = '2000ms'"))
+            conn.execute(text("SELECT 1"))
+        return {"status": "ready"}
+    except Exception:
+        logger.warning("Database readiness check failed")
+        return JSONResponse(status_code=503, content={"status": "unavailable"})

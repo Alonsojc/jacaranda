@@ -177,6 +177,6 @@ def test_railway_waits_for_ready_application_before_routing(client):
     import json
 
     deploy = json.loads(Path("railway.json").read_text())["deploy"]
-    assert deploy["healthcheckPath"] == "/health"
+    assert deploy["healthcheckPath"] == "/ready"
     assert deploy["healthcheckTimeout"] == 300
     assert client.get(deploy["healthcheckPath"]).status_code == 200

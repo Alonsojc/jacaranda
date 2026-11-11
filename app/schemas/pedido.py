@@ -98,3 +98,14 @@ class PedidoResponse(BaseModel):
     creado_en: datetime
     detalles: list[DetallePedidoResponse]
     model_config = {"from_attributes": True}
+
+
+class BandejaPedidosResponse(BaseModel):
+    items: list[PedidoResponse]
+    total: int
+    activos: int
+    pagina: int
+    limite: int
+    hoy: int
+    manana: int
+    semana: int
