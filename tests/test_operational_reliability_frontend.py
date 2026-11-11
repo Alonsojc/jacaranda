@@ -36,6 +36,13 @@ assert.equal(sent._timestamp,undefined);
 """)
 
 
+def test_closed_shift_review_does_not_instruct_the_cashier_to_charge_again():
+    review = HTML[HTML.index("if (item.tipo === 'rechazada')"):HTML.index("  if (!item.venta) {", HTML.index("if (item.tipo === 'rechazada')"))]
+    assert "item.error_status === 409" in review
+    assert "No lo vuelvas a cobrar ni registrar en otro turno" in review
+    assert "vuelve a capturarla" not in review
+
+
 def test_history_pending_is_not_labelled_paid_and_can_only_query_original_attempt():
     node(r"""
 const assert=require('node:assert/strict'), fields={};

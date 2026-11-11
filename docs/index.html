@@ -6721,7 +6721,9 @@ async function revisarSiguienteVentaLegacy() {
     var motivoRechazo = item.error_mensaje || 'La venta no fue aceptada';
     var rechazoRevisado = await confirmarAccion({
       title: 'Venta no aceptada',
-      message: 'Busca la venta en Corte. Si no aparece, vuelve a capturarla con los productos actuales.',
+      message: item.error_status === 409
+        ? 'Conserva este cobro y solicita conciliacion al administrador. No lo vuelvas a cobrar ni registrar en otro turno.'
+        : 'Busca la venta en Corte. Si no aparece, solicita revision antes de volver a registrarla.',
       detail: resumenVentaLegacy(item) + '. Motivo: ' + motivoRechazo,
       icon: '!',
       acceptText: 'S\u00ed, ya aparece',
