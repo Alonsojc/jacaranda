@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import require_admin_or_override, require_permission
-from app.models.pedido import Pedido
+from app.models.pedido import Pedido, EstadoPedido
 from app.models.usuario import Usuario
 from app.schemas.pedido import (
     PedidoCreate,
@@ -16,6 +16,7 @@ from app.schemas.pedido import (
     PedidoPagoUpdate,
     PedidoResponse,
     PedidoUpdate,
+    BandejaPedidosResponse,
 )
 from app.services import pedido_service
 from app.services.notificacion_service import notificar_pedido_nuevo
@@ -79,6 +80,30 @@ def pedidos_de_hoy(
     user: Usuario = Depends(require_permission("ped", "ver")),
 ):
     return pedido_service.pedidos_del_dia(db)
+
+
+@router.get("/bandeja", response_model=BandejaPedidosResponse)
+def bandeja_pedidos(
+    estado: EstadoPedido | None = None,
+    buscar: str = Query("", max_length=100),
+    pagina: int = Query(1, ge=1),
+    limite: int = Query(25, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_permission("ped", "ver")),
+):
+    return pedido_service.bandeja_pedidos(db, estado, buscar, pagina, limite)
+
+
+@router.get("/calendario", response_model=list[PedidoResponse])
+def calendario_pedidos(
+    desde: date, hasta: date,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_permission("ped", "ver")),
+):
+    try:
+        return pedido_service.calendario_pedidos(db, desde, hasta)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
 
 @router.get("/reservas")

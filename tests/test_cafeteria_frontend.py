@@ -57,6 +57,8 @@ let _ticketEdicion=null,_ventaEnProceso=false,_apiGetCache={},_apiGetInFlight={}
 let _dashGetCache={old:Promise.resolve({})},_dashCacheAt=100;
 let _resguardoSeq=0,_egresosResumenSeq=0,_egOcrSeq=0,_ocrSeq=0;
 let _pedCargaSeq=0,_pedidosCache=[{id:1}];
+let _pedBuscarTimer=null,_histVentasTimer=null,_histVentasCargaSeq=0,_pedCalendario=[],_pedResumen=null;
+let _pedPagina=1,_pedidoLocalRevision=null,_histVentas=[],_histVentasResumen=null,_histVentasConsulta='',_histVentasPagina=1;
 function cancelarAdminAuth(){}
 function cerrarClaveAutorizacion(){}
 function cerrarUsuario(){}

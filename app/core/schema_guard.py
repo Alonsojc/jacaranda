@@ -165,6 +165,7 @@ def ensure_runtime_schema(engine: Engine) -> None:
             venta_columns = {col["name"] for col in inspector.get_columns("ventas")}
             for column_name, column_type, default, nullable in (
                 ("edicion_revision", Integer(), "0", False),
+                ("fecha_cobro_local", DateTime(timezone=True), None, True),
                 ("recompensa_lealtad_canjeada", Boolean(), "false", False),
                 ("recompensa_lealtad_nombre", String(120), None, True),
                 ("recompensa_lealtad_monto", Numeric(14, 2), "0", False),

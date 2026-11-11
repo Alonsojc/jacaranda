@@ -57,6 +57,15 @@ def obtener_checklist(
 
 # --- Trazabilidad ---
 
+@router.get("/trazabilidad")
+def listar_trazabilidad(
+    buscar: str = Query("", max_length=100),
+    pagina: int = Query(1, ge=1),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("calidad", "ver")),
+):
+    return svc.listar_trazabilidad(db, buscar, pagina)
+
 @router.post("/trazabilidad", response_model=TrazabilidadLoteResponse, status_code=201)
 def registrar_trazabilidad(
     data: TrazabilidadLoteCreate,

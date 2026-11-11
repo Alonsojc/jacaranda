@@ -6,9 +6,9 @@ Genera tickets conforme a Ley Federal de Protección al Consumidor.
 
 import json
 from decimal import Decimal
-from datetime import datetime, timezone, date
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, and_
+from datetime import datetime, timezone, date, timedelta
+from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy import func, and_, or_
 from sqlalchemy.exc import IntegrityError
 
 from app.models.venta import (
@@ -43,6 +43,30 @@ CENTAVO = Decimal("0.01")
 
 # Compatibilidad con módulos previos que importaban el helper privado desde POS.
 _normalizar_metodo_terminal = normalizar_metodo_terminal
+
+
+class VentaRequiereRevision(ValueError):
+    pass
+
+
+def _validar_cobro_local(db: Session, data: VentaCreate) -> None:
+    if not data.fecha_cobro_local:
+        return
+    ahora = datetime.now(timezone.utc)
+    cobro = data.fecha_cobro_local
+    if cobro > ahora + timedelta(minutes=5):
+        raise VentaRequiereRevision("Revisa la hora del dispositivo; el cobro tiene fecha futura")
+    dia = _fecha_hora_operacion(cobro).date()
+    if dia != _fecha_hora_operacion(ahora).date():
+        raise VentaRequiereRevision(
+            "El cobro pertenece a otro dia. Conserva el pendiente y solicita conciliacion al administrador"
+        )
+    for corte in _cortes_cerrados_del_dia(db, dia):
+        fin = corte.periodo_fin or corte.fecha
+        if _normalizar_fecha_db(cobro) <= _normalizar_fecha_db(_fecha_hora_operacion(fin)):
+            raise VentaRequiereRevision(
+                "El turno de este cobro ya cerro. Conserva el pendiente para conciliacion; no vuelvas a cobrar"
+            )
 
 
 def _terminal_por_defecto_pago(metodo: MetodoPago, terminal: TerminalPago | None) -> TerminalPago:
@@ -177,6 +201,9 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
         ).first()
         if venta_existente:
             return venta_existente
+
+    bloquear_dia_caja(db, _hoy_operacion())
+    _validar_cobro_local(db, data)
 
     cliente_lealtad = None
     lealtad_config = None
@@ -319,6 +346,11 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     else:
         total_impuestos = iva_16_total
     total = subtotal_total + total_impuestos
+    if data.total_esperado is not None and total.quantize(CENTAVO) != data.total_esperado:
+        raise VentaRequiereRevision(
+            f"El total capturado ({data.total_esperado}) no coincide con el actual ({total}). "
+            "Conserva el pendiente y revisa los precios; no vuelvas a cobrar"
+        )
 
     # Validar pago
     cambio = Decimal("0")
@@ -362,14 +394,20 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             p["monto"] for p in pagos_normalizados if p["metodo_pago"] == MetodoPago.EFECTIVO
         )
         no_efectivo = suma_pagos - efectivo_recibido
-        # Change = cash given - (total - card/transfer portion)
-        parte_efectivo = total - no_efectivo
-        if efectivo_recibido > 0 and parte_efectivo > 0:
-            cambio = efectivo_recibido - parte_efectivo
-        elif efectivo_recibido > total:
-            cambio = efectivo_recibido - total
+        if no_efectivo > total:
+            raise ValueError("Los pagos sin efectivo no pueden superar el total del ticket")
+        cambio = suma_pagos - total
+        cambio_pendiente = cambio
+        for pago in pagos_normalizados:
+            if pago["metodo_pago"] == MetodoPago.EFECTIVO:
+                devuelto = min(pago["monto"], cambio_pendiente)
+                pago["monto"] -= devuelto
+                cambio_pendiente -= devuelto
+        pagos_normalizados = [p for p in pagos_normalizados if p["monto"] > 0]
         # Primary method = largest payment
-        pago_principal = max(pagos_normalizados, key=lambda p: p["monto"])
+        pago_principal = max(pagos_normalizados, key=lambda p: p["monto"], default={
+            "metodo_pago": MetodoPago.EFECTIVO, "terminal": TerminalPago.EFECTIVO,
+        })
         metodo_principal = pago_principal["metodo_pago"]
         terminal_principal = pago_principal["terminal"]
     else:
@@ -414,6 +452,7 @@ def procesar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
             pago_externo_estado="pendiente" if data.pago_integrado else None,
             pago_externo_referencia=folio if data.pago_integrado else None,
             notas=data.notas,
+            fecha_cobro_local=data.fecha_cobro_local,
         )
         db.add(venta)
         try:
@@ -954,6 +993,71 @@ def listar_ventas(
     return query.order_by(Venta.fecha.desc()).limit(limit).all()
 
 
+def _consulta_historial(db, fecha_inicio, fecha_fin, metodo=None, buscar=""):
+    if fecha_inicio > fecha_fin:
+        raise ValueError("La fecha inicial debe ser anterior a la final")
+    inicio = datetime.combine(fecha_inicio, datetime.min.time(), tzinfo=_zona_operacion())
+    fin = datetime.combine(fecha_fin, datetime.max.time(), tzinfo=_zona_operacion())
+    query = db.query(Venta).filter(
+        Venta.fecha >= _normalizar_fecha_db(inicio),
+        Venta.fecha <= _normalizar_fecha_db(fin),
+    )
+    if metodo:
+        query = query.filter(or_(
+            Venta.metodo_pago == metodo,
+            Venta.pagos.any(PagoVenta.metodo_pago == metodo),
+        ))
+    if buscar.strip():
+        query = query.filter(func.lower(Venta.folio).contains(buscar.strip().lower(), autoescape=True))
+    return query
+
+
+def historial_ventas(db, fecha_inicio, fecha_fin, metodo=None, buscar="", pagina=1, limite=25):
+    query = _consulta_historial(db, fecha_inicio, fecha_fin, metodo, buscar)
+    completadas, cobrado = query.filter(Venta.estado == EstadoVenta.COMPLETADA).with_entities(
+        func.count(Venta.id), func.coalesce(func.sum(Venta.total), 0),
+    ).one()
+    total = query.count()
+    items = query.options(
+        selectinload(Venta.detalles).joinedload(DetalleVenta.producto),
+        selectinload(Venta.pagos),
+    ).order_by(Venta.fecha.desc(), Venta.id.desc()).offset((pagina - 1) * limite).limit(limite).all()
+    return {"items": items, "total": total, "total_cobrado": cobrado,
+            "completadas": completadas, "pagina": pagina, "limite": limite}
+
+
+def exportar_historial_ventas(db, fecha_inicio, fecha_fin, metodo=None, buscar=""):
+    import csv
+    from io import StringIO
+
+    query = _consulta_historial(db, fecha_inicio, fecha_fin, metodo, buscar)
+
+    def filas():
+        buf = StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["Folio", "Fecha registro", "Hora cobro local", "Metodo pago", "Referencia", "Productos",
+                         "Subtotal", "IVA", "Total", "Estado"])
+        yield "\ufeff" + buf.getvalue()
+        ventas = query.options(
+            selectinload(Venta.detalles).joinedload(DetalleVenta.producto),
+            selectinload(Venta.pagos),
+        ).order_by(Venta.fecha.desc(), Venta.id.desc()).yield_per(200)
+        for venta in ventas:
+            buf.seek(0)
+            buf.truncate(0)
+            textos = [
+                venta.folio, _fecha_hora_operacion(venta.fecha).isoformat(),
+                _fecha_hora_operacion(venta.fecha_cobro_local).isoformat() if venta.fecha_cobro_local else "",
+                etiqueta_canal_pago(venta.metodo_pago, venta.terminal),
+                " / ".join(p.referencia for p in venta.pagos if p.referencia),
+                " / ".join(f"{d.cantidad} x {d.producto_nombre or ''}" for d in venta.detalles),
+            ]
+            textos = ["'" + t if t.lstrip().startswith(("=", "+", "-", "@")) else t for t in textos]
+            writer.writerow(textos + [str(venta.subtotal), str(venta.total_impuestos), str(venta.total), venta.estado.value])
+            yield buf.getvalue()
+    return filas()
+
+
 def generar_ticket(db: Session, venta_id: int) -> dict:
     """
     Genera datos del ticket de venta.
@@ -1143,6 +1247,10 @@ def _totales_corte(
         Venta.estado == EstadoVenta.CANCELADA,
     )
     cancelaciones = cancelaciones_query.scalar() or 0
+    cobros_pendientes = db.query(func.count(Venta.id)).filter(
+        Venta.fecha >= inicio_dia, Venta.fecha <= fin_periodo,
+        Venta.estado == EstadoVenta.PENDIENTE, Venta.pago_integrado.is_(True),
+    ).scalar() or 0
 
     return {
         "fecha": fecha,
@@ -1159,15 +1267,16 @@ def _totales_corte(
         "total_ventas": total_ventas,
         "numero_ventas": len(ventas),
         "numero_cancelaciones": int(cancelaciones),
+        "cobros_pendientes": int(cobros_pendientes),
         "corte_existente": corte_anterior,
         "siguiente_turno": _siguiente_turno_corte(db, fecha),
     }
 
 
-def resumen_corte_caja(db: Session, fecha: date | None = None) -> dict:
+def resumen_corte_caja(db: Session, fecha: date | None = None, *, totales: dict | None = None) -> dict:
     """Resumen calculado antes de registrar el corte."""
     dia = fecha or _hoy_operacion()
-    totales = _totales_corte(db, dia)
+    totales = totales if totales is not None else _totales_corte(db, dia)
     corte_existente = totales["corte_existente"]
     return {
         "fecha": dia.isoformat(),
@@ -1180,6 +1289,7 @@ def resumen_corte_caja(db: Session, fecha: date | None = None) -> dict:
         "efectivo_esperado_base": totales["total_efectivo"],
         "numero_ventas": totales["numero_ventas"],
         "numero_cancelaciones": totales["numero_cancelaciones"],
+        "cobros_pendientes": totales["cobros_pendientes"],
         "corte_existente": corte_existente is not None,
         "corte_id": corte_existente.id if corte_existente else None,
         "corte": corte_existente,
@@ -1187,6 +1297,13 @@ def resumen_corte_caja(db: Session, fecha: date | None = None) -> dict:
         "periodo_inicio": totales["periodo_inicio"],
         "periodo_fin": totales["periodo_fin"],
     }
+
+
+def vista_corte_caja(db: Session, fecha: date | None = None) -> dict:
+    dia = fecha or _hoy_operacion()
+    bloquear_dia_caja(db, dia)
+    totales = _totales_corte(db, dia)
+    return {"resumen": resumen_corte_caja(db, dia, totales=totales), "ventas": totales["ventas"]}
 
 
 def ventas_periodo_corte(db: Session, fecha: date | None = None) -> list[Venta]:
@@ -1256,6 +1373,8 @@ def realizar_corte_caja(db: Session, data: CorteCajaCreate, usuario_id: int) -> 
     bloquear_dia_caja(db, dia)
     corte_momento = datetime.now(timezone.utc)
     totales = _totales_corte(db, dia, hasta=corte_momento)
+    if totales["cobros_pendientes"]:
+        raise ValueError("Hay cobros CLIP pendientes de resolver. Consulta el intento original antes de cerrar caja")
 
     efectivo_esperado, diferencia = _validar_diferencia_corte(
         data.fondo_inicial,

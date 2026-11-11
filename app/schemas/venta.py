@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
 from app.models.venta import MetodoPago, FormaPago, EstadoVenta, TerminalPago
@@ -39,6 +39,8 @@ class PagoVentaCreate(BaseModel):
 class VentaCreate(BaseModel):
     idempotency_key: str | None = Field(default=None, max_length=80)
     canal: Literal["mostrador", "uber_eats", "cdmx"] = "mostrador"
+    fecha_cobro_local: datetime | None = None
+    total_esperado: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     cliente_id: int | None = None
     metodo_pago: MetodoPago = MetodoPago.EFECTIVO
     terminal: TerminalPago = TerminalPago.EFECTIVO
@@ -53,6 +55,13 @@ class VentaCreate(BaseModel):
     iva_factura_tasa: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("0.08"))
     detalles: list[DetalleVentaCreate] = Field(..., min_length=1)
     pagos: list[PagoVentaCreate] | None = None  # Split payments (optional)
+
+    @field_validator("fecha_cobro_local")
+    @classmethod
+    def validar_hora_cobro(cls, value):
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise ValueError("La hora de cobro debe incluir zona horaria")
+        return value.astimezone(timezone.utc) if value else None
 
     @field_validator("iva_factura_tasa", mode="before")
     @classmethod
@@ -125,6 +134,7 @@ class VentaResponse(BaseModel):
     facturada: bool
     edicion_revision: int = 0
     fecha: datetime
+    fecha_cobro_local: datetime | None = None
     detalles: list[DetalleVentaResponse] = Field(default_factory=list)
     pagos: list[PagoVentaResponse] = Field(default_factory=list)
 
@@ -247,6 +257,7 @@ class CorteCajaResponse(BaseModel):
 
 class CorteCajaResumen(BaseModel):
     entrega_efectivo_disponible: bool = True
+    cobros_pendientes: int = 0
     fecha: str
     total_ventas_efectivo: Decimal
     total_ventas_tarjeta: Decimal
@@ -263,3 +274,17 @@ class CorteCajaResumen(BaseModel):
     siguiente_turno: int = 1
     periodo_inicio: datetime | None = None
     periodo_fin: datetime | None = None
+
+
+class CorteCajaVista(BaseModel):
+    resumen: CorteCajaResumen
+    ventas: list[VentaResponse]
+
+
+class HistorialVentasResponse(BaseModel):
+    items: list[VentaResponse]
+    total: int
+    total_cobrado: Decimal
+    completadas: int
+    pagina: int
+    limite: int

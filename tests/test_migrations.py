@@ -10,7 +10,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "b3e71a09c442 (head)"
+ALEMBIC_HEAD = "c8d174a20e63 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:
@@ -54,6 +54,7 @@ def test_alembic_upgrade_head_on_clean_database(tmp_path):
     assert "es_empaque" in ingrediente_columns
     assert "canal" in venta_columns
     assert "edicion_revision" in venta_columns
+    assert "fecha_cobro_local" in venta_columns
     assert {"estado", "motivo_estado", "turno", "periodo_inicio", "periodo_fin"}.issubset(corte_columns)
     assert {"retiros", "fondo_entregado", "recibido_por"}.issubset(corte_columns)
     assert "fecha_entrega" in cafeteria_columns
@@ -72,6 +73,26 @@ def test_alembic_upgrade_head_on_precreated_schema(tmp_path):
     current = _run([sys.executable, "-m", "alembic", "current"], database_url)
 
     assert ALEMBIC_HEAD in current.stdout
+
+
+def test_collection_time_migration_preserves_sales_and_evidence_on_rollback(tmp_path):
+    db_path=tmp_path/"collection.db"
+    url=f"sqlite:///{db_path}"
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript("""
+            CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY);
+            INSERT INTO alembic_version VALUES ('b3e71a09c442');
+            CREATE TABLE ventas (id INTEGER PRIMARY KEY, total NUMERIC);
+            INSERT INTO ventas VALUES (1,100);
+        """)
+    _run([sys.executable,"-m","alembic","upgrade","head"],url)
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT id,total,fecha_cobro_local FROM ventas").fetchone() == (1,100,None)
+        conn.execute("UPDATE ventas SET fecha_cobro_local='2026-11-10T18:00:00+00:00' WHERE id=1")
+    _run([sys.executable,"-m","alembic","downgrade","b3e71a09c442"],url)
+    _run([sys.executable,"-m","alembic","upgrade","head"],url)
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT id,total,fecha_cobro_local FROM ventas").fetchone() == (1,100,"2026-11-10T18:00:00+00:00")
 
 
 def test_clasificacion_egresos_preserva_historial_y_valida_tipo(tmp_path):
@@ -153,7 +174,8 @@ def test_cdmx_migration_preserves_prices_stock_and_tickets_and_is_repeatable(tmp
         _run([sys.executable, "-m", "alembic", "upgrade", "head"], url)
     with sqlite3.connect(db_path) as conn:
         assert conn.execute("SELECT * FROM productos").fetchone() == (1, 100, 80, 120, 10, None)
-        assert conn.execute("SELECT * FROM ventas").fetchone() == (1, "mostrador", 100)
+        assert conn.execute("SELECT id, canal, total FROM ventas").fetchone() == (1, "mostrador", 100)
+        assert conn.execute("SELECT fecha_cobro_local FROM ventas").fetchone() == (None,)
     _run([sys.executable, "-m", "alembic", "downgrade", "c4d5e6f7a8b9"], url)
     with sqlite3.connect(db_path) as conn:
         assert conn.execute("SELECT * FROM productos").fetchone() == (1, 100, 80, 120, 10)

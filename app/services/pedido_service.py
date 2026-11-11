@@ -1,10 +1,10 @@
 """Servicio de gestión de pedidos."""
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 from decimal import Decimal
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.core.config import settings
 from app.core.time_utils import operation_today
@@ -392,7 +392,43 @@ def listar_pedidos(
         query = query.filter(Pedido.fecha_entrega == fecha)
     if estado:
         query = query.filter(Pedido.estado == EstadoPedido(estado))
-    return query.order_by(Pedido.fecha_entrega.asc()).limit(limit).all()
+    return query.options(selectinload(Pedido.detalles)).order_by(
+        Pedido.fecha_entrega.asc(), Pedido.id.asc(),
+    ).limit(limit).all()
+
+
+def bandeja_pedidos(db: Session, estado=None, buscar="", pagina=1, limite=25) -> dict:
+    activos = db.query(Pedido).filter(Pedido.estado.notin_([
+        EstadoPedido.ENTREGADO, EstadoPedido.CANCELADO,
+    ]))
+    query = db.query(Pedido).filter(Pedido.estado == EstadoPedido(estado)) if estado else activos
+    texto = buscar.strip().lower()
+    if texto:
+        query = query.filter(or_(*[
+            func.lower(columna).contains(texto, autoescape=True)
+            for columna in (Pedido.folio, Pedido.cliente_nombre, Pedido.cliente_telefono)
+        ]))
+    total = query.count()
+    items = query.options(selectinload(Pedido.detalles)).order_by(
+        Pedido.fecha_entrega.asc(), Pedido.id.asc(),
+    ).offset((pagina - 1) * limite).limit(limite).all()
+    hoy = operation_today()
+    por_dia = dict(activos.filter(
+        Pedido.fecha_entrega >= hoy, Pedido.fecha_entrega <= hoy + timedelta(days=6),
+    ).with_entities(Pedido.fecha_entrega, func.count(Pedido.id)).group_by(Pedido.fecha_entrega).all())
+    return {"items": items, "total": total, "pagina": pagina, "limite": limite,
+            "activos": total if not estado and not texto else activos.count(),
+            "hoy": por_dia.get(hoy, 0), "manana": por_dia.get(hoy + timedelta(days=1), 0),
+            "semana": sum(por_dia.values())}
+
+
+def calendario_pedidos(db: Session, desde: date, hasta: date) -> list[Pedido]:
+    if desde > hasta or (hasta - desde).days > 30:
+        raise ValueError("El calendario admite periodos de hasta 31 dias")
+    return db.query(Pedido).options(selectinload(Pedido.detalles)).filter(
+        Pedido.fecha_entrega >= desde, Pedido.fecha_entrega <= hasta,
+        Pedido.estado.notin_([EstadoPedido.CANCELADO, EstadoPedido.ENTREGADO]),
+    ).order_by(Pedido.fecha_entrega.asc(), Pedido.id.asc()).all()
 
 
 def pedidos_del_dia(db: Session, fecha: date | None = None) -> list[Pedido]:

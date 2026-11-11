@@ -95,6 +95,28 @@ def obtener_checklist(db: Session, checklist_id: int) -> ChecklistCalidad:
 
 # --- Trazabilidad ---
 
+def listar_trazabilidad(db: Session, buscar: str = "", pagina: int = 1) -> dict:
+    from sqlalchemy import func, or_
+    query = db.query(TrazabilidadLote, LoteIngrediente, Producto).outerjoin(
+        LoteIngrediente, TrazabilidadLote.lote_ingrediente_id == LoteIngrediente.id,
+    ).outerjoin(Producto, TrazabilidadLote.producto_id == Producto.id)
+    if buscar.strip():
+        texto = buscar.strip().lower()
+        query = query.filter(or_(
+            func.lower(Producto.nombre).contains(texto, autoescape=True),
+            func.lower(LoteIngrediente.numero_lote).contains(texto, autoescape=True),
+        ))
+    total = query.count()
+    registros = query.order_by(TrazabilidadLote.fecha_uso.desc(), TrazabilidadLote.id.desc()).offset(
+        (pagina - 1) * 25,
+    ).limit(25).all()
+    return {"total": total, "pagina": pagina, "limite": 25, "items": [
+        {"id": registro.id, "producto_nombre": producto.nombre if producto else None,
+         "numero_lote": lote.numero_lote if lote else None,
+         "fecha_uso": registro.fecha_uso, "cantidad_usada": registro.cantidad_usada}
+        for registro, lote, producto in registros
+    ]}
+
 def registrar_trazabilidad(
     db: Session, data: TrazabilidadLoteCreate,
 ) -> TrazabilidadLote:

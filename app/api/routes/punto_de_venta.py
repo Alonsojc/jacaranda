@@ -11,13 +11,14 @@ from sqlalchemy import desc
 from app.core.database import get_db
 from app.core.dependencies import require_admin_or_override, require_permission, require_role
 from app.models.usuario import RolUsuario, Usuario
-from app.models.venta import CorteCaja
+from app.models.venta import CorteCaja, MetodoPago
 from app.models.gasto_fijo import GastoFijo
 from app.services.auditoria_service import registrar_evento
 from app.schemas.venta import (
     VentaCreate, VentaResponse, TicketResponse, CorteCajaCreate, CorteCajaResponse,
     CorteCajaResumen, CorteCajaUpdate, CorteCajaAccion,
     VentaEdicion,
+    CorteCajaVista, HistorialVentasResponse,
 )
 from app.services import venta_service as svc
 from app.services import ticket_edicion_service
@@ -57,6 +58,8 @@ def crear_venta(
 ):
     try:
         return svc.procesar_venta(db, data, user.id)
+    except svc.VentaRequiereRevision as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -70,6 +73,39 @@ def listar_ventas(
     _user: Usuario = Depends(require_permission("pos", "ver")),
 ):
     return svc.listar_ventas(db, fecha_inicio, fecha_fin, limit)
+
+
+@router.get("/ventas/historial", response_model=HistorialVentasResponse)
+def historial_ventas(
+    fecha_inicio: date, fecha_fin: date,
+    metodo: MetodoPago | None = None,
+    buscar: str = Query("", max_length=100),
+    pagina: int = Query(1, ge=1),
+    limite: int = Query(25, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("pos", "ver")),
+):
+    try:
+        return svc.historial_ventas(db, fecha_inicio, fecha_fin, metodo, buscar, pagina, limite)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@router.get("/ventas/historial/csv")
+def exportar_historial_ventas(
+    fecha_inicio: date, fecha_fin: date,
+    metodo: MetodoPago | None = None,
+    buscar: str = Query("", max_length=100),
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("pos", "ver")),
+):
+    try:
+        filas = svc.exportar_historial_ventas(db, fecha_inicio, fecha_fin, metodo, buscar)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return StreamingResponse(filas, media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="ventas_{fecha_inicio}_{fecha_fin}.csv"',
+    })
 
 
 @router.get("/ventas/{id}", response_model=VentaResponse)
@@ -159,6 +195,14 @@ def cancelar_venta(
 
 
 # --- Corte de caja ---
+
+@router.get("/corte-caja/vista", response_model=CorteCajaVista)
+def vista_corte(
+    fecha: date | None = None,
+    db: Session = Depends(get_db),
+    _user: Usuario = Depends(require_permission("corte", "ver")),
+):
+    return svc.vista_corte_caja(db, fecha)
 
 @router.post("/corte-caja", response_model=CorteCajaResponse, status_code=201)
 def realizar_corte(
