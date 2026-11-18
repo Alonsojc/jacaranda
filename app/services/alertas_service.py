@@ -5,7 +5,7 @@ Consolida alertas de stock, caducidades, pedidos y mermas.
 
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_
 
 from app.core.time_utils import operation_day_bounds, operation_today
@@ -130,7 +130,10 @@ def _alertas_recetas_sin_ingredientes(db: Session) -> list[dict]:
     """Recetas activas que no descuentan ingredientes."""
     from app.models.receta import Receta
 
-    recetas = db.query(Receta).filter(Receta.activo.is_(True)).all()
+    recetas = db.query(Receta).filter(
+        Receta.activo.is_(True),
+        ~Receta.ingredientes.any(),
+    ).all()
     return [
         {
             "tipo": "receta_sin_ingredientes",
@@ -141,7 +144,6 @@ def _alertas_recetas_sin_ingredientes(db: Session) -> list[dict]:
             "razon": "Receta sin ingredientes",
         }
         for r in recetas
-        if not r.ingredientes
     ]
 
 
@@ -150,7 +152,7 @@ def _alertas_caducidades(db: Session, dias_aviso: int = 3) -> list[dict]:
     hoy = operation_today()
     limite = hoy + timedelta(days=dias_aviso)
 
-    lotes = db.query(LoteIngrediente).filter(
+    lotes = db.query(LoteIngrediente).options(joinedload(LoteIngrediente.ingrediente)).filter(
         and_(
             LoteIngrediente.fecha_caducidad.isnot(None),
             LoteIngrediente.fecha_caducidad <= limite,
@@ -160,9 +162,7 @@ def _alertas_caducidades(db: Session, dias_aviso: int = 3) -> list[dict]:
 
     alertas = []
     for lote in lotes:
-        ing = db.query(Ingrediente).filter(
-            Ingrediente.id == lote.ingrediente_id
-        ).first()
+        ing = lote.ingrediente
         dias_restantes = (lote.fecha_caducidad - hoy).days
         alertas.append({
             "ingrediente": ing.nombre if ing else f"ID {lote.ingrediente_id}",

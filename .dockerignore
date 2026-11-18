@@ -4,6 +4,8 @@ __pycache__
 .env.*
 .admin_password
 .git
+.railway/
+operacion/
 *.db
 **/*.db
 **/*.db-wal
