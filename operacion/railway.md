@@ -9,9 +9,10 @@ Sandbox tienen administración independiente.
 
 Desde el repositorio vinculado a producción, instalar el SDK con
 `npm ci --prefix .railway --ignore-scripts` y revisar cualquier cambio con
-`railway config plan --environment production`. El plan de la migración de
-configuración solo actualiza construcción, arranque, salud y reintentos de
-`web`.
+`railway config plan --environment production`. Se verificó con la CLI
+5.75.0. La versión 5.71.0 puede volver a proponer los diez reintentos
+predeterminados aunque la instancia ya tenga esa política. El plan de la
+migración solo actualiza construcción, arranque, salud y reintentos de `web`.
 
 ## Cambio pendiente de región de PostgreSQL
 
