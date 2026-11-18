@@ -7,7 +7,7 @@ from decimal import Decimal
 from datetime import date
 import re
 import unicodedata
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, func
 
 from app.core.time_utils import operation_today
@@ -647,7 +647,7 @@ def listar_productos(
     q: str | None = None, skip: int = 0, limit: int = 200,
     solo_inactivos: bool = False,
 ):
-    query = db.query(Producto)
+    query = db.query(Producto).options(joinedload(Producto.familia))
     if solo_inactivos:
         query = query.filter(Producto.activo.is_(False))
     elif solo_activos:

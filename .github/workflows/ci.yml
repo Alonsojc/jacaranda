@@ -48,6 +48,15 @@ jobs:
       - name: Ruff check
         run: ruff check app/ main.py scripts/ci_test_shards.py tests/test_ci_sharding.py --output-format=github
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Check Railway production configuration
+        working-directory: .railway
+        run: |
+          npm ci --ignore-scripts
+          node --test railway.test.mjs
+
   test-shards:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -167,6 +176,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      - name: Rehearse isolated PostgreSQL 18 backup verification
+        run: >-
+          docker run --rm --network none --user postgres --workdir /src
+          --mount "type=bind,source=$GITHUB_WORKSPACE,target=/src,readonly"
+          --entrypoint sh postgres:18 tests/verificar_respaldo_test.sh
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
