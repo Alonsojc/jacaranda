@@ -26,6 +26,20 @@ def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[s
     )
 
 
+def test_app_startup_preserves_backup_logging(tmp_path):
+    script = """
+from unittest.mock import patch
+from fastapi.testclient import TestClient
+from app.services.backup_service import logger
+from main import app
+
+with patch("main._seed_admin"), TestClient(app):
+    logger.info("backup-logging-after-migrations")
+"""
+    result = _run([sys.executable, "-c", script], f"sqlite:///{tmp_path / 'logging.db'}")
+    assert "backup-logging-after-migrations" in result.stdout
+
+
 def test_alembic_upgrade_head_on_clean_database(tmp_path):
     db_path = tmp_path / "clean.db"
     database_url = f"sqlite:///{db_path}"

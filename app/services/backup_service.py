@@ -533,7 +533,14 @@ def backup_programado() -> dict:
     return crear_backup()
 
 
-def respaldar_periodo() -> None:
+def _registrar_respaldo_existente(archivo: Path) -> None:
+    with archivo.open("rb") as stream:
+        checksum = hashlib.file_digest(stream, "sha256").hexdigest()
+        size = os.fstat(stream.fileno()).st_size
+    logger.info("Respaldo existente confirmado %s bytes=%s sha256=%s", archivo.name, size, checksum)
+
+
+def respaldar_periodo(*, confirmar_existentes: bool = False) -> bool:
     """Publica una captura por día operativo y conserva la primera de cada semana."""
     import fcntl
 
@@ -548,7 +555,7 @@ def respaldar_periodo() -> None:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            return
+            return False
         dia = (operation_now() - timedelta(hours=3)).date()
         anio, semana, _ = dia.isocalendar()
         diario = directorio / f"jacaranda_auto_diario_{dia.isoformat()}.sql"
@@ -562,21 +569,28 @@ def respaldar_periodo() -> None:
         if not diario.exists():
             info = _crear_copia(diario.name)
             logger.info("Respaldo diario publicado %s bytes=%s sha256=%s", diario.name, info["size_bytes"], info["sha256"])
+        elif confirmar_existentes:
+            _registrar_respaldo_existente(diario)
         if not semanal.exists():
             os.link(diario, semanal)
             logger.info("Respaldo semanal publicado %s desde %s", semanal.name, diario.name)
+        elif confirmar_existentes:
+            _registrar_respaldo_existente(semanal)
         # Solo rotar archivos de estos periodos después de publicar ambas copias.
         for frecuencia, conservar in (("diario", 7), ("semanal", 4)):
             copias = sorted(f for f in directorio.glob(f"jacaranda_auto_{frecuencia}_*.sql")
                             if _PROGRAMADO.fullmatch(f.name) and f.is_file() and not f.is_symlink())
             for vencida in copias[:-conservar]:
                 vencida.unlink()
+        return True
 
 
 async def programar_respaldos() -> None:
+    confirmar_existentes = True
     while True:
         try:
-            await asyncio.to_thread(respaldar_periodo)
+            if await asyncio.to_thread(respaldar_periodo, confirmar_existentes=confirmar_existentes):
+                confirmar_existentes = False
         except Exception:
             logger.exception("Falló el respaldo programado. Se reintentará en cinco minutos")
         await asyncio.sleep(300)

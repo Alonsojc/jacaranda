@@ -122,7 +122,7 @@ async def lifespan(app: FastAPI):
     try:
         from alembic.config import Config
         from alembic import command
-        alembic_cfg = Config("alembic.ini")
+        alembic_cfg = Config("alembic.ini", attributes={"configure_logger": False})
         command.upgrade(alembic_cfg, "head")
         logger.info("Database migrations applied")
     except Exception as e:
