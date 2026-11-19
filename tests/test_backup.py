@@ -554,3 +554,79 @@ def test_all_backup_routes_cleanup_after_response_creation_failure(client, auth_
     except RuntimeError as exc:
         assert str(exc) == "response failure"
     assert list(directory.glob(".download_*")) == []
+
+
+def test_scheduled_backups_rotate_separately_and_share_the_weekly_capture(tmp_path, monkeypatch):
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    monkeypatch.setattr(backup_service.settings, "DATABASE_URL", "postgresql://localhost/test")
+    monkeypatch.setattr(backup_service.settings, "BACKUP_DIR", str(tmp_path))
+    monkeypatch.setattr(backup_service.settings, "BACKUP_MAX_FILES", 1)
+    monkeypatch.delenv("RAILWAY_VOLUME_MOUNT_PATH", raising=False)
+    now = datetime(2026, 12, 14, 3, tzinfo=ZoneInfo("America/Mexico_City"))
+    monkeypatch.setattr(backup_service, "operation_now", lambda: now)
+    calls = []
+
+    def dump(path, timeout):
+        calls.append(now.date())
+        path.write_text(f"-- test {now}\n")
+
+    monkeypatch.setattr(backup_service, "_dump_postgres", dump)
+    manual = tmp_path / "jacaranda_manual.sql"
+    manual.write_text("manual original")
+    for _ in range(36):
+        backup_service.respaldar_periodo()
+        backup_service.respaldar_periodo()
+        now += timedelta(days=1)
+    assert len(calls) == 36
+    daily = sorted(tmp_path.glob("jacaranda_auto_diario_*.sql"))
+    weekly = sorted(tmp_path.glob("jacaranda_auto_semanal_*.sql"))
+    assert len(daily) == 7
+    assert len(weekly) == 4
+    assert weekly[-1].samefile(daily[-1])
+    assert manual.read_text() == "manual original"
+    assert backup_service.limpiar_backups_antiguos() == 0
+    assert all(b["protegido"] for b in backup_service.listar_backups())
+    with pytest.raises(ValueError, match="según su periodo"):
+        backup_service.eliminar_backup(weekly[0].name)
+    download = backup_service.preparar_descarga_backup(weekly[0].name)
+    assert Path(download["path"]).read_bytes() == weekly[0].read_bytes()
+
+    def fail(path, timeout):
+        path.write_bytes(b"partial")
+        raise RuntimeError("simulated failure")
+
+    monkeypatch.setattr(backup_service, "_dump_postgres", fail)
+    with pytest.raises(RuntimeError, match="simulated failure"):
+        backup_service.respaldar_periodo()
+    assert all(p.is_file() for p in [*daily, *weekly, manual])
+    assert not list(tmp_path.glob("*.pending"))
+
+
+def test_scheduler_retries_after_interrupted_weekly_and_waits_until_three(tmp_path, monkeypatch):
+    import fcntl
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    now = datetime(2027, 1, 4, 2, 59, tzinfo=ZoneInfo("America/Mexico_City"))
+    monkeypatch.setattr(backup_service.settings, "DATABASE_URL", "postgresql://localhost/test")
+    monkeypatch.setattr(backup_service.settings, "BACKUP_DIR", str(tmp_path))
+    monkeypatch.delenv("RAILWAY_VOLUME_MOUNT_PATH", raising=False)
+    monkeypatch.setattr(backup_service, "operation_now", lambda: now)
+    monkeypatch.setattr(backup_service, "_dump_postgres", lambda path, timeout: path.write_text("test SQL"))
+    with (tmp_path / ".programador.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        backup_service.respaldar_periodo()
+        assert not list(tmp_path.glob("*.sql"))
+    backup_service.respaldar_periodo()
+    assert (tmp_path / "jacaranda_auto_diario_2027-01-03.sql").is_file()
+    assert (tmp_path / "jacaranda_auto_semanal_2026-W53.sql").is_file()
+    now += timedelta(minutes=1)
+    backup_service.respaldar_periodo()
+    daily = tmp_path / "jacaranda_auto_diario_2027-01-04.sql"
+    weekly = tmp_path / "jacaranda_auto_semanal_2027-W01.sql"
+    weekly.unlink()
+    monkeypatch.setattr(backup_service, "_dump_postgres", lambda *args: pytest.fail("duplicate dump"))
+    backup_service.respaldar_periodo()
+    assert daily.samefile(weekly)

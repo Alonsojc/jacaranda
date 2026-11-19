@@ -14,12 +14,24 @@ Desde el repositorio vinculado a producción, instalar el SDK con
 predeterminados aunque la instancia ya tenga esa política. El plan de la
 migración solo actualiza construcción, arranque, salud y reintentos de `web`.
 
-## Cambio pendiente de región de PostgreSQL
+## Respaldos automáticos
 
-La aplicación está en Virginia (`us-east4-eqdc4a`) y PostgreSQL en Ámsterdam
-(`europe-west4-drams3a`). El destino de PostgreSQL es Virginia. La migración
-traslada su volumen en `/var/lib/postgresql/data`. Railway indica que el
-servicio estará interrumpido mientras mueve un volumen.
+Con `BACKUP_SCHEDULE_ENABLED=true` en el servicio `web`, Jacaranda ejecuta
+`pg_dump` en segundo plano y publica la copia completa en `/data/backups`,
+en un volumen separado de PostgreSQL. A partir de las 03:00 de Ciudad de
+México crea la copia del día y conserva la primera captura de cada semana.
+Al arrancar recupera el periodo pendiente y reintenta cada cinco minutos.
+Se conservan las últimas siete diarias y cuatro semanales. El panel
+**Respaldos** permite inspeccionarlas y descargarlas. El registro del
+servicio incluye el SHA-256 del archivo diario al publicarlo.
+
+## Traslado de región de PostgreSQL
+
+Desde el 18 de noviembre de 2026, la aplicación y PostgreSQL están en
+Virginia (`us-east4-eqdc4a`). El traslado desde Ámsterdam se verificó con
+una restauración aislada y la conciliación de diez tablas. El volumen de
+PostgreSQL está montado en `/var/lib/postgresql/data`. Se conserva el
+procedimiento usado en esa ventana.
 
 1. Al cierre de caja, confirmar el último corte y la sincronización de los
    dispositivos. Mantener pausados los registros de ventas, pagos, pedidos y

@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     BACKUP_RETENTION_DAYS: int = 7
     BACKUP_MAX_FILES: int = 20
     BACKUP_AUTO_CLEANUP: bool = False
+    BACKUP_SCHEDULE_ENABLED: bool = False
     BACKUP_TIMEOUT_SECONDS: int = 300
     BACKUP_MIN_FREE_BYTES: int = 64 * 1024 * 1024
     # Compatibilidad: no se ejecutan restauraciones contra esta URL.
