@@ -630,3 +630,13 @@ def test_scheduler_retries_after_interrupted_weekly_and_waits_until_three(tmp_pa
     monkeypatch.setattr(backup_service, "_dump_postgres", lambda *args: pytest.fail("duplicate dump"))
     backup_service.respaldar_periodo()
     assert daily.samefile(weekly)
+    with patch.object(backup_service.logger, "info") as registrar:
+        assert backup_service.respaldar_periodo(confirmar_existentes=True)
+        checksum = hashlib.sha256(daily.read_bytes()).hexdigest()
+        assert [call.args[1:] for call in registrar.call_args_list] == [
+            (daily.name, daily.stat().st_size, checksum),
+            (weekly.name, weekly.stat().st_size, checksum),
+        ]
+        registrar.reset_mock()
+        assert backup_service.respaldar_periodo()
+        registrar.assert_not_called()
