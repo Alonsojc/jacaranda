@@ -3,12 +3,13 @@ Jacaranda - Sistema de Gestión de Panadería
 Cumple con normativa mexicana: SAT/CFDI 4.0, LFT, IMSS, COFEPRIS, NOM-051.
 """
 
+import asyncio
 import json
 import logging
 import os
 import secrets
 import sys
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request
 from fastapi.exception_handlers import request_validation_exception_handler
@@ -132,7 +133,17 @@ async def lifespan(app: FastAPI):
     from app.core.schema_guard import ensure_runtime_schema
     ensure_runtime_schema(engine)
     _seed_admin()
-    yield
+    if not settings.BACKUP_SCHEDULE_ENABLED:
+        yield
+        return
+    from app.services.backup_service import programar_respaldos
+    tarea = asyncio.create_task(programar_respaldos())
+    try:
+        yield
+    finally:
+        tarea.cancel()
+        with suppress(asyncio.CancelledError):
+            await tarea
 
 
 app = FastAPI(

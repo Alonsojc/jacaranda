@@ -129,7 +129,8 @@ assert.equal(timers.size,0);
 
 def test_install_is_local_only_and_bounded_when_one_asset_stalls():
     run_worker(r"""
-fetchImpl=req=>String(req).includes('favicon')?new Promise(()=>{}):Promise.resolve(response('asset'));
+const build=vm.runInContext('CACHE_NAME',ctx);
+fetchImpl=req=>String(req).includes('favicon')?new Promise(()=>{}):Promise.resolve(response("var APP_BUILD = '"+build+"';"));
 let install;listeners.install({waitUntil:p=>install=p});await flush();
 assert(requests.every(r=>String(r.request).startsWith('./')));
 await advance(12000);await install;
@@ -148,6 +149,23 @@ for(const req of [request('https://api.test/api/v1/auth/me'),request(undefined,'
 assert.equal(requests.length,2);assert.equal(writes.length,0);assert.equal(timers.size,0);
 for(const method of ['POST','PUT','PATCH','DELETE'])assert.equal(dispatch(request(undefined,method)).result,undefined);
 assert.equal(requests.length,2);
+""")
+
+
+def test_new_worker_requires_matching_html_and_serves_its_installed_build_without_network():
+    run_worker(r"""
+const build=vm.runInContext('CACHE_NAME',ctx);
+let install;
+fetchImpl=async()=>response("var APP_BUILD = 'jacaranda-v1';");
+listeners.install({waitUntil:p=>install=p}); await assert.rejects(install,/Keep the previous worker/);
+fetchImpl=async()=>response("var APP_BUILD = '"+build+"';");
+listeners.install({waitUntil:p=>install=p}); await install;
+const replies=[];listeners.message({data:{type:'CONSULTAR_VERSION'},source:{postMessage:m=>replies.push(m)}});
+assert.equal(replies[0].build,build);
+fetchImpl=async()=>{throw Error('offline');};
+cache.set(key('./index.html'),response('old edge response'));
+const result=await dispatch(request('https://app.test/jacaranda/?_jc_build='+build)).result;
+assert.equal(await result.text(),"var APP_BUILD = '"+build+"';");
 """)
 
 

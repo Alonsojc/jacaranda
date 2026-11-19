@@ -27,6 +27,9 @@ nav{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1p
 .nav-links a{text-decoration:none;color:var(--mut);font-size:.82rem;font-weight:500;padding:.5rem .8rem;border-radius:8px;cursor:pointer;min-height:44px;display:inline-flex;align-items:center;justify-content:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .nav-links a:hover,.nav-links a.on{color:var(--v);background:#faf3f0}
 #btn-update-app{width:48px;min-width:48px;height:48px;min-height:48px;padding:0!important;font-size:1.3rem!important;border-radius:10px}
+#app-update-notice:not([hidden]){display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin-bottom:.8rem;padding:.5rem .9rem;border:1px solid var(--brd);border-radius:12px;background:#fff8ed;color:var(--dk);font-size:.9rem}
+#app-update-notice button{flex:none;min-height:44px;padding:0 .8rem;border:0;border-radius:8px;background:var(--v);color:white;font:inherit;cursor:pointer}
+#app-update-notice button:disabled{background:var(--brd);color:var(--dk)}
 .wa{background:var(--grn)!important;color:#fff!important;border-radius:20px!important;font-size:.78rem!important}
 .wrap{width:min(100% - 3rem,1240px);margin:0 auto;padding:1.5rem 0 2rem;overflow:visible}
 .page{display:none;min-width:0;width:100%;max-width:100%;overflow:visible}.page.on{display:block}
@@ -798,10 +801,10 @@ table.tbl th,table.tbl td{font-size:.8rem}
 @media(max-width:600px){.eg-import-table{display:block;min-width:0;width:100%}.eg-import-table thead{display:none}.eg-import-table tbody{display:block}.eg-import-table tr{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:.1rem .25rem;border-bottom:1px solid var(--brd);padding:.6rem 0}.eg-import-table td{border:0;padding:.15rem .2rem;text-align:left}.eg-import-table td:nth-child(1){grid-column:1;grid-row:1 / 6}.eg-import-table td:nth-child(2){grid-column:2;grid-row:1;font-size:.72rem;color:var(--mut)}.eg-import-table td:nth-child(2)::before{content:'Fila '}.eg-import-table td:nth-child(3){grid-column:3;grid-row:1;font-size:.72rem;text-align:right}.eg-import-table td:nth-child(4){grid-column:2 / 4;grid-row:2;min-width:0;max-width:none}.eg-import-table td:nth-child(5){grid-column:3;grid-row:3;text-align:right;font-weight:700}.eg-import-table td:nth-child(6){grid-column:2;grid-row:3}.eg-import-table td:nth-child(7){grid-column:2 / 4;grid-row:4;font-size:.75rem;color:var(--mut)}.eg-import-table td:nth-child(7)::before{content:'Categoria: '}.eg-import-table td:nth-child(8){grid-column:2 / 4;grid-row:5}.eg-import-nota{max-width:none}}
 @media(max-width:600px){.eg-import-foto tr{grid-template-columns:26px minmax(0,1fr)}.eg-import-foto td:nth-child(n+2){grid-column:2;min-width:0;text-align:left;white-space:normal}.eg-import-foto td:nth-child(1){grid-row:1 / 8}.eg-import-foto td:nth-child(2){grid-row:1}.eg-import-foto td:nth-child(3){grid-row:2}.eg-import-foto td:nth-child(4){grid-row:3}.eg-import-foto td:nth-child(5){grid-row:4}.eg-import-foto td:nth-child(6){grid-row:5}.eg-import-foto td:nth-child(7){grid-row:6}.eg-import-foto td:nth-child(8){grid-row:7}.eg-import-foto td:nth-child(3)::before{content:'Fecha'}.eg-import-foto td:nth-child(4)::before{content:'Proveedor'}.eg-import-foto td:nth-child(5)::before{content:'Monto MXN'}.eg-import-foto td:nth-child(6)::before{content:'Forma de pago'}.eg-import-foto td:nth-child(n+3):nth-child(-n+6)::before{display:block;font-size:.72rem;font-weight:400;color:var(--mut);margin-bottom:.2rem}}
 </style>
-<script defer src="js/jacaranda-core.js?v=jacaranda-v136"></script>
-<script defer src="js/egresos-import.js?v=jacaranda-v136"></script>
-<link rel="stylesheet" href="css/asistencia.css?v=jacaranda-v136">
-<script defer src="js/asistencia.js?v=jacaranda-v136"></script>
+<script defer src="js/jacaranda-core.js?v=jacaranda-v137"></script>
+<script defer src="js/egresos-import.js?v=jacaranda-v137"></script>
+<link rel="stylesheet" href="css/asistencia.css?v=jacaranda-v137">
+<script defer src="js/asistencia.js?v=jacaranda-v137"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 </head>
@@ -893,6 +896,8 @@ table.tbl th,table.tbl td{font-size:.8rem}
 <div id="notif-list"><div class="notif-item"><div class="ni-body" style="text-align:center;color:var(--mut)">Sin alertas</div></div></div>
 </div>
 <div class="wrap">
+
+<div hidden id="app-update-notice"><span role="status" id="app-update-text"></span><button type="button" onclick="actualizarAppInstalada()">Actualizar</button></div>
 
 <!-- TARJETA PUBLICA CLIENTE -->
 <div class="page" id="cliente-publico">
@@ -3429,7 +3434,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v136';
+var APP_BUILD = 'jacaranda-v137';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
@@ -4061,6 +4066,10 @@ function api(method, path, body, _retry, extraHeaders, versionSesionEsperada, op
       throw err;
     });
     return _apiGetInFlight[dedupeKey];
+  }
+  if (method !== 'GET') {
+    api.escriturasEnCurso = (api.escriturasEnCurso || 0) + 1;
+    return request.finally(function() { api.escriturasEnCurso--; });
   }
   return request;
 }
@@ -17371,29 +17380,91 @@ function accionMobile(fn, e) {
 }
 
 var _actualizandoApp = false;
+var _versionAppLista = '';
+var _versionAutoFallida = '';
+var _timerActualizacionApp = null;
+var _ultimaInteraccionApp = Date.now();
+var _edicionFueraCaja = false;
+
+function motivoParaPosponerApp() {
+  if (navigator.onLine === false || _offline) return 'Se actualizará cuando vuelva la conexión.';
+  if (_sincronizandoVentas || _pedidoSyncPromise || _ventasPendientes.length || _ventasLegacyRevision.length ||
+      _pedidosPendientes.length || leerVentasPendientesLocal().length || leerPedidosPendientesLocal().length ||
+      leerVentasLegacyRevision().length || (TOKEN && window.indexedDB && !_ultimaRecuperacionVentasCompleta)) {
+    return 'Primero deben sincronizarse o revisarse las ventas y pedidos pendientes.';
+  }
+  if (cart.length || cafCart.length || _ventaEnProceso || _cafEnProceso || _cafPagoGuardando ||
+      _pedidoEnProceso || _loginEnCurso || api.escriturasEnCurso || document.querySelector('.modal-bg.on')) {
+    return 'Termina la operación en curso para actualizar.';
+  }
+  return '';
+}
+
+function actualizarVistaVersionApp() {
+  if (!_versionAppLista || _actualizandoApp || document.hidden) return;
+  var aviso = document.getElementById('app-update-notice');
+  var motivo = motivoParaPosponerApp();
+  var mensaje = motivo ? 'Nueva versión disponible. ' + motivo : 'Hay una nueva versión de Jacaranda.';
+  var texto = document.getElementById('app-update-text');
+  if (texto.textContent !== mensaje) texto.textContent = mensaje;
+  aviso.hidden = false;
+  aviso.querySelector('button').disabled = !!motivo;
+  var pagina = document.querySelector('.page.on');
+  var editando = document.activeElement && document.activeElement.matches('input,textarea,select,[contenteditable="true"]');
+  if (!motivo && _versionAppLista !== _versionAutoFallida && !_edicionFueraCaja && !editando && TOKEN && _currentUser && pagina &&
+      (pagina.id === 'pos' || pagina.id === 'dash') && Date.now() - _ultimaInteraccionApp >= 60000) {
+    aplicarVersionAppLista();
+  }
+}
+
+function aplicarVersionAppLista() {
+  if (!_versionAppLista || _actualizandoApp || motivoParaPosponerApp()) return;
+  _actualizandoApp = true;
+  clearInterval(_timerActualizacionApp);
+  recargarAppConCacheBuster(_versionAppLista);
+}
+
+function recibirVersionApp(event) {
+  if (event.source !== navigator.serviceWorker.controller || !event.data || event.data.type !== 'VERSION_INSTALADA') return;
+  var remota = /^jacaranda-v(\d+)$/.exec(event.data.build);
+  var local = /^jacaranda-v(\d+)$/.exec(APP_BUILD);
+  if (!remota || !local || Number(remota[1]) <= Number(local[1]) || _versionAppLista === remota[0]) return;
+  _versionAppLista = remota[0];
+  if (!_timerActualizacionApp) _timerActualizacionApp = setInterval(actualizarVistaVersionApp, 5000);
+  actualizarVistaVersionApp();
+}
 
 function mostrarBotonActualizarApp(mostrar) {
   var btn = document.getElementById('btn-update-app');
   if (btn) btn.style.display = mostrar ? '' : 'none';
 }
 
-function marcarActualizacionAppPendiente() {
-  try { sessionStorage.setItem('jacaranda_app_refresh_pending', '1'); } catch(e) {}
+function marcarActualizacionAppPendiente(build) {
+  try { sessionStorage.setItem('jacaranda_app_refresh_pending', build || '1'); } catch(e) {}
 }
 
 function avisarActualizacionAppCompletada() {
   try {
-    if (sessionStorage.getItem('jacaranda_app_refresh_pending') !== '1') return;
+    var esperada = sessionStorage.getItem('jacaranda_app_refresh_pending');
+    var url = new URL(location.href);
+    if (url.searchParams.has('_jc_build')) {
+      if (url.searchParams.get('_jc_build') !== APP_BUILD) _versionAutoFallida = url.searchParams.get('_jc_build');
+      url.searchParams.delete('_jc_build');
+      history.replaceState(history.state, '', url.href);
+    }
+    if (!esperada) return;
     sessionStorage.removeItem('jacaranda_app_refresh_pending');
+    if (esperada !== '1' && esperada !== APP_BUILD) return;
     setTimeout(function() { toast('App actualizada'); }, 900);
   } catch(e) {}
 }
 
-function recargarAppConCacheBuster() {
-  marcarActualizacionAppPendiente();
+function recargarAppConCacheBuster(build) {
+  marcarActualizacionAppPendiente(build);
   try {
     var url = new URL(window.location.href);
     url.searchParams.set('_jc_refresh', String(Date.now()));
+    if (build) url.searchParams.set('_jc_build', build);
     window.location.replace(url.toString());
   } catch(e) {
     window.location.reload();
@@ -17412,14 +17483,14 @@ async function limpiarCacheAppInstalada() {
     }));
   }
   if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
-    var regs = await navigator.serviceWorker.getRegistrations();
+    var scope = new URL('./', location.href).href;
+    var regs = (await navigator.serviceWorker.getRegistrations()).filter(function(r) { return r.scope === scope; });
     await Promise.all(regs.map(function(registration) {
       try {
         if (registration.waiting) registration.waiting.postMessage({type: 'SKIP_WAITING'});
       } catch(e) {}
       return registration.update().catch(function() {});
     }));
-    regs = await navigator.serviceWorker.getRegistrations();
     await Promise.all(regs.map(function(registration) {
       return registration.unregister().catch(function() {});
     }));
@@ -17432,23 +17503,28 @@ async function actualizarAppInstalada() {
     toast('Conecta el iPad a internet para actualizar la app', true);
     return;
   }
+  var motivo = motivoParaPosponerApp();
+  if (motivo) { toast(motivo, true); return; }
   var ok = await confirmarAccion({
     title: 'Actualizar app',
     message: 'Cargar la versi\u00f3n m\u00e1s reciente de Jacaranda?',
-    detail: 'Mantiene la sesi\u00f3n y solo limpia cache de la app instalada.',
+    detail: 'Guarda los cambios abiertos antes de continuar. Tu sesión se conserva.',
     icon: '\u21bb',
     acceptText: 'Actualizar'
   });
-  if (!ok) return;
+  if (!ok || _actualizandoApp) return;
+  motivo = motivoParaPosponerApp();
+  if (motivo) { toast(motivo, true); return; }
+  if (_versionAppLista) { aplicarVersionAppLista(); return; }
   _actualizandoApp = true;
   toast('Actualizando app...');
   try {
     await limpiarCacheAppInstalada();
-    recargarAppConCacheBuster();
+    if (!motivoParaPosponerApp()) recargarAppConCacheBuster();
   } catch(e) {
     console.warn('No se pudo limpiar cache de app:', e);
     toast('Recargando app con la sesi\u00f3n guardada', true);
-    setTimeout(recargarAppConCacheBuster, 800);
+    if (!motivoParaPosponerApp()) recargarAppConCacheBuster();
   } finally {
     setTimeout(function() { _actualizandoApp = false; }, 2500);
   }
@@ -17807,8 +17883,9 @@ var _moduloNombres = {
   deliveryp:'Delivery', papelera:'Papelera', backup:'Respaldos', usuarios:'Usuarios', asistencia:'Asistencia'
 };
 
-function descargarBackup() {
-  descargarArchivoAutenticado('/api/v1/backup/descargar', 'jacaranda_backup_' + fechaHoyISO() + '.sql', 'Último backup descargado', 'Error al descargar backup');
+function descargarBackup(filename) {
+  var ruta = '/api/v1/backup/descargar' + (filename ? '?filename=' + encodeURIComponent(filename) : '');
+  descargarArchivoAutenticado(ruta, filename || 'jacaranda_backup_' + fechaHoyISO() + '.sql', 'Respaldo descargado', 'Error al descargar backup');
 }
 
 function crearBackupManual() {
@@ -17861,7 +17938,8 @@ function cargarBackup() {
     if (s.backup_dir_error) {
       h += '<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;padding:.45rem .6rem;margin:.4rem 0;font-size:.78rem">' + escHtml(s.backup_dir_error) + '</div>';
     }
-    h += '<div class="srow"><span>Limpieza autom&aacute;tica</span><span>' + (s.auto_cleanup_enabled ? 'Habilitada' : 'Deshabilitada') + '</span></div>';
+    if (s.schedule_enabled) h += '<div class="srow"><span>Copias programadas</span><span>7 diarias y 4 semanales · 03:00 h</span></div>';
+    h += '<div class="srow"><span>Limpieza de copias manuales</span><span>' + (s.auto_cleanup_enabled ? 'Habilitada' : 'Deshabilitada') + '</span></div>';
     if (s.auto_cleanup_enabled) {
       h += '<div class="srow"><span>Retenci&oacute;n</span><span>' + s.retention_days + ' d&iacute;as</span></div>';
       h += '<div class="srow"><span>M&aacute;ximo</span><span>' + (s.max_backups || 20) + ' backups</span></div>';
@@ -17884,13 +17962,14 @@ function cargarBackup() {
       return;
     }
     var h = '<table class="tbl"><tr><th>Archivo</th><th>Tama&ntilde;o</th><th>Fecha</th><th style="width:160px">Acciones</th></tr>';
-    for (var i = 0; i < Math.min(items.length, 20); i++) {
+    for (var i = 0; i < items.length; i++) {
       var b = items[i];
       var mb = (b.size_bytes / 1024 / 1024).toFixed(2);
       var f = b.created_at ? new Date(b.created_at).toLocaleString('es-MX', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
       h += '<tr><td style="font-size:.75rem">' + escHtml(b.filename) + (b.is_latest ? '<br><span class="badge bok">Último</span>' : '') + '</td><td>' + mb + ' MB</td><td>' + f + '</td><td style="display:flex;gap:.3rem;justify-content:center;flex-wrap:wrap">';
+      h += actionBtn('Descargar', '&#8595;', 'descargarBackup(' + jsArg(b.filename) + ')');
       h += actionBtn('Probar', '&#128269;', 'probarRestauracionBackup(' + jsArg(encodeURIComponent(b.filename).replace(/'/g, '%27')) + ')');
-      if (b.is_latest) {
+      if (b.is_latest || b.protegido) {
         h += '<span style="font-size:.72rem;color:var(--mut)">Protegido</span>';
       } else if (!esAdminActual()) {
         h += '<span style="font-size:.72rem;color:var(--mut)">Solo admin</span>';
@@ -19405,13 +19484,34 @@ if ((window.matchMedia && window.matchMedia('(display-mode: standalone)').matche
   document.body.classList.add('is-pwa');
 }
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.addEventListener('controllerchange', function() {
-    console.log('SW controller updated');
-  });
-  navigator.serviceWorker.register('sw.js?v=' + encodeURIComponent(APP_BUILD), {updateViaCache: 'none'}).then(function(reg) {
-    console.log('SW registered', reg.scope);
-    if (reg.waiting) reg.waiting.postMessage({type: 'SKIP_WAITING'});
-    reg.update().catch(function() {});
+  function contarInteraccionApp() { _ultimaInteraccionApp = Date.now(); }
+  document.addEventListener('pointerdown', contarInteraccionApp, {capture:true,passive:true});
+  document.addEventListener('keydown', contarInteraccionApp, true);
+  document.addEventListener('input', function(e) {
+    contarInteraccionApp();
+    if (!e.target.closest('#pos, #modal-cobrar, #login-form')) _edicionFueraCaja = true;
+  }, true);
+  navigator.serviceWorker.register('sw.js', {updateViaCache: 'none'}).then(function(reg) {
+    if (esRutaClientePublica()) return;
+    function consultarControlador() {
+      var activo = navigator.serviceWorker.controller;
+      if (activo) activo.postMessage({type: 'CONSULTAR_VERSION'});
+    }
+    var ultimaConsulta = 0;
+    function buscarVersion() {
+      if (document.hidden || navigator.onLine === false) return;
+      consultarControlador();
+      if (Date.now() - ultimaConsulta < 30000) return;
+      ultimaConsulta = Date.now();
+      reg.update().catch(function() {});
+    }
+    navigator.serviceWorker.addEventListener('message', recibirVersionApp);
+    navigator.serviceWorker.addEventListener('controllerchange', consultarControlador);
+    window.addEventListener('pageshow', buscarVersion);
+    window.addEventListener('online', buscarVersion);
+    document.addEventListener('visibilitychange', buscarVersion);
+    setInterval(buscarVersion, 15 * 60000);
+    buscarVersion();
   }).catch(function(e) { console.log('SW error', e); });
 }
 </script>

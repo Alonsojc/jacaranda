@@ -420,3 +420,38 @@ async function run(){
   pull();await flush();loads[3].reject(new Error('temporary'));await flush();assert.equal(messages.length,1);
 }
 """)
+
+
+def test_installed_version_waits_for_an_idle_safe_pos_and_ignores_other_workers():
+    program = section("var _actualizandoApp = false;", "function mostrarBotonActualizarApp")
+    node(r"""
+const assert=require('node:assert/strict'),controller={},navigator={onLine:true,serviceWorker:{controller}};
+let now=200000;Date.now=()=>now;const reloads=[];
+const window={indexedDB:{}},texto={textContent:''},btn={},aviso={querySelector:()=>btn};
+let modal=null,pagina={id:'pos'};
+const document={hidden:false,activeElement:null,querySelector:s=>s==='.page.on'?pagina:modal,
+  getElementById:id=>id==='app-update-text'?texto:aviso};
+let TOKEN='test',_currentUser={},APP_BUILD='jacaranda-v137',_offline=false,_sincronizandoVentas=false,
+  _pedidoSyncPromise=null,_ventasPendientes=[],_ventasLegacyRevision=[],_pedidosPendientes=[],
+  _ultimaRecuperacionVentasCompleta=true,cart=[],cafCart=[],_ventaEnProceso=false,_cafEnProceso=false,
+  _cafPagoGuardando=false,_pedidoEnProceso=false,_loginEnCurso=false;
+const api={},localVentas=[],localPedidos=[];
+function leerVentasPendientesLocal(){return localVentas;}function leerPedidosPendientesLocal(){return localPedidos;}
+function leerVentasLegacyRevision(){return [];} function setInterval(){return 1;} function clearInterval(){}
+function recargarAppConCacheBuster(build){reloads.push(build);}
+""" + program + r"""
+async function run(){
+  const send=(build,source=controller)=>recibirVersionApp({source,data:{type:'VERSION_INSTALADA',build}});
+  send('jacaranda-v137');send('jacaranda-v130');send('jacaranda-v138',{});assert.equal(_versionAppLista,'');
+  cart.push({});send('jacaranda-v138');now+=60001;actualizarVistaVersionApp();assert(btn.disabled);
+  assert.deepEqual(reloads,[]);cart.length=0;localVentas.push({});actualizarVistaVersionApp();assert(btn.disabled);
+  localVentas.length=0;localPedidos.push({});aplicarVersionAppLista();assert.deepEqual(reloads,[]);localPedidos.length=0;
+  _ultimaRecuperacionVentasCompleta=false;aplicarVersionAppLista();_ultimaRecuperacionVentasCompleta=true;
+  _ventaEnProceso=true;aplicarVersionAppLista();_ventaEnProceso=false;api.escriturasEnCurso=1;aplicarVersionAppLista();api.escriturasEnCurso=0;
+  modal={};aplicarVersionAppLista();modal=null;navigator.onLine=false;aplicarVersionAppLista();navigator.onLine=true;
+  pagina.id='corte';actualizarVistaVersionApp();pagina.id='pos';_edicionFueraCaja=true;actualizarVistaVersionApp();
+  _edicionFueraCaja=false;document.hidden=true;actualizarVistaVersionApp();document.hidden=false;
+  assert.deepEqual(reloads,[]);actualizarVistaVersionApp();actualizarVistaVersionApp();
+  assert.deepEqual(reloads,['jacaranda-v138']);
+}
+""")

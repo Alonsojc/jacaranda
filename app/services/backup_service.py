@@ -1,14 +1,17 @@
 """Servicio de backup/restore. Soporta SQLite y PostgreSQL."""
 
+import asyncio
 import hashlib
+import logging
 import os
+import re
 import selectors
 import shutil
 import sqlite3
 import subprocess
 import tempfile
 from contextlib import closing
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from time import monotonic
 from urllib.parse import unquote, urlparse, urlsplit
@@ -18,6 +21,11 @@ from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
 from sqlalchemy.engine import make_url
 
 from app.core.config import settings
+from app.core.time_utils import operation_now
+
+
+logger = logging.getLogger(__name__)
+_PROGRAMADO = re.compile(r"jacaranda_auto_(diario_\d{4}-\d{2}-\d{2}|semanal_\d{4}-W\d{2})\.sql")
 
 
 def _setting_int(name: str, default: int) -> int:
@@ -111,8 +119,11 @@ def _backup_files() -> list[Path]:
     ]
 
 
-def _sorted_backup_files() -> list[Path]:
-    return sorted(_backup_files(), key=lambda x: x.stat().st_mtime, reverse=True)
+def _sorted_backup_files(*, solo_manuales: bool = False) -> list[Path]:
+    files = _backup_files()
+    if solo_manuales:
+        files = [f for f in files if not _PROGRAMADO.fullmatch(f.name)]
+    return sorted(files, key=lambda x: x.stat().st_mtime, reverse=True)
 
 
 def _max_backup_files() -> int:
@@ -216,12 +227,12 @@ def limpiar_backups_antiguos() -> int:
     retention_days = max(_setting_int("BACKUP_RETENTION_DAYS", 7), 1)
     cutoff = datetime.now(timezone.utc).timestamp() - (retention_days * 86400)
     removed = 0
-    backups = _sorted_backup_files()
+    backups = _sorted_backup_files(solo_manuales=True)
     for f in backups[1:]:
         if f.exists() and f.stat().st_mtime < cutoff:
             f.unlink()
             removed += 1
-    for f in _sorted_backup_files()[_max_backup_files():]:
+    for f in _sorted_backup_files(solo_manuales=True)[_max_backup_files():]:
         if f.exists():
             f.unlink()
             removed += 1
@@ -231,18 +242,25 @@ def limpiar_backups_antiguos() -> int:
 def crear_backup() -> dict:
     """Publica una copia consistente y privada sin eliminar respaldos por defecto."""
     _ensure_backup_dir()
-    if not _setting_bool("BACKUP_AUTO_CLEANUP") and len(_backup_files()) >= _max_backup_files():
+    if not _setting_bool("BACKUP_AUTO_CLEANUP") and len(_sorted_backup_files(solo_manuales=True)) >= _max_backup_files():
         raise RuntimeError("Limite de respaldos alcanzado. Archive y verifique las copias antes de retirar alguna")
+    info = _crear_copia()
+    info["removed_old_backups"] = limpiar_backups_antiguos() if _setting_bool("BACKUP_AUTO_CLEANUP") else 0
+    return info
+
+
+def _crear_copia(nombre: str | None = None) -> dict:
     source = _sqlite_source()
     estimate = source.stat().st_size if source and source.is_file() else 0
     _check_backup_capacity(estimate)
     ts = _timestamp()
     backup_dir = _backup_dir()
-    fd, pending_name = tempfile.mkstemp(prefix=f".jacaranda_{ts}_", suffix=".pending", dir=backup_dir)
+    prefix = f".{nombre}_" if nombre else f".jacaranda_{ts}_"
+    fd, pending_name = tempfile.mkstemp(prefix=prefix, suffix=".pending", dir=backup_dir)
     os.close(fd)
     pending = Path(pending_name)
     suffix = ".db" if _is_sqlite() else ".sql"
-    filename = pending.name[1:-len(".pending")] + suffix
+    filename = nombre or (pending.name[1:-len(".pending")] + suffix)
     dest = backup_dir / filename
     timeout = max(_setting_int("BACKUP_TIMEOUT_SECONDS", 300), 1)
     try:
@@ -278,14 +296,12 @@ def crear_backup() -> dict:
     finally:
         pending.unlink(missing_ok=True)
     size = dest.stat().st_size
-    removed = limpiar_backups_antiguos() if _setting_bool("BACKUP_AUTO_CLEANUP") else 0
     return {
         "filename": filename,
         "path": str(dest),
         "size_bytes": size,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "db_type": "sqlite" if _is_sqlite() else "postgresql",
-        "removed_old_backups": removed,
         "sha256": checksum,
     }
 
@@ -326,7 +342,9 @@ def eliminar_backup(filename: str) -> dict:
     if Path(clean_name).suffix not in (".db", ".sql"):
         raise ValueError("Extensión de backup inválida")
 
-    backups = _sorted_backup_files()
+    if _PROGRAMADO.fullmatch(clean_name):
+        raise ValueError("Los respaldos programados se conservan según su periodo")
+    backups = _sorted_backup_files(solo_manuales=True)
     if not backups:
         raise FileNotFoundError("No hay backups guardados")
     if backups[0].name == clean_name:
@@ -472,10 +490,13 @@ def listar_backups() -> list[dict]:
     """Lista backups disponibles."""
     _ensure_backup_dir()
     backups = []
-    for index, f in enumerate(_sorted_backup_files()):
+    files = _sorted_backup_files()
+    ultimo_manual = next((f for f in files if not _PROGRAMADO.fullmatch(f.name)), None)
+    for index, f in enumerate(files):
         info = _backup_info(f)
         info.pop("path", None)
         info["is_latest"] = index == 0
+        info["protegido"] = f == ultimo_manual or bool(_PROGRAMADO.fullmatch(f.name))
         backups.append(info)
     return backups
 
@@ -500,6 +521,7 @@ def estado_backup() -> dict:
         "retention_days": max(_setting_int("BACKUP_RETENTION_DAYS", 7), 1),
         "max_backups": _max_backup_files(),
         "auto_cleanup_enabled": _setting_bool("BACKUP_AUTO_CLEANUP"),
+        "schedule_enabled": _setting_bool("BACKUP_SCHEDULE_ENABLED"),
         "restore_enabled": (not _is_production()) or _setting_bool("ALLOW_DB_RESTORE", False),
         "pg_dump_available": shutil.which("pg_dump") is not None if db_type == "postgresql" else None,
         "psql_available": shutil.which("psql") is not None if db_type == "postgresql" else None,
@@ -509,3 +531,52 @@ def estado_backup() -> dict:
 def backup_programado() -> dict:
     """Usa las mismas garantias de publicacion y retencion que el respaldo manual."""
     return crear_backup()
+
+
+def respaldar_periodo() -> None:
+    """Publica una captura por día operativo y conserva la primera de cada semana."""
+    import fcntl
+
+    if _is_sqlite() or not settings.BACKUP_DIR:
+        raise RuntimeError("Los respaldos programados requieren PostgreSQL y BACKUP_DIR persistente")
+    directorio = _backup_dir()
+    montaje = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
+    if montaje and not directorio.resolve().is_relative_to(Path(montaje).resolve()):
+        raise RuntimeError("BACKUP_DIR debe estar en el volumen persistente")
+    _ensure_backup_dir()
+    with (directorio / ".programador.lock").open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return
+        dia = (operation_now() - timedelta(hours=3)).date()
+        anio, semana, _ = dia.isocalendar()
+        diario = directorio / f"jacaranda_auto_diario_{dia.isoformat()}.sql"
+        semanal = directorio / f"jacaranda_auto_semanal_{anio}-W{semana:02d}.sql"
+        # El bloqueo garantiza que los temporales programados son de un proceso interrumpido.
+        for temporal in directorio.glob(".jacaranda_auto_diario_*.sql_*.pending"):
+            temporal.unlink(missing_ok=True)
+        for destino in (diario, semanal):
+            if destino.is_symlink() or (destino.exists() and (not destino.is_file() or not destino.stat().st_size)):
+                raise RuntimeError(f"Respaldo programado inválido: {destino.name}")
+        if not diario.exists():
+            info = _crear_copia(diario.name)
+            logger.info("Respaldo diario publicado %s bytes=%s sha256=%s", diario.name, info["size_bytes"], info["sha256"])
+        if not semanal.exists():
+            os.link(diario, semanal)
+            logger.info("Respaldo semanal publicado %s desde %s", semanal.name, diario.name)
+        # Solo rotar archivos de estos periodos después de publicar ambas copias.
+        for frecuencia, conservar in (("diario", 7), ("semanal", 4)):
+            copias = sorted(f for f in directorio.glob(f"jacaranda_auto_{frecuencia}_*.sql")
+                            if _PROGRAMADO.fullmatch(f.name) and f.is_file() and not f.is_symlink())
+            for vencida in copias[:-conservar]:
+                vencida.unlink()
+
+
+async def programar_respaldos() -> None:
+    while True:
+        try:
+            await asyncio.to_thread(respaldar_periodo)
+        except Exception:
+            logger.exception("Falló el respaldo programado. Se reintentará en cinco minutos")
+        await asyncio.sleep(300)

@@ -1,15 +1,15 @@
 // Jacaranda Service Worker — Offline support
-const CACHE_NAME = 'jacaranda-v136';
+const CACHE_NAME = 'jacaranda-v137';
 const SHELL_WAIT_MS = 1800;
 const STATIC_FETCH_TIMEOUT_MS = 12000;
 const STATIC_ASSETS = [
   './',
   './index.html',
   './favicon.svg',
-  './js/jacaranda-core.js?v=jacaranda-v136',
-  './js/egresos-import.js?v=jacaranda-v136',
-  './js/asistencia.js?v=jacaranda-v136',
-  './css/asistencia.css?v=jacaranda-v136',
+  './js/jacaranda-core.js?v=jacaranda-v137',
+  './js/egresos-import.js?v=jacaranda-v137',
+  './js/asistencia.js?v=jacaranda-v137',
+  './css/asistencia.css?v=jacaranda-v137',
   './icons/lucide/download.svg',
   './icons/lucide/refresh-cw.svg',
   './icons/lucide/chevron-left.svg',
@@ -46,14 +46,23 @@ self.addEventListener('install', function(event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
       return Promise.all(STATIC_ASSETS.map(function(asset) {
-        return fetchStaticBounded(asset).then(function(response) {
-          if ((asset === './' || asset === './index.html') && !/text\/html/i.test(response.headers.get('Content-Type') || '')) return;
-          if (cacheableStaticResponse(response)) return cache.put(asset, response);
+        return fetchStaticBounded(asset).then(async function(response) {
+          if (!cacheableStaticResponse(response)) return;
+          if (asset === './' || asset === './index.html') {
+            if (!/text\/html/i.test(response.headers.get('Content-Type') || '') ||
+                !(await response.clone().text()).includes("var APP_BUILD = '" + CACHE_NAME + "';")) return;
+          }
+          return cache.put(asset, response);
         }).catch(function() { return null; });
       })).then(function() {
         return cache.match('./index.html').then(function(shell) { return shell || cache.match('./'); });
-      }).then(function(shell) {
+      }).then(async function(shell) {
         if (!shell) throw new Error('Keep the previous worker until an app shell is available');
+        var dependencies = STATIC_ASSETS.filter(function(asset) { return /\.(js|css)\?v=/.test(asset); });
+        var installed = await Promise.all(dependencies.map(function(asset) { return cache.match(asset); }));
+        if (installed.some(function(asset) { return !asset; })) throw new Error('Faltan archivos de la versión');
+        // Esta copia solo cambia al instalar una versión. Las navegaciones refrescan index.html.
+        await cache.put('./', shell.clone());
       });
     })
   );
@@ -127,7 +136,7 @@ self.addEventListener('activate', function(event) {
   event.waitUntil(
     caches.keys().then(function(names) {
       return Promise.all(
-        names.filter(function(n) { return n !== CACHE_NAME; })
+        names.filter(function(n) { return /^jacaranda-/.test(n) && n !== CACHE_NAME; })
              .map(function(n) { return caches.delete(n); })
       );
     }).then(function() {
@@ -137,6 +146,9 @@ self.addEventListener('activate', function(event) {
 });
 
 self.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'CONSULTAR_VERSION' && event.source) {
+    event.source.postMessage({type: 'VERSION_INSTALADA', build: CACHE_NAME});
+  }
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
@@ -174,6 +186,12 @@ self.addEventListener('fetch', function(event) {
   // HTML shell: network-first so UI changes do not get stuck behind old cache.
   if (event.request.mode === 'navigate' ||
       (event.request.headers.get('accept') || '').includes('text/html')) {
+    if (url.searchParams.get('_jc_build') === CACHE_NAME && event.request.mode === 'navigate') {
+      event.respondWith(caches.open(CACHE_NAME).then(function(cache) { return cache.match('./'); })
+        .then(function(installed) { return installed || fetchStaticBounded(event.request); })
+        .catch(shellUnavailableResponse));
+      return;
+    }
     event.respondWith(navigationResponse(event));
     return;
   }
