@@ -25,7 +25,7 @@
 #asistencia input,#asistencia select{width:100%;border:1px solid #d8ceca;background:#fff;color:#433e3b;padding:8px 10px;box-sizing:border-box}
 #asistencia .att-search{flex:1;min-width:180px}
 #asistencia .att-caveat{margin:0 0 16px;color:#686361;font-size:12px;line-height:1.5}
-#asistencia .att-tabs{display:flex;gap:0;border-bottom:1px solid #d8ceca;margin-bottom:0}
+#asistencia .att-tabs{display:flex;gap:0;border-bottom:1px solid #d8ceca;margin-bottom:16px}
 #asistencia .att-tabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;padding:12px 18px;color:#686361}
 #asistencia .att-tabs button[aria-selected=true]{color:#433e3b;border-bottom-color:#a87868;font-weight:700}
 #asistencia .att-feedback{margin:14px 0 0;padding:12px 14px;border-left:3px solid #a87868;background:#fff;font-size:14px}
@@ -52,6 +52,20 @@
 #asistencia dialog .att-heading{margin-bottom:16px}
 #asistencia dialog label{margin:16px 0}
 #asistencia dialog .att-actions{justify-content:flex-end;margin-top:22px}
+#asistencia .att-plan-toolbar{display:flex;align-items:end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:20px 0 12px}
+#asistencia .att-plan-toolbar .att-filters{margin:0}
+#asistencia #att-plan-actions{flex-wrap:wrap}
+#asistencia .att-plan-week-label{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;text-align:center}
+#asistencia .att-plan-week-label strong{font-size:14px}
+#asistencia .att-plan-heading{font-size:17px;margin:20px 0 8px}
+#asistencia .att-plan-day{text-transform:capitalize}
+#asistencia .att-plan-fields{border:0;padding:0;margin:0;min-width:0}
+#asistencia #att-plan-dialog{width:min(540px,calc(100% - 24px))}
+#asistencia #att-plan-dialog .att-actions{flex-wrap:wrap}
+#asistencia .att-plan-pair,#asistencia .att-plan-day-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#asistencia .att-plan-day-row{grid-template-columns:minmax(62px,.8fr) repeat(2,minmax(0,1fr));align-items:center;margin-bottom:6px;font-size:13px}
+#asistencia .att-plan-day-heading{color:#686361;font-size:12px}
+#asistencia .att-plan-day-row input,#asistencia .att-plan-pair input{min-width:0}
 @media(max-width:600px){
  #asistencia .att-heading{align-items:flex-start;gap:12px}
  #asistencia h1{font-size:23px}
@@ -71,4 +85,6 @@
  #asistencia td.att-empty{grid-column:1/-1;padding:20px 0!important}
  #asistencia .att-pager{font-size:12px}
  #asistencia .att-tabs button{flex:1;padding:12px 8px}
+ #asistencia .att-plan-toolbar .att-filters{display:flex;align-items:end}
+ #asistencia #att-plan-dialog{padding:16px}
 }

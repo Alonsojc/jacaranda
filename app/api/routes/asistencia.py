@@ -1,4 +1,4 @@
-"""Restricted attendance module. Never calculates wages or mutates the clock."""
+"""Restricted module for clock marks and staff schedules."""
 
 import csv
 import io
@@ -13,9 +13,14 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import require_permission, require_role
 from app.core.time_utils import operation_datetime
-from app.models.asistencia import ChecadaAsistencia, SincronizacionAsistencia, VinculoAsistencia
+from app.models.asistencia import (
+    ChecadaAsistencia, HorarioSemanalAsistencia, SincronizacionAsistencia,
+    TurnoFechaAsistencia, VinculoAsistencia,
+)
 from app.models.empleado import Empleado
 from app.models.usuario import RolUsuario, Usuario
+from app.schemas.asistencia import HorarioSemanalSave, PersonaHorarioCreate, RelojHorarioSave, TurnoFechaSave
+from app.services import asistencia_horarios_service as agenda
 from app.services import asistencia_service as service
 from app.services import crosschex_service as cloud
 from app.services.auditoria_service import registrar_evento
@@ -36,6 +41,57 @@ class LinkRequest(BaseModel):
     numero_reloj: str = Field(min_length=1, max_length=80)
     empleado_id: int = Field(gt=0)
     motivo: str = Field(min_length=3, max_length=300)
+
+
+@router.get("/horarios")
+def horarios(response: Response, desde: date, hasta: date,
+             db: Session = Depends(get_db), user: Usuario = Depends(read)):
+    response.headers["Cache-Control"] = "no-store"
+    return agenda.calendario(db, desde, hasta, cloud.configuration()["cuenta"])
+
+
+@router.post("/horarios/personas")
+def alta_persona_horario(body: PersonaHorarioCreate, response: Response,
+                         db: Session = Depends(get_db), user: Usuario = Depends(write)):
+    response.headers["Cache-Control"] = "no-store"
+    return agenda.alta_persona(db, body.nombre, body.numero_reloj, cloud.configuration()["cuenta"], user)
+
+
+@router.get("/horarios/personas/{persona_id}")
+def horario_persona(persona_id: int, fecha: date, response: Response,
+                    db: Session = Depends(get_db), user: Usuario = Depends(read)):
+    response.headers["Cache-Control"] = "no-store"
+    return agenda.configuracion(db, persona_id, fecha)
+
+
+@router.put("/horarios/personas/{persona_id}/reloj", status_code=204)
+def vincular_reloj_horario(persona_id: int, body: RelojHorarioSave,
+                           db: Session = Depends(get_db), user: Usuario = Depends(write)):
+    agenda.vincular_reloj(db, persona_id, body.numero_reloj, cloud.configuration()["cuenta"], user)
+    db.commit()
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})
+
+
+@router.put("/horarios/personas/{persona_id}/semanal", status_code=204)
+def guardar_horario_semanal(persona_id: int, body: HorarioSemanalSave,
+                            db: Session = Depends(get_db), user: Usuario = Depends(write)):
+    agenda.guardar(db, HorarioSemanalAsistencia, persona_id, {"vigente_desde": body.vigente_desde},
+                   body.model_dump(mode="json", exclude={"vigente_desde"}), user)
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})
+
+
+@router.put("/horarios/personas/{persona_id}/fechas/{fecha}", status_code=204)
+def guardar_turno_fecha(persona_id: int, fecha: date, body: TurnoFechaSave,
+                        db: Session = Depends(get_db), user: Usuario = Depends(write)):
+    agenda.guardar(db, TurnoFechaAsistencia, persona_id, {"fecha": fecha}, body.model_dump(mode="json"), user)
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})
+
+
+@router.delete("/horarios/personas/{persona_id}/fechas/{fecha}", status_code=204)
+def restaurar_turno_semanal(persona_id: int, fecha: date,
+                            db: Session = Depends(get_db), user: Usuario = Depends(write)):
+    agenda.restaurar_semanal(db, persona_id, fecha, user)
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})
 
 
 @router.get("/estado")

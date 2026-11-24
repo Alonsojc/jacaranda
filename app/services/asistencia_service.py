@@ -66,11 +66,13 @@ def import_records(db: Session, records, account, begin, end, omitted, user):
     return {"nuevas": new, "repetidas": repeated, "omitidas_otro_equipo": omitted}
 
 
-def query_records(db, account, begin, end, search=""):
+def query_records(db, account, begin, end, search="", *, numbers=None):
     stmt = select(ChecadaAsistencia).where(
         ChecadaAsistencia.cuenta == account,
         ChecadaAsistencia.fecha >= begin, ChecadaAsistencia.fecha < end,
     )
+    if numbers is not None:
+        stmt = stmt.where(ChecadaAsistencia.numero_reloj.in_(numbers))
     if search:
         matching_people = select(ChecadaAsistencia.numero_reloj).where(
             ChecadaAsistencia.cuenta == account,

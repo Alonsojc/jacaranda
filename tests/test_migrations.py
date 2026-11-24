@@ -10,7 +10,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC_HEAD = "c8d174a20e63 (head)"
+ALEMBIC_HEAD = "6f4dc29ed853 (head)"
 
 
 def _run(command: list[str], database_url: str) -> subprocess.CompletedProcess[str]:

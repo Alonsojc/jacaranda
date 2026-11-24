@@ -1,8 +1,8 @@
-"""Read-only clock evidence, deliberately separate from payroll attendance."""
+"""Clock evidence and staff schedules, separate from payroll attendance."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, Date, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -58,3 +58,38 @@ class SincronizacionAsistencia(Base):
     completada_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+
+
+class PersonaHorarioAsistencia(Base):
+    """Display identity used for scheduling, including staff without a payroll profile."""
+
+    __tablename__ = "asistencia_personas_horario"
+    __table_args__ = (UniqueConstraint("cuenta_reloj", "numero_reloj", name="uq_asistencia_horario_reloj"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(100))
+    nombre_normalizado: Mapped[str] = mapped_column(String(300), unique=True)
+    cuenta_reloj: Mapped[str | None] = mapped_column(String(140))
+    numero_reloj: Mapped[str | None] = mapped_column(String(80))
+
+
+class HorarioSemanalAsistencia(Base):
+    __tablename__ = "asistencia_horarios_semanales"
+
+    persona_id: Mapped[int] = mapped_column(ForeignKey("asistencia_personas_horario.id"), primary_key=True)
+    vigente_desde: Mapped[date] = mapped_column(Date, primary_key=True)
+    dias: Mapped[dict] = mapped_column(JSON)
+    modalidad: Mapped[str] = mapped_column(String(20))
+    nota: Mapped[str] = mapped_column(String(300))
+
+
+class TurnoFechaAsistencia(Base):
+    __tablename__ = "asistencia_turnos_fecha"
+    __table_args__ = (Index("ix_asistencia_turnos_fecha", "fecha"),)
+
+    persona_id: Mapped[int] = mapped_column(ForeignKey("asistencia_personas_horario.id"), primary_key=True)
+    fecha: Mapped[date] = mapped_column(Date, primary_key=True)
+    tipo: Mapped[str] = mapped_column(String(20))
+    horas: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))
+    modalidad: Mapped[str] = mapped_column(String(20))
+    nota: Mapped[str] = mapped_column(String(300))

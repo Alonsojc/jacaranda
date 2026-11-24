@@ -69,4 +69,7 @@ from app.models.pago_online import (  # noqa: F401
 )
 from app.models.whatsapp import WhatsAppWebhookEvent  # noqa: F401
 from app.models.notificacion import FCMToken  # noqa: F401
-from app.models.asistencia import ChecadaAsistencia, VinculoAsistencia, SincronizacionAsistencia  # noqa: F401
+from app.models.asistencia import (  # noqa: F401
+    ChecadaAsistencia, VinculoAsistencia, SincronizacionAsistencia,
+    PersonaHorarioAsistencia, HorarioSemanalAsistencia, TurnoFechaAsistencia,
+)
