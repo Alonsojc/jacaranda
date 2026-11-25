@@ -1,6 +1,9 @@
 (function () {
   'use strict';
   var state = {page:1, view:'diario', seq:0, connectionSeq:0, busy:false, total:0, ready:false, rows:[], filters:null, link:null};
+  var dias = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo'];
+  var plan = {seq:0, editorSeq:0, people:[], mode:'', week:'', saving:false};
+  var planTypes = {semanal:'Semanal', apoyo:'Apoyo', cobertura:'Cobertura', ajuste:'Cambio de horario', descanso:'Descanso', sin_turno:'Sin turno programado'};
   function el(id) { return document.getElementById('att-' + id); }
   function esc(value) { return escHtml(String(value == null ? '' : value)); }
   function canEdit() { return (window._permisos || {}).asistencia === 'editar'; }
@@ -63,6 +66,8 @@
     el('next').disabled = state.busy || state.page * 25 >= state.total;
     el('save-link').disabled = state.busy || !canEdit();
     document.querySelectorAll('#att-body [data-link]').forEach(function(button) { button.disabled = state.busy; });
+    var syncingWeek = state.busy && state.view === 'horarios';
+    el('plan').querySelectorAll('button,input').forEach(function(control) { control.disabled = syncingWeek; });
   }
   function clearRows() {
     state.rows = []; state.total = 0;
@@ -122,19 +127,32 @@
   }
   async function sync() {
     if (state.busy || !canEdit() || !state.ready) return;
+    var planning = state.view === 'horarios';
+    var feedback = planning ? function(text,error) { planMessage('plan-feedback',text,error); } : message;
     var filters;
-    try { filters = readFilters(); if(filters.days >= 7) throw new Error('Sincroniza hasta 7 d\u00edas por consulta.'); }
-    catch(error) { message(error.message,true); return; }
+    try {
+      if (planning) {
+        var today = fechaHoyISO(), week = plan.week, end = plusDays(week,6);
+        if (week > today) throw new Error('La semana seleccionada todavía no empieza.');
+        filters = {desde:week,hasta:end > today ? today : end};
+      } else {
+        filters = readFilters();
+        if (filters.days >= 7) throw new Error('Sincroniza hasta 7 d\u00edas por consulta.');
+      }
+    } catch(error) { feedback(error.message,true); return; }
     var seq = ++state.seq, session = _versionSesion;
-    state.busy = true; controls(); message('Consultando CrossChex...');
+    state.busy = true; controls(); feedback('Consultando CrossChex…');
     try {
       var result = await request('POST','/sincronizar',{desde:filters.desde,hasta:filters.hasta});
       if (!current(seq,session)) return;
+      if (planning) await loadPlan();
+      else { state.busy = false; await load(true); }
+      if (session !== _versionSesion) return;
       state.busy = false;
-      await load(true); await connection();
-      if (session === _versionSesion) message(result.nuevas + ' nuevas, ' + result.repetidas + ' repetidas y ' + result.omitidas_otro_equipo + ' de otros equipos omitidas.');
+      await connection();
+      if (session === _versionSesion) feedback(result.nuevas + ' nuevas, ' + result.repetidas + ' repetidas y ' + result.omitidas_otro_equipo + ' de otros equipos omitidas.');
     } catch (error) {
-      if (current(seq,session)) message(error.message || 'No se pudo sincronizar. Puedes reintentar sin duplicar checadas.',true);
+      if (current(seq,session)) feedback(error.message || 'No se pudo sincronizar. Puedes reintentar sin duplicar checadas.',true);
     } finally { if (session === _versionSesion) { state.busy = false; controls(); } }
   }
   async function openLink(index) {
@@ -169,15 +187,224 @@
     } catch(error) { if(current(seq,session)) el('link-error').textContent = error.message || 'No se pudo vincular.'; }
     finally { if(session === _versionSesion) { state.busy = false; controls(); } }
   }
+
+  function weekDay(isoDate) { return (new Date(isoDate + 'T00:00:00Z').getUTCDay() + 6) % 7; }
+  function plusDays(isoDate, days) {
+    var date = new Date(isoDate + 'T00:00:00Z');
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString().slice(0,10);
+  }
+  function planMessage(id, text, error) {
+    el(id).textContent = text || '';
+    el(id).classList.toggle('error', !!error);
+  }
+  function renderPlan(data) {
+    plan.people = data.personas;
+    el('plan-actions').hidden = !canEdit();
+    el('plan-link-clock').hidden = !data.personas.some(function(person) { return !person.numero_reloj; });
+    el('plan-totals').innerHTML = data.resumen.length ? data.resumen.map(function(row) {
+      var note = '';
+      if (!row.numero_reloj) note = '<small>Pendiente de vincular al checador</small>';
+      else if (row.dias_por_revisar) note = '<small>Días por revisar: ' + esc(row.dias_por_revisar) + '</small>';
+      return '<tr><td><strong>' + esc(row.nombre) + '</strong></td><td data-label="Programadas"><span class="att-time">' +
+        esc(row.minutos_programados ? durationLabel(row.minutos_programados * 60) : '0 h') + '</span></td>' +
+        '<td data-label="Registradas en el reloj"><span class="att-time">' + esc(durationLabel(row.segundos_registrados)) +
+        '</span>' + note + '</td></tr>';
+    }).join('') : '<tr><td colspan="3" class="att-empty">Agrega al equipo para ver los totales.</td></tr>';
+    el('plan-body').innerHTML = data.items.length ? data.items.map(function(row) {
+      var hours = row.horas ? esc(row.horas.entrada + '–' + row.horas.salida) : '—';
+      var note = row.nota ? '<small>' + esc(row.nota) + '</small>' : '';
+      var outside = row.horas && row.modalidad === 'compras' ? '<small>Incluye compras fuera del local</small>' : '';
+      var worked = '<span class="att-time att-duration">' + esc(durationLabel(row.segundos_registrados)) + '</span>' +
+        (row.revisar_marcas ? '<small>Revisar marcas</small>' : '');
+      var day = dias[weekDay(row.fecha)] + ', ' + dateLabel(row.fecha);
+      return '<tr><td><strong>' + esc(row.nombre) + '</strong></td><td data-label="Día" class="att-plan-day">' + esc(day) +
+        '</td><td data-label="Horario programado"><span class="att-time">' + hours + '</span>' + outside +
+        '</td><td data-label="Horas registradas">' + worked + '</td><td data-label="Tipo de turno">' +
+        esc(planTypes[row.tipo] || '') + note + '</td></tr>';
+    }).join('') : '<tr><td colspan="5" class="att-empty">Sin turnos ni checadas en esta semana.</td></tr>';
+  }
+  async function loadPlan() {
+    var selected = el('plan-week').value || fechaHoyISO();
+    el('plan-week').value = selected;
+    var seq = ++plan.seq, session = _versionSesion;
+    el('plan-actions').hidden = true;
+    el('plan-body').innerHTML = ''; el('plan-totals').innerHTML = '';
+    planMessage('plan-feedback','Cargando horarios…');
+    try {
+      var from = plusDays(selected, -weekDay(selected)), to = plusDays(from, 6);
+      plan.week = from;
+      el('plan-range').textContent = dateLabel(from) + ' – ' + dateLabel(to);
+      var data = await request('GET','/horarios?desde=' + encodeURIComponent(from) + '&hasta=' + encodeURIComponent(to));
+      if (seq !== plan.seq || session !== _versionSesion) return;
+      if (!Array.isArray(data.items) || !Array.isArray(data.personas) || !Array.isArray(data.resumen)) throw new Error('Respuesta de horarios no válida.');
+      renderPlan(data);
+      planMessage('plan-feedback','');
+      return true;
+    } catch (error) {
+      if (seq === plan.seq && session === _versionSesion) planMessage('plan-feedback',error.message || 'No se pudieron consultar los horarios.',true);
+    }
+  }
+  function shiftWeek(days) {
+    if (!plan.week) return;
+    el('plan-week').value = plusDays(plan.week, days);
+    loadPlan();
+  }
+  function showPlanField(id, show) {
+    el(id).hidden = !show;
+    el(id).disabled = !show;
+  }
+  function planSettings(data) {
+    var weekday = weekDay(el('plan-date').value);
+    var weekly = data.semanal || {};
+    var byDate = data.fecha;
+    var settings = (plan.mode === 'fecha' && byDate) || weekly;
+    dias.forEach(function(_, index) {
+      var hours = (weekly.dias || {})[index] || {};
+      el('plan-day-start-' + index).value = hours.entrada || '';
+      el('plan-day-end-' + index).value = hours.salida || '';
+    });
+    var hours = (byDate ? byDate.horas : (weekly.dias || {})[weekday]) || {};
+    el('plan-kind').value = byDate ? byDate.tipo : 'apoyo';
+    el('plan-start').value = hours.entrada || '';
+    el('plan-end').value = hours.salida || '';
+    el('plan-mode').value = settings.modalidad || 'sucursal';
+    el('plan-note').value = settings.nota || '';
+    el('plan-restore').hidden = plan.mode !== 'fecha' || !byDate;
+    planTimeFields();
+  }
+  function planTimeFields() {
+    var working = plan.mode !== 'fecha' || el('plan-kind').value !== 'descanso';
+    el('plan-hours').hidden = !working;
+    el('plan-start').disabled = !working;
+    el('plan-end').disabled = !working;
+    el('plan-mode-field').hidden = !working;
+  }
+  async function loadPlanSettings() {
+    var person = el('plan-person').value, date = el('plan-date').value;
+    var seq = ++plan.editorSeq, session = _versionSesion;
+    el('plan-save').disabled = true;
+    planMessage('plan-error','');
+    planSettings({});
+    if (!person || !date) return;
+    try {
+      var data = await request('GET','/horarios/personas/' + encodeURIComponent(person) + '?fecha=' + encodeURIComponent(date));
+      if (seq !== plan.editorSeq || session !== _versionSesion || !el('plan-dialog').open) return;
+      planSettings(data);
+      el('plan-save').disabled = false;
+    } catch (error) {
+      if (seq === plan.editorSeq && session === _versionSesion) planMessage('plan-error',error.message || 'No se pudo consultar el horario.',true);
+    }
+  }
+  function openPlan(mode) {
+    if (!canEdit() || state.busy) return;
+    if (mode !== 'persona' && !plan.people.length) {
+      planMessage('plan-feedback','Agrega una persona antes de programar su horario.',true);
+      return;
+    }
+    plan.mode = mode;
+    el('plan-title').textContent = {persona:'Agregar persona', reloj:'Vincular checador', semanal:'Horario semanal', fecha:'Turno por fecha'}[mode];
+    el('plan-date-label').textContent = mode === 'semanal' ? 'Vigente desde' : 'Fecha';
+    showPlanField('plan-new',mode === 'persona');
+    showPlanField('plan-clock',mode === 'persona' || mode === 'reloj');
+    el('plan-clock-select').hidden = mode !== 'reloj';
+    el('plan-clock-person').required = mode === 'reloj';
+    el('plan-clock-number').required = mode === 'reloj';
+    showPlanField('plan-editor',mode === 'semanal' || mode === 'fecha');
+    showPlanField('plan-days',mode === 'semanal');
+    showPlanField('plan-specific',mode === 'fecha');
+    el('plan-name').value = ''; el('plan-clock-number').value = '';
+    el('plan-date').value = el('plan-week').value || fechaHoyISO();
+    el('plan-person').innerHTML = '<option value="">Selecciona una persona</option>' + plan.people.map(function(person) {
+      return '<option value="' + esc(person.id) + '">' + esc(person.nombre) + '</option>';
+    }).join('');
+    el('plan-clock-person').innerHTML = '<option value="">Selecciona una persona</option>' + plan.people.filter(function(person) {
+      return !person.numero_reloj;
+    }).map(function(person) { return '<option value="' + esc(person.id) + '">' + esc(person.nombre) + '</option>'; }).join('');
+    el('plan-save').disabled = mode === 'semanal' || mode === 'fecha';
+    planMessage('plan-error','');
+    planSettings({});
+    el('plan-dialog').showModal();
+  }
+  function planHours(entrada, salida, day) {
+    if (!entrada || !salida || salida <= entrada) {
+      throw new Error('Indica una entrada y una salida posterior' + (day ? ' para el ' + day : '') + '.');
+    }
+    return {entrada:entrada,salida:salida};
+  }
+  async function savePlan(restore) {
+    if (!canEdit() || plan.saving || el('plan-save').disabled) return;
+    var session = _versionSesion;
+    var person = el('plan-person').value, date = el('plan-date').value;
+    var path = '/horarios/personas', method = 'PUT', body;
+    planMessage('plan-error','');
+    plan.saving = true; el('plan-save').disabled = true; el('plan-restore').disabled = true;
+    el('plan-editor').disabled = true;
+    el('plan-new').disabled = true; el('plan-clock').disabled = true;
+    try {
+      if (plan.mode === 'persona') {
+        method = 'POST'; body = {nombre:el('plan-name').value.trim(),numero_reloj:el('plan-clock-number').value.trim() || null};
+      } else if (plan.mode === 'reloj') {
+        path += '/' + encodeURIComponent(el('plan-clock-person').value) + '/reloj';
+        body = {numero_reloj:el('plan-clock-number').value.trim()};
+      } else {
+        path += '/' + encodeURIComponent(person);
+        body = {modalidad:el('plan-mode').value, nota:el('plan-note').value.trim()};
+        if (plan.mode === 'semanal') {
+          path += '/semanal'; body.vigente_desde = date; body.dias = {};
+          dias.forEach(function(dia, index) {
+            var entrada = el('plan-day-start-' + index).value, salida = el('plan-day-end-' + index).value;
+            if (entrada || salida) body.dias[index] = planHours(entrada, salida, dia);
+          });
+        } else {
+          path += '/fechas/' + encodeURIComponent(date);
+          if (restore) { method = 'DELETE'; body = undefined; }
+          else {
+            body.tipo = el('plan-kind').value;
+            body.horas = body.tipo === 'descanso' ? null : planHours(el('plan-start').value,el('plan-end').value);
+          }
+        }
+      }
+      await request(method,path,body);
+      if (session !== _versionSesion) return;
+      el('plan-dialog').close();
+      if (plan.mode === 'semanal' || plan.mode === 'fecha') el('plan-week').value = date;
+      if (await loadPlan()) planMessage('plan-feedback',{
+        persona:'Persona agregada.',reloj:'Checador vinculado.',semanal:'Horario guardado.',fecha:'Horario guardado.'
+      }[plan.mode]);
+    } catch (error) {
+      if (session === _versionSesion) planMessage('plan-error',error.message || 'No se pudo guardar.',true);
+    } finally {
+      if (session === _versionSesion) {
+        plan.saving = false; el('plan-save').disabled = false; el('plan-restore').disabled = false;
+        el('plan-new').disabled = plan.mode !== 'persona';
+        el('plan-clock').disabled = plan.mode !== 'persona' && plan.mode !== 'reloj';
+        el('plan-editor').disabled = plan.mode !== 'semanal' && plan.mode !== 'fecha';
+      }
+    }
+  }
+  function showAttendanceView(view) {
+    var scheduling = view === 'horarios';
+    el('records').hidden = scheduling;
+    el('export').hidden = scheduling;
+    el('plan').hidden = !scheduling;
+    el('tabs').querySelectorAll('button').forEach(function(tab) { tab.setAttribute('aria-selected',String(tab.dataset.view === view)); });
+  }
   window.initAsistencia = async function() {
+    if (state.view === 'horarios') return loadPlan();
     var session = _versionSesion;
     if (!el('from').value) { el('from').value = fechaHoyISO(); el('to').value = fechaHoyISO(); }
     await load(false);
     if (session === _versionSesion) await connection();
   };
   window.resetAsistencia = function() {
-    state.seq++; state.connectionSeq++; state.busy = false; state.ready = false; state.filters = null; state.link = null; state.page = 1;
+    state.seq++; state.connectionSeq++; state.busy = false; state.ready = false; state.filters = null; state.link = null; state.page = 1; state.view = 'diario';
     if (!el('body')) return;
+    plan.seq++; plan.editorSeq++; plan.people = []; plan.saving = false; plan.week = ''; plan.mode = '';
+    el('plan-dialog').close(); el('plan-person').innerHTML = ''; el('plan-clock-person').innerHTML = '';
+    el('plan-clock-number').value = ''; el('plan-body').innerHTML = ''; el('plan-totals').innerHTML = '';
+    el('plan-week').value = ''; el('plan-date').value = ''; el('plan-range').textContent = ''; el('plan-name').value = '';
+    planSettings({}); planMessage('plan-feedback',''); planMessage('plan-error',''); showAttendanceView('diario');
     clearRows(); el('dialog').close(); el('employee').innerHTML = ''; el('link-name').textContent = '';
     el('reason').value = ''; el('search').value = ''; el('from').value = ''; el('to').value = '';
     el('link-error').textContent = ''; el('last-sync').textContent = '';
@@ -192,9 +419,28 @@
       var button = event.target.closest('[data-view]');
       if (!button || state.busy) return;
       state.view = button.dataset.view;
-      el('tabs').querySelectorAll('button').forEach(function(tab) { tab.setAttribute('aria-selected',String(tab===button)); });
-      load(true);
+      showAttendanceView(state.view);
+      if (state.view === 'horarios') loadPlan();
+      else load(true);
     });
+    el('plan-days').innerHTML = '<div class="att-plan-day-row att-plan-day-heading"><span>Día</span><span>Entrada</span><span>Salida</span></div>' + dias.map(function(day, index) {
+      return '<div class="att-plan-day-row"><strong class="att-plan-day">' + day + '</strong>' +
+        '<input type="time" id="att-plan-day-start-' + index + '" aria-label="Entrada ' + day + '">' +
+        '<input type="time" id="att-plan-day-end-' + index + '" aria-label="Salida ' + day + '"></div>';
+    }).join('');
+    el('plan-filter').addEventListener('submit',function(event) { event.preventDefault(); loadPlan(); });
+    el('plan-prev').addEventListener('click',function() { shiftWeek(-7); });
+    el('plan-next').addEventListener('click',function() { shiftWeek(7); });
+    el('plan-actions').addEventListener('click',function(event) {
+      var button = event.target.closest('[data-plan]');
+      if (button) openPlan(button.dataset.plan);
+    });
+    ['plan-person','plan-date'].forEach(function(id) { el(id).addEventListener('change',loadPlanSettings); });
+    el('plan-kind').addEventListener('change',planTimeFields);
+    el('plan-close').addEventListener('click',function() { if (!plan.saving) el('plan-dialog').close(); });
+    el('plan-dialog').addEventListener('cancel',function(event) { if (plan.saving) event.preventDefault(); });
+    el('plan-form').addEventListener('submit',function(event) { event.preventDefault(); savePlan(false); });
+    el('plan-restore').addEventListener('click',function() { savePlan(true); });
     el('body').addEventListener('click',function(event) { var b=event.target.closest('[data-link]'); if(b) openLink(Number(b.dataset.link)); });
     el('link-form').addEventListener('submit',saveLink);
     el('close-link').addEventListener('click',function() { el('dialog').close(); });

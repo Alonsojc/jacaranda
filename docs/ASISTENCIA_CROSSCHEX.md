@@ -18,6 +18,16 @@ ventana de mantenimiento. No depende de Uber y no modifica ventas o inventario.
   nombre ni se crean empleados automaticamente. El endpoint del selector no
   expone salarios, CURP, RFC ni NSS.
 - Historial paginado, busqueda y CSV con proteccion contra formulas.
+- Calendario de horarios semanales con vigencia y turnos por fecha. En Horarios,
+  agrega el nombre que se usa para identificar a la persona en la operación y
+  captura sus días habituales. El turno por fecha tiene prioridad para apoyos,
+  coberturas, cambios y descansos. La modalidad de compras identifica días cuyo
+  horario incluye trabajo fuera del local.
+- Los horarios se muestran en Jacaranda y el reloj registra las marcas reales.
+  Vincula cada persona del calendario con su número del reloj para consultar en
+  la misma semana las horas programadas y las horas de pares completos. Las
+  marcas en días sin turno también cuentan. Desde Horarios, Sincronizar consulta
+  la semana seleccionada hasta hoy. Los turnos se administran en Jacaranda.
 - Administrador y gerente: consulta, importacion y vinculacion. Contador: lectura.
   Se requieren tanto rol autorizado como permiso del modulo `asistencia`.
 - Tablas independientes de `registros_asistencia` y `registros_nomina`. No genera
@@ -76,7 +86,7 @@ ventana de mantenimiento. No depende de Uber y no modifica ventas o inventario.
 ## Pendientes
 
 - Sincronizacion automatica con cursor/solapamiento, bloqueo distribuido y alertas.
-- Jornadas/turnos por persona, descansos y turnos nocturnos, tras definir reglas.
+- Turnos nocturnos y evaluación de puntualidad, tras definir reglas.
 - Correcciones con aprobacion, motivos y conservacion de las marcas originales.
 - Reporte de horas revisadas para nomina, nunca descuentos automaticos.
 

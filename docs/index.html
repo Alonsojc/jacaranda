@@ -801,10 +801,10 @@ table.tbl th,table.tbl td{font-size:.8rem}
 @media(max-width:600px){.eg-import-table{display:block;min-width:0;width:100%}.eg-import-table thead{display:none}.eg-import-table tbody{display:block}.eg-import-table tr{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:.1rem .25rem;border-bottom:1px solid var(--brd);padding:.6rem 0}.eg-import-table td{border:0;padding:.15rem .2rem;text-align:left}.eg-import-table td:nth-child(1){grid-column:1;grid-row:1 / 6}.eg-import-table td:nth-child(2){grid-column:2;grid-row:1;font-size:.72rem;color:var(--mut)}.eg-import-table td:nth-child(2)::before{content:'Fila '}.eg-import-table td:nth-child(3){grid-column:3;grid-row:1;font-size:.72rem;text-align:right}.eg-import-table td:nth-child(4){grid-column:2 / 4;grid-row:2;min-width:0;max-width:none}.eg-import-table td:nth-child(5){grid-column:3;grid-row:3;text-align:right;font-weight:700}.eg-import-table td:nth-child(6){grid-column:2;grid-row:3}.eg-import-table td:nth-child(7){grid-column:2 / 4;grid-row:4;font-size:.75rem;color:var(--mut)}.eg-import-table td:nth-child(7)::before{content:'Categoria: '}.eg-import-table td:nth-child(8){grid-column:2 / 4;grid-row:5}.eg-import-nota{max-width:none}}
 @media(max-width:600px){.eg-import-foto tr{grid-template-columns:26px minmax(0,1fr)}.eg-import-foto td:nth-child(n+2){grid-column:2;min-width:0;text-align:left;white-space:normal}.eg-import-foto td:nth-child(1){grid-row:1 / 8}.eg-import-foto td:nth-child(2){grid-row:1}.eg-import-foto td:nth-child(3){grid-row:2}.eg-import-foto td:nth-child(4){grid-row:3}.eg-import-foto td:nth-child(5){grid-row:4}.eg-import-foto td:nth-child(6){grid-row:5}.eg-import-foto td:nth-child(7){grid-row:6}.eg-import-foto td:nth-child(8){grid-row:7}.eg-import-foto td:nth-child(3)::before{content:'Fecha'}.eg-import-foto td:nth-child(4)::before{content:'Proveedor'}.eg-import-foto td:nth-child(5)::before{content:'Monto MXN'}.eg-import-foto td:nth-child(6)::before{content:'Forma de pago'}.eg-import-foto td:nth-child(n+3):nth-child(-n+6)::before{display:block;font-size:.72rem;font-weight:400;color:var(--mut);margin-bottom:.2rem}}
 </style>
-<script defer src="js/jacaranda-core.js?v=jacaranda-v137"></script>
-<script defer src="js/egresos-import.js?v=jacaranda-v137"></script>
-<link rel="stylesheet" href="css/asistencia.css?v=jacaranda-v137">
-<script defer src="js/asistencia.js?v=jacaranda-v137"></script>
+<script defer src="js/jacaranda-core.js?v=jacaranda-v138"></script>
+<script defer src="js/egresos-import.js?v=jacaranda-v138"></script>
+<link rel="stylesheet" href="css/asistencia.css?v=jacaranda-v138">
+<script defer src="js/asistencia.js?v=jacaranda-v138"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 </head>
@@ -1603,7 +1603,13 @@ table.tbl th,table.tbl td{font-size:.8rem}
       <button type="button" id="att-sync" class="att-primary" disabled><img src="icons/lucide/refresh-cw.svg" alt="">Sincronizar</button>
     </div>
   </div>
+  <div class="att-tabs" id="att-tabs" role="tablist" aria-label="Vista de asistencia">
+    <button type="button" role="tab" aria-selected="true" data-view="diario">Resumen diario</button>
+    <button type="button" role="tab" aria-selected="false" data-view="marcas">Checadas originales</button>
+    <button type="button" role="tab" aria-selected="false" data-view="horarios">Horarios</button>
+  </div>
   <div class="att-connection"><span id="att-status" class="att-status">Conexi&oacute;n pendiente</span><span id="att-last-sync">Sin sincronizaciones</span></div>
+  <section id="att-records" aria-label="Checadas">
   <div class="att-metrics">
     <div class="att-metric"><span>Checadas del periodo</span><strong id="att-marks">&mdash;</strong></div>
     <div class="att-metric"><span>Personas con checadas</span><strong id="att-people">&mdash;</strong></div>
@@ -1616,10 +1622,6 @@ table.tbl th,table.tbl td{font-size:.8rem}
     <button type="submit">Consultar</button>
   </form>
   <p class="att-caveat">Horas preliminares: pares completos del mismo d&iacute;a. Cruces de medianoche y marcas incompletas requieren revisi&oacute;n.</p>
-  <div class="att-tabs" id="att-tabs" role="tablist" aria-label="Vista de asistencia">
-    <button type="button" role="tab" aria-selected="true" data-view="diario">Resumen diario</button>
-    <button type="button" role="tab" aria-selected="false" data-view="marcas">Checadas originales</button>
-  </div>
   <p class="att-feedback" id="att-feedback" role="status" aria-live="polite"></p>
   <div class="att-table-wrap"><table aria-label="Registros de asistencia"><thead id="att-head"></thead><tbody id="att-body"><tr><td colspan="8" class="att-empty">Sin datos cargados</td></tr></tbody></table></div>
   <div class="att-pager"><span id="att-range"></span><div class="att-pager-actions">
@@ -1627,6 +1629,71 @@ table.tbl th,table.tbl td{font-size:.8rem}
     <span id="att-page"></span>
     <button type="button" id="att-next" class="att-icon" title="P&aacute;gina siguiente" aria-label="P&aacute;gina siguiente" disabled><img src="icons/lucide/chevron-right.svg" alt=""></button>
   </div></div>
+  </section>
+  <section id="att-plan" aria-label="Horarios programados" hidden>
+    <div class="att-plan-toolbar">
+      <form id="att-plan-filter" class="att-filters">
+        <label>Fecha de la semana<input id="att-plan-week" type="date" required></label>
+        <button type="submit">Ver semana</button>
+      </form>
+      <div id="att-plan-actions" class="att-actions" hidden>
+        <button type="button" data-plan="persona">Agregar persona</button>
+        <button type="button" data-plan="reloj" id="att-plan-link-clock" hidden>Vincular checador</button>
+        <button type="button" data-plan="semanal">Horario semanal</button>
+        <button type="button" data-plan="fecha" class="att-primary">Turno por fecha</button>
+      </div>
+    </div>
+    <div class="att-plan-week-label">
+      <button type="button" id="att-plan-prev" class="att-icon" aria-label="Semana anterior"><img src="icons/lucide/chevron-left.svg" alt=""></button>
+      <strong id="att-plan-range" aria-live="polite"></strong>
+      <button type="button" id="att-plan-next" class="att-icon" aria-label="Semana siguiente"><img src="icons/lucide/chevron-right.svg" alt=""></button>
+    </div>
+    <p id="att-plan-feedback" class="att-feedback" role="status" aria-live="polite"></p>
+    <h2 class="att-plan-heading">Totales de la semana</h2>
+    <div class="att-table-wrap">
+      <table aria-label="Horas por persona">
+        <thead><tr><th>Persona</th><th>Programadas</th><th>Registradas en el reloj</th></tr></thead>
+        <tbody id="att-plan-totals"></tbody>
+      </table>
+    </div>
+    <h2 class="att-plan-heading">Detalle por día</h2>
+    <div class="att-table-wrap">
+      <table aria-label="Turnos de la semana">
+        <thead><tr><th>Persona</th><th>Día</th><th>Horario programado</th><th>Horas registradas</th><th>Tipo de turno</th></tr></thead>
+        <tbody id="att-plan-body"></tbody>
+      </table>
+    </div>
+  </section>
+  <dialog id="att-plan-dialog" aria-labelledby="att-plan-title">
+    <form id="att-plan-form">
+      <div class="att-heading"><h2 id="att-plan-title">Horario</h2><button type="button" class="att-icon" id="att-plan-close" aria-label="Cerrar"><img src="icons/lucide/x.svg" alt=""></button></div>
+      <fieldset id="att-plan-new" class="att-plan-fields" hidden disabled>
+        <label>Nombre para el calendario<input id="att-plan-name" maxlength="100" required></label>
+      </fieldset>
+      <fieldset id="att-plan-clock" class="att-plan-fields" hidden disabled>
+        <label id="att-plan-clock-select">Persona<select id="att-plan-clock-person"></select></label>
+        <label>Número del checador<input id="att-plan-clock-number" maxlength="80" autocomplete="off"></label>
+      </fieldset>
+      <fieldset id="att-plan-editor" class="att-plan-fields" hidden disabled>
+        <div class="att-plan-pair">
+          <label>Persona<select id="att-plan-person" required></select></label>
+          <label><span id="att-plan-date-label">Fecha</span><input id="att-plan-date" type="date" required></label>
+        </div>
+        <fieldset id="att-plan-days" class="att-plan-fields" aria-label="Días de trabajo" hidden disabled></fieldset>
+        <fieldset id="att-plan-specific" class="att-plan-fields" hidden disabled>
+          <label>Tipo de turno<select id="att-plan-kind"><option value="apoyo">Apoyo</option><option value="cobertura">Cobertura</option><option value="ajuste">Cambio de horario</option><option value="descanso">Descanso</option></select></label>
+          <div id="att-plan-hours" class="att-plan-pair">
+            <label>Entrada<input id="att-plan-start" type="time" required></label>
+            <label>Salida<input id="att-plan-end" type="time" required></label>
+          </div>
+        </fieldset>
+        <label id="att-plan-mode-field">Modalidad<select id="att-plan-mode"><option value="sucursal">En el local</option><option value="compras">Incluye compras fuera del local</option></select></label>
+        <label>Nota<input id="att-plan-note" maxlength="300" placeholder="Opcional"></label>
+      </fieldset>
+      <p class="att-feedback" id="att-plan-error" role="alert"></p>
+      <div class="att-actions"><button type="button" id="att-plan-restore" hidden>Restaurar horario semanal</button><button type="submit" id="att-plan-save" class="att-primary">Guardar</button></div>
+    </form>
+  </dialog>
   <dialog id="att-dialog" aria-labelledby="att-link-title">
     <form id="att-link-form">
       <div class="att-heading"><h2 id="att-link-title">Vincular persona</h2><button type="button" class="att-icon" id="att-close-link" aria-label="Cerrar" title="Cerrar"><img src="icons/lucide/x.svg" alt=""></button></div>
@@ -3434,7 +3501,7 @@ function actionBtn(label, icon, onclick, tone) {
 }
 var API_URL = 'https://web-production-b51486.up.railway.app';
 var APP_URL = 'https://alonsojc.github.io/jacaranda/';
-var APP_BUILD = 'jacaranda-v137';
+var APP_BUILD = 'jacaranda-v138';
 var APP_TIMEZONE = 'America/Mexico_City';
 var APP_DEFAULT_PAGE = 'pos';
 var MODULOS_DESACTIVADOS = {
